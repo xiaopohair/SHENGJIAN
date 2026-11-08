@@ -13,3 +13,5 @@ brand/tools/.stage/
 
 # Agent session uploads
 .dsh-uploads/
+
+__pycache__/

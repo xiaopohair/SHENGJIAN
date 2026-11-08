@@ -28,6 +28,7 @@ import json
 import lzma
 import shutil
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -124,19 +125,26 @@ def verify(path: Path, expected: str, label: str) -> bool:
     return True
 
 
-def download(url: str, target: Path) -> bool:
+def download(url: str, target: Path, attempts: int = 4) -> bool:
     say(f"[ .. ] 下载 {url}")
     tmp = target.with_suffix(target.suffix + ".part")
-    try:
-        with urllib.request.urlopen(url, timeout=60) as response, tmp.open("wb") as out:
-            shutil.copyfileobj(response, out)
-    except (urllib.error.URLError, OSError) as exc:
-        say(f"[fail] 下载失败: {exc}")
-        tmp.unlink(missing_ok=True)
-        return False
-    tmp.replace(target)
-    say(f"[ ok ] 下载完成 {target.stat().st_size} 字节")
-    return True
+    for attempt in range(1, attempts + 1):
+        try:
+            with urllib.request.urlopen(url, timeout=120) as response, tmp.open("wb") as out:
+                shutil.copyfileobj(response, out)
+        except (urllib.error.URLError, OSError) as exc:
+            tmp.unlink(missing_ok=True)
+            if attempt < attempts:
+                delay = min(2**attempt, 15)
+                say(f"[warn] 下载失败（第 {attempt}/{attempts} 次）: {exc}；{delay}s 后重试")
+                time.sleep(delay)
+                continue
+            say(f"[fail] 下载失败: {exc}")
+            return False
+        tmp.replace(target)
+        say(f"[ ok ] 下载完成 {target.stat().st_size} 字节")
+        return True
+    return False
 
 
 def extract(source: Path, target: Path) -> bool:
