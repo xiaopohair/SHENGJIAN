@@ -20,7 +20,7 @@
 ## 当前状态
 
 - 版本：`0.1.0`（首个公开版本）
-- 本地 Windows x64 发布包：0.1.0 已本地构建（未签名、未发布），清单见 `release/0.1.0/manifest.json`
+- GitHub Release 0.1.0：已发布（CI 构建、未签名），安装包 `shengjian_0.1.0_x64-setup.exe`；清单见 `release/0.1.0/manifest.json`
 - 代码签名：已接入 **SignPath Foundation** 免费开源签名（release workflow 内置，配置后自动启用）；见 [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md) 与 [docs/signing.md](docs/signing.md)
 - 真机 RC003 已验证：连接、语音、按键手势、profile 自动切换、`run-macro`、返回键增强捕获
 - 本地发布清单：`release/0.1.0/manifest.json`
@@ -188,17 +188,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -
 
 两个脚本从 `src-tauri/tauri.conf.json` 读取 `productName` 再拼安装包路径，品牌改名后不需要改脚本。
 
-最近一次本地构建（0.1.0）：
+GitHub Release 0.1.0（CI 构建）：
 
 ```text
 version=0.1.0
-size=10785048 bytes
-sha256=072221ABB1FAC0B1BF79FE2B93C31525B934A36E1A82AEEE364E845E22CDC2FC
+size=10785931 bytes
+sha256=60A7FA3CB06B64E729F67FFADD7D0409A37F2BAB9157BCF8BFC95BDDF82C86ED
 signed=false
-published=false
+published=true
 ```
 
-0.1.0 的 SHA-256 同步写入 `docs/release-notes-0.1.0.md` 与 `release/0.1.0/SHA256SUMS`。
+0.1.0 的 SHA-256 同步写入 `docs/release-notes-0.1.0.md` 与 `release/0.1.0/SHA256SUMS`。该清单对应 GitHub Release 的 CI 构建产物；本地重新构建的包大小/哈希可能不同。
 
 ## GitHub 发布准备
 
@@ -218,7 +218,7 @@ published=false
 ## 已知限制
 
 - 仅 Windows x64；ARM64 包未提供
-- 本地包未签名、未发布；CI 签名需仓库公开并通过 SignPath 审核
+- 0.1.0 为未签名发布包；CI 签名需仓库公开并通过 SignPath 审核
 - 无自动更新
 - helper 首次安装需要 UAC
 - RC001/ARN9 身份映射仍 deferred，见 [docs/device-identity.md](docs/device-identity.md)

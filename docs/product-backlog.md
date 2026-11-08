@@ -97,7 +97,7 @@
 - [x] 启动按键宿主进程，F5 抑制钩子实际安装
 - [x] 本地 CI 等价检查（fmt / workspace tests / desktop tests / frontend tests / build）
 - [x] GitHub remote 配置、push、tag `v0.1.0`
-- [ ] GitHub Actions 实跑（release workflow；需要推送 tag 后触发与运行权限）
+- [x] GitHub Actions 实跑：core-ci 与 release workflow 均通过，v0.1.0 Release 已发布
 - [x] 真机统一验收（2026-11-08 确认通过）
 
 ## 待排期

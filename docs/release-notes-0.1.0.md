@@ -17,20 +17,20 @@
 
 ```text
 shengjian_0.1.0_x64-setup.exe
-大小：10785048 bytes
-SHA-256：072221ABB1FAC0B1BF79FE2B93C31525B934A36E1A82AEEE364E845E22CDC2FC
+大小：10785931 bytes
+SHA-256：60A7FA3CB06B64E729F67FFADD7D0409A37F2BAB9157BCF8BFC95BDDF82C86ED
 ```
 
 SHA-256 同时写入 `release/0.1.0/SHA256SUMS`，可用 `scripts/verify-release.ps1 -Version 0.1.0` 复核。
 
-安装包当前**未签名**，SmartScreen 可能提示；后续通过 SignPath Foundation 签名，见 `CODE_SIGNING_POLICY.md` 与 `docs/signing.md`。
+GitHub Release：<https://github.com/xiaopohair/SHENGJIAN/releases/tag/v0.1.0>。安装包当前**未签名**，SmartScreen 可能提示；后续通过 SignPath Foundation 签名，见 `CODE_SIGNING_POLICY.md` 与 `docs/signing.md`。
 
 RC003 的返回键 / 音量键增强捕获需要一个提权 helper：首次在连接页勾选并点击「安装/更新 helper」时确认一次 UAC。
 
 ## 已知限制
 
 - 仅 Windows x64；未提供 ARM64 包。
-- 本地包未签名、未发布；无自动更新。
+- 0.1.0 为未签名发布包；无自动更新。
 - RC001 / ARN9 设备身份映射尚未支持，见 `docs/device-identity.md`。
 - 无第二个客户端 IPC；桌面宿主为 in-process。
 
