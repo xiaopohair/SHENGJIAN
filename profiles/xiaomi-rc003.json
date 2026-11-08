@@ -1,0 +1,76 @@
+{
+  "$schema": "./schema.json",
+  "schemaVersion": 1,
+  "id": "xiaomi-rc003",
+  "displayName": "Xiaomi Bluetooth Voice Remote 2 Pro / RC003",
+  "vendor": "Xiaomi",
+  "model": "RC003",
+  "support": {
+    "status": "implemented",
+    "notes": "Migrated Windows Rust implementation is real-device verified for RC003 voice and ordinary buttons. macOS upstream is implemented. This profile records device facts, not current runtime connection state."
+  },
+  "identity": {
+    "bluetoothNames": [
+      "MI RC",
+      "Xiaomi Bluetooth Remote 2 Pro",
+      "小米蓝牙语音遥控器 2 Pro"
+    ],
+    "modelNumbers": ["RC003"],
+    "hid": {
+      "vendorId": 10007,
+      "productId": 12984
+    }
+  },
+  "transports": [
+    {
+      "kind": "ble-gatt",
+      "role": "voice-input",
+      "status": "implemented",
+      "notes": "ATVV capability negotiation, voice control and 16 kHz IMA/DVI ADPCM stream."
+    },
+    {
+      "kind": "bluetooth-hid",
+      "role": "button-input",
+      "status": "implemented",
+      "notes": "Raw Input/HID on Windows; IOHID on macOS. Voice key is handled by the voice path, not the mapping engine."
+    }
+  ],
+  "capabilities": [
+    "voice-capture",
+    "press-to-talk",
+    "button-input",
+    "host-key-mapping",
+    "gain-control",
+    "device-status",
+    "enhanced-key-capture"
+  ],
+  "protocols": [
+    {
+      "id": "android-tv-voice-over-ble",
+      "status": "implemented",
+      "notes": "ATVV service with control/audio characteristics and balanced session start/stop."
+    }
+  ],
+  "platforms": [
+    {
+      "platform": "macos",
+      "status": "implemented",
+      "notes": "Implemented and real-device accepted in the upstream macOS products. Not this Windows repository."
+    },
+    {
+      "platform": "windows",
+      "status": "implemented",
+      "notes": "Migrated Windows Rust implementation. Return/volume enhanced capture is optional and depends on the native helper.",
+      "features": ["enhanced-key-capture"]
+    },
+    {
+      "platform": "linux",
+      "status": "planned",
+      "notes": "No Linux adapter has been implemented."
+    }
+  ],
+  "sources": [
+    "https://github.com/HD838A/remote-mic-app",
+    "https://github.com/nijez/open-voice-bridge"
+  ]
+}

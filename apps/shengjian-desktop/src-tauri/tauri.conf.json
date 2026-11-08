@@ -1,0 +1,59 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "声键",
+  "version": "0.1.0",
+  "identifier": "app.shengjian.desktop",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeBuildCommand": "pnpm prepare:helper && pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "声键",
+        "width": 1000,
+        "height": 720,
+        "minWidth": 860,
+        "minHeight": 600,
+        "decorations": false,
+        "shadow": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost http://127.0.0.1:1420 ws://127.0.0.1:1420; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "installerHooks": "windows/installer-hooks.nsh",
+        "installerIcon": "icons/icon.ico",
+        "headerImage": "windows/installer-header.bmp",
+        "sidebarImage": "windows/installer-sidebar.bmp",
+        "uninstallerHeaderImage": "windows/installer-header.bmp",
+        "languages": ["English", "SimpChinese"]
+      }
+    },
+    "resources": [
+      "resources/rc003/shengjian-helper.exe",
+      "resources/rc003/frida-gadget.dll",
+      "resources/licenses/LICENSE",
+      "resources/licenses/LICENSE-OFL.txt",
+      "resources/licenses/ATTRIBUTION.md",
+      "resources/licenses/THIRD_PARTY_NOTICES.md",
+      "resources/licenses/COPYING.frida-gadget"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ]
+  }
+}

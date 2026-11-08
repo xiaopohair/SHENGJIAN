@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" role="img" aria-label="声键（托盘·墨）">
+  <title>声键（托盘·墨）</title>
+  <svg x="1.21" y="2.4" width="13.58" height="11.2" viewBox="12 14 40 33" style="color:#0B0F14">
+  <defs>
+    <mask id="sj-cut-tray" maskUnits="userSpaceOnUse" x="10" y="12" width="44" height="37">
+      <path d="M 24.50 14.00 L 39.50 14.00 Q 46.00 14.00 47.16 20.40 L 50.84 40.60 Q 52.00 47.00 45.50 47.00 L 18.50 47.00 Q 12.00 47.00 13.16 40.60 L 16.84 20.40 Q 18.00 14.00 24.50 14.00 Z" fill="#fff"/>
+      <rect x="18.0" y="25.0" width="7.0" height="11.0" rx="3.5" fill="#000"/>
+      <rect x="28.5" y="20.5" width="7.0" height="20.0" rx="3.5" fill="#000"/>
+      <rect x="39.0" y="23.5" width="7.0" height="14.0" rx="3.5" fill="#000"/>
+    </mask>
+  </defs>
+  <g mask="url(#sj-cut-tray)"><path d="M 24.50 14.00 L 39.50 14.00 Q 46.00 14.00 47.16 20.40 L 50.84 40.60 Q 52.00 47.00 45.50 47.00 L 18.50 47.00 Q 12.00 47.00 13.16 40.60 L 16.84 20.40 Q 18.00 14.00 24.50 14.00 Z" fill="currentColor"/></g>
+  </svg>
+</svg>

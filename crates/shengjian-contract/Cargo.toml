@@ -1,0 +1,11 @@
+[package]
+name = "shengjian-contract"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Language-neutral device profiles, logical events and errors for Shengjian"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

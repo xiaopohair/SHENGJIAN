@@ -1,0 +1,15 @@
+[package]
+name = "shengjian-profiles"
+version = "0.0.0"
+edition = "2021"
+license = "GPL-3.0-only"
+publish = false
+description = "按应用切换的遥控器键位方案组件"
+
+[dependencies]
+shengjian-windows = { path = "../shengjian-windows" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[features]
+runtime-simulation = []

@@ -1,0 +1,65 @@
+name: core-ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Check
+        run: cargo check --workspace
+      - name: Test
+        run: cargo test --workspace
+      - name: Helper test
+        working-directory: helper/rc003
+        run: |
+          cargo fmt -- --check
+          cargo test
+
+  desktop:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: apps/shengjian-desktop/pnpm-lock.yaml
+      - name: Frontend install
+        working-directory: apps/shengjian-desktop
+        run: pnpm install --frozen-lockfile
+      - name: Frontend test
+        working-directory: apps/shengjian-desktop
+        run: pnpm test
+      - name: Frontend build
+        working-directory: apps/shengjian-desktop
+        run: pnpm build
+      - name: Build helper
+        working-directory: helper/rc003
+        run: cargo build --release
+      - name: Fetch Frida gadget
+        working-directory: helper/rc003
+        run: python vendor/fetch_frida_gadget.py
+      - name: Prepare helper resources
+        working-directory: apps/shengjian-desktop
+        run: pnpm prepare:helper
+      - name: Desktop Rust format
+        working-directory: apps/shengjian-desktop/src-tauri
+        run: cargo fmt -- --check
+      - name: Desktop Rust test
+        working-directory: apps/shengjian-desktop/src-tauri
+        run: cargo test

@@ -1,0 +1,70 @@
+{
+  "$schema": "./schema.json",
+  "schemaVersion": 1,
+  "id": "xiaomi-rc001",
+  "displayName": "Xiaomi Bluetooth Voice Remote 2 / RC001",
+  "vendor": "Xiaomi",
+  "model": "RC001",
+  "support": {
+    "status": "research",
+    "notes": "Draft profile. The Windows product supports RC001 voice and basic buttons, but the profile identity is not reconciled with upstream ARN9 yet; it must not be used for runtime matching until the GATT Model Number and HID identity are verified."
+  },
+  "identity": {
+    "bluetoothNames": [
+      "Xiaomi Bluetooth Remote 2",
+      "小米蓝牙语音遥控器 2"
+    ],
+    "modelNumbers": ["RC001"]
+  },
+  "transports": [
+    {
+      "kind": "ble-gatt",
+      "role": "voice-input",
+      "status": "implemented",
+      "notes": "The Windows product uses ATVV voice for this model. The exact capability variant still needs profile-level verification."
+    },
+    {
+      "kind": "bluetooth-hid",
+      "role": "button-input",
+      "status": "research",
+      "notes": "Basic buttons work on Windows, but the HID VID/PID and the relation to upstream ARN9 are not yet confirmed."
+    }
+  ],
+  "capabilities": [
+    "voice-capture",
+    "press-to-talk",
+    "button-input",
+    "host-key-mapping",
+    "gain-control",
+    "device-status"
+  ],
+  "protocols": [
+    {
+      "id": "android-tv-voice-over-ble",
+      "status": "research",
+      "notes": "ATVV is used by the Windows product; model-specific capability details are pending profile verification."
+    }
+  ],
+  "platforms": [
+    {
+      "platform": "macos",
+      "status": "planned",
+      "notes": "Upstream tracks the ordinary model as ARN9. The RC001/ARN9 relationship must be verified before claiming macOS support under this ID."
+    },
+    {
+      "platform": "windows",
+      "status": "implemented",
+      "notes": "Basic voice and button support exists in the migrated Windows implementation; this profile is not yet a runtime source of truth."
+    },
+    {
+      "platform": "linux",
+      "status": "planned",
+      "notes": "No Linux adapter has been implemented."
+    }
+  ],
+  "sources": [
+    "https://github.com/HD838A/remote-mic-app",
+    "https://github.com/nijez/open-voice-bridge"
+  ],
+  "notes": "The current Rust function remote_model_from_model_number maps ARN9 to Rc003; that conflicts with the upstream ARN9 profile. Resolve this before promoting the profile to implemented."
+}

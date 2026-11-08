@@ -1,0 +1,253 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Empty unless the repository has been configured for SignPath; signing steps
+  # are skipped and the workflow produces unsigned artifacts.
+  SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+  SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+  SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+  SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+  SIGNPATH_ARTIFACT_CONFIGURATION_SLUG: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+
+jobs:
+  build-release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Resolve version
+        id: version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          if ($tag -notmatch '^v(.+)$') {
+            throw "release tag must start with v: $tag"
+          }
+          $version = $Matches[1]
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Verify manifest version
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $pkg = Get-Content apps/shengjian-desktop/package.json -Raw | ConvertFrom-Json
+          $tauri = Get-Content apps/shengjian-desktop/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
+          if ($pkg.version -ne $version) { throw "package.json version $($pkg.version) != tag $version" }
+          if ($tauri.version -ne $version) { throw "tauri.conf.json version $($tauri.version) != tag $version" }
+
+      # The installer file name embeds the Tauri productName, which is a
+      # user-facing brand name (currently 声键). Read it from tauri.conf.json at
+      # runtime, then ship the file under the ASCII name
+      # "shengjian_<version>_x64-setup.exe" (see scripts/normalize-installer-name.ps1).
+      - name: Resolve installer path
+        id: package
+        shell: pwsh
+        run: |
+          $configPath = "apps/shengjian-desktop/src-tauri/tauri.conf.json"
+          $tauri = Get-Content $configPath -Raw -Encoding utf8 | ConvertFrom-Json
+          if (-not $tauri.productName) { throw "productName is missing in $configPath" }
+          $version = "${{ steps.version.outputs.version }}"
+          $bundleDir = "apps/shengjian-desktop/src-tauri/target/release/bundle/nsis"
+          $builtInstaller = "$bundleDir/$($tauri.productName)_${version}_x64-setup.exe"
+          $installer = "$bundleDir/shengjian_${version}_x64-setup.exe"
+          Write-Output "productName=$($tauri.productName)"
+          Write-Output "builtInstaller=$builtInstaller"
+          Write-Output "installer=$installer"
+          [IO.File]::AppendAllText($env:GITHUB_OUTPUT, "productName=$($tauri.productName)`nbuiltInstaller=$builtInstaller`ninstaller=$installer`n", (New-Object System.Text.UTF8Encoding($false)))
+
+      - name: Install dependencies
+        working-directory: apps/shengjian-desktop
+        run: pnpm install --frozen-lockfile
+
+      - name: Build helper
+        working-directory: helper/rc003
+        run: cargo build --release
+
+      - name: Fetch Frida gadget
+        working-directory: helper/rc003
+        run: python vendor/fetch_frida_gadget.py
+
+      - name: Test core
+        run: cargo test --workspace
+
+      - name: Test helper
+        working-directory: helper/rc003
+        run: cargo test
+
+      - name: Test desktop
+        working-directory: apps/shengjian-desktop
+        run: pnpm test
+
+      - name: Build application (no bundles)
+        working-directory: apps/shengjian-desktop
+        run: pnpm tauri build --no-bundle
+
+      # Running the bundler once embeds Tauri's bundle type into the application
+      # executable, so the signed executable is the same executable that ends up
+      # in the installer.
+      - name: Build installer (unsigned)
+        working-directory: apps/shengjian-desktop
+        run: pnpm tauri bundle
+
+      # Normalize the file name before handing it to SignPath, so the signing
+      # service sees the ASCII download name instead of 「声键」.
+      - name: Normalize installer file name (unsigned)
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts/normalize-installer-name.ps1 -Version "${{ steps.version.outputs.version }}"
+
+      - name: Upload unsigned application executable
+        id: upload-unsigned-app
+        if: env.SIGNPATH_API_TOKEN != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-app-exe
+          path: apps/shengjian-desktop/src-tauri/target/release/shengjian-desktop.exe
+          archive: false
+          retention-days: 1
+
+      - name: Submit signing request for application
+        id: sign-app
+        if: env.SIGNPATH_API_TOKEN != ''
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ env.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ env.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ env.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ env.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ env.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ steps.upload-unsigned-app.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed-app
+          skip-decompress: true
+          parameters: |
+            version: "${{ steps.version.outputs.version }}"
+
+      - name: Replace application with signed executable
+        if: env.SIGNPATH_API_TOKEN != ''
+        shell: pwsh
+        run: |
+          $signed = Get-ChildItem -LiteralPath signed-app -Filter *.exe -Recurse | Select-Object -First 1
+          if (-not $signed) { throw "signed application executable not found in signed-app" }
+          Copy-Item -LiteralPath $signed.FullName `
+            -Destination "apps/shengjian-desktop/src-tauri/target/release/shengjian-desktop.exe" -Force
+
+      # Re-bundling preserves the Authenticode signature of the already patched
+      # executable; verified experimentally before enabling this workflow.
+      - name: Rebuild installer with signed application
+        if: env.SIGNPATH_API_TOKEN != ''
+        working-directory: apps/shengjian-desktop
+        run: pnpm tauri bundle
+
+      - name: Upload unsigned installer
+        id: upload-unsigned-installer
+        if: env.SIGNPATH_API_TOKEN != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-installer
+          path: ${{ steps.package.outputs.installer }}
+          archive: false
+          retention-days: 1
+
+      - name: Submit signing request for installer
+        id: sign-installer
+        if: env.SIGNPATH_API_TOKEN != ''
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ env.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ env.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ env.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ env.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ env.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ steps.upload-unsigned-installer.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed-installer
+          skip-decompress: true
+          parameters: |
+            version: "${{ steps.version.outputs.version }}"
+
+      - name: Replace installer with signed installer
+        if: env.SIGNPATH_API_TOKEN != ''
+        shell: pwsh
+        run: |
+          $signed = Get-ChildItem -LiteralPath signed-installer -Filter *.exe -Recurse | Select-Object -First 1
+          if (-not $signed) { throw "signed installer not found in signed-installer" }
+          Copy-Item -LiteralPath $signed.FullName `
+            -Destination "${{ steps.package.outputs.builtInstaller }}" -Force
+
+      # Ship the ASCII file name even though the build name embeds 「声键」.
+      - name: Normalize installer file name
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts/normalize-installer-name.ps1 -Version "${{ steps.version.outputs.version }}"
+
+      - name: Verify Authenticode signatures
+        if: env.SIGNPATH_API_TOKEN != ''
+        shell: pwsh
+        run: |
+          $files = @(
+            "apps/shengjian-desktop/src-tauri/target/release/shengjian-desktop.exe",
+            "${{ steps.package.outputs.installer }}"
+          )
+          foreach ($file in $files) {
+            $signature = Get-AuthenticodeSignature -LiteralPath $file
+            if ($signature.Status -ne "Valid") {
+              throw "invalid Authenticode signature for ${file}: $($signature.Status) $($signature.StatusMessage)"
+            }
+            Write-Output "$file -> $($signature.SignerCertificate.Subject)"
+          }
+
+      - name: Prepare release metadata
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1 -Version $version
+          $manifest = Get-Content "release/$version/manifest.json" -Raw | ConvertFrom-Json
+          $installer = $manifest.file
+          $hash = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash
+          $line = "$hash  $(Split-Path -Leaf $installer)"
+          [IO.File]::WriteAllText((Join-Path "release/$version" "SHA256SUMS"), $line + "`n", (New-Object System.Text.UTF8Encoding($false)))
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "声键 ${{ steps.version.outputs.version }}"
+          body_path: docs/release-notes-${{ steps.version.outputs.version }}.md
+          files: |
+            ${{ steps.package.outputs.installer }}
+            release/${{ steps.version.outputs.version }}/manifest.json
+            release/${{ steps.version.outputs.version }}/SHA256SUMS
+            LICENSE
+            ATTRIBUTION.md
+            THIRD_PARTY_NOTICES.md
+            brand/LICENSE-OFL.txt
+            helper/rc003/vendor/frida-gadget-COPYING
+          fail_on_unmatched_files: true
+          draft: false
+          prerelease: false

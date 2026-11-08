@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="声键">
+  <title>声键</title>
+  <defs>
+    <linearGradient id="sj-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#141C24"/>
+      <stop offset="1" stop-color="#090D12"/>
+    </linearGradient>
+    <radialGradient id="sj-glow" cx="0.3" cy="0.16" r="0.86">
+      <stop offset="0" stop-color="#5AC8AA" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#5AC8AA" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="230" fill="url(#sj-bg)"/>
+  <rect width="1024" height="1024" rx="230" fill="url(#sj-glow)"/>
+  <svg x="87.76" y="154" width="848.48" height="700" viewBox="12 14 40 33">
+  <defs>
+    <linearGradient id="sj-teal-app" gradientUnits="userSpaceOnUse" x1="32" y1="14" x2="32" y2="47">
+      <stop offset="0" stop-color="#8BE0C7"/>
+      <stop offset="0.55" stop-color="#5AC8AA"/>
+      <stop offset="1" stop-color="#3FA98C"/>
+    </linearGradient>
+    <mask id="sj-cut-app" maskUnits="userSpaceOnUse" x="10" y="12" width="44" height="37">
+      <path d="M 24.50 14.00 L 39.50 14.00 Q 46.00 14.00 47.16 20.40 L 50.84 40.60 Q 52.00 47.00 45.50 47.00 L 18.50 47.00 Q 12.00 47.00 13.16 40.60 L 16.84 20.40 Q 18.00 14.00 24.50 14.00 Z" fill="#fff"/>
+      <rect x="18.0" y="25.0" width="7.0" height="11.0" rx="3.5" fill="#000"/>
+      <rect x="28.5" y="20.5" width="7.0" height="20.0" rx="3.5" fill="#000"/>
+      <rect x="39.0" y="23.5" width="7.0" height="14.0" rx="3.5" fill="#000"/>
+    </mask>
+  </defs>
+  <g mask="url(#sj-cut-app)">
+    <path d="M 24.50 17.00 L 39.50 17.00 Q 46.00 17.00 47.27 23.37 L 50.73 40.63 Q 52.00 47.00 45.50 47.00 L 18.50 47.00 Q 12.00 47.00 13.27 40.63 L 16.73 23.37 Q 18.00 17.00 24.50 17.00 Z" fill="#2E8F76"/>
+    <path d="M 24.50 14.00 L 39.50 14.00 Q 46.00 14.00 47.27 20.37 L 50.73 37.63 Q 52.00 44.00 45.50 44.00 L 18.50 44.00 Q 12.00 44.00 13.27 37.63 L 16.73 20.37 Q 18.00 14.00 24.50 14.00 Z" fill="url(#sj-teal-app)"/>
+  </g>
+  </svg>
+
+  <rect x="2" y="2" width="1020" height="1020" rx="228" fill="none" stroke="#ffffff" stroke-opacity="0.07" stroke-width="4"/>
+</svg>

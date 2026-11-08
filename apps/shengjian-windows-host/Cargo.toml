@@ -1,0 +1,20 @@
+[package]
+name = "shengjian-windows-host"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Headless Windows host for the Shengjian core"
+
+[[bin]]
+name = "shengjian-windows-host"
+path = "src/main.rs"
+
+[dependencies]
+shengjian-app = { path = "../../crates/shengjian-app" }
+shengjian-contract = { path = "../../crates/shengjian-contract" }
+shengjian-domain = { path = "../../crates/shengjian-domain" }
+shengjian-profiles = { path = "../../crates/shengjian-profiles" }
+shengjian-windows = { path = "../../crates/shengjian-windows" }
+shengjian-windows-adapter = { path = "../../crates/shengjian-windows-adapter" }
+serde.workspace = true
+serde_json.workspace = true

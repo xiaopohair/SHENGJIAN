@@ -1,0 +1,232 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/shengjian/contracts/device-profile-v1.json",
+  "title": "Shengjian device profile v1",
+  "description": "Language-neutral facts about one voice/control peripheral. A profile does not by itself make a device supported at runtime.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "displayName",
+    "vendor",
+    "model",
+    "support",
+    "identity",
+    "transports",
+    "capabilities",
+    "platforms",
+    "sources"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+([.-][a-z0-9]+)*$"
+    },
+    "displayName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "vendor": {
+      "type": "string",
+      "minLength": 1
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "support": {
+      "$ref": "#/$defs/support"
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bluetoothNames": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "bluetoothNamePrefixes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "modelNumbers": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Local extension: values read from the GATT Device Information Service Model Number (0x2A24) or documented model numbers."
+        },
+        "hid": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["vendorId", "productId"],
+          "properties": {
+            "vendorId": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            },
+            "productId": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            }
+          }
+        },
+        "audioInputNamePrefixes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "transports": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "role", "status", "notes"],
+        "properties": {
+          "kind": {
+            "enum": [
+              "ble-gatt",
+              "bluetooth-hid",
+              "bluetooth-br-edr-audio",
+              "usb-digital-audio",
+              "analog-audio",
+              "system-audio-input"
+            ]
+          },
+          "role": {
+            "enum": ["control", "button-input", "voice-input", "voice-output"]
+          },
+          "status": {
+            "$ref": "#/$defs/status"
+          },
+          "notes": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "voice-capture",
+          "press-to-talk",
+          "button-input",
+          "host-key-mapping",
+          "gain-control",
+          "channel-selection",
+          "device-status",
+          "enhanced-key-capture"
+        ]
+      }
+    },
+    "protocols": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "status", "notes"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "$ref": "#/$defs/status"
+          },
+          "notes": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "platforms": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["platform", "status", "notes"],
+        "properties": {
+          "platform": {
+            "enum": ["macos", "windows", "linux"]
+          },
+          "status": {
+            "$ref": "#/$defs/status"
+          },
+          "notes": {
+            "type": "string",
+            "minLength": 1
+          },
+          "features": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "format": "uri"
+      }
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "$defs": {
+    "status": {
+      "enum": ["implemented", "research", "planned", "unsupported"]
+    },
+    "support": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "notes"],
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/status"
+        },
+        "notes": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

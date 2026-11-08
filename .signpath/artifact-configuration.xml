@@ -1,0 +1,31 @@
+<!--
+  SignPath artifact configuration for the Windows release artifacts.
+
+  SignPath does not support deep-signing NSIS installers, so the release workflow
+  signs the application executable first, re-runs `tauri bundle` to embed it, and
+  then signs the NSIS installer as a second PE file. Both requests use this
+  configuration.
+
+  The installer file name is normalized to ASCII by the release workflow; this
+  configuration matches any .exe by pattern.
+
+  ProductName is intentionally not constrained here: the PE ProductName is the
+  user-facing brand name (声键, non-ASCII) and an ASCII-only constraint would
+  reject it. If the SignPath project requires a product-name match, set it to
+  声键 exactly instead of SHENGJIAN.
+
+  Paste this into SignPath (Project -> Artifact configurations) and use the slug
+  referenced by SIGNPATH_ARTIFACT_CONFIGURATION_SLUG.
+-->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <parameters>
+    <parameter name="version" required="true" />
+  </parameters>
+  <pe-file
+    path="*.exe"
+    product-version="${version}"
+    file-version="${version}"
+  >
+    <authenticode-sign description="Shengjian (声键)" />
+  </pe-file>
+</artifact-configuration>

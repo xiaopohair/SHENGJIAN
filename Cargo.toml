@@ -1,0 +1,24 @@
+[workspace]
+members = [
+    "crates/shengjian-contract",
+    "crates/shengjian-domain",
+    "crates/shengjian-app",
+    "crates/shengjian-testkit",
+    "crates/shengjian-windows",
+    "crates/shengjian-windows-adapter",
+    "crates/shengjian-profiles",
+    "crates/shengjian-common-phrases",
+    "apps/shengjian-windows-host",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-only"
+
+[workspace.dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"

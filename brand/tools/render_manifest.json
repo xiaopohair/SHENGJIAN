@@ -1,0 +1,230 @@
+[
+  {
+    "src": "logo/shengjian-mark.svg",
+    "out": "png/mark-512.png",
+    "w": 512,
+    "h": 422.4
+  },
+  {
+    "src": "logo/shengjian-mark.svg",
+    "out": "png/mark-256.png",
+    "w": 256,
+    "h": 211.2
+  },
+  {
+    "src": "logo/shengjian-mark.svg",
+    "out": "png/mark-128.png",
+    "w": 128,
+    "h": 105.6
+  },
+  {
+    "src": "logo/shengjian-mark.svg",
+    "out": "png/mark-64.png",
+    "w": 64,
+    "h": 52.8
+  },
+  {
+    "src": "logo/shengjian-mark.svg",
+    "out": "png/mark-32.png",
+    "w": 32,
+    "h": 26.4
+  },
+  {
+    "src": "logo/shengjian-mark.svg",
+    "out": "png/mark-16.png",
+    "w": 16,
+    "h": 13.2
+  },
+  {
+    "src": "logo/shengjian-mark-ink.svg",
+    "out": "png/mark-128-ink.png",
+    "w": 128,
+    "h": 105.6
+  },
+  {
+    "src": "logo/shengjian-mark-ink.svg",
+    "out": "png/mark-64-ink.png",
+    "w": 64,
+    "h": 52.8
+  },
+  {
+    "src": "logo/shengjian-mark-on-light.svg",
+    "out": "png/mark-512-on-light.png",
+    "w": 512,
+    "h": 422.4
+  },
+  {
+    "src": "logo/shengjian-mark-on-light.svg",
+    "out": "png/mark-256-on-light.png",
+    "w": 256,
+    "h": 211.2
+  },
+  {
+    "src": "logo/shengjian-mark-on-light.svg",
+    "out": "png/mark-128-on-light.png",
+    "w": 128,
+    "h": 105.6
+  },
+  {
+    "src": "logo/shengjian-mark-on-light.svg",
+    "out": "png/mark-64-on-light.png",
+    "w": 64,
+    "h": 52.8
+  },
+  {
+    "src": "logo/shengjian-mark-on-light.svg",
+    "out": "png/mark-64-deep.png",
+    "w": 64,
+    "h": 52.8
+  },
+  {
+    "src": "logo/shengjian-app-icon.svg",
+    "out": "png/app-icon-1024.png",
+    "w": 1024,
+    "h": 1024
+  },
+  {
+    "src": "logo/shengjian-app-icon.svg",
+    "out": "png/app-icon-512.png",
+    "w": 512,
+    "h": 512
+  },
+  {
+    "src": "logo/shengjian-app-icon.svg",
+    "out": "png/app-icon-256.png",
+    "w": 256,
+    "h": 256
+  },
+  {
+    "src": "logo/shengjian-app-icon.svg",
+    "out": "png/app-icon-128.png",
+    "w": 128,
+    "h": 128
+  },
+  {
+    "src": "logo/shengjian-app-icon.svg",
+    "out": "png/app-icon-64.png",
+    "w": 64,
+    "h": 64
+  },
+  {
+    "src": "logo/shengjian-app-icon.svg",
+    "out": "png/app-icon-48.png",
+    "w": 48,
+    "h": 48
+  },
+  {
+    "src": "logo/shengjian-app-icon.svg",
+    "out": "png/app-icon-32.png",
+    "w": 32,
+    "h": 32
+  },
+  {
+    "src": "logo/shengjian-app-icon.svg",
+    "out": "png/app-icon-24.png",
+    "w": 24,
+    "h": 24
+  },
+  {
+    "src": "logo/shengjian-app-icon.svg",
+    "out": "png/app-icon-16.png",
+    "w": 16,
+    "h": 16
+  },
+  {
+    "src": "logo/shengjian-lockup-horizontal-dark.svg",
+    "out": "png/lockup-horizontal-dark-2x.png",
+    "w": 756.9,
+    "h": 304.0
+  },
+  {
+    "src": "logo/shengjian-lockup-horizontal-light.svg",
+    "out": "png/lockup-horizontal-light-2x.png",
+    "w": 756.9,
+    "h": 304.0
+  },
+  {
+    "src": "logo/shengjian-lockup-stacked-dark.svg",
+    "out": "png/lockup-stacked-dark-2x.png",
+    "w": 449.7,
+    "h": 596.0
+  },
+  {
+    "src": "logo/shengjian-lockup-stacked-light.svg",
+    "out": "png/lockup-stacked-light-2x.png",
+    "w": 449.7,
+    "h": 596.0
+  },
+  {
+    "src": "logo/shengjian-lockup-horizontal-mono.svg",
+    "out": "png/lockup-horizontal-mono-2x.png",
+    "w": 756.9,
+    "h": 304.0
+  },
+  {
+    "src": "logo/shengjian-lockup-stacked-mono.svg",
+    "out": "png/lockup-stacked-mono-2x.png",
+    "w": 449.7,
+    "h": 596.0
+  },
+  {
+    "src": "logo/shengjian-wordmark-dark.svg",
+    "out": "png/wordmark-dark-2x.png",
+    "w": 1230,
+    "h": 587.38
+  },
+  {
+    "src": "logo/shengjian-wordmark-light.svg",
+    "out": "png/wordmark-light-2x.png",
+    "w": 1230,
+    "h": 587.38
+  },
+  {
+    "src": "logo/shengjian-tray-16.svg",
+    "out": "png/tray-16.png",
+    "w": 16,
+    "h": 16
+  },
+  {
+    "src": "logo/shengjian-tray-16.svg",
+    "out": "png/tray-32.png",
+    "w": 32,
+    "h": 32
+  },
+  {
+    "src": "logo/shengjian-tray-16-ink.svg",
+    "out": "png/tray-16-ink.png",
+    "w": 16,
+    "h": 16
+  },
+  {
+    "src": "logo/shengjian-tray-16-ink.svg",
+    "out": "png/tray-32-ink.png",
+    "w": 32,
+    "h": 32
+  },
+  {
+    "src": "logo/shengjian-tray-16-color.svg",
+    "out": "png/tray-16-color.png",
+    "w": 16,
+    "h": 16
+  },
+  {
+    "src": "logo/shengjian-tray-16-color.svg",
+    "out": "png/tray-32-color.png",
+    "w": 32,
+    "h": 32
+  },
+  {
+    "src": "logo/shengjian-tray-16-deep.svg",
+    "out": "png/tray-16-deep.png",
+    "w": 16,
+    "h": 16
+  },
+  {
+    "src": "logo/shengjian-tray-16-deep.svg",
+    "out": "png/tray-32-deep.png",
+    "w": 32,
+    "h": 32
+  }
+]
