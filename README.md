@@ -224,6 +224,10 @@ published=true
 - RC001/ARN9 身份映射仍 deferred，见 [docs/device-identity.md](docs/device-identity.md)
 - 无第二个客户端 IPC；桌面宿主为 in-process
 
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org). 详见 [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md)；隐私政策见 [PRIVACY.md](PRIVACY.md)。
+
 ## 许可证与来源
 
 项目以 **GPL-3.0-only** 发布，见 [LICENSE](LICENSE)。
