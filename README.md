@@ -5,15 +5,15 @@
 
 # 声键（SHENGJIAN）· Voice remote for Windows
 
+[English](README.en.md) | 简体中文
+
 **声音，就是快捷键。** · **Your voice is the shortcut.**
 
 `语音输入` · `按键映射` · `宏与方案`
 
 仓库：<https://github.com/xiaopohair/SHENGJIAN>
 
-把小米蓝牙语音遥控器接进 Windows：连接、语音、按键、宏、方案一条链路走完。
-
-面向小米蓝牙语音遥控器的 UI 无关核心、Windows 平台实现与桌面宿主。仓库：[`xiaopohair/SHENGJIAN`](https://github.com/xiaopohair/SHENGJIAN)（crate 前缀 `shengjian-*`）：核心（`crates/`）不依赖 Tauri/Vue/Windows UI，桌面宿主只是其中一个消费者，仓库同时包含 headless host、RC003 提权 helper、设备 profile 和桌面安装包。
+声键（SHENGJIAN）是一款面向 Windows 的语音输入应用：把一支蓝牙语音遥控器变成 Windows 输入设备，开口即输入，按键即执行。它支持语音输入、自定义快捷键、自定义宏与按键映射方案，可搭配微信输入法、豆包输入法、Vokie、ChatterFly 等主流 AI 语音输入法使用，也能在 ChatGPT、Claude、DeepSeek Harness 等主流 Agent 应用中直接语音输入、用宏触发操作，为 vibe coding 与日常办公打造个性化的语音工作流。
 
 品牌定位、Slogan、LOGO 与视觉规范见 [brand/BRAND.md](brand/BRAND.md)。
 
