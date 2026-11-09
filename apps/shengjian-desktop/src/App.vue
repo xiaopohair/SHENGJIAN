@@ -32,9 +32,11 @@ import {
   applyTheme,
   ACCENT_KEY,
   ONBOARDING_KEY,
+  RESTART_ONBOARDING_EVENT,
   SIDEBAR_KEY,
   getThemePreference,
 } from "./lib/preferences";
+import { finishStartup } from "./lib/startup";
 import { useEngineStore } from "./stores/engine";
 import { useStatusStore } from "./stores/status";
 import type { PaletteCommand } from "./lib/palette";
@@ -56,6 +58,7 @@ const active = ref<PageId>("connection");
 const appVersion = ref("");
 const showOnboarding = ref(localStorage.getItem(ONBOARDING_KEY) !== "1");
 const scrollArea = ref<HTMLElement | null>(null);
+const scrollbarVisible = ref(false);
 const themePreference = ref("system");
 const sidebarCollapsed = ref(localStorage.getItem(SIDEBAR_KEY) === "1");
 const topbarSearch = ref<InstanceType<typeof TopbarSearch> | null>(null);
@@ -63,6 +66,46 @@ let unlisten: UnlistenFn | undefined;
 let unlistenNavigate: UnlistenFn | undefined;
 let mediaQuery: MediaQueryList | undefined;
 let statusTimer: number | undefined;
+let scrollbarTimer: number | undefined;
+
+const SCROLLBAR_IDLE_MS = 800;
+const SCROLLBAR_HINT_PX = 18;
+
+function showMainScrollbar() {
+  scrollbarVisible.value = true;
+  if (scrollbarTimer !== undefined) {
+    window.clearTimeout(scrollbarTimer);
+    scrollbarTimer = undefined;
+  }
+}
+
+function scheduleMainScrollbarHide(delay = SCROLLBAR_IDLE_MS) {
+  if (scrollbarTimer !== undefined) window.clearTimeout(scrollbarTimer);
+  scrollbarTimer = window.setTimeout(() => {
+    scrollbarVisible.value = false;
+    scrollbarTimer = undefined;
+  }, delay);
+}
+
+function onMainScroll() {
+  showMainScrollbar();
+  scheduleMainScrollbarHide();
+}
+
+function onMainPointerMove(event: PointerEvent) {
+  const element = scrollArea.value;
+  if (!element) return;
+  const rect = element.getBoundingClientRect();
+  if (event.clientX >= rect.right - SCROLLBAR_HINT_PX) {
+    showMainScrollbar();
+  } else if (scrollbarVisible.value) {
+    scheduleMainScrollbarHide(350);
+  }
+}
+
+function onMainPointerLeave() {
+  scheduleMainScrollbarHide(150);
+}
 
 const INPUT_TOOL_LABELS: Record<string, string> = {
   wechat: "微信输入法",
@@ -180,6 +223,11 @@ function finishOnboarding() {
   showOnboarding.value = false;
 }
 
+function restartOnboarding() {
+  localStorage.removeItem(ONBOARDING_KEY);
+  showOnboarding.value = true;
+}
+
 async function goTo(pageId: PageId) {
   if (pageId === active.value) return;
   if (!(await canLeavePage())) return;
@@ -226,10 +274,12 @@ onMounted(async () => {
   await loadTheme();
   appVersion.value = await getVersion().catch(() => "");
   applyAccent(localStorage.getItem(ACCENT_KEY) ?? "default");
+  await finishStartup();
   await status.refreshDeviceStatus();
   statusTimer = window.setInterval(refreshStatusIfVisible, 3000);
   document.addEventListener("visibilitychange", refreshStatusIfVisible);
   window.addEventListener("keydown", onGlobalKeydown, true);
+  window.addEventListener(RESTART_ONBOARDING_EVENT, restartOnboarding);
   mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
   mediaQuery.addEventListener("change", syncSystemTheme);
 });
@@ -238,8 +288,10 @@ onUnmounted(() => {
   unlisten?.();
   unlistenNavigate?.();
   if (statusTimer !== undefined) window.clearInterval(statusTimer);
+  if (scrollbarTimer !== undefined) window.clearTimeout(scrollbarTimer);
   document.removeEventListener("visibilitychange", refreshStatusIfVisible);
   window.removeEventListener("keydown", onGlobalKeydown, true);
+  window.removeEventListener(RESTART_ONBOARDING_EVENT, restartOnboarding);
   mediaQuery?.removeEventListener("change", syncSystemTheme);
 });
 </script>
@@ -260,6 +312,18 @@ onUnmounted(() => {
             <span class="sidebar-brand-name">{{ tr("声键") }}</span>
             <span v-if="appVersion" class="sidebar-brand-version mono">v{{ appVersion }}</span>
           </div>
+          <button
+            type="button"
+            class="sidebar-collapse"
+            :aria-label="trDynamic(sidebarCollapsed ? '展开侧栏' : '折叠侧栏')"
+            :title="trDynamic(sidebarCollapsed ? '展开侧栏' : '折叠侧栏')"
+            :aria-expanded="!sidebarCollapsed"
+            aria-controls="sidebar-nav"
+            @click="toggleSidebar"
+          >
+            <PanelLeftOpen v-if="sidebarCollapsed" :size="16" />
+            <PanelLeftClose v-else :size="16" />
+          </button>
         </div>
         <nav id="sidebar-nav" class="nav" :aria-label="trDynamic('主导航')">
           <div v-for="group in navGroups" :key="group.label" class="nav-group">
@@ -285,18 +349,6 @@ onUnmounted(() => {
       <main class="main">
         <header class="topbar">
           <div class="topbar-left">
-            <button
-              type="button"
-              class="topbar-collapse"
-              :aria-label="trDynamic(sidebarCollapsed ? '展开侧栏' : '折叠侧栏')"
-              :title="trDynamic(sidebarCollapsed ? '展开侧栏' : '折叠侧栏')"
-              :aria-expanded="!sidebarCollapsed"
-              aria-controls="sidebar-nav"
-              @click="toggleSidebar"
-            >
-              <PanelLeftOpen v-if="sidebarCollapsed" :size="17" />
-              <PanelLeftClose v-else :size="17" />
-            </button>
             <div class="topbar-status">
               <span role="status" aria-live="polite">
                 <StatusPill :label="statusLabel(phase)" :tone="phaseTone" dot />
@@ -340,7 +392,16 @@ onUnmounted(() => {
             <TopbarSearch ref="topbarSearch" :commands="paletteCommands" @run="runPaletteCommand" />
           </div>
         </header>
-        <div ref="scrollArea" id="main-content" class="main-scroll" tabindex="-1">
+        <div
+          ref="scrollArea"
+          id="main-content"
+          class="main-scroll"
+          :class="{ 'scrollbar-visible': scrollbarVisible }"
+          tabindex="-1"
+          @scroll.passive="onMainScroll"
+          @pointermove.passive="onMainPointerMove"
+          @pointerleave="onMainPointerLeave"
+        >
           <Suspense>
             <component :is="activePage.component" />
             <template #fallback>
@@ -372,9 +433,11 @@ onUnmounted(() => {
 .shell {
   display: flex;
   flex: 1;
+  gap: var(--space-2);
   min-height: 0;
   overflow: hidden;
-  background: var(--bg);
+  background: var(--bg-sidebar);
+  padding: 0 var(--space-2) var(--space-2);
 }
 
 .skip-link {
@@ -398,9 +461,8 @@ onUnmounted(() => {
   flex: 0 0 208px;
   flex-direction: column;
   width: 208px;
-  border-right: 1px solid var(--border);
-  background: var(--bg-sidebar);
-  padding: var(--space-3);
+  background: transparent;
+  padding: var(--space-2);
   transition:
     width var(--duration-base) var(--ease-out),
     flex-basis var(--duration-base) var(--ease-out),
@@ -417,7 +479,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-1) var(--space-2) var(--space-4);
+  padding: var(--space-1) 0 var(--space-4) var(--space-2);
 }
 
 .sidebar-brand-copy {
@@ -444,8 +506,43 @@ onUnmounted(() => {
 }
 
 .sidebar.collapsed .sidebar-brand {
+  flex-direction: column;
   justify-content: center;
+  gap: 6px;
   padding-inline: 0;
+}
+
+.sidebar-collapse {
+  display: grid;
+  flex: 0 0 26px;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-left: auto;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) ease,
+    border-color var(--duration-fast) ease,
+    color var(--duration-fast) ease;
+}
+
+.sidebar-collapse:hover {
+  border-color: var(--border);
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.sidebar-collapse:focus-visible {
+  border-color: var(--accent);
+}
+
+.sidebar.collapsed .sidebar-collapse {
+  margin-left: 0;
 }
 
 .sidebar.collapsed .sidebar-brand-copy,
@@ -518,6 +615,12 @@ onUnmounted(() => {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+  box-shadow: var(--shadow-sm);
 }
 
 .topbar {
@@ -528,7 +631,7 @@ onUnmounted(() => {
   gap: var(--space-4);
   min-height: 56px;
   border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  background: color-mix(in srgb, var(--bg-panel) 92%, transparent);
   padding-block: var(--space-2);
   padding-inline: max(var(--space-6), calc((100% - var(--page-max)) / 2 + var(--space-6)));
   backdrop-filter: blur(10px);
@@ -546,33 +649,6 @@ onUnmounted(() => {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
-}
-
-.topbar-collapse {
-  display: grid;
-  flex: 0 0 32px;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition:
-    background var(--duration-fast) ease,
-    border-color var(--duration-fast) ease,
-    color var(--duration-fast) ease;
-}
-
-.topbar-collapse:hover {
-  border-color: var(--border);
-  background: var(--bg-hover);
-  color: var(--text);
-}
-
-.topbar-collapse:focus-visible {
-  border-color: var(--accent);
 }
 
 .topbar-status {
@@ -618,6 +694,23 @@ onUnmounted(() => {
   min-height: 0;
   overflow-y: auto;
   scrollbar-gutter: stable;
+  scrollbar-color: transparent transparent;
+}
+
+.main-scroll::-webkit-scrollbar-thumb {
+  background: transparent;
+}
+
+.main-scroll.scrollbar-visible {
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.main-scroll.scrollbar-visible::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+}
+
+.main-scroll.scrollbar-visible::-webkit-scrollbar-thumb:hover {
+  background: var(--text-disabled);
 }
 
 .main-scroll:focus-visible {

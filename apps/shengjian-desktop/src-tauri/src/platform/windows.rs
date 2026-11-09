@@ -193,6 +193,7 @@ impl HostPlatform for PlatformHost {
             reconnect_attempt: snapshot.reconnect_attempt,
             power_notifications_available: snapshot.power_notifications_available,
             battery_level: snapshot.battery_level,
+            firmware_version: snapshot.firmware_version,
         })
     }
 

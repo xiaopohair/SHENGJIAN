@@ -265,9 +265,9 @@
 | `logo/shengjian-lockup-stacked-mono.svg` | 单色竖排锁定，`currentColor` |
 | `logo/shengjian-app-icon.svg` | 1024 × 1024 应用图标（深色圆角底，深/浅桌面通用） |
 | `logo/shengjian-tray-16-color.svg` | 16 × 16 托盘图标（亮松青，深色任务栏） |
-| `logo/shengjian-tray-16-deep.svg` | 16 × 16 托盘图标（松青·深，浅色任务栏） |
-| `logo/shengjian-tray-16.svg` | 16 × 16 托盘图标（白色，备用） |
-| `logo/shengjian-tray-16-ink.svg` | 16 × 16 托盘图标（墨色，备用） |
+| `logo/shengjian-tray-16-deep.svg` | 16 × 16 松青·深标记（浅底品牌场景，非托盘默认） |
+| `logo/shengjian-tray-16.svg` | 16 × 16 托盘图标（白色，极端对比备用） |
+| `logo/shengjian-tray-16-ink.svg` | 16 × 16 托盘图标（墨色，浅色任务栏） |
 
 ### 4.4 安全边距与最小尺寸
 
@@ -289,7 +289,7 @@
 ### 4.6 应用图标与托盘
 
 - **应用图标**：1024 × 1024，圆角 230 的深色底；标记高度 700（约 68%），带 1px 内描边与轻微松青光晕。深色底让它在深浅桌面上都成立。
-- 托盘：跟随任务栏明暗——深色任务栏用亮松青（`tray-16-color.svg` 的 16 / 32 PNG），浅色任务栏用松青·深（`tray-16-deep.svg` 的 16 / 32 PNG）。白色 / 墨色单色版本保留给极端对比或单色场景。
+- 托盘：跟随任务栏明暗——深色任务栏用亮松青（`tray-16-color.svg` 的 16 / 32 PNG），浅色任务栏用墨色（`tray-16-ink.svg` 的 16 / 32 PNG）。白色版本保留给极端对比或单色场景。
 - **任务栏 / 窗口图标**：同样跟随任务栏明暗——深色任务栏用 `mark`（亮松青），浅色任务栏用 `mark-on-light`（松青·深）；带深色底的完整应用图标用于桌面、开始菜单与安装包。
 - **侧栏 / 关于页**：跟随应用主题；深色主题用亮松青，浅色主题用松青·深。两枚资产几何一致，切换不应造成布局位移。
 - Windows 图标应从 SVG 重新导出各尺寸，不要用 1024 PNG 直接缩到 16px。
@@ -538,7 +538,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File brand/tools/render_png.ps1
 ## 附录 A：把品牌接进产品的落地清单
 
 - [x] 决定产品显示名：`productName` 改为“声键”；`identifier` `app.shengjian.desktop` 保持不变。
-- [x] 用 `shengjian-app-icon.svg` 重新生成 Tauri 图标集；托盘与任务栏跟随任务栏明暗（亮松青 / 松青·深）。
+- [x] 用 `shengjian-app-icon.svg` 重新生成 Tauri 图标集；托盘深色任务栏用亮松青、浅色任务栏用墨色，窗口/任务栏图标继续跟随明暗（亮松青 / 松青·深）。
 - [x] 侧栏品牌区：主标记 24px + “声键” + 版本号；浅色主题自动切换松青·深。
 - [x] 关于页：slogan、品牌段落、平台与许可信息已上线；浅色主题使用松青·深标记。
 - [x] 安装包：标题、快捷方式、安装向导 header/sidebar 图与中文界面已接入。

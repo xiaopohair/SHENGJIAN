@@ -34,9 +34,10 @@
 
 `apps/shengjian-desktop`：Tauri 2 + Vue 3，in-process 使用 core。
 
-- 界面：无边框自定义标题栏、`Ctrl+K` 命令面板
-- 连接页：扫描、连接、断开、多设备切换、记住上次设备、状态、电量、连接详情、当前设备音频/语音工具覆盖、RC003 增强捕获与 helper
-- 托盘：显示/隐藏、打开设置、打开日志目录、退出；tooltip 显示连接/电量；中英文菜单随语言即时切换；图标随任务栏明暗使用亮松青 / 松青·深两版
+- 界面：无边框自定义标题栏（左侧品牌图标与产品名称）、圆角主内容面板、启动居中、`Ctrl+K` 命令面板
+- 启动 splash：品牌启动画面覆盖初始化过程，设置与主题就绪后切换到主窗口，避免白屏闪烁；启动画面文案跟随应用语言设置，未设置时跟随系统语言
+- 连接页：扫描、连接、断开、多设备切换、记住上次设备、状态、型号、固件版本、电量、连接详情、当前设备音频/语音工具覆盖、RC003 增强捕获与 helper
+- 托盘：显示/隐藏、打开设置、打开日志目录、退出；tooltip 显示连接/电量；中英文菜单随语言即时切换；托盘图标随任务栏明暗使用亮松青 / 墨色两版
 - 语音页：voice/audio 状态、实时电平、语音测试、语音输入工具、自定义语音热键、转写历史开关
 - 按键页：profile 列表、编辑、激活、导入/导出；宽屏列表 + 右侧编辑器，未保存导航确认
 - Profile 编辑器：应用目标（支持选择程序/用当前前台）、当前前台填充、快捷键捕获、自动方案冲突提示、保存校验、按住连发、Profile 语音工具覆盖、复制方案、从模板新建、11 键（含 TV）；常用语入口按平台能力显示
@@ -134,6 +135,17 @@ pnpm build:installer
 - `resources/rc003/frida-gadget.dll`
 - `resources/licenses/`：GPL、ATTRIBUTION、第三方许可、Frida Gadget 许可全文、品牌字标 OFL 声明（`LICENSE-OFL.txt`）
 
+### 便携版（免安装 zip）
+
+```powershell
+cd apps/shengjian-desktop
+pnpm build:portable
+```
+
+产物：`apps/shengjian-desktop/src-tauri/target/release/portable/shengjian_<version>_x64-portable.zip`，校验信息写入 `release/<version>/portable-manifest.json`。
+
+解压后运行 `shengjian-desktop.exe` 即可，无需安装。需要系统已安装 WebView2 Runtime（Windows 11 自带；Windows 10 多数机器已有）。设置、宏、历史与日志仍保存在 `%LOCALAPPDATA%\Shengjian`；RC003 helper 的计划任务指向当前目录，移动目录后需重新安装，删除目录前请以管理员身份运行 `resources\rc003\shengjian-helper.exe --remove-task`。便携版与安装版共用单实例标识和数据目录，不能同时运行。
+
 ### Headless host
 
 ```powershell
@@ -165,12 +177,13 @@ cargo test --workspace
 ## 验证
 
 - 根 workspace：`cargo fmt --all -- --check`、`cargo check --workspace`、`cargo test --workspace` 通过（**689 passed**，其中 `shengjian-windows` 平台库 490）
-- 桌面 Rust：**12 passed**
-- 桌面前端：**21 passed**
+- 桌面 Rust：**13 passed**
+- 桌面前端：**28 passed**
 - 桌面 E2E（真实安装包 + WebView2 CDP）：**4 passed**
 - 本地构建：`shengjian_0.1.0_x64-setup.exe` 生成，`prepare-release.ps1` / `verify-release.ps1` 通过
 - 真机安装 / 启动 / 卸载：安装目录、快捷方式、卸载项、版本号清理正确；用户数据 `%LOCALAPPDATA%\Shengjian` 保留
 - 安装向导：欢迎页侧栏、页头品牌图、中文界面与「声键 安装」标题正常
+- 便携版：zip 解压到含空格/中文路径后启动正常；splash 窗口出现，主窗口就绪后自动关闭
 - 真机 RC003：
   - scan → connect `ready`
   - 语音 `streaming → draining → idle`
@@ -206,8 +219,9 @@ published=true
 
 - `.github/workflows/release.yml`：`v*` tag 触发构建与 Release；配置 SignPath 变量/密钥后自动签名
 - Release 标题为「声键 &lt;version&gt;」；Tauri 先按 `productName` 产出 `声键_<version>_x64-setup.exe`，workflow 随后调用 `scripts/normalize-installer-name.ps1` 归一化为发布文件名 `shengjian_<version>_x64-setup.exe`
+- 便携包：签名后用 `scripts/build-portable.ps1 -SkipBuild` 组装 `shengjian_<version>_x64-portable.zip`，与安装包一起发布
 - 签名说明：[CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md)、[docs/signing.md](docs/signing.md)
-- 资产：安装包、`manifest.json`、`SHA256SUMS`、`LICENSE`、`ATTRIBUTION.md`、`THIRD_PARTY_NOTICES.md`、`brand/LICENSE-OFL.txt`、Frida 许可全文
+- 资产：安装包、便携 zip、`manifest.json`、`portable-manifest.json`、`SHA256SUMS`、`LICENSE`、`ATTRIBUTION.md`、`THIRD_PARTY_NOTICES.md`、`brand/LICENSE-OFL.txt`、Frida 许可全文
 - 首次安装 helper 需要一次 UAC
 - 未启用签名时仍会触发 SmartScreen；Release 提供 SHA-256 供校验
 - 安全说明：[SECURITY.md](SECURITY.md)

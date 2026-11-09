@@ -3,6 +3,7 @@ import { onMounted, onUnmounted, ref } from "vue";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { Copy, Minus, Square, X } from "lucide-vue-next";
+import BrandMark from "./BrandMark.vue";
 import { trDynamic } from "../lib/i18n";
 
 const appWindow = getCurrentWindow();
@@ -54,6 +55,10 @@ onUnmounted(() => {
     :aria-label="trDynamic('应用标题栏')"
     @dblclick="onDoubleClick"
   >
+    <div class="titlebar-brand" data-tauri-drag-region>
+      <BrandMark :height="12" />
+      <span class="titlebar-name">{{ trDynamic("声键") }}</span>
+    </div>
     <div class="titlebar-drag" data-tauri-drag-region />
     <div class="titlebar-actions" :aria-label="trDynamic('窗口控制')" role="group">
       <button
@@ -95,7 +100,7 @@ onUnmounted(() => {
   flex: 0 0 var(--titlebar-height);
   align-items: stretch;
   height: var(--titlebar-height);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid transparent;
   background: var(--bg-sidebar);
   user-select: none;
   -webkit-user-select: none;
@@ -104,6 +109,27 @@ onUnmounted(() => {
 .titlebar-drag {
   flex: 1;
   min-width: 24px;
+}
+
+.titlebar-brand {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  padding-inline: 12px 8px;
+  color: var(--text-secondary);
+}
+
+/* Let the whole brand block start a window drag instead of its children. */
+.titlebar-brand > * {
+  pointer-events: none;
+}
+
+.titlebar-name {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
 }
 
 .titlebar-actions {

@@ -15,6 +15,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "build:installer": "tauri build && powershell -NoProfile -ExecutionPolicy Bypass -File ../../scripts/normalize-installer-name.ps1",
+    "build:portable": "powershell -NoProfile -ExecutionPolicy Bypass -File ../../scripts/build-portable.ps1",
     "prepare:helper": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-helper.ps1"
   },
   "dependencies": {

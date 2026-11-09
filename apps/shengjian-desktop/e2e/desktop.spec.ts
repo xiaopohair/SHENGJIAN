@@ -3,10 +3,22 @@ import { chromium, expect, test, type Browser, type Page } from "@playwright/tes
 let browser: Browser;
 let page: Page;
 
+function isMainPage(candidate: Page) {
+  const url = candidate.url();
+  return !url.includes("splashscreen") && url !== "about:blank";
+}
+
 test.beforeAll(async () => {
   browser = await chromium.connectOverCDP("http://127.0.0.1:9223");
   const context = browser.contexts()[0];
-  page = context.pages()[0] ?? (await context.newPage());
+  // The splash window is a second webview; the first page in CDP order is not
+  // guaranteed to be the shell.
+  page =
+    context.pages().find(isMainPage) ??
+    (await context.waitForEvent("page", {
+      predicate: (candidate) => isMainPage(candidate),
+      timeout: 30_000,
+    }));
   await page.waitForSelector(".topbar", { timeout: 30_000 });
   await page.evaluate(() => {
     localStorage.setItem("shengjian-onboarding-complete", "1");

@@ -8,7 +8,7 @@ import {
   openDiagnosticLogFolder,
   errorMessage,
 } from "../lib/api";
-import { ONBOARDING_KEY } from "../lib/preferences";
+import { RESTART_ONBOARDING_EVENT } from "../lib/preferences";
 import { statusLabel, tr, trDynamic } from "../lib/i18n";
 import PageHeader from "../components/PageHeader.vue";
 import Button from "../components/ui/Button.vue";
@@ -89,8 +89,7 @@ async function openLogs() {
 }
 
 function restartOnboarding() {
-  localStorage.removeItem(ONBOARDING_KEY);
-  window.location.reload();
+  window.dispatchEvent(new Event(RESTART_ONBOARDING_EVENT));
 }
 
 onMounted(async () => {

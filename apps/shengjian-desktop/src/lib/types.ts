@@ -197,6 +197,7 @@ export interface DeviceStatus {
   reconnectAttempt: number;
   powerNotificationsAvailable: boolean;
   batteryLevel: number | null;
+  firmwareVersion: string | null;
 }
 
 export interface DevicePlatformSupport {

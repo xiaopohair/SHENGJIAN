@@ -12,6 +12,8 @@ import {
 import { statusLabel, tr, trDynamic, uiLocale } from "../lib/i18n";
 import { findLastRemote } from "../lib/connection";
 import type { AudioEndpoint, SettingsDocument } from "../lib/types";
+import rc001Line from "../assets/devices/xiaomi-rc001-line.png";
+import rc003Line from "../assets/devices/xiaomi-rc003-line.png";
 import PageHeader from "../components/PageHeader.vue";
 import Button from "../components/ui/Button.vue";
 import Card from "../components/ui/Card.vue";
@@ -26,8 +28,6 @@ import StatusPill from "../components/ui/StatusPill.vue";
 import { pushToast } from "../lib/toast";
 import { useEngineStore } from "../stores/engine";
 import { useStatusStore } from "../stores/status";
-
-type PillTone = "neutral" | "success" | "warning" | "danger" | "info" | "accent";
 
 const store = useEngineStore();
 const statusStore = useStatusStore();
@@ -56,27 +56,18 @@ const deviceName = computed(() => store.snapshot?.connection.remote?.name ?? tr(
 const supportsRc003Capture = computed(
   () => deviceId.value !== null && store.snapshot?.connection.remote?.model === "RC003",
 );
+const remoteModel = computed(() => store.snapshot?.connection.remote?.model ?? null);
+const isRc001 = computed(() => remoteModel.value === "RC001");
+const deviceArtwork = computed(() => {
+  if (!store.isConnected) return null;
+  return isRc001.value ? rc001Line : rc003Line;
+});
 const autoConnecting = ref(false);
 const autoConnectFailed = ref(false);
 const connectionError = computed(() => (store.error ? errorMessage(store.error) : null));
 const phaseFailure = computed(() => {
   const phase = String(store.phase);
   return phase === "failed" || phase === "error";
-});
-const phaseTone = computed<PillTone>(() => {
-  if (phaseFailure.value) return "danger";
-  switch (store.phase) {
-    case "ready":
-      return "success";
-    case "scanning":
-    case "connecting":
-    case "disconnecting":
-      return "warning";
-    case "disconnected":
-      return "info";
-    default:
-      return "neutral";
-  }
 });
 const hasFailure = computed(
   () =>
@@ -303,7 +294,7 @@ onUnmounted(() => {
     <PageHeader
       eyebrow="Connection"
       title="连接遥控器"
-      description="连接并管理遥控器；查看连接阶段、电量、重连与电源通知。"
+      description="连接并管理遥控器；查看型号、固件版本、电量与重连状态。"
     >
       <template #actions>
         <Button variant="primary" :disabled="store.scanning" @click="refresh">
@@ -333,44 +324,76 @@ onUnmounted(() => {
 
     <Card class="stack">
       <SectionHeader title="设备状态" />
-      <div class="metric-grid">
-        <div class="metric">
-          <p class="metric-label">{{ tr("阶段") }}</p>
-          <div class="metric-pill">
-            <StatusPill :label="statusLabel(store.phase)" :tone="phaseTone" dot />
+      <div class="device-status-body">
+        <div class="device-visual" :class="{ offline: !store.isConnected }">
+          <img
+            v-if="deviceArtwork"
+            :src="deviceArtwork"
+            :alt="store.snapshot?.connection.remote?.name ?? tr('遥控器')"
+            class="device-image is-line"
+            draggable="false"
+          />
+          <svg
+            v-else
+            viewBox="0 0 120 240"
+            class="device-line-art"
+            role="presentation"
+            aria-hidden="true"
+          >
+            <rect x="17" y="8" width="86" height="224" rx="30" class="remote-body" />
+            <rect x="29" y="22" width="62" height="196" rx="22" class="remote-inner" />
+            <circle cx="60" cy="47" r="13" class="remote-accent" />
+            <rect x="57" y="41" width="6" height="9" rx="3" class="remote-ink" />
+            <path d="M52 47a8 8 0 0 0 16 0M60 55v5" class="remote-line" />
+            <circle cx="60" cy="112" r="36" class="remote-pad" />
+            <circle cx="60" cy="112" r="14" class="remote-accent" />
+            <path
+              d="M60 96l5 6H55zM60 128l5-6H55zM44 112l6-5v10zM76 112l-6-5v10z"
+              class="remote-ink"
+            />
+            <circle cx="36" cy="176" r="9" class="remote-key" />
+            <circle cx="60" cy="176" r="9" class="remote-key" />
+            <circle cx="84" cy="176" r="9" class="remote-key" />
+            <rect x="46" y="198" width="28" height="10" rx="5" class="remote-key" />
+          </svg>
+        </div>
+        <div class="metric-grid device-metrics">
+          <div class="metric">
+            <p class="metric-label">{{ tr("遥控器") }}</p>
+            <p class="metric-value">
+              {{ store.snapshot?.connection.remote?.name ?? tr("未连接") }}
+            </p>
           </div>
-        </div>
-        <div class="metric">
-          <p class="metric-label">{{ tr("遥控器") }}</p>
-          <p class="metric-value">
-            {{ store.snapshot?.connection.remote?.name ?? tr("未连接") }}
-          </p>
-        </div>
-        <div class="metric">
-          <p class="metric-label">{{ tr("型号") }}</p>
-          <p class="metric-value">
-            {{ modelLabel(store.snapshot?.connection.remote?.model ?? null) }}
-          </p>
-        </div>
-        <div class="metric">
-          <p class="metric-label">{{ tr("电量") }}</p>
-          <p class="metric-value" :class="{ 'metric-warning': lowBattery }">
-            {{ battery === null ? tr("未知") : `${battery}%` }}
-          </p>
-        </div>
-        <div class="metric">
-          <p class="metric-label">{{ tr("重连次数") }}</p>
-          <p class="metric-value">{{ deviceStatus?.reconnectAttempt ?? 0 }}</p>
-        </div>
-        <div class="metric">
-          <p class="metric-label">{{ tr("电源通知") }}</p>
-          <p class="metric-value">
-            {{
-              deviceStatus
-                ? trDynamic(deviceStatus.powerNotificationsAvailable ? "可用" : "不可用")
-                : tr("未知")
-            }}
-          </p>
+          <div class="metric">
+            <p class="metric-label">{{ tr("型号") }}</p>
+            <p class="metric-value">
+              {{ modelLabel(store.snapshot?.connection.remote?.model ?? null) }}
+            </p>
+          </div>
+          <div class="metric">
+            <p class="metric-label">{{ tr("固件版本") }}</p>
+            <p class="metric-value">{{ deviceStatus?.firmwareVersion ?? tr("未知") }}</p>
+          </div>
+          <div class="metric">
+            <p class="metric-label">{{ tr("电量") }}</p>
+            <p class="metric-value" :class="{ 'metric-warning': lowBattery }">
+              {{ battery === null ? tr("未知") : `${battery}%` }}
+            </p>
+          </div>
+          <div class="metric">
+            <p class="metric-label">{{ tr("重连次数") }}</p>
+            <p class="metric-value">{{ deviceStatus?.reconnectAttempt ?? 0 }}</p>
+          </div>
+          <div class="metric">
+            <p class="metric-label">{{ tr("电源通知") }}</p>
+            <p class="metric-value">
+              {{
+                deviceStatus
+                  ? trDynamic(deviceStatus.powerNotificationsAvailable ? "可用" : "不可用")
+                  : tr("未知")
+              }}
+            </p>
+          </div>
         </div>
       </div>
     </Card>
@@ -425,7 +448,15 @@ onUnmounted(() => {
                 tone="accent"
               />
             </span>
-            <span class="device-meta muted"> {{ tr("型号") }}={{ modelLabel(remote.model) }} </span>
+            <span class="device-meta muted">
+              <span>{{ tr("型号") }}={{ modelLabel(remote.model) }}</span>
+              <template v-if="isCurrent(remote.remoteId)">
+                <span>
+                  {{ tr("固件版本") }}={{ deviceStatus?.firmwareVersion ?? tr("未知") }}
+                </span>
+                <span>{{ tr("电量") }}={{ battery === null ? tr("未知") : `${battery}%` }}</span>
+              </template>
+            </span>
           </span>
           <Button
             class="device-action"
@@ -452,7 +483,7 @@ onUnmounted(() => {
             <span class="gain-value mono muted">{{ deviceGain }} dB</span>
           </div>
         </Field>
-        <Field label="设备端点">
+        <Field label="音频输入设备">
           <SelectInput v-model="deviceEndpointId">
             <option value="">{{ tr("继承全局端点") }}</option>
             <option v-for="endpoint in endpoints" :key="endpoint.id" :value="endpoint.id">
@@ -460,7 +491,7 @@ onUnmounted(() => {
             </option>
           </SelectInput>
         </Field>
-        <Field label="设备语音工具">
+        <Field label="语音输入工具">
           <SelectInput v-model="deviceVoiceInputTool">
             <option value="">{{ tr("继承全局工具") }}</option>
             <option value="wechat">{{ tr("微信输入法") }}</option>
@@ -481,27 +512,27 @@ onUnmounted(() => {
     <Card v-if="supportsRc003Capture" class="stack">
       <SectionHeader title="增强捕获" hint="返回键、音量键" />
       <Checkbox v-model="rc003Capture">
-        {{ tr("启用 RC003 增强捕获（返回键、音量键）") }}
+        {{ tr("启用 RC003 增强捕获") }}
       </Checkbox>
 
       <div v-if="rc003Capture" class="helper-panel">
         <div class="helper-main">
           <div class="helper-head">
-            <span class="helper-name">{{ tr("RC003 增强捕获 helper") }}</span>
+            <span class="helper-name">{{ tr("RC003 增强捕获服务") }}</span>
             <StatusPill
               :label="trDynamic(rc003HelperInstalled ? '已安装' : '未安装')"
               :tone="rc003HelperInstalled ? 'success' : 'warning'"
             />
           </div>
           <p class="helper-description">
-            {{ tr("返回键和音量键增强捕获需要 helper；首次安装会请求管理员授权。") }}
+            {{ tr("返回键和音量键需要增强捕获组件；首次安装会请求管理员授权。") }}
           </p>
           <Notice v-if="helperMessage" :kind="rc003HelperInstalled ? 'success' : 'info'">
             {{ helperMessage }}
           </Notice>
         </div>
         <Button :variant="rc003HelperInstalled ? 'secondary' : 'primary'" @click="installHelper">
-          {{ trDynamic(rc003HelperInstalled ? "更新 helper" : "安装 helper") }}
+          {{ trDynamic(rc003HelperInstalled ? "更新" : "安装") }}
         </Button>
       </div>
     </Card>
@@ -509,8 +540,85 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.metric-pill {
-  margin-top: 2px;
+.device-status-body {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.device-visual {
+  display: grid;
+  flex: 0 0 96px;
+  width: 96px;
+  height: 192px;
+  place-items: center;
+}
+
+.device-visual.offline {
+  opacity: 0.72;
+}
+
+.device-image {
+  width: auto;
+  height: 188px;
+  max-width: 100%;
+  object-fit: contain;
+  filter: drop-shadow(var(--shadow-sm));
+}
+
+.device-image.is-line {
+  filter: invert(var(--line-art-invert)) drop-shadow(var(--shadow-sm));
+}
+
+.device-line-art {
+  width: 88px;
+  height: 176px;
+  filter: drop-shadow(var(--shadow-sm));
+}
+
+.remote-body {
+  fill: var(--bg-sidebar);
+  stroke: var(--border-strong);
+  stroke-width: 2;
+}
+
+.remote-inner {
+  fill: var(--bg-raised);
+}
+
+.remote-accent {
+  fill: var(--accent-soft-strong);
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+
+.remote-ink {
+  fill: var(--text-muted);
+}
+
+.remote-line {
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.remote-pad {
+  fill: var(--bg-subtle);
+  stroke: var(--border-strong);
+  stroke-width: 1.5;
+}
+
+.remote-key {
+  fill: var(--bg-subtle);
+  stroke: var(--border);
+  stroke-width: 1.2;
+}
+
+.device-metrics {
+  flex: 1;
+  min-width: 0;
 }
 
 .metric-warning {
@@ -584,7 +692,12 @@ onUnmounted(() => {
 }
 
 .device-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
   color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: 1.5;
 }
 
 .device-action {
@@ -627,6 +740,29 @@ onUnmounted(() => {
   color: var(--text-muted);
   font-size: var(--text-xs);
   line-height: 1.6;
+}
+
+@media (max-width: 900px) {
+  .device-status-body {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .device-visual {
+    flex-basis: 88px;
+    width: 88px;
+    height: 176px;
+  }
+
+  .device-image {
+    height: 168px;
+    width: auto;
+  }
+
+  .device-line-art {
+    width: 78px;
+    height: 156px;
+  }
 }
 
 @media (max-width: 720px) {

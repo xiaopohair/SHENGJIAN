@@ -5,8 +5,8 @@ use tauri::{App, AppHandle, Emitter, Manager, Runtime, Theme};
 
 /// Bright pine tray glyph for dark taskbars (brand: tray-32-color).
 const TRAY_ICON_FOR_DARK_TASKBAR: &[u8] = include_bytes!("../icons/tray-32-color.png");
-/// Deep pine tray glyph for light taskbars (brand: tray-32-deep).
-const TRAY_ICON_FOR_LIGHT_TASKBAR: &[u8] = include_bytes!("../icons/tray-32-deep.png");
+/// Ink tray glyph for light taskbars (brand: tray-32-ink).
+const TRAY_ICON_FOR_LIGHT_TASKBAR: &[u8] = include_bytes!("../icons/tray-32-ink.png");
 /// Bright pine window / taskbar mark for dark taskbars (brand: mark-64).
 const WINDOW_ICON_FOR_DARK_TASKBAR: &[u8] = include_bytes!("../icons/mark-64.png");
 /// Deep pine window / taskbar mark for light taskbars (brand: mark-64-deep).
@@ -39,7 +39,7 @@ fn build_menu<R: Runtime, M: Manager<R>>(manager: &M, language: &str) -> tauri::
 /// Picks the tray glyph that stays readable on the current taskbar.
 ///
 /// The bright pine mark is the brand default on dark surfaces; light taskbars
-/// get the deeper pine variant, which keeps enough contrast on light grey.
+/// get the ink variant for maximum contrast on light grey.
 fn tray_icon_for_theme(theme: Option<Theme>) -> Option<Image<'static>> {
     let bytes = match theme {
         Some(Theme::Light) => TRAY_ICON_FOR_LIGHT_TASKBAR,
@@ -65,6 +65,9 @@ pub fn current_theme<R: Runtime>(app: &AppHandle<R>) -> Option<Theme> {
 }
 
 /// Swaps the tray and window icons when the taskbar switches between light and dark.
+///
+/// `last_theme` is the theme whose icons are already applied, not the current
+/// theme. Passing a freshly-read current theme makes the function a no-op.
 pub fn sync_brand_icons<R: Runtime>(app: &AppHandle<R>, last_theme: &mut Option<Theme>) {
     let Some(theme) = current_theme(app) else {
         return;
@@ -138,6 +141,14 @@ pub fn set_tray_language(app: &AppHandle, language: &str) -> Result<(), String> 
         .tray_by_id("main-tray")
         .ok_or_else(|| "tray not found".to_owned())?;
     tray.set_menu(Some(menu)).map_err(|error| error.to_string())
+}
+
+/// Re-apply the theme-specific tray/window icons immediately (called when the
+/// app finishes switching light/dark theme).
+#[tauri::command]
+pub fn sync_tray_icons(app: AppHandle) {
+    let mut applied_theme = None;
+    sync_brand_icons(&app, &mut applied_theme);
 }
 
 #[cfg(test)]

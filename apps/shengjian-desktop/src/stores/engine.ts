@@ -22,6 +22,31 @@ interface ButtonEvent {
   trigger?: string;
 }
 
+/**
+ * A scan can only infer the model from the Bluetooth name, which is generic for
+ * some remotes. Once connected, the connection snapshot carries the model read
+ * from GATT; backfill it into the matching discovered row so the list and the
+ * status card agree.
+ */
+function mergeConnectedRemote(
+  remotes: RemoteCandidate[],
+  connected: RemoteCandidate | null,
+): RemoteCandidate[] {
+  if (!connected) return remotes;
+  return remotes.map((remote) =>
+    remote.remoteId === connected.remoteId
+      ? {
+          ...remote,
+          name: connected.name || remote.name,
+          model: remote.model ?? connected.model,
+          deviceId: remote.deviceId ?? connected.deviceId,
+          token: remote.token ?? connected.token,
+          isSupported: remote.isSupported || connected.isSupported,
+        }
+      : remote,
+  );
+}
+
 interface EngineState {
   snapshot: EngineSnapshot | null;
   cursor: number;
@@ -71,7 +96,11 @@ export const useEngineStore = defineStore("engine", {
       this.scanning = true;
       this.error = null;
       try {
-        this.remotes = await scanRemotes();
+        const remotes = await scanRemotes();
+        this.remotes = mergeConnectedRemote(
+          remotes,
+          this.snapshot?.connection.remote ?? null,
+        );
       } catch (error) {
         this.error = errorMessage(error);
       } finally {
@@ -85,6 +114,7 @@ export const useEngineStore = defineStore("engine", {
         const connection = await connectRemote(remoteId);
         const snapshot = this.snapshot ?? (await getEngineSnapshot());
         this.snapshot = { ...snapshot, connection };
+        this.remotes = mergeConnectedRemote(this.remotes, connection.remote);
       } catch (error) {
         this.error = errorMessage(error);
       } finally {
@@ -110,10 +140,12 @@ export const useEngineStore = defineStore("engine", {
       if (!this.snapshot) return;
 
       if (envelope.event.type === "connection.changed" && envelope.event.snapshot) {
+        const connection = envelope.event.snapshot as EngineSnapshot["connection"];
         this.snapshot = {
           ...this.snapshot,
-          connection: envelope.event.snapshot as EngineSnapshot["connection"],
+          connection,
         };
+        this.remotes = mergeConnectedRemote(this.remotes, connection.remote);
       } else if (envelope.event.type === "voice.changed" && envelope.event.snapshot) {
         const voice = envelope.event.snapshot as EngineSnapshot["voice"];
         this.snapshot = {

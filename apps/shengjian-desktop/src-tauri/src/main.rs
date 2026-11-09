@@ -7,6 +7,7 @@ mod host;
 mod macro_history;
 mod macros;
 mod platform;
+mod splash;
 mod state;
 mod transcript_history;
 mod tray;
@@ -31,10 +32,9 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
+            // A second launch during startup should skip the splash and focus
+            // the main window instead of leaving it hidden.
+            splash::reveal_main(app);
         }))
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
@@ -42,6 +42,7 @@ fn main() {
         ))
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            app.manage(splash::StartupClock::default());
             platform::initialize_diagnostics();
 
             let sink = Arc::new(events::TauriEventSink::new(app.handle().clone()));
@@ -96,16 +97,41 @@ fn main() {
                 foreground_stop,
             });
             tray::setup_tray(app, tray_language)?;
+            // The frontend calls commands as soon as it mounts, so create the
+            // main webview only after AppState exists. Config windows are
+            // created before the setup hook runs; `create: false` keeps this
+            // window out of that early pass. This also prevents the startup
+            // race where get_settings ran before .manage(AppState).
+            let main_config = app
+                .config()
+                .app
+                .windows
+                .iter()
+                .find(|window| window.label == "main")
+                .cloned()
+                .ok_or_else(|| "main window config missing".to_string())?;
+            let main_window =
+                tauri::WebviewWindowBuilder::from_config(app.handle(), &main_config)?.build()?;
+            // Keep the centered startup position even if the platform defers
+            // placement until the hidden window is first mapped.
+            let _ = main_window.center();
             // Tray / taskbar icons follow the taskbar theme: bright pine on dark,
             // deep pine on light (brand: tray-*-color / tray-*-deep).
-            let mut tray_theme = tray::current_theme(app.handle());
+            let mut tray_theme = None;
             tray::sync_brand_icons(app.handle(), &mut tray_theme);
             spawn_tray_battery_status(app.handle().clone());
             spawn_macro_history_recorder(history_host);
+            splash::schedule_fallback(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| match event {
             tauri::WindowEvent::CloseRequested { api, .. } => {
+                if window.label() == "splash" {
+                    // The splash is only dismissed by the startup handoff (or
+                    // the timeout fallback). Alt+F4 must not strand the app.
+                    api.prevent_close();
+                    return;
+                }
                 let close_to_tray = window
                     .app_handle()
                     .try_state::<state::AppState>()
@@ -121,13 +147,16 @@ fn main() {
                 }
             }
             tauri::WindowEvent::Destroyed => {
-                if let Some(state) = window.app_handle().try_state::<state::AppState>() {
-                    state.foreground_stop.store(true, Ordering::Relaxed);
+                if window.label() == "main" {
+                    if let Some(state) = window.app_handle().try_state::<state::AppState>() {
+                        state.foreground_stop.store(true, Ordering::Relaxed);
+                    }
                 }
             }
             _ => {}
         })
         .invoke_handler(tauri::generate_handler![
+            splash::finish_startup,
             commands::engine_snapshot,
             commands::engine_event_cursor,
             commands::scan_remotes,
@@ -173,6 +202,7 @@ fn main() {
             commands::transcript_history,
             commands::clear_transcript_history,
             commands::set_tray_language,
+            tray::sync_tray_icons,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Shengjian desktop");
@@ -182,7 +212,7 @@ fn spawn_tray_battery_status(app: tauri::AppHandle) {
     std::thread::Builder::new()
         .name("shengjian-tray-battery".to_owned())
         .spawn(move || {
-            let mut tray_theme = tray::current_theme(&app);
+            let mut tray_theme = None;
             loop {
                 std::thread::sleep(Duration::from_secs(15));
                 tray::sync_brand_icons(&app, &mut tray_theme);

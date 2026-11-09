@@ -34,9 +34,10 @@ Brand positioning, slogan, logo, and visual guidelines: [brand/BRAND.md](brand/B
 
 `apps/shengjian-desktop`: Tauri 2 + Vue 3, consuming the core in-process.
 
-- UI: frameless custom title bar, `Ctrl+K` command palette
-- Connection page: scan, connect, disconnect, multi-device switching, remember last device, status, battery, connection details, current-device audio/voice tool overrides, RC003 enhanced capture and helper
-- Tray: show/hide, open settings, open logs directory, quit; tooltip shows connection/battery; Chinese/English menus switch instantly with the language; icons use the light pine-green / deep pine-green variants according to taskbar light/dark
+- UI: frameless custom title bar (brand mark and product name on the left), rounded main content panel, centered on startup, `Ctrl+K` command palette
+- Startup splash: a branded splash screen covers initialization and hands off to the main window once settings and theme are ready, avoiding a blank flash; its copy follows the in-app language setting, falling back to the system language
+- Connection page: scan, connect, disconnect, multi-device switching, remember last device, status, model, firmware version, battery, connection details, current-device audio/voice tool overrides, RC003 enhanced capture and helper
+- Tray: show/hide, open settings, open logs directory, quit; tooltip shows connection/battery; Chinese/English menus switch instantly with the language; tray icons use the light pine-green / ink variants according to taskbar light/dark
 - Voice page: voice/audio status, real-time level, voice test, voice input tool, custom voice hotkey, transcription history toggle
 - Buttons page: profile list, edit, activate, import/export; wide-screen list + right-side editor, unsaved-navigation confirmation
 - Profile editor: app target (choose a program / use current foreground), fill from current foreground, hotkey capture, automatic profile conflict hints, save validation, hold-to-repeat, profile-level voice tool override, duplicate profile, new from template, 11 keys (including TV); common-phrases entry shown according to platform capability
@@ -134,6 +135,17 @@ Installer contents:
 - `resources/rc003/frida-gadget.dll`
 - `resources/licenses/`: GPL, ATTRIBUTION, third-party licenses, full Frida Gadget license, brand wordmark OFL notice (`LICENSE-OFL.txt`)
 
+### Portable build (zip, no installer)
+
+```powershell
+cd apps/shengjian-desktop
+pnpm build:portable
+```
+
+Output: `apps/shengjian-desktop/src-tauri/target/release/portable/shengjian_<version>_x64-portable.zip`; verification metadata is written to `release/<version>/portable-manifest.json`.
+
+Extract the zip and run `shengjian-desktop.exe`; no installation is required. The system must have the WebView2 Runtime installed (included in Windows 11; present on most Windows 10 machines). Settings, macros, history, and logs still live in `%LOCALAPPDATA%\Shengjian`. The RC003 helper scheduled task points at the current folder, so reinstall it after moving the folder; before deleting the folder, run `resources\rc003\shengjian-helper.exe --remove-task` as administrator. The portable and installed builds share the single-instance identifier and data directory, so they cannot run at the same time.
+
 ### Headless host
 
 ```powershell
@@ -165,12 +177,13 @@ Details: [docs/rc003-helper-setup.md](docs/rc003-helper-setup.md).
 ## Verification
 
 - Root workspace: `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test --workspace` pass (**689 passed**, including 490 in the `shengjian-windows` platform library)
-- Desktop Rust: **12 passed**
-- Desktop frontend: **21 passed**
+- Desktop Rust: **13 passed**
+- Desktop frontend: **28 passed**
 - Desktop E2E (real installer + WebView2 CDP): **4 passed**
 - Local build: `shengjian_0.1.0_x64-setup.exe` generated; `prepare-release.ps1` / `verify-release.ps1` pass
 - Physical install / launch / uninstall: install directory, shortcuts, uninstall entry, and version cleanup are correct; user data `%LOCALAPPDATA%\Shengjian` is preserved
 - Installer wizard: welcome sidebar, header brand image, Chinese UI, and the "声键 安装" title are correct
+- Portable build: extracted to a path with spaces and Chinese characters and launched correctly; the splash window appeared and closed once the main window was ready
 - Physical RC003:
   - scan → connect `ready`
   - voice `streaming → draining → idle`
@@ -206,8 +219,9 @@ Route: **public repository, x64, manual download, no auto-update**; free open-so
 
 - `.github/workflows/release.yml`: builds and releases on `v*` tags; signs automatically after SignPath variables/secrets are configured
 - Release title is "声键 &lt;version&gt;"; Tauri first produces `声键_<version>_x64-setup.exe` per `productName`, and the workflow then calls `scripts/normalize-installer-name.ps1` to normalize it to the release filename `shengjian_<version>_x64-setup.exe`
+- Portable: after signing, `scripts/build-portable.ps1 -SkipBuild` assembles `shengjian_<version>_x64-portable.zip` and publishes it with the installer
 - Signing docs: [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md), [docs/signing.md](docs/signing.md)
-- Assets: installer, `manifest.json`, `SHA256SUMS`, `LICENSE`, `ATTRIBUTION.md`, `THIRD_PARTY_NOTICES.md`, `brand/LICENSE-OFL.txt`, full Frida license
+- Assets: installer, portable zip, `manifest.json`, `portable-manifest.json`, `SHA256SUMS`, `LICENSE`, `ATTRIBUTION.md`, `THIRD_PARTY_NOTICES.md`, `brand/LICENSE-OFL.txt`, full Frida license
 - First helper installation requires one UAC approval
 - SmartScreen still applies when signing is not enabled; Releases provide SHA-256 for verification
 - Security: [SECURITY.md](SECURITY.md)

@@ -16,10 +16,33 @@
         "title": "声键",
         "width": 1000,
         "height": 720,
+        "center": true,
         "minWidth": 860,
         "minHeight": 600,
         "decorations": false,
-        "shadow": true
+        "shadow": true,
+        "visible": false,
+        "create": false,
+        "backgroundColor": "#0b0f14"
+      },
+      {
+        "label": "splash",
+        "url": "splashscreen.html",
+        "title": "声键",
+        "width": 420,
+        "height": 300,
+        "resizable": false,
+        "maximizable": false,
+        "minimizable": false,
+        "closable": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false,
+        "alwaysOnTop": true,
+        "center": true,
+        "skipTaskbar": true,
+        "visible": true,
+        "focus": true
       }
     ],
     "security": {

@@ -5,6 +5,10 @@ export type LanguagePreference = "system" | "zh-Hans" | "en";
 
 const preference = ref<LanguagePreference>("system");
 
+// The splash window is static HTML and loads before settings are available.
+// Mirror the preference here so the next launch can match the in-app language.
+export const LANGUAGE_STORAGE_KEY = "shengjian-language";
+
 const ENGLISH = {
   连接: "Connection",
   语音: "Voice",
@@ -82,7 +86,6 @@ const ENGLISH = {
   清空搜索: "Clear search",
   设置分区: "Settings sections",
   "界面主题、强调色与应用语言": "Interface theme, accent color, and app language",
-  "登录系统后自动启动应用。": "Start the app automatically after you sign in.",
   日志预览: "Log preview",
   收起日志: "Collapse log",
   展开日志: "Expand log",
@@ -210,11 +213,11 @@ const ENGLISH = {
   "返回键、音量键": "Back/Volume keys",
   "RC003 增强捕获": "RC003 enhanced capture",
   增强捕获: "Enhanced capture",
-  "RC003 增强捕获 helper": "RC003 enhanced capture helper",
-  "返回键和音量键增强捕获需要 helper；首次安装会请求管理员授权。":
-    "Enhanced capture for the Back and Volume keys requires the helper; the first install asks for administrator approval.",
-  "安装 helper": "Install helper",
-  "更新 helper": "Update helper",
+  "RC003 增强捕获服务": "RC003 enhanced capture service",
+  "返回键和音量键需要增强捕获组件；首次安装会请求管理员授权。":
+    "The Back and Volume keys require the enhanced capture component; the first install asks for administrator approval.",
+  安装: "Install",
+  更新: "Update",
   启动与窗口: "Startup & window",
   系统启动与关闭行为: "Startup and close behavior",
   重置: "Reset",
@@ -272,6 +275,7 @@ const ENGLISH = {
   阶段: "Phase",
   遥控器: "Remote",
   型号: "Model",
+  固件版本: "Firmware version",
   标识: "ID",
   连接详情: "Connection details",
   重连次数: "Reconnect attempts",
@@ -307,8 +311,6 @@ const ENGLISH = {
   "推荐 CABLE Input": "CABLE Input recommended",
   "没有可用音频端点。": "No audio endpoints available.",
   增益: "Gain",
-  "范围 0–24 dB；修改后立即写回 settings。":
-    "Range 0–24 dB; changes are written to settings immediately.",
   最近语音事件: "Recent voice events",
   按一次语音键验证: "Press the voice key once to verify",
   "还没有语音事件。按住语音键说话，再松开。":
@@ -377,6 +379,7 @@ const ENGLISH = {
   紫色: "Purple",
   橙色: "Orange",
   语音输入工具: "Voice input tool",
+  音频输入设备: "Audio input device",
   取消录制: "Cancel recording",
   录制热键: "Record hotkey",
   恢复默认: "Restore default",
@@ -385,7 +388,7 @@ const ENGLISH = {
   未选择: "Not selected",
   开机自动启动: "Start with Windows",
   "关闭窗口时隐藏到托盘（关闭则直接退出）": "Hide to tray on close (otherwise quit)",
-  "启用 RC003 增强捕获（返回键、音量键）": "Enable RC003 enhanced capture (Back/Volume)",
+  "启用 RC003 增强捕获": "Enable RC003 enhanced capture",
   "保存本机转写历史（只存文字，不存音频）": "Save local transcript history (text only, no audio)",
   "安装/更新 helper": "Install/update helper",
   当前设备覆盖: "Current device overrides",
@@ -403,7 +406,7 @@ const ENGLISH = {
   "settings + profiles + 宏库": "settings + profiles + macros",
   "导出为单个 JSON，用于迁移或故障恢复；恢复会覆盖当前配置。":
     "Export a single JSON for migration or recovery. Restore overwrites current configuration.",
-  "备份包含 settings、profiles、宏库、转写历史、强调色和上次设备。":
+  "备份包含 设置、方案、宏库、转写历史、强调色和上次设备。":
     "Backup includes settings, profiles, macro library, transcript history, accent color, and last device.",
   导出备份: "Export backup",
   恢复备份: "Restore backup",
@@ -425,8 +428,8 @@ const ENGLISH = {
   日志为空: "Log is empty",
   健康检查: "Health check",
   本机运行状态: "Local runtime status",
-  "检查平台、helper、音频、连接、电量和前台应用识别。":
-    "Checks platform, helper, audio, connection, battery, and foreground app detection.",
+  "检查平台、RC003增强服务、音频、连接、电量和前台应用识别。":
+    "Checks platform, RC003 enhanced service, audio, connection, battery, and foreground app detection.",
   运行健康检查: "Run health check",
   检查中: "Checking",
   设备支持: "Device support",
@@ -582,9 +585,9 @@ const ENGLISH = {
     "No transcripts yet. Enable the setting and use the voice key first.",
   首次配置: "Initial setup",
   跳过: "Skip",
-  连接你的小米蓝牙语音遥控器: "Connect your Xiaomi Bluetooth voice remote",
-  "本向导会检查遥控器连接、语音链路和基础设置。所有配置都由本机 core 保存。":
-    "This wizard checks the remote connection, voice path, and basic settings. All configuration is saved by the local core.",
+  连接你的蓝牙语音遥控器: "Connect your Bluetooth voice remote",
+  "本向导会检查遥控器连接、语音链路、按键状态。所有配置将在本地保存。":
+    "This wizard checks the remote connection, voice path, and button status. All configuration is saved locally.",
   开始配置: "Start setup",
   扫描并连接: "Scan and connect",
   "按下遥控器任意键唤醒，然后扫描已配对设备。":
@@ -594,12 +597,25 @@ const ENGLISH = {
   稍后连接: "Connect later",
   测试语音键: "Test voice key",
   "按住遥控器语音键说一句话，再松开。": "Hold the voice key, speak, then release.",
-  已收到语音流: "Voice stream received",
-  等待语音流: "Waiting for voice stream",
+  "语音功能可用。": "Voice input is working.",
+  "语音功能不可用。": "Voice input is not working.",
+  "正在接收语音…": "Listening…",
+  "等待语音检测。": "Waiting for voice input.",
   跳过语音测试: "Skip voice test",
+  按键测试: "Button test",
+  检测遥控器按键: "Test remote buttons",
+  "请依次按下遥控器上的各个键，检测按键是否可用。":
+    "Press each remote button in turn to check whether it works.",
+  已检测: "Detected",
+  待检测: "Not detected",
+  全部按键可用: "All buttons work",
+  "返回键、音量键需要启用 RC003 增强捕获并安装服务后才能检测。":
+    "Back and volume keys require RC003 enhanced capture with the service installed before they can be detected.",
+  安装中: "Installing",
+  "RC003 增强捕获服务已安装。": "RC003 enhanced capture service installed.",
   配置完成: "Setup complete",
-  "你可以在按键页管理 profile、在设置页调整音频和启动行为。向导可以随时重新运行。":
-    "Manage profiles on the Buttons page and audio/startup behavior in Settings. You can rerun this wizard at any time.",
+  "你可以在按键页管理键位方案、在设置页调整音频和启动行为。向导可以随时重新运行。":
+    "Manage key mappings on the Buttons page and audio/startup behavior in Settings. You can rerun this wizard at any time.",
   进入应用: "Enter app",
   "不支持的宏 schema 版本": "Unsupported macro schema version",
   "宏 ID 无效": "Invalid macro ID",
@@ -640,7 +656,12 @@ export const uiLocale = computed(() => resolveLocale(preference.value));
 
 export function setLanguagePreference(value: string) {
   preference.value = value === "zh-Hans" || value === "en" ? value : "system";
-  document.documentElement.lang = resolveLocale(preference.value);
+  if (typeof document !== "undefined") {
+    document.documentElement.lang = resolveLocale(preference.value);
+  }
+  if (typeof localStorage !== "undefined") {
+    localStorage.setItem(LANGUAGE_STORAGE_KEY, preference.value);
+  }
 }
 
 if (typeof document !== "undefined") {

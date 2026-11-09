@@ -1,6 +1,8 @@
+import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 export const ONBOARDING_KEY = "shengjian-onboarding-complete";
+export const RESTART_ONBOARDING_EVENT = "shengjian:restart-onboarding";
 export const ACCENT_KEY = "shengjian-accent";
 export const SIDEBAR_KEY = "shengjian-sidebar-collapsed";
 
@@ -48,5 +50,12 @@ async function syncWindowTheme(theme: "light" | "dark" | null) {
     await getCurrentWindow().setTheme(theme);
   } catch {
     // Older hosts or missing capability: keep the webview theme only.
+  }
+  try {
+    // Tray icons use the window theme; refresh them without waiting for the
+    // battery-status polling loop.
+    await invoke("sync_tray_icons");
+  } catch {
+    // Browser-only dev or an older host.
   }
 }

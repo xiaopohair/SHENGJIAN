@@ -26,6 +26,7 @@ fn rust_serialization_matches_the_shared_windows_runtime_contract() {
                 remote_name: Some("Xiaomi Bluetooth Remote 2".into()),
                 remote_model: RemoteModel::Rc001,
                 remote_token: Some("0a1b2c3d".into()),
+                firmware_version: Some("1.0.6".into()),
                 capabilities: Some(AtvvCapabilities {
                     version: 256,
                     codecs: 1,

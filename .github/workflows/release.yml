@@ -222,6 +222,24 @@ jobs:
             Write-Output "$file -> $($signature.SignerCertificate.Subject)"
           }
 
+      - name: Build portable zip
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-portable.ps1 -Version "${{ steps.version.outputs.version }}" -SkipBuild
+
+      - name: Resolve portable package
+        id: portable
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $manifestPath = "release/$version/portable-manifest.json"
+          $manifest = Get-Content $manifestPath -Raw -Encoding utf8 | ConvertFrom-Json
+          if (-not (Test-Path -LiteralPath $manifest.file)) {
+            throw "portable zip not found: $($manifest.file)"
+          }
+          "zip=$($manifest.file)" >> $env:GITHUB_OUTPUT
+          "manifest=$manifestPath" >> $env:GITHUB_OUTPUT
+
       - name: Prepare release metadata
         shell: pwsh
         run: |
@@ -230,8 +248,13 @@ jobs:
           $manifest = Get-Content "release/$version/manifest.json" -Raw | ConvertFrom-Json
           $installer = $manifest.file
           $hash = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash
-          $line = "$hash  $(Split-Path -Leaf $installer)"
-          [IO.File]::WriteAllText((Join-Path "release/$version" "SHA256SUMS"), $line + "`n", (New-Object System.Text.UTF8Encoding($false)))
+          $lines = @("$hash  $(Split-Path -Leaf $installer)")
+          $portableManifestPath = "release/$version/portable-manifest.json"
+          if (Test-Path -LiteralPath $portableManifestPath) {
+            $portable = Get-Content $portableManifestPath -Raw -Encoding utf8 | ConvertFrom-Json
+            $lines += "$($portable.sha256)  $(Split-Path -Leaf $portable.file)"
+          }
+          [IO.File]::WriteAllText((Join-Path "release/$version" "SHA256SUMS"), (($lines -join "`n") + "`n"), (New-Object System.Text.UTF8Encoding($false)))
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
@@ -241,7 +264,9 @@ jobs:
           body_path: docs/release-notes-${{ steps.version.outputs.version }}.md
           files: |
             ${{ steps.package.outputs.installer }}
+            ${{ steps.portable.outputs.zip }}
             release/${{ steps.version.outputs.version }}/manifest.json
+            ${{ steps.portable.outputs.manifest }}
             release/${{ steps.version.outputs.version }}/SHA256SUMS
             LICENSE
             ATTRIBUTION.md

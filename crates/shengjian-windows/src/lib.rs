@@ -311,6 +311,9 @@ pub struct ConnectionSnapshot {
     /// 只用于界面把"已连接"标到正确的那一行——不落日志、不进诊断块（2026-10-13 现场）。
     #[serde(default)]
     pub remote_token: Option<String>,
+    /// 设备信息服务的固件版本（0x2A26，缺失时回退 0x2A28）；仅用于界面显示。
+    #[serde(default)]
+    pub firmware_version: Option<String>,
     pub capabilities: Option<AtvvCapabilities>,
     pub voice_state: VoiceSessionState,
     pub decoded_samples: u64,
@@ -522,6 +525,7 @@ impl Default for ConnectionSnapshot {
             remote_name: None,
             remote_model: RemoteModel::Unknown,
             remote_token: None,
+            firmware_version: None,
             capabilities: None,
             voice_state: VoiceSessionState::Idle,
             decoded_samples: 0,

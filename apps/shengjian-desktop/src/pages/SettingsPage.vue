@@ -279,7 +279,7 @@ async function runHealthCheck() {
         detail: caps.macroRuntime ? tr("可用") : tr("不可用"),
       },
       { label: tr("RC003 helper"), ok: helper, detail: helper ? tr("已安装") : tr("未安装") },
-      { label: tr("音频端点"), ok: endpoints.length > 0, detail: `${endpoints.length}` },
+      { label: tr("音频输入设备"), ok: endpoints.length > 0, detail: `${endpoints.length}` },
       { label: tr("遥控器连接"), ok: store.phase === "ready", detail: statusLabel(store.phase) },
       {
         label: tr("遥控器电量"),
@@ -444,14 +444,14 @@ onMounted(async () => {
         <Card v-if="settingsDocument">
           <SectionHeader title="音频" hint="全局设置" />
           <div class="card-body settings-form">
-            <Field label="增益" hint="范围 0–24 dB；修改后立即写回 settings。">
+            <Field label="增益">
               <div class="range-control">
                 <RangeInput v-model="gain" :min="0" :max="24" :step="1" />
                 <span class="range-value mono">{{ gain }} dB</span>
               </div>
             </Field>
 
-            <Field label="音频端点">
+            <Field label="音频输入设备">
               <SelectInput v-model="endpointId">
                 <option value="">{{ tr("未设置（连接时自动选 CABLE）") }}</option>
                 <option v-for="endpoint in endpoints" :key="endpoint.id" :value="endpoint.id">
@@ -470,7 +470,6 @@ onMounted(async () => {
             <div class="setting-toggle">
               <div class="setting-toggle-copy">
                 <span class="setting-toggle-label">{{ tr("开机自动启动") }}</span>
-                <span class="setting-toggle-hint">{{ tr("登录系统后自动启动应用。") }}</span>
               </div>
               <Switch v-model="autostart" :label="trDynamic('开机自动启动')" />
             </div>
@@ -498,7 +497,7 @@ onMounted(async () => {
               {{ tr("导出为单个 JSON，用于迁移或故障恢复；恢复会覆盖当前配置。") }}
             </p>
             <p class="muted">
-              {{ tr("备份包含 settings、profiles、宏库、转写历史、强调色和上次设备。") }}
+              {{ tr("备份包含 设置、方案、宏库、转写历史、强调色和上次设备。") }}
             </p>
             <div class="footer-actions">
               <Button :disabled="backupBusy" @click="exportBackup">
@@ -549,7 +548,7 @@ onMounted(async () => {
           <SectionHeader title="健康检查" hint="本机运行状态" />
           <div class="card-body">
             <p class="muted">
-              {{ tr("检查平台、helper、音频、连接、电量和前台应用识别。") }}
+              {{ tr("检查平台、RC003增强服务、音频、连接、电量和前台应用识别。") }}
             </p>
             <div class="footer-actions">
               <Button :disabled="healthBusy" @click="runHealthCheck">

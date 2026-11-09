@@ -26,6 +26,7 @@ pub struct DeviceStatus {
     pub reconnect_attempt: u32,
     pub power_notifications_available: bool,
     pub battery_level: Option<u8>,
+    pub firmware_version: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

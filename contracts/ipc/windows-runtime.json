@@ -14,6 +14,7 @@
       "remoteName": "Xiaomi Bluetooth Remote 2",
       "remoteModel": "rc001",
       "remoteToken": "0a1b2c3d",
+      "firmwareVersion": "1.0.6",
       "capabilities": {
         "version": 256,
         "codecs": 1,

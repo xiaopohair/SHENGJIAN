@@ -25,6 +25,7 @@
 
 - 不使用大面积渐变、玻璃拟态、重阴影。
 - 卡片圆角 12px，1px 边框 + 极轻阴影。
+- 主内容面板顶部与标题栏贴合，1px 边框 + 四周 12px 圆角，左/右/下留 8px 间距，侧栏底色从间距中露出；浅色主题面板背景用 `--bg-panel`（白色）。
 - 正文 14px，辅助 12–13px；页面标题 26px。
 - 所有颜色走 token；页面里不写十六进制颜色。
 - 动效只用于状态反馈，120–240ms；遵守 `prefers-reduced-motion`。
@@ -33,7 +34,7 @@
 
 在 `src/styles/tokens.css` 中定义，浅色/深色成对。常用：
 
-- 表面：`--bg`、`--bg-subtle`、`--bg-raised`、`--bg-elevated`、`--bg-hover`、`--bg-sidebar`
+- 表面：`--bg`、`--bg-panel`、`--bg-subtle`、`--bg-raised`、`--bg-elevated`、`--bg-hover`、`--bg-sidebar`
 - 边框：`--border`、`--border-strong`
 - 文本：`--text`、`--text-secondary`、`--text-muted`、`--text-disabled`、`--text-on-accent`
 - 强调：`--accent`、`--accent-hover`、`--accent-soft`、`--accent-soft-strong`
@@ -50,6 +51,7 @@
 ## 3. 共享布局类（global.css）
 
 - `.page`：所有页面统一使用 `--page-max`（1180），居中，padding 32；不再使用 `.wide/.narrow` 变体。
+- 主内容滚动条默认透明；滚动或指针靠近右缘时显示，约 800ms 无操作后隐藏。
 - `.stack` / `.stack-sm` / `.stack-lg`：纵向 flex，gap 16/8/24。
 - `.metric-grid` + `.metric` + `.metric-label` + `.metric-value`：状态摘要。
 - `.split-layout`：`minmax(280px,340px) + 1fr`，<=1120 自动单列。用于列表 + 编辑器。
@@ -161,11 +163,12 @@
 
 `TitleBar.vue` 是应用级无边框标题栏：
 
-- 只保留 drag region（`data-tauri-drag-region`）和右侧窗口控制；品牌移到侧栏顶部。
+- 左侧显示品牌图标与产品名称；保留 drag region（`data-tauri-drag-region`）和右侧窗口控制。
 - 右侧最小化/最大化（还原）/关闭，调用 Tauri window API。
 - 双击 drag region 切换最大化；`onResized` 同步最大化状态。
 - Tauri 配置 `decorations: false`；capabilities 需要 window 的 minimize/toggle-maximize/close/is-maximized/start-dragging 权限。
-- 标题栏高度使用 `--titlebar-height` token；z-index 高于内容浮层，保证窗口控制始终可用。
+- 标题栏高度使用 `--titlebar-height` token（36px）；z-index 高于内容浮层，保证窗口控制始终可用。
+- 标题栏下边框透明；主体与标题栏间距为 0，与主面板的分隔交给主面板边框。
 
 ### TopbarSearch
 
@@ -179,15 +182,15 @@
 
 ### BrandMark
 
-`BrandMark.vue`：侧栏 24px、关于页 84px 的品牌标记。
+`BrandMark.vue`：标题栏 12px、侧栏 24px、关于页 84px 的品牌标记。
 
 - 跟随 `document.documentElement.dataset.theme`：深色用 `shengjian-mark.svg`（亮松青），浅色用 `shengjian-mark-on-light.svg`（松青·深 `#0F7A63`）。
 - 组件内部用 Vue 响应式切 `src`，不要再用两张 `<img>` + CSS `display` 做主题切换（已验证会因 scoped CSS 优先级失效）。
-- 托盘/窗口图标同样走「亮松青 / 松青·深」两版，见 `brand/BRAND.md` §4.6。
+- 托盘：深色任务栏用亮松青、浅色任务栏用墨色；窗口图标深/浅仍用亮松青 / 松青·深，见 `brand/BRAND.md` §4.6。
 
 ### 顶栏全局状态
 
-从左到右：折叠侧栏、连接阶段、设备名、电量、当前语音输入工具、语音/音频异常状态；搜索在右侧。版本号移到侧栏品牌下方。
+顶栏从左到右：连接阶段、设备名、电量、当前语音输入工具、语音/音频异常状态；搜索在右侧。版本号移到侧栏品牌下方；侧栏折叠按钮在品牌行右侧，折叠后在 Logo 下方。
 
 ### ConfirmDialog / confirmAction
 

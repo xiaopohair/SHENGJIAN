@@ -1,10 +1,11 @@
 :root {
   color-scheme: dark;
-  --titlebar-height: 40px;
+  --titlebar-height: 36px;
   --page-max: 1180px;
 
   /* Surfaces */
   --bg: #0b0f14;
+  --bg-panel: #0b0f14;
   --bg-subtle: #10161e;
   --bg-raised: #151d27;
   --bg-elevated: #1a2430;
@@ -88,12 +89,14 @@
   --duration-base: 180ms;
   --duration-slow: 240ms;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --line-art-invert: 1;
 }
 
 :root[data-theme="light"] {
   color-scheme: light;
 
   --bg: #f4f6f9;
+  --bg-panel: #ffffff;
   --bg-subtle: #edf1f5;
   --bg-raised: #ffffff;
   --bg-elevated: #ffffff;
@@ -135,6 +138,7 @@
   --shadow-sm: 0 1px 2px rgba(30, 40, 55, 0.08);
   --shadow-md: 0 12px 32px rgba(30, 40, 55, 0.12);
   --shadow-lg: 0 24px 64px rgba(30, 40, 55, 0.18);
+  --line-art-invert: 0;
 }
 
 /* Accent presets are keyed to the resolved theme so no inline style is needed. */

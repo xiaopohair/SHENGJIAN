@@ -43,6 +43,8 @@ const AUDIO_UUID: GUID = GUID::from_u128(0xab5e00035a214f05bc7daf01f617b664);
 const CONTROL_UUID: GUID = GUID::from_u128(0xab5e00045a214f05bc7daf01f617b664);
 const DEVICE_INFORMATION_SERVICE_UUID: GUID = GUID::from_u128(0x0000180a00001000800000805f9b34fb);
 const MODEL_NUMBER_UUID: GUID = GUID::from_u128(0x00002a2400001000800000805f9b34fb);
+const FIRMWARE_REVISION_UUID: GUID = GUID::from_u128(0x00002a2600001000800000805f9b34fb);
+const SOFTWARE_REVISION_UUID: GUID = GUID::from_u128(0x00002a2800001000800000805f9b34fb);
 /// 标准 Battery Service（0x180F）与 Battery Level（0x2A19）。真机证据：RC003
 /// 0x2A19 props=read|notify，订阅后 0.5s 内即推送当前电量
 /// （hardware/RC003/evidence/gatt-probe-listen1.log）。
@@ -1668,6 +1670,7 @@ fn worker_loop(
                     phase: ConnectionPhase::Suspended,
                     remote_name: previous.remote_name,
                     remote_model: previous.remote_model,
+                    firmware_version: previous.firmware_version,
                     remote_token: previous.remote_token,
                     last_error: Some("Windows 已进入睡眠，小米语音遥控器资源已释放".to_owned()),
                     ..ConnectionSnapshot::default()
@@ -1694,6 +1697,7 @@ fn worker_loop(
                         phase: ConnectionPhase::Reconnecting,
                         remote_name: previous.remote_name,
                         remote_model: previous.remote_model,
+                        firmware_version: previous.firmware_version,
                         remote_token: previous.remote_token,
                         last_error: Some("Windows 已恢复，正在重新连接小米语音遥控器".to_owned()),
                         ..ConnectionSnapshot::default()
@@ -1840,6 +1844,9 @@ fn attempt_connection(
         remote_model: previous
             .as_ref()
             .map_or(RemoteModel::Unknown, |snapshot| snapshot.remote_model),
+        firmware_version: previous
+            .as_ref()
+            .and_then(|snapshot| snapshot.firmware_version.clone()),
         // 令牌在**每一次尝试建立连接时**都重新带上（2026-10-13 现场）：它只由目标设备 id
         // 决定，与连接阶段无关；重建快照时若不带，界面就认不出"已连接那一支"是哪一行。
         remote_token: Some(crate::device_token(device_id)),
@@ -1870,10 +1877,12 @@ fn attempt_connection(
             return Err(error);
         }
     };
+    let firmware_version = lock(state).firmware_version.clone();
     let snapshot = ConnectionSnapshot {
         phase: ConnectionPhase::AwaitingCapabilities,
         remote_name: Some(connected.name.clone()),
         remote_model: connected.model,
+        firmware_version,
         remote_token: Some(crate::device_token(device_id)),
         reconnect_attempt,
         ..ConnectionSnapshot::default()
@@ -3455,8 +3464,9 @@ impl BleSession {
                 .map(|name| name.to_string())
         })?;
         let inferred_model = remote_model_from_name(&name);
+        let (gatt_model, firmware_version) = read_device_information(pending.device());
         let model = if inferred_model == RemoteModel::Unknown {
-            read_remote_model(pending.device()).unwrap_or(RemoteModel::Unknown)
+            gatt_model.unwrap_or(RemoteModel::Unknown)
         } else {
             inferred_model
         };
@@ -3466,6 +3476,7 @@ impl BleSession {
             apply_input_connection_phase(snapshot.phase);
             snapshot.remote_name = Some(name.clone());
             snapshot.remote_model = model;
+            snapshot.firmware_version = firmware_version;
             // 界面靠这个令牌把"已连接"标到扫描列表里正确的那一行（2026-10-13 现场：
             // 两支遥控器同名，且连接可能是启动时恢复的、界面并没有"我点过连接"的记录）。
             snapshot.remote_token = Some(crate::device_token(device_id));
@@ -4487,18 +4498,35 @@ fn find_characteristic(
     characteristics.GetAt(0).map_err(windows_error)
 }
 
-fn read_remote_model(device: &BluetoothLEDevice) -> Option<RemoteModel> {
-    // 型号只用于界面显示，绝不能阻塞语音主路径（2026-10-21 现场：设备名是
+fn read_device_information(device: &BluetoothLEDevice) -> (Option<RemoteModel>, Option<String>) {
+    // 型号和固件只用于界面显示，绝不能阻塞语音主路径（2026-10-21 现场：设备名是
     // 通用“小米蓝牙语音遥控器”，这里在旧的半死链路上无限等待，工作线程
     // 连 `service_discovery` 都没走到）。Device Information 是静态数据，
-    // 用缓存查询；缓存缺失就回退 Unknown。
+    // 用缓存查询；缓存缺失就回退 None。
+    let Some(service) = device_information_service(device) else {
+        return (None, None);
+    };
+    let model = read_string_characteristic(&service, MODEL_NUMBER_UUID)
+        .and_then(|value| remote_model_from_model_number(&value));
+    let firmware = read_string_characteristic(&service, FIRMWARE_REVISION_UUID)
+        .or_else(|| read_string_characteristic(&service, SOFTWARE_REVISION_UUID));
+    let _ = service.Close();
+    (model, firmware)
+}
+
+fn device_information_service(device: &BluetoothLEDevice) -> Option<GattDeviceService> {
     let operation = device
         .GetGattServicesForUuidWithCacheModeAsync(
             DEVICE_INFORMATION_SERVICE_UUID,
             BluetoothCacheMode::Cached,
         )
         .ok()?;
-    let result = wait_async(operation, GATT_ASYNC_TIMEOUT, "gatt_remote_model_service").ok()?;
+    let result = wait_async(
+        operation,
+        GATT_ASYNC_TIMEOUT,
+        "gatt_device_information_service",
+    )
+    .ok()?;
     if result.Status().ok()? != GattCommunicationStatus::Success {
         return None;
     }
@@ -4506,20 +4534,17 @@ fn read_remote_model(device: &BluetoothLEDevice) -> Option<RemoteModel> {
     if services.Size().ok()? != 1 {
         return None;
     }
-    let service = services.GetAt(0).ok()?;
-    let model = read_model_number(&service);
-    let _ = service.Close();
-    model
+    services.GetAt(0).ok()
 }
 
-fn read_model_number(service: &GattDeviceService) -> Option<RemoteModel> {
+fn read_string_characteristic(service: &GattDeviceService, uuid: GUID) -> Option<String> {
     let operation = service
-        .GetCharacteristicsForUuidWithCacheModeAsync(MODEL_NUMBER_UUID, BluetoothCacheMode::Cached)
+        .GetCharacteristicsForUuidWithCacheModeAsync(uuid, BluetoothCacheMode::Cached)
         .ok()?;
     let result = wait_async(
         operation,
         GATT_ASYNC_TIMEOUT,
-        "gatt_remote_model_characteristic",
+        "gatt_device_information_characteristic",
     )
     .ok()?;
     if result.Status().ok()? != GattCommunicationStatus::Success {
@@ -4533,13 +4558,21 @@ fn read_model_number(service: &GattDeviceService) -> Option<RemoteModel> {
     let operation = characteristic
         .ReadValueWithCacheModeAsync(BluetoothCacheMode::Cached)
         .ok()?;
-    let value = wait_async(operation, GATT_ASYNC_TIMEOUT, "gatt_remote_model_read").ok()?;
+    let value = wait_async(
+        operation,
+        GATT_ASYNC_TIMEOUT,
+        "gatt_device_information_read",
+    )
+    .ok()?;
     if value.Status().ok()? != GattCommunicationStatus::Success {
         return None;
     }
     let bytes = buffer_to_vec(&value.Value().ok()?).ok()?;
-    let model_number = String::from_utf8(bytes).ok()?;
-    remote_model_from_model_number(&model_number)
+    let text = String::from_utf8(bytes).ok()?;
+    let trimmed = text
+        .trim_matches(|ch: char| ch == '\0' || ch.is_whitespace())
+        .to_owned();
+    (!trimmed.is_empty()).then_some(trimmed)
 }
 
 fn buffer_to_vec(buffer: &IBuffer) -> windows::core::Result<Vec<u8>> {
