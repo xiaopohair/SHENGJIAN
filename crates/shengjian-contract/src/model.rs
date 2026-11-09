@@ -222,6 +222,7 @@ pub enum MouseActionKind {
     Scroll,
     Move,
     Click,
+    RightClick,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

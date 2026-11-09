@@ -6,13 +6,7 @@ import { pushToast } from "../lib/toast";
 import { tr } from "../lib/i18n";
 import { SHOW_UPDATE_EVENT } from "../lib/preferences";
 
-export type UpdateStatus =
-  | "idle"
-  | "checking"
-  | "current"
-  | "available"
-  | "unavailable"
-  | "error";
+export type UpdateStatus = "idle" | "checking" | "current" | "available" | "unavailable" | "error";
 
 interface UpdateCache {
   lastCheckedAt: number | null;
@@ -50,8 +44,7 @@ function loadCache(): UpdateCache | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<UpdateCache>;
     return {
-      lastCheckedAt:
-        typeof parsed.lastCheckedAt === "number" ? parsed.lastCheckedAt : null,
+      lastCheckedAt: typeof parsed.lastCheckedAt === "number" ? parsed.lastCheckedAt : null,
       latest: parsed.latest ?? null,
       available: parsed.available === true,
       dismissedVersion:
@@ -80,9 +73,7 @@ export const useUpdateStore = defineStore("update", {
   getters: {
     hasUpdate(state): boolean {
       return (
-        state.available &&
-        state.latest !== null &&
-        state.dismissedVersion !== state.latest.tagName
+        state.available && state.latest !== null && state.dismissedVersion !== state.latest.tagName
       );
     },
   },
@@ -177,10 +168,7 @@ export const useUpdateStore = defineStore("update", {
           this.currentVersion = await getVersion().catch(() => "");
         }
         await this.loadIncludePrereleases();
-        const result = await checkForUpdates(
-          this.currentVersion,
-          this.includePrereleases,
-        );
+        const result = await checkForUpdates(this.currentVersion, this.includePrereleases);
         this.latest = result.latest;
         this.available = result.updateAvailable;
         this.lastCheckedAt = Date.now();
@@ -209,8 +197,7 @@ export const useUpdateStore = defineStore("update", {
     async autoCheck() {
       await this.hydrate();
       const fresh =
-        this.lastCheckedAt !== null &&
-        Date.now() - this.lastCheckedAt < CHECK_INTERVAL_MS;
+        this.lastCheckedAt !== null && Date.now() - this.lastCheckedAt < CHECK_INTERVAL_MS;
       if (fresh) {
         await this.syncTray();
         if (this.hasUpdate) this.notify();

@@ -143,6 +143,7 @@ mod tests {
             app_targets: vec![exe.to_owned()],
             auto_apply: true,
             hold_repeat: None,
+            hold_repeat_by_button: std::collections::BTreeMap::new(),
             voice_input_tool: None,
             bindings: bindings_by_button,
         }

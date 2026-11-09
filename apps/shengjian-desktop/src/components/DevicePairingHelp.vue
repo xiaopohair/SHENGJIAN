@@ -1,18 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
-import {
-  CheckCircle2,
-  CircleHelp,
-  Mic,
-  Radio,
-  Tv,
-  X,
-} from "lucide-vue-next";
+import { CheckCircle2, CircleHelp, Mic, Radio, Tv, X } from "lucide-vue-next";
 import { tr, trDynamic } from "../lib/i18n";
-import {
-  normalizePairingModel,
-  type PairingModel,
-} from "../stores/pairing";
+import { normalizePairingModel, type PairingModel } from "../stores/pairing";
 import rc001Photo from "../assets/devices/xiaomi-rc001.png";
 import rc003Photo from "../assets/devices/xiaomi-rc003.png";
 
@@ -69,14 +59,11 @@ const MODELS: Record<PairingModel, ModelInfo> = {
 
 const activeModel = ref<PairingModel>(normalizePairingModel(props.initialModel));
 const model = computed(() => MODELS[activeModel.value]);
-const title = computed(() =>
-  tr("如何配对{name}", { name: trDynamic(model.value.nameKey) }),
-);
+const title = computed(() => tr("如何配对{name}", { name: trDynamic(model.value.nameKey) }));
 
 const dialogRef = ref<HTMLElement | null>(null);
 const closeButton = ref<HTMLElement | null>(null);
 let previousFocus: HTMLElement | null = null;
-
 
 function close() {
   emit("close");
@@ -197,11 +184,7 @@ onUnmounted(() => {
                 class="remote-figure"
                 :style="{ aspectRatio: `${model.width} / ${model.height}` }"
               >
-                <img
-                  :src="model.image"
-                  :alt="trDynamic(model.nameKey)"
-                  class="remote-photo"
-                />
+                <img :src="model.image" :alt="trDynamic(model.nameKey)" class="remote-photo" />
                 <span
                   v-for="spot in model.hotspots"
                   :key="spot.label"
@@ -444,8 +427,7 @@ onUnmounted(() => {
   margin-top: var(--space-4);
   border-radius: var(--radius-lg);
   background:
-    radial-gradient(circle at 50% 36%, rgba(90, 200, 170, 0.13), transparent 58%),
-    #0b0f14;
+    radial-gradient(circle at 50% 36%, rgba(90, 200, 170, 0.13), transparent 58%), #0b0f14;
   padding: var(--space-3) var(--space-3) 0;
   overflow: hidden;
 }

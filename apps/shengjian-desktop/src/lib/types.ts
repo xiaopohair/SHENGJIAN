@@ -132,6 +132,7 @@ export type LogicalButton =
   | "ok"
   | "tv"
   | "home"
+  | "menu"
   | "left"
   | "right"
   | "down"
@@ -156,6 +157,7 @@ export interface ButtonProfile {
   appTargets: string[];
   autoApply: boolean;
   holdRepeat?: "single" | "long" | null;
+  holdRepeatByButton?: Record<string, "single" | "long" | null>;
   voiceInputTool?: string | null;
   bindings: Record<string, Record<string, LogicalAction>>;
 }

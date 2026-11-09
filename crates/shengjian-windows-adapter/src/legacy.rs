@@ -51,6 +51,7 @@ fn migrate_profile(profile: &LegacyProfile) -> shengjian_contract::ButtonProfile
         app_targets: profile.app_targets.clone(),
         auto_apply: profile.auto_apply,
         hold_repeat: None,
+        hold_repeat_by_button: BTreeMap::new(),
         voice_input_tool: None,
         bindings: profile
             .bindings

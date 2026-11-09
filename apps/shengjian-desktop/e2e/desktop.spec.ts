@@ -46,16 +46,16 @@ test("shell loads with brand, status and command search", async () => {
 test("navigates all seven desktop pages", async () => {
   await go("连接", "连接遥控器");
   await go("语音", "语音输入与测试");
-  await go("按键", "按键与方案");
+  await go("按键", "按键方案");
   await go("宏", "宏");
   await go("历史", "历史");
   await go("设置", "设置");
   await go("关于", "关于");
 });
 
-test("Ctrl+K searches and navigates to settings tabs", async () => {
+test("search opens and navigates to settings tabs", async () => {
   await go("连接", "连接遥控器");
-  await page.keyboard.press("Control+k");
+  await page.locator(".topbar-search-toggle").click();
   const input = page.locator(".topbar-search-field input");
   await expect(input).toBeVisible();
   await input.fill("设置");
@@ -67,10 +67,12 @@ test("Ctrl+K searches and navigates to settings tabs", async () => {
 });
 
 test("opens the profile editor with the full binding matrix", async () => {
-  await go("按键", "按键与方案");
+  await go("按键", "按键方案");
   await page.getByRole("button", { name: "新建", exact: true }).click();
-  await expect(page.locator(".editor-card")).toBeVisible();
-  await expect(page.locator(".binding-row")).toHaveCount(11);
+  await expect(page.locator(".profile-workbench")).toBeVisible();
+  await page.getByRole("tab", { name: "表格视图" }).click();
+  await expect(page.locator(".matrix-table tbody tr")).toHaveCount(12);
+  await expect(page.locator(".matrix-table th")).toHaveCount(4);
   await page.getByRole("button", { name: "取消", exact: true }).last().click();
-  await expect(page.locator(".editor-card")).toHaveCount(0);
+  await expect(page.locator(".profile-workbench")).toHaveCount(0);
 });

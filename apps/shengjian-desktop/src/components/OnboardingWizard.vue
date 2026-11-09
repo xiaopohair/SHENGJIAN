@@ -336,10 +336,7 @@ onUnmounted(() => {
             <Button variant="primary" :disabled="store.scanning" @click="scan">
               {{ trDynamic(store.scanning ? "扫描中" : "扫描设备") }}
             </Button>
-            <Button
-              variant="ghost"
-              @click="pairing.show(store.snapshot?.connection.remote?.model)"
-            >
+            <Button variant="ghost" @click="pairing.show(store.snapshot?.connection.remote?.model)">
               {{ tr("配对帮助") }}
             </Button>
           </div>
@@ -394,9 +391,7 @@ onUnmounted(() => {
 
         <div v-if="voiceResult" class="voice-result">
           <StatusPill
-            :label="
-              trDynamic(voiceResult === 'success' ? '语音功能可用。' : '语音功能不可用。')
-            "
+            :label="trDynamic(voiceResult === 'success' ? '语音功能可用。' : '语音功能不可用。')"
             :tone="voiceResult === 'success' ? 'success' : 'danger'"
             dot
           />
@@ -410,7 +405,9 @@ onUnmounted(() => {
 
         <div class="wizard-panel stack-sm button-check-panel">
           <div class="button-check-head">
-            <span class="muted">{{ tr("已检测") }} {{ detectedCount }}/{{ PROFILE_BUTTONS.length }}</span>
+            <span class="muted"
+              >{{ tr("已检测") }} {{ detectedCount }}/{{ PROFILE_BUTTONS.length }}</span
+            >
             <span v-if="detectedCount === PROFILE_BUTTONS.length" class="muted">
               {{ tr("全部按键可用") }}
             </span>

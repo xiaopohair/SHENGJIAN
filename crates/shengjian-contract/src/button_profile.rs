@@ -1,8 +1,8 @@
 //! Button profile document and per-trigger overlay composition.
 //!
 //! A profile is sparse: a missing `(button, trigger)` inherits from the base
-//! mapping; an explicit entry (including `Disabled`) overrides. TV is also
-//! profile-editable (11-key boundary); Menu/Mute stay base-owned.
+//! mapping; an explicit entry (including `Disabled`) overrides. TV and Menu
+//! are profile-editable (12-key boundary); Mute stays base-owned.
 
 use crate::model::{ButtonActions, ButtonMappingSet, ButtonTrigger, LogicalAction, LogicalButton};
 use serde::{Deserialize, Serialize};
@@ -12,12 +12,13 @@ pub const BUTTON_PROFILES_SCHEMA_VERSION: u32 = 4;
 
 pub type TriggerBindings = BTreeMap<ButtonTrigger, LogicalAction>;
 
-/// Buttons a profile may override (11 keys; TV included, Menu/Mute base-owned).
-pub const PROFILE_BUTTONS: [LogicalButton; 11] = [
+/// Buttons a profile may override (12 keys; TV and Menu included, Mute base-owned).
+pub const PROFILE_BUTTONS: [LogicalButton; 12] = [
     LogicalButton::Back,
     LogicalButton::Ok,
     LogicalButton::Home,
     LogicalButton::Tv,
+    LogicalButton::Menu,
     LogicalButton::Left,
     LogicalButton::Right,
     LogicalButton::Down,
@@ -44,6 +45,10 @@ pub struct ButtonProfile {
     pub auto_apply: bool,
     #[serde(default)]
     pub hold_repeat: Option<ButtonTrigger>,
+    /// Per-button repeat override. A missing entry inherits `hold_repeat`;
+    /// an explicit `null` disables repeat for that button.
+    #[serde(default)]
+    pub hold_repeat_by_button: BTreeMap<LogicalButton, Option<ButtonTrigger>>,
     #[serde(default)]
     pub voice_input_tool: Option<String>,
     #[serde(default)]
@@ -140,6 +145,11 @@ pub fn compose_profile_mappings(
             continue;
         }
         let base_actions = base.actions.get(&button).cloned().unwrap_or_default();
+        let hold_repeat = profile
+            .hold_repeat_by_button
+            .get(&button)
+            .copied()
+            .unwrap_or(profile.hold_repeat.or(base_actions.hold_repeat));
         let resolve = |trigger: ButtonTrigger| -> LogicalAction {
             triggers
                 .get(&trigger)
@@ -152,7 +162,7 @@ pub fn compose_profile_mappings(
                 single: resolve(ButtonTrigger::Single),
                 double: resolve(ButtonTrigger::Double),
                 long: resolve(ButtonTrigger::Long),
-                hold_repeat: profile.hold_repeat.or(base_actions.hold_repeat),
+                hold_repeat,
                 ok_context_click: base_actions.ok_context_click,
             },
         );
@@ -162,6 +172,14 @@ pub fn compose_profile_mappings(
             if let Some(actions) = result.actions.get_mut(&button) {
                 actions.hold_repeat = Some(hold_repeat);
             }
+        }
+    }
+    for (button, hold_repeat) in &profile.hold_repeat_by_button {
+        if !is_profile_button(*button) {
+            continue;
+        }
+        if let Some(actions) = result.actions.get_mut(button) {
+            actions.hold_repeat = *hold_repeat;
         }
     }
     result
@@ -179,6 +197,7 @@ mod tests {
             app_targets: Vec::new(),
             auto_apply: false,
             hold_repeat: None,
+            hold_repeat_by_button: BTreeMap::new(),
             voice_input_tool: None,
             bindings: BTreeMap::new(),
         }
@@ -240,9 +259,9 @@ mod tests {
     }
 
     #[test]
-    fn tv_is_profile_editable_but_menu_and_mute_are_not() {
+    fn tv_and_menu_are_profile_editable_but_mute_is_not() {
         assert!(is_profile_button(LogicalButton::Tv));
-        assert!(!is_profile_button(LogicalButton::Menu));
+        assert!(is_profile_button(LogicalButton::Menu));
         assert!(!is_profile_button(LogicalButton::VolumeMute));
     }
 
@@ -260,6 +279,40 @@ mod tests {
             effective.actions[&LogicalButton::Up].hold_repeat,
             Some(ButtonTrigger::Single)
         );
+    }
+
+    #[test]
+    fn per_button_hold_repeat_overrides_global_and_base() {
+        let mut base = base_with_up();
+        base.actions
+            .get_mut(&LogicalButton::Up)
+            .expect("up")
+            .hold_repeat = Some(ButtonTrigger::Long);
+        let mut profile = profile("p", "P");
+        profile.hold_repeat = Some(ButtonTrigger::Long);
+        profile
+            .hold_repeat_by_button
+            .insert(LogicalButton::Up, Some(ButtonTrigger::Single));
+        let effective = compose_profile_mappings(&profile, &base);
+        assert_eq!(
+            effective.actions[&LogicalButton::Up].hold_repeat,
+            Some(ButtonTrigger::Single)
+        );
+    }
+
+    #[test]
+    fn per_button_null_disables_inherited_hold_repeat() {
+        let mut base = base_with_up();
+        base.actions
+            .get_mut(&LogicalButton::Up)
+            .expect("up")
+            .hold_repeat = Some(ButtonTrigger::Long);
+        let mut profile = profile("p", "P");
+        profile
+            .hold_repeat_by_button
+            .insert(LogicalButton::Up, None);
+        let effective = compose_profile_mappings(&profile, &base);
+        assert_eq!(effective.actions[&LogicalButton::Up].hold_repeat, None);
     }
 
     #[test]

@@ -207,10 +207,7 @@ function scheduleConnectionSave() {
   }, 250);
 }
 
-watch(
-  [rc003Capture, deviceGain, deviceEndpointId],
-  scheduleConnectionSave,
-);
+watch([rc003Capture, deviceGain, deviceEndpointId], scheduleConnectionSave);
 
 watch(useDeviceOverride, () => {
   if (loadingSettings) return;
@@ -229,9 +226,7 @@ watch(deviceId, () => {
   if (deviceId.value) {
     void loadDeviceSettings();
   } else {
-    statusStore.setVoiceInputTool(
-      String(settingsDocument.value?.global.voice_input_tool ?? ""),
-    );
+    statusStore.setVoiceInputTool(String(settingsDocument.value?.global.voice_input_tool ?? ""));
   }
 });
 
@@ -338,11 +333,7 @@ onUnmounted(() => {
 
 <template>
   <section class="page">
-    <PageHeader
-      eyebrow="Connection"
-      title="连接遥控器"
-      description="管理遥控器连接与设备状态。"
-    >
+    <PageHeader eyebrow="Connection" title="连接遥控器" description="管理遥控器连接与设备状态。">
       <template #actions>
         <Button variant="primary" :disabled="store.scanning" @click="refresh">
           <RefreshCw :size="16" :class="{ spin: store.scanning }" />
@@ -421,11 +412,7 @@ onUnmounted(() => {
             <div class="metric">
               <p class="metric-label">{{ tr("固件版本") }}</p>
               <p class="metric-value">
-                {{
-                  store.isConnected
-                    ? (deviceStatus?.firmwareVersion ?? tr("未知"))
-                    : tr("未知")
-                }}
+                {{ store.isConnected ? (deviceStatus?.firmwareVersion ?? tr("未知")) : tr("未知") }}
               </p>
             </div>
             <div class="metric">
@@ -443,9 +430,7 @@ onUnmounted(() => {
               <p class="metric-value">
                 {{
                   store.isConnected && deviceStatus
-                    ? trDynamic(
-                        deviceStatus.powerNotificationsAvailable ? "可用" : "不可用",
-                      )
+                    ? trDynamic(deviceStatus.powerNotificationsAvailable ? "可用" : "不可用")
                     : tr("未知")
                 }}
               </p>

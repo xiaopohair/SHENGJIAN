@@ -26,7 +26,10 @@ const ICONS = {
         v-if="toast.actionLabel"
         type="button"
         class="toast-action"
-        @click="toast.onAction?.(); dismissToast(toast.id)"
+        @click="
+          toast.onAction?.();
+          dismissToast(toast.id);
+        "
       >
         {{ toast.actionLabel }}
       </button>
@@ -34,7 +37,10 @@ const ICONS = {
         type="button"
         class="toast-close"
         :aria-label="trDynamic('关闭')"
-        @click="toast.onClose?.(); dismissToast(toast.id)"
+        @click="
+          toast.onClose?.();
+          dismissToast(toast.id);
+        "
       >
         <X :size="14" />
       </button>

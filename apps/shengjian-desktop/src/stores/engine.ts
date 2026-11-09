@@ -97,10 +97,7 @@ export const useEngineStore = defineStore("engine", {
       this.error = null;
       try {
         const remotes = await scanRemotes();
-        this.remotes = mergeConnectedRemote(
-          remotes,
-          this.snapshot?.connection.remote ?? null,
-        );
+        this.remotes = mergeConnectedRemote(remotes, this.snapshot?.connection.remote ?? null);
       } catch (error) {
         this.error = errorMessage(error);
       } finally {

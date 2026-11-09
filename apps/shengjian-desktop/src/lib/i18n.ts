@@ -244,8 +244,7 @@ const ENGLISH = {
   "打开 Windows 蓝牙设置": "Open Windows Bluetooth settings",
   "同时按住「主页键」和「菜单键」约 3 秒，直到指示灯闪烁。":
     "Hold the Home and Menu keys together for about 3 seconds until the LED blinks.",
-  "打开 Windows「设置 > 蓝牙和其他设备」。":
-    "Open Windows Settings > Bluetooth & devices.",
+  "打开 Windows「设置 > 蓝牙和其他设备」。": "Open Windows Settings > Bluetooth & devices.",
   "选择「添加设备 > 蓝牙」。": "Choose Add device > Bluetooth.",
   "在列表中选择 {device}。": "Select {device} from the list.",
   "新遥控器请先按一次「TV」键完成初始化，再进入配对。":
@@ -346,6 +345,50 @@ const ENGLISH = {
   "还没有语音事件。按住语音键说话，再松开。":
     "No voice events yet. Hold the voice key, speak, then release.",
   按键与方案: "Buttons & profiles",
+  菜单: "Menu",
+  当前绑定: "Current binding",
+  "点击捕获后直接按组合键；Esc 退出。":
+    "After clicking Capture, press the key combination directly; Esc cancels.",
+  "使用当前平台可用的常用语。": "Uses the common phrases available on this platform.",
+  "删除该手势的覆盖，回到全局默认。":
+    "Remove this gesture override and fall back to the global default.",
+  "该手势不会触发任何动作，也不会向下传递。":
+    "This gesture will not trigger any action or pass through.",
+  "该动作类型会被保留，但当前版本不提供编辑。":
+    "This action type is preserved but cannot be edited in this build.",
+  方案设置: "Profile settings",
+  应用目标与行为: "App targets & behavior",
+  "这些设置随方案一起保存。": "These settings are saved with the profile.",
+  当前遥控器: "Current remote",
+  "按 RC003 产品图对位；语音键为硬件键。":
+    "Aligned to the RC003 product image; the voice key is hardware-only.",
+  "先选按键，再选手势，最后指定动作。当前选中键会显示金色描边。":
+    "Choose a key, then a gesture, then an action. The selected key gets a gold outline.",
+  点击按键查看绑定: "Click a key to view its bindings",
+  "圆点＝已配置手势": "Dots = configured gestures",
+  "滚轮/移动/左右键": "Wheel/move/left & right click",
+  正在编辑: "Editing",
+  "先选按键，再选手势，最后指定动作。按键下方的小圆点表示已配置的手势。":
+    "Choose a key, then a gesture, then an action. The dots under each key show its configured gestures.",
+  已配置触发: "Configured triggers",
+  只看已配置: "Configured only",
+  "搜索按键或动作…": "Search keys or actions…",
+  "没有匹配的按键。": "No matching keys.",
+  单击单元格即可在右侧修改: "Click a cell to edit it on the right",
+  工作台: "Workbench",
+  表格视图: "Table view",
+  当前方案: "Current profile",
+  未命名方案: "Untitled profile",
+  已保存: "Saved",
+  聚焦输入框: "Focus input",
+  键盘组合: "Keyboard shortcut",
+  把光标送回输入框: "Return the cursor to the input field",
+  执行一段动作: "Run a sequence of actions",
+  启动或切换应用: "Launch or switch apps",
+  "滚轮 / 移动 / 点击": "Wheel / move / click",
+  插入常用文本: "Insert a common phrase",
+  阻止默认行为: "Block the default action",
+  使用基线绑定: "Use the baseline binding",
   "自动方案冲突：": "Auto profile conflict:",
   "{target} 同时匹配 {names}；": "{target} matches {names};",
   "请只保留一个自动方案，或修改应用目标。": "Keep only one auto profile or change the app targets.",
@@ -363,6 +406,20 @@ const ENGLISH = {
   "当前前台：{app}": "Foreground: {app}",
   未检测到前台应用: "No foreground app detected",
   用当前前台: "Use foreground",
+  使用当前程序: "Use current app",
+  "按住键时连续触发；选择重复单击动作或长按动作。":
+    "Repeat while held; choose whether the single or long-press action repeats.",
+  "整份方案共用。例如方向下键单击设为滚轮向下，开启单击连发后，按住不放会连续滚动；只对可重复动作生效。":
+    "Shared by the whole profile. For example, bind Down's single action to scroll down; with Single repeat enabled, holding Down scrolls continuously. Only repeatable actions repeat.",
+  "整份方案共用。长按默认只触发一次；开启连发后，按住不放才会持续触发。例如方向下键单击设为滚轮向下，选“单击连发”后按住会连续滚动。":
+    "Shared by the whole profile. A long press normally fires once; only Hold Repeat makes it repeat while held. For example, bind Down's single action to scroll down and choose Single repeat to scroll continuously while holding Down.",
+  继承设备覆盖设置或全局设置: "Inherit device override or global setting",
+  使用设备覆盖设置或全局设置: "Use device override or global setting",
+  "设备有单独覆盖设置时，以设备设置为准。":
+    "When a per-device override exists, the device setting takes precedence.",
+  继承全局设置: "Inherit global setting",
+  "继承全局设置；设备有单独覆盖时以设备设置为准。":
+    "Inherit the global setting; a per-device override takes precedence.",
   "选择程序…": "Choose program…",
   程序: "Programs",
   可运行文件: "Runnable files",
@@ -376,6 +433,21 @@ const ENGLISH = {
   "Vokie 桌面版": "Vokie desktop",
   其他工具: "Other tool",
   继承基线: "Inherit base",
+  跟随默认: "Follow default",
+  "固定间隔：返回 50ms，其他键 100ms": "Fixed interval: 50 ms for Back, 100 ms for other keys",
+  单击重复触发: "Repeat single action",
+  长按重复触发: "Repeat long-press action",
+  按住不放重复触发: "Repeat while held",
+  "固定间隔；仅对可重复动作生效；长按默认只触发一次。":
+    "Fixed interval; only repeatable actions repeat; a long press normally fires once.",
+  "按住约 350ms 后，持续重复“单击”动作。":
+    "After about 350 ms, repeat the single-click action continuously.",
+  "按住约 550ms 触发一次长按动作，然后继续重复这个动作。":
+    "After about 550 ms, fire the long-press action once and then keep repeating it.",
+  "两者只能选一个；长按默认只触发一次，勾选后按住才会重复。":
+    "Choose only one; a long press normally fires once, and repeats only when checked.",
+  "仅对可重复动作生效；长按本身只触发一次。":
+    "Only repeatable actions repeat; a long press by itself fires once.",
   禁用: "Disabled",
   聚焦输入: "Focus input",
   快捷键: "Shortcut",
@@ -391,11 +463,20 @@ const ENGLISH = {
   滚轮: "Scroll",
   移动: "Move",
   左键点击: "Left click",
+  右键点击: "Right click",
+  格: "notch",
   上: "Up",
   下: "Down",
   左: "Left",
   右: "Right",
   保存方案: "Save profile",
+  自动应用: "Auto apply",
+  手动: "Manual",
+  前台应用匹配时自动切换到此方案:
+    "Automatically switch to this profile when the foreground app matches",
+  "不自动切换，需要手动激活": "Does not switch automatically; activate it manually",
+  导入方案文件: "Import profile file",
+  导出全部方案: "Export all profiles",
   应用语言: "App language",
   跟随系统: "Follow system",
   中文: "Chinese",
@@ -524,9 +605,6 @@ const ENGLISH = {
   未识别: "Not detected",
   日志中暂无: "Not in log",
   "RC003 helper": "RC003 helper",
-  "Notepad 聚焦输入": "Notepad focus input",
-  "Chrome 聚焦输入": "Chrome focus input",
-  网易云音乐聚焦: "NetEase Music focus",
   新方案: "New profile",
   新宏: "New macro",
   新建宏: "New macro",

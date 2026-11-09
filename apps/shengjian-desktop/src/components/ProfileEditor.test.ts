@@ -33,7 +33,7 @@ describe("ProfileEditor", () => {
       },
     });
 
-    expect(wrapper.findAll(".binding-row")).toHaveLength(11);
+    expect(wrapper.findAll(".binding-row")).toHaveLength(12);
     expect(wrapper.text()).toContain("已修改 0 个按键");
 
     await wrapper.find(".binding-cell select").setValue("disabled");

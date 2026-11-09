@@ -1,7 +1,17 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { Copy, FileDown, FileUp, Info, Keyboard, Pencil, Plus, Trash2 } from "lucide-vue-next";
+import {
+  Copy,
+  FileDown,
+  FileUp,
+  Keyboard,
+  LayoutGrid,
+  Plus,
+  SlidersHorizontal,
+  Table2,
+  Trash2,
+} from "lucide-vue-next";
 import { latestMacroDefinitions } from "../lib/macros";
 import {
   PROFILE_BUTTONS,
@@ -14,15 +24,13 @@ import { confirmAction } from "../lib/confirm";
 import { useDraftGuard } from "../composables/useDraftGuard";
 import PageHeader from "../components/PageHeader.vue";
 import Button from "../components/ui/Button.vue";
-import Card from "../components/ui/Card.vue";
 import EmptyState from "../components/ui/EmptyState.vue";
 import LoadingState from "../components/ui/LoadingState.vue";
 import IconButton from "../components/ui/IconButton.vue";
 import Notice from "../components/ui/Notice.vue";
-import SectionHeader from "../components/ui/SectionHeader.vue";
-import SelectInput from "../components/ui/SelectInput.vue";
 import StatusPill from "../components/ui/StatusPill.vue";
-import ProfileEditor from "../components/ProfileEditor.vue";
+import ProfileWorkbench from "../components/ProfileWorkbench.vue";
+import ProfileSettingsDrawer from "../components/ProfileSettingsDrawer.vue";
 import {
   activateButtonProfile,
   clearButtonProfileActivation,
@@ -44,24 +52,6 @@ import type {
 
 const TRIGGERS = PROFILE_TRIGGERS;
 type Trigger = ProfileTrigger;
-
-const PROFILE_TEMPLATES = [
-  {
-    id: "notepad",
-    name: "Notepad 聚焦输入",
-    targets: ["notepad.exe"],
-  },
-  {
-    id: "chrome",
-    name: "Chrome 聚焦输入",
-    targets: ["chrome.exe"],
-  },
-  {
-    id: "netease",
-    name: "网易云音乐聚焦",
-    targets: ["cloudmusic.exe"],
-  },
-] as const;
 
 const profilesDocument = ref<ButtonProfilesDocument | null>(null);
 const activeProfileId = ref<string | null>(null);
@@ -91,13 +81,13 @@ const loading = ref(true);
 const error = ref<string | null>(null);
 const editor = ref<ProfileDraft | null>(null);
 const editingNew = ref(false);
-const expandedId = ref<string | null>(null);
-const copiedId = ref<string | null>(null);
-const templateKey = ref(0);
-const editorHost = ref<HTMLElement | null>(null);
 const baselineJson = ref("");
+const view = ref<"workbench" | "table">("workbench");
+const settingsOpen = ref(false);
+const justSaved = ref(false);
 let timer: number | undefined;
-let copyTimer: number | undefined;
+let savedTimer: number | undefined;
+let autoOpened = false;
 
 const { dirty, confirmDiscard } = useDraftGuard({
   draft: editor,
@@ -105,37 +95,18 @@ const { dirty, confirmDiscard } = useDraftGuard({
   discardMessage: "当前方案的修改尚未保存，继续将丢失这些修改。",
 });
 
-const currentProfileLabel = computed(() => {
-  const id = activeProfileId.value;
-  if (!id) return tr("未激活");
-  return (
-    profilesDocument.value?.profiles.find((profile) => profile.id === id)?.name ?? tr("未激活")
-  );
-});
-
-const libraryHint = computed(() =>
-  tr("{count} 个方案 · 当前 {id}", {
-    count: profilesDocument.value?.profiles.length ?? 0,
-    id: currentProfileLabel.value,
-  }),
-);
-
-function isActiveProfile(profileId: string): boolean {
-  return activeProfileId.value === profileId;
-}
-
-function bindingCount(profile: ButtonProfile): number {
-  return Object.values(profile.bindings ?? {}).reduce(
-    (total, triggers) => total + Object.keys(triggers ?? {}).length,
-    0,
-  );
-}
-
 async function load() {
   try {
     const state = await getButtonProfileState();
     profilesDocument.value = state.document;
     activeProfileId.value = state.activeProfileId;
+    if (!editor.value && !autoOpened && state.document.profiles.length > 0) {
+      autoOpened = true;
+      const initial =
+        state.document.profiles.find((profile) => profile.id === state.activeProfileId) ??
+        state.document.profiles[0];
+      openDraft(initial);
+    }
   } catch (cause) {
     error.value = errorMessage(cause);
   } finally {
@@ -171,6 +142,24 @@ function cloneBindings(profile: ButtonProfile): ProfileDraft["bindings"] {
   return JSON.parse(JSON.stringify(profile.bindings ?? {})) as ProfileDraft["bindings"];
 }
 
+function repeatSettingsFromProfile(profile: ButtonProfile): ProfileDraft["holdRepeatByButton"] {
+  return Object.fromEntries(
+    Object.entries(profile.holdRepeatByButton ?? {}).map(([button, setting]) => [
+      button,
+      setting === null ? "off" : setting,
+    ]),
+  ) as ProfileDraft["holdRepeatByButton"];
+}
+
+function repeatSettingsForSave(draft: ProfileDraft): Record<string, "single" | "long" | null> {
+  return Object.fromEntries(
+    Object.entries(draft.holdRepeatByButton ?? {}).map(([button, setting]) => [
+      button,
+      setting === "off" ? null : setting,
+    ]),
+  );
+}
+
 function syncBaseline() {
   baselineJson.value = editor.value ? JSON.stringify(editor.value) : "";
 }
@@ -183,6 +172,7 @@ function closeEditor() {
 
 function createNewDraft() {
   editingNew.value = true;
+  justSaved.value = false;
   editor.value = {
     id: `profile-${crypto.randomUUID()}`,
     name: tr("新方案"),
@@ -200,42 +190,40 @@ async function startNew() {
   createNewDraft();
 }
 
-async function createFromTemplate(templateId: string) {
-  const template = PROFILE_TEMPLATES.find((item) => item.id === templateId);
-  if (!template) return;
-  if (!(await confirmDiscard())) return;
-  const bindings: ProfileDraft["bindings"] = {
-    ok: { long: { type: "focus-input" } },
-  };
-  editingNew.value = true;
-  editor.value = {
-    id: `profile-${crypto.randomUUID()}`,
-    name: trDynamic(template.name),
-    appTargets: template.targets.join(", "),
-    autoApply: true,
-    holdRepeat: "",
-    voiceInputTool: "",
-    bindings,
-  };
-  syncBaseline();
+function onProfileWheel(event: WheelEvent) {
+  const element = event.currentTarget as HTMLElement;
+  if (element.scrollWidth <= element.clientWidth) return;
+  if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+  element.scrollLeft += event.deltaY;
+  event.preventDefault();
 }
 
-async function selectTemplate(templateId: string) {
-  templateKey.value += 1;
-  if (!templateId) return;
-  await createFromTemplate(templateId);
-}
+watch(
+  () => editor.value?.id,
+  async () => {
+    await nextTick();
+    document
+      .querySelector(".profile-chip.selected")
+      ?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  },
+);
 
 async function editProfile(profile: ButtonProfile) {
   if (editor.value?.id === profile.id) return;
   if (!(await confirmDiscard())) return;
+  openDraft(profile);
+}
+
+function openDraft(profile: ButtonProfile) {
   editingNew.value = false;
+  justSaved.value = false;
   editor.value = {
     id: profile.id,
     name: profile.name,
     appTargets: profile.appTargets.join(", "),
     autoApply: profile.autoApply,
     holdRepeat: profile.holdRepeat ?? "",
+    holdRepeatByButton: repeatSettingsFromProfile(profile),
     voiceInputTool: profile.voiceInputTool ?? "",
     bindings: cloneBindings(profile),
   };
@@ -310,6 +298,7 @@ async function saveEditor() {
         .filter(Boolean),
       autoApply: editor.value.autoApply,
       holdRepeat: editor.value.holdRepeat || null,
+      holdRepeatByButton: repeatSettingsForSave(editor.value),
       voiceInputTool: editor.value.voiceInputTool || null,
       bindings: cleanBindings(),
     };
@@ -317,8 +306,14 @@ async function saveEditor() {
       ? profilesDocument.value.profiles.map((item) => (item.id === profile.id ? profile : item))
       : [...profilesDocument.value.profiles, profile];
     await saveButtonProfiles({ ...profilesDocument.value, profiles });
-    closeEditor();
+    editingNew.value = false;
     await load();
+    syncBaseline();
+    justSaved.value = true;
+    if (savedTimer !== undefined) window.clearTimeout(savedTimer);
+    savedTimer = window.setTimeout(() => {
+      justSaved.value = false;
+    }, 2200);
   } catch (cause) {
     error.value = errorMessage(cause);
   } finally {
@@ -376,7 +371,6 @@ async function removeProfile(profile: ButtonProfile) {
     const profiles = profilesDocument.value.profiles.filter((item) => item.id !== profile.id);
     await saveButtonProfiles({ ...profilesDocument.value, profiles });
     if (editor.value?.id === profile.id) closeEditor();
-    if (expandedId.value === profile.id) expandedId.value = null;
     await load();
   } catch (cause) {
     error.value = errorMessage(cause);
@@ -424,6 +418,18 @@ async function activate(profile: ButtonProfile) {
   }
 }
 
+function currentProfile(): ButtonProfile | null {
+  if (!editor.value) return null;
+  return profilesDocument.value?.profiles.find((item) => item.id === editor.value?.id) ?? null;
+}
+
+const currentProfileRecord = computed(() => currentProfile());
+
+async function activateEditorProfile() {
+  const profile = currentProfile();
+  if (profile) await activate(profile);
+}
+
 async function clearActivation() {
   busy.value = true;
   error.value = null;
@@ -437,34 +443,23 @@ async function clearActivation() {
   }
 }
 
-async function copyId(profileId: string) {
-  try {
-    await navigator.clipboard.writeText(profileId);
-    copiedId.value = profileId;
-    if (copyTimer !== undefined) window.clearTimeout(copyTimer);
-    copyTimer = window.setTimeout(() => {
-      copiedId.value = null;
-    }, 1500);
-  } catch {
-    error.value = tr("无法复制 ID，请手动选择文本。");
-  }
+async function duplicateCurrentProfile() {
+  const profile = currentProfile();
+  if (profile) await duplicateProfile(profile);
 }
 
-function toggleDetails(profileId: string) {
-  expandedId.value = expandedId.value === profileId ? null : profileId;
+async function removeCurrentProfile() {
+  const profile = currentProfile();
+  if (profile) await removeProfile(profile);
 }
 
-watch(editor, async (value) => {
-  if (!value) return;
-  await nextTick();
-  if (window.matchMedia("(max-width: 1120px)").matches) {
-    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    editorHost.value?.scrollIntoView({
-      behavior: reduceMotion ? "auto" : "smooth",
-      block: "start",
-    });
-  }
-});
+function openSettings() {
+  settingsOpen.value = true;
+}
+
+function setView(next: "workbench" | "table") {
+  view.value = next;
+}
 
 onMounted(async () => {
   await Promise.all([load(), loadMacros(), loadHostCapabilities(), loadForeground()]);
@@ -475,17 +470,44 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (timer !== undefined) window.clearInterval(timer);
-  if (copyTimer !== undefined) window.clearTimeout(copyTimer);
+  if (savedTimer !== undefined) window.clearTimeout(savedTimer);
 });
 </script>
 
 <template>
-  <section class="page">
+  <section class="page buttons-page">
     <PageHeader
       eyebrow="Buttons"
-      title="按键与方案"
-      description="为遥控器按键绑定动作或宏，并按前台应用自动切换方案。"
-    />
+      title="按键方案"
+      description="为遥控器按键绑定动作或宏，并按前台应用自动切换。"
+    >
+      <template #actions>
+        <div class="view-switch" role="tablist" aria-label="视图切换">
+          <button
+            type="button"
+            class="view-button"
+            :class="{ active: view === 'workbench' }"
+            role="tab"
+            :aria-selected="view === 'workbench'"
+            @click="setView('workbench')"
+          >
+            <LayoutGrid :size="15" />
+            {{ tr("工作台") }}
+          </button>
+          <button
+            type="button"
+            class="view-button"
+            :class="{ active: view === 'table' }"
+            role="tab"
+            :aria-selected="view === 'table'"
+            @click="setView('table')"
+          >
+            <Table2 :size="15" />
+            {{ tr("表格视图") }}
+          </button>
+        </div>
+      </template>
+    </PageHeader>
 
     <Notice v-if="error" kind="error">{{ error }}</Notice>
     <Notice v-if="autoProfileConflicts.length" kind="warning">
@@ -501,228 +523,310 @@ onUnmounted(() => {
       {{ tr("请只保留一个自动方案，或修改应用目标。") }}
     </Notice>
 
-    <div class="split-layout">
-      <Card class="stack stack-sm list-card">
-        <SectionHeader title="键位方案" :hint="libraryHint" />
-        <div class="library-tools">
-          <SelectInput
-            :key="templateKey"
-            class="template-select"
-            :model-value="''"
-            :disabled="busy"
-            :aria-label="trDynamic('从模板新建…')"
-            @update:model-value="selectTemplate"
+    <LoadingState v-if="loading" label="正在加载…" description="正在读取本地键位方案…" />
+
+    <template v-else>
+      <div v-if="profilesDocument?.profiles.length" class="profile-bar">
+        <div class="profile-chips" @wheel="onProfileWheel">
+          <button
+            v-for="profile in profilesDocument.profiles"
+            :key="profile.id"
+            type="button"
+            class="profile-chip"
+            :class="{
+              active: activeProfileId === profile.id,
+              selected: editor?.id === profile.id,
+            }"
+            :aria-pressed="editor?.id === profile.id"
+            :title="`${profile.name} · ${profile.appTargets.join(', ') || tr('未设置应用目标')}`"
+            @click="editProfile(profile)"
           >
-            <option value="">{{ tr("从模板新建…") }}</option>
-            <option v-for="template in PROFILE_TEMPLATES" :key="template.id" :value="template.id">
-              {{ trDynamic(template.name) }}
-            </option>
-          </SelectInput>
-          <div class="toolbar-actions">
-            <Button size="sm" :disabled="busy" @click="importFile">
-              <FileUp :size="14" />
-              {{ tr("导入") }}
-            </Button>
-            <Button size="sm" :disabled="busy || !profilesDocument" @click="exportFile">
-              <FileDown :size="14" />
-              {{ tr("导出") }}
-            </Button>
-            <Button size="sm" variant="primary" :disabled="busy" @click="startNew">
-              <Plus :size="14" />
-              {{ tr("新建") }}
-            </Button>
-          </div>
+            <span class="profile-chip-dot" aria-hidden="true" />
+            <span class="profile-chip-copy">
+              <strong class="text-truncate" :title="profile.name">{{ profile.name }}</strong>
+            </span>
+          </button>
         </div>
 
-        <LoadingState v-if="loading" label="正在加载…" description="正在读取本地键位方案…" />
+        <div class="profile-tools">
+          <IconButton :label="trDynamic('导入方案文件')" :disabled="busy" @click="importFile">
+            <FileUp :size="15" />
+          </IconButton>
+          <IconButton
+            :label="trDynamic('导出全部方案')"
+            :disabled="busy || !profilesDocument"
+            @click="exportFile"
+          >
+            <FileDown :size="15" />
+          </IconButton>
+          <Button size="sm" variant="primary" :disabled="busy" @click="startNew">
+            <Plus :size="14" />
+            {{ tr("新建") }}
+          </Button>
+        </div>
+      </div>
 
-        <EmptyState
-          v-else-if="profilesDocument && profilesDocument.profiles.length === 0"
-          title="还没有键位方案"
-          description="新建一个方案开始绑定按键。"
-        >
+      <div v-if="editor" class="editor-toolbar">
+        <div class="editor-context">
+          <span class="eyebrow">{{ editingNew ? tr("新建方案") : tr("当前方案") }}</span>
+          <strong>{{ editor.name || tr("未命名方案") }}</strong>
+          <span class="editor-target text-truncate" :title="editor.appTargets">
+            {{ editor.appTargets || tr("未设置应用目标") }}
+          </span>
+          <StatusPill
+            :label="editor.autoApply ? tr('自动应用') : tr('手动')"
+            :tone="editor.autoApply ? 'info' : 'neutral'"
+            :title="
+              editor.autoApply
+                ? tr('前台应用匹配时自动切换到此方案')
+                : tr('不自动切换，需要手动激活')
+            "
+          />
+          <StatusPill v-if="justSaved" :label="trDynamic('已保存')" tone="accent" dot />
+          <StatusPill v-if="dirty" :label="trDynamic('未保存')" tone="warning" dot />
+        </div>
+        <div class="editor-toolbar-actions">
+          <Button size="sm" @click="openSettings">
+            <SlidersHorizontal :size="14" />
+            {{ tr("方案设置") }}
+          </Button>
+          <Button
+            v-if="!editingNew"
+            size="sm"
+            :disabled="busy || !currentProfileRecord || activeProfileId === editor.id"
+            @click="activateEditorProfile"
+          >
+            {{ trDynamic(activeProfileId === editor.id ? "已激活" : "激活") }}
+          </Button>
+          <IconButton
+            v-if="!editingNew && currentProfileRecord"
+            size="sm"
+            :label="trDynamic('复制方案')"
+            :disabled="busy"
+            @click="duplicateCurrentProfile"
+          >
+            <Copy :size="14" />
+          </IconButton>
+          <IconButton
+            v-if="!editingNew && currentProfileRecord"
+            size="sm"
+            variant="danger"
+            :label="trDynamic('删除方案')"
+            :disabled="busy"
+            @click="removeCurrentProfile"
+          >
+            <Trash2 :size="14" />
+          </IconButton>
+          <Button
+            v-if="profilesDocument?.activeManualProfileId"
+            size="sm"
+            variant="ghost"
+            :disabled="busy"
+            @click="clearActivation"
+          >
+            {{ tr("清除手动激活") }}
+          </Button>
+          <Button size="sm" :disabled="busy" @click="cancelEdit">{{ tr("取消") }}</Button>
+          <Button
+            size="sm"
+            variant="primary"
+            :disabled="busy || (!dirty && !editingNew)"
+            @click="saveEditor"
+          >
+            {{ tr("保存方案") }}
+          </Button>
+        </div>
+      </div>
+
+      <EmptyState
+        v-if="!profilesDocument?.profiles.length"
+        title="还没有键位方案"
+        description="新建一个方案开始绑定按键。"
+      >
+        <template #icon><Keyboard :size="20" /></template>
+        <template #actions>
+          <Button variant="primary" @click="startNew">{{ tr("新建方案") }}</Button>
+        </template>
+      </EmptyState>
+
+      <ProfileWorkbench
+        v-else-if="editor"
+        v-model:draft="editor"
+        :view="view"
+        :busy="busy"
+        :dirty="dirty"
+        :baseline-json="baselineJson"
+        :foreground-app="foregroundApp"
+        :common-phrases-available="commonPhrasesAvailable"
+        :latest-macros="latestMacros"
+        @error="onEditorError"
+      />
+
+      <div v-else class="empty-workspace">
+        <EmptyState title="选择一个方案开始编辑" description="也可以新建方案，或从模板快速创建。">
           <template #icon><Keyboard :size="20" /></template>
           <template #actions>
             <Button variant="primary" @click="startNew">{{ tr("新建方案") }}</Button>
           </template>
         </EmptyState>
-
-        <ul v-else-if="profilesDocument" class="profile-list">
-          <li
-            v-for="profile in profilesDocument.profiles"
-            :key="profile.id"
-            class="profile-row"
-            :class="{ active: isActiveProfile(profile.id) }"
-          >
-            <span class="profile-icon"><Keyboard :size="16" /></span>
-            <span class="profile-main">
-              <span class="profile-name-row">
-                <span class="profile-name text-truncate" :title="profile.name">{{
-                  profile.name
-                }}</span>
-                <StatusPill
-                  v-if="isActiveProfile(profile.id)"
-                  :label="trDynamic('已激活')"
-                  tone="accent"
-                  dot
-                />
-                <StatusPill
-                  :label="statusLabel(profile.autoApply ? 'auto' : 'manual')"
-                  :tone="profile.autoApply ? 'info' : 'neutral'"
-                />
-              </span>
-              <span class="profile-targets text-truncate" :title="profile.appTargets.join(', ')">
-                {{
-                  profile.appTargets.length ? profile.appTargets.join(", ") : tr("未设置应用目标")
-                }}
-              </span>
-            </span>
-            <span class="profile-actions">
-              <Button
-                size="sm"
-                :disabled="busy || isActiveProfile(profile.id)"
-                @click="activate(profile)"
-              >
-                {{ trDynamic(isActiveProfile(profile.id) ? "已激活" : "激活") }}
-              </Button>
-              <IconButton
-                size="sm"
-                :label="trDynamic('复制方案')"
-                :disabled="busy"
-                @click="duplicateProfile(profile)"
-              >
-                <Copy :size="14" />
-              </IconButton>
-              <IconButton size="sm" :label="trDynamic('编辑方案')" @click="editProfile(profile)">
-                <Pencil :size="14" />
-              </IconButton>
-              <IconButton
-                size="sm"
-                variant="danger"
-                :label="trDynamic('删除方案')"
-                :disabled="busy"
-                @click="removeProfile(profile)"
-              >
-                <Trash2 :size="14" />
-              </IconButton>
-              <IconButton
-                size="sm"
-                :label="trDynamic('详情')"
-                :aria-expanded="expandedId === profile.id"
-                @click="toggleDetails(profile.id)"
-              >
-                <Info :size="14" />
-              </IconButton>
-            </span>
-            <div v-if="expandedId === profile.id" class="profile-details">
-              <span class="muted">{{ tr("标识") }}</span>
-              <code class="mono text-truncate" :title="profile.id">{{ profile.id }}</code>
-              <Button size="sm" variant="ghost" @click="copyId(profile.id)">
-                {{ trDynamic(copiedId === profile.id ? "已复制" : "复制 ID") }}
-              </Button>
-              <span class="muted">
-                {{ tr("{count} 个绑定", { count: bindingCount(profile) }) }}
-              </span>
-            </div>
-          </li>
-        </ul>
-
-        <div v-if="profilesDocument?.activeManualProfileId" class="footer-actions">
-          <Button size="sm" :disabled="busy" @click="clearActivation">
-            {{ tr("清除手动激活") }}
-          </Button>
-        </div>
-      </Card>
-
-      <div ref="editorHost" class="editor-host">
-        <ProfileEditor
-          v-if="editor"
-          v-model:draft="editor"
-          :editing-new="editingNew"
-          :busy="busy"
-          :dirty="dirty"
-          :baseline-json="baselineJson"
-          :foreground-app="foregroundApp"
-          :common-phrases-available="commonPhrasesAvailable"
-          :latest-macros="latestMacros"
-          @save="saveEditor"
-          @cancel="cancelEdit"
-          @error="onEditorError"
-        />
-
-        <Card v-else class="editor-placeholder">
-          <EmptyState title="从左侧选择一个方案开始编辑" description="新建方案，或从模板快速创建。">
-            <template #icon><Keyboard :size="20" /></template>
-            <template #actions>
-              <Button variant="primary" @click="startNew">{{ tr("新建方案") }}</Button>
-            </template>
-          </EmptyState>
-        </Card>
       </div>
-    </div>
+    </template>
+
+    <ProfileSettingsDrawer
+      v-if="editor"
+      v-model:draft="editor"
+      :open="settingsOpen"
+      :busy="busy"
+      :foreground-app="foregroundApp"
+      @close="settingsOpen = false"
+      @error="onEditorError"
+    />
   </section>
 </template>
 
 <style scoped>
-.library-tools {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+.buttons-page {
+  gap: var(--space-3);
 }
 
-.template-select {
-  width: 100%;
-}
-
-.profile-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.profile-row {
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr);
-  gap: var(--space-2) var(--space-3);
-  align-items: start;
+.view-switch {
+  display: inline-flex;
+  gap: 3px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: var(--space-3);
+  background: var(--bg-subtle);
+  padding: 3px;
+}
+
+.view-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  padding: 6px 9px;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.view-button:hover {
+  color: var(--text);
+}
+.view-button.active {
+  background: var(--text);
+  color: var(--bg);
+  box-shadow: 0 2px 7px rgba(15, 30, 25, 0.16);
+}
+
+.profile-bar {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.profile-chips {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 2px 4px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.profile-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.profile-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 245px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--bg-raised) 62%, transparent);
+  padding: 7px 9px;
+  text-align: left;
+  cursor: pointer;
   transition:
     border-color var(--duration-fast) ease,
     background var(--duration-fast) ease;
 }
 
-.profile-row:hover {
-  background: var(--bg-subtle);
+.profile-chip:hover {
+  border-color: var(--border);
+  background: var(--bg-raised);
 }
-
-.profile-row.active {
-  border-color: var(--accent);
+.profile-chip.active {
+  border-color: transparent;
+  background: var(--bg-raised);
+}
+.profile-chip.selected {
+  border-color: transparent;
   background: var(--accent-soft);
 }
-
-.profile-icon {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-md);
-  background: var(--bg-hover);
-  color: var(--accent);
+.profile-chip.selected .profile-chip-copy strong {
+  color: var(--accent-ink);
 }
 
-.profile-main {
+.profile-chip-dot {
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: background var(--duration-fast) ease;
+}
+
+.profile-chip.selected .profile-chip-dot {
+  background: var(--accent);
+}
+.profile-chip.active .profile-chip-dot {
+  background: var(--info);
+}
+
+.profile-chip-copy {
   display: flex;
   flex-direction: column;
-  gap: 3px;
   min-width: 0;
 }
+.profile-chip-copy strong {
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+.profile-chip.selected .profile-chip-copy strong {
+  font-weight: 700;
+}
 
-.profile-name-row {
+.profile-tools {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: var(--space-2) 0;
+}
+
+.editor-context {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -730,48 +834,55 @@ onUnmounted(() => {
   min-width: 0;
 }
 
-.profile-name {
-  font-weight: 600;
-}
-
-.profile-targets {
+.editor-context .eyebrow {
   color: var(--text-muted);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
-.profile-actions {
-  display: flex;
-  flex-wrap: wrap;
-  grid-column: 1 / -1;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-1);
+.editor-context strong {
+  font-size: var(--text-sm);
+  font-weight: 650;
+}
+.editor-target {
+  max-width: 230px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
 }
 
-.profile-details {
+.editor-toolbar-actions {
   display: flex;
   flex-wrap: wrap;
-  grid-column: 1 / -1;
   align-items: center;
   gap: var(--space-2);
-  border-top: 1px dashed var(--border);
+}
+
+.empty-workspace {
   padding-top: var(--space-2);
-  font-size: var(--text-xs);
-}
-
-.profile-details code {
-  flex: 1 1 120px;
-  min-width: 0;
-}
-
-.editor-host {
-  min-width: 0;
-  scroll-margin-top: var(--space-4);
 }
 
 @media (max-width: 1120px) {
-  .editor-placeholder {
-    display: none;
+  .profile-bar {
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 720px) {
+  .profile-chip {
+    max-width: none;
+    flex: 0 0 auto;
+  }
+  .profile-tools {
+    justify-content: flex-end;
+  }
+  .editor-toolbar-actions {
+    width: 100%;
+  }
+  .editor-target {
+    max-width: 100%;
   }
 }
 </style>

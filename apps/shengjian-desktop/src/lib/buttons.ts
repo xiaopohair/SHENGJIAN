@@ -5,6 +5,7 @@ export const PROFILE_BUTTONS: Array<{ id: LogicalButton; label: string }> = [
   { id: "ok", label: "OK" },
   { id: "home", label: "主页" },
   { id: "tv", label: "TV" },
+  { id: "menu", label: "菜单" },
   { id: "left", label: "左" },
   { id: "right", label: "右" },
   { id: "down", label: "下" },
@@ -33,6 +34,7 @@ export interface ProfileDraft {
   appTargets: string;
   autoApply: boolean;
   holdRepeat: "" | "single" | "long";
+  holdRepeatByButton?: Partial<Record<LogicalButton, "off" | "single" | "long">>;
   voiceInputTool: string;
   bindings: Record<string, Partial<Record<ProfileTrigger, LogicalAction>>>;
 }

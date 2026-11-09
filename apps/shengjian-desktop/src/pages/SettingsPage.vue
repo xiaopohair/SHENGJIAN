@@ -326,11 +326,7 @@ async function exportBackup() {
       filters: [{ name: tr("配置备份"), extensions: ["json"] }],
     });
     if (!path) return;
-    await exportConfiguration(
-      path,
-      accent.value,
-      localStorage.getItem("shengjian.last-remote"),
-    );
+    await exportConfiguration(path, accent.value, localStorage.getItem("shengjian.last-remote"));
     backupMessage.value = tr("配置备份已导出。");
   } catch (cause) {
     error.value = errorMessage(cause);

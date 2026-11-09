@@ -2,8 +2,8 @@
 
 声键（SHENGJIAN）的 Windows 桌面宿主：Tauri 2 + Vue 3，in-process 使用 `shengjian-core`。
 
-当前版本：**0.3.0**
-状态：本地 x64 NSIS 包由 `tauri build` 生成；未签名、未发布；无自动更新。
+当前版本：**0.3.1**
+状态：本地 x64 NSIS 包；未签名、未发布；无自动更新。
 
 ## 运行
 
@@ -20,7 +20,7 @@ pnpm lint
 pnpm format:check
 pnpm test
 pnpm build
-# 需要已安装 0.3.0；会重启桌面进程并通过 WebView2 CDP 跑真实安装包 E2E（安装路径从 tauri.conf.json 的 productName 派生）
+# 需要已安装 0.3.1；会重启桌面进程并通过 WebView2 CDP 跑真实安装包 E2E（安装路径从 tauri.conf.json 的 productName 派生）
 pnpm test:e2e
 
 cd src-tauri
@@ -35,7 +35,7 @@ cargo test
 - 侧栏顶部品牌 LOGO 与版本号；侧栏可手动折叠/展开并记住状态
 - 顶栏：折叠按钮、连接阶段、设备名、电量、当前输入法、语音/音频异常状态；搜索图标靠右，点击展开输入
 - 固定侧栏 + 唯一内容滚动区；所有页面统一 `--page-max` 1180px 居中，按键/宏在 1180 内分栏
-- 按键/宏采用宽屏“列表 + 编辑器”分栏，窄屏单列；编辑器底部操作条常驻，未保存切页确认
+- 按键页默认「遥控器工作台」，可切换「表格视图」；两者共享当前方案、按键、手势和未保存状态
 - 设置页分区选项卡（与历史页一致），窄窗口自动换行；settings 加载失败时仍进入“数据与诊断”
 - 可访问性验收见 `docs/ui-accessibility-report.md`
 
@@ -61,17 +61,16 @@ cargo test
 
 ### 按键 / Profile
 
-- Profile 列表、手动激活、复制方案、从模板新建
-  - Profile 模板：Notepad / Chrome / 网易云音乐聚焦输入，生成可编辑草稿
+- Profile 列表、手动激活、复制方案
   - 应用目标支持“用当前前台”填充
   - 快捷键支持直接按键捕获
   - 自动方案冲突提示、保存前动作校验
-  - Profile 级按住连发（单击/长按）
+  - 按键级按住连发（单击/长按）
   - Profile 级语音输入工具覆盖
 - 常用语动作仅在组件可用时显示；已有不可用绑定保留并标注
 - Profile 编辑器：
   - 名称、应用目标、自动应用
-  - 11 键 × single/double/long（含 TV）
+  - 12 键 × single/double/long（含 TV、菜单）
   - 动作：继承、禁用、聚焦输入、快捷键、打开应用、常用语、鼠标、运行宏
 - Profile 原生 JSON 导入/导出
 - 应用目标支持选择程序（任意可运行文件）/用当前前台
@@ -125,7 +124,7 @@ pnpm tauri build
 
 输出（文件名由 `src-tauri/tauri.conf.json` 的 `productName` 派生）：
 
-`src-tauri/target/release/bundle/nsis/shengjian_0.3.0_x64-setup.exe`
+`src-tauri/target/release/bundle/nsis/shengjian_0.3.1_x64-setup.exe`
 
 包内包含：
 

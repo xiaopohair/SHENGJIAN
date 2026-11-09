@@ -39,7 +39,7 @@ struct BaseButtonSummary {
 struct HostSnapshot {
     marker: &'static str,
     access: ProfileAccess,
-    /// 11 键基础动作摘要（只读展示）。
+    /// 12 键基础动作摘要（只读展示）。
     base_bindings: Vec<BaseButtonSummary>,
     profiles: Vec<ButtonProfile>,
     /// 当前生效方案（auto 命中 > 手动激活）；`null` = 默认方案。

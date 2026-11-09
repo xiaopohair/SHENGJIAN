@@ -19,13 +19,14 @@ use shengjian_windows::send_input::{
 
 use crate::model::ButtonProfile;
 
-/// 方案覆盖的按键白名单：11 键边界（TV 纳入），
-/// 菜单 / 静音仍由基础层持有。
-pub const PROFILE_BUTTONS: [RemoteButton; 11] = [
+/// 方案覆盖的按键白名单：12 键边界（TV、菜单纳入），
+/// 静音仍由基础层持有。
+pub const PROFILE_BUTTONS: [RemoteButton; 12] = [
     RemoteButton::Back,
     RemoteButton::Ok,
     RemoteButton::Home,
     RemoteButton::Tv,
+    RemoteButton::Menu,
     RemoteButton::Left,
     RemoteButton::Right,
     RemoteButton::Down,
@@ -169,20 +170,24 @@ mod tests {
     }
 
     #[test]
-    fn tv_binding_is_composed() {
+    fn tv_and_menu_bindings_are_composed() {
         let mut single_only = TriggerBindings::new();
         single_only.insert(ButtonTrigger::Single, chord_action(KeyCode::J));
-        let profile = profile_with(BTreeMap::from([(RemoteButton::Tv, single_only)]));
+        let profile = profile_with(BTreeMap::from([
+            (RemoteButton::Tv, single_only.clone()),
+            (RemoteButton::Menu, single_only),
+        ]));
         let overlay = compose_overlay(&profile, &base_mappings());
         assert!(overlay.actions.contains_key(&RemoteButton::Tv));
+        assert!(overlay.actions.contains_key(&RemoteButton::Menu));
     }
 
     #[test]
-    fn non_profile_buttons_are_never_included() {
+    fn mute_is_not_profile_editable_but_menu_is() {
         assert!(is_profile_button(RemoteButton::VolumeUp));
         assert!(is_profile_button(RemoteButton::Tv));
+        assert!(is_profile_button(RemoteButton::Menu));
         assert!(!is_profile_button(RemoteButton::VolumeMute));
-        assert!(!is_profile_button(RemoteButton::Menu));
     }
 
     #[test]

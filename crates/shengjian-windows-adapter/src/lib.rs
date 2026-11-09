@@ -440,6 +440,7 @@ pub trait PlatformActions: Send + Sync {
     fn scroll(&self, direction: Direction, steps: u16) -> CoreResult<()>;
     fn move_mouse(&self, direction: Direction, distance: u16) -> CoreResult<()>;
     fn click_mouse(&self) -> CoreResult<()>;
+    fn right_click_mouse(&self) -> CoreResult<()>;
     fn open_common_phrases(&self) -> CoreResult<()>;
 }
 
@@ -525,6 +526,15 @@ impl PlatformActions for WindowsPlatformActions {
             .map_err(map_platform_error)
     }
 
+    fn right_click_mouse(&self) -> CoreResult<()> {
+        self.platform
+            .test_mouse_action(PlatformButtonAction::MouseClick {
+                kind: MouseClickKind::Right,
+            })
+            .map(|_| ())
+            .map_err(map_platform_error)
+    }
+
     fn open_common_phrases(&self) -> CoreResult<()> {
         let host: Arc<dyn CommonPhraseHost> = current_common_phrase_host();
         if host.open(PHRASE_SOURCE_DEFAULT) {
@@ -581,6 +591,7 @@ impl<P: PlatformActions> WindowsActionSink<P> {
     ) -> CoreResult<()> {
         match kind {
             MouseActionKind::Click => self.backend.click_mouse(),
+            MouseActionKind::RightClick => self.backend.right_click_mouse(),
             MouseActionKind::Scroll | MouseActionKind::Move => {
                 if !(1..=100).contains(&amount) {
                     return Err(config_error("mouse-amount-out-of-range"));
@@ -590,7 +601,7 @@ impl<P: PlatformActions> WindowsActionSink<P> {
                 match kind {
                     MouseActionKind::Scroll => self.backend.scroll(direction, amount),
                     MouseActionKind::Move => self.backend.move_mouse(direction, amount),
-                    MouseActionKind::Click => unreachable!(),
+                    MouseActionKind::Click | MouseActionKind::RightClick => unreachable!(),
                 }
             }
         }
@@ -1456,6 +1467,10 @@ mod action_tests {
             self.record("click".to_owned())
         }
 
+        fn right_click_mouse(&self) -> CoreResult<()> {
+            self.record("right_click".to_owned())
+        }
+
         fn open_common_phrases(&self) -> CoreResult<()> {
             self.record("phrases".to_owned())
         }
@@ -1527,6 +1542,13 @@ mod action_tests {
                 amount: 0,
             })
             .expect("click");
+        actions
+            .execute(&LogicalAction::Mouse {
+                kind: MouseActionKind::RightClick,
+                direction: None,
+                amount: 0,
+            })
+            .expect("right click");
 
         assert_eq!(
             fake.calls(),
@@ -1539,6 +1561,7 @@ mod action_tests {
                 "scroll:Down:20",
                 "move:Left:30",
                 "click",
+                "right_click",
             ]
         );
     }

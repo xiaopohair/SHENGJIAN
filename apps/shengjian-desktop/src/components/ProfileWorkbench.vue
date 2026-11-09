@@ -1,0 +1,940 @@
+<script setup lang="ts">
+import { computed, ref } from "vue";
+import { Search } from "lucide-vue-next";
+import remoteImage from "../assets/devices/xiaomi-rc003.png";
+import {
+  PROFILE_BUTTONS,
+  PROFILE_TRIGGERS,
+  type ProfileDraft,
+  type ProfileTrigger,
+} from "../lib/buttons";
+import { statusLabel, tr, trDynamic } from "../lib/i18n";
+import { formatShortcut } from "../lib/shortcuts";
+import type { LogicalAction, LogicalButton, MacroDefinition } from "../lib/types";
+import ProfileBindingEditor from "./ProfileBindingEditor.vue";
+import StatusPill from "./ui/StatusPill.vue";
+
+const props = defineProps<{
+  view: "workbench" | "table";
+  busy: boolean;
+  dirty: boolean;
+  baselineJson: string;
+  foregroundApp: string;
+  commonPhrasesAvailable: boolean;
+  latestMacros: MacroDefinition[];
+}>();
+
+const emit = defineEmits<{
+  error: [message: string];
+}>();
+
+const draft = defineModel<ProfileDraft>("draft", { required: true });
+const selectedButton = ref<LogicalButton>("home");
+const selectedTrigger = ref<ProfileTrigger>("single");
+const query = ref("");
+const onlyConfigured = ref(false);
+
+const CAPS: Record<string, string> = {
+  power: "⏻",
+  up: "↑",
+  down: "↓",
+  left: "←",
+  right: "→",
+  ok: "OK",
+  back: "↩",
+  home: "⌂",
+  tv: "TV",
+  menu: "☰",
+  "volume-up": "+",
+  "volume-down": "−",
+};
+
+const totalTriggers = PROFILE_BUTTONS.length * PROFILE_TRIGGERS.length;
+
+interface RemoteHotspot {
+  id: LogicalButton;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  shape: "circle" | "zone";
+}
+
+// Percentages are measured from xiaomi-rc003.png (335 x 1081).
+// Only the 12 logical buttons are interactive; the hardware mic remains
+// visible on the product photo but is not a profile target.
+const REMOTE_HOTSPOTS: RemoteHotspot[] = [
+  { id: "power", x: 29.55, y: 9.3, w: 17.6, h: 5.55, shape: "circle" },
+  { id: "up", x: 49.85, y: 17.5, w: 17, h: 4.8, shape: "circle" },
+  { id: "down", x: 49.85, y: 31.2, w: 17, h: 4.8, shape: "circle" },
+  { id: "left", x: 27.76, y: 24.33, w: 17, h: 5.3, shape: "circle" },
+  { id: "right", x: 71.94, y: 24.33, w: 17, h: 5.3, shape: "circle" },
+  { id: "ok", x: 49.85, y: 24.33, w: 26, h: 8.05, shape: "circle" },
+  { id: "back", x: 33.4, y: 39.21, w: 25.4, h: 7.86, shape: "circle" },
+  { id: "home", x: 33.4, y: 48.33, w: 25.4, h: 7.86, shape: "circle" },
+  { id: "menu", x: 33.4, y: 57.42, w: 25.4, h: 7.86, shape: "circle" },
+  { id: "volume-up", x: 65.67, y: 39.21, w: 25.4, h: 7.86, shape: "circle" },
+  { id: "volume-down", x: 65.67, y: 48.33, w: 25.4, h: 7.86, shape: "circle" },
+  { id: "tv", x: 65.67, y: 57.42, w: 25.4, h: 7.86, shape: "circle" },
+];
+
+function hotspotStyle(hotspot: RemoteHotspot) {
+  return {
+    left: `${hotspot.x}%`,
+    top: `${hotspot.y}%`,
+    width: `${hotspot.w}%`,
+    height: `${hotspot.h}%`,
+  };
+}
+
+const labelFor = (id: LogicalButton) =>
+  PROFILE_BUTTONS.find((button) => button.id === id)?.label ?? id;
+
+function actionFor(button: LogicalButton, trigger: ProfileTrigger): LogicalAction | undefined {
+  return draft.value.bindings[button]?.[trigger];
+}
+
+function summary(button: LogicalButton, trigger: ProfileTrigger): string {
+  const action = actionFor(button, trigger);
+  if (!action) return "";
+  switch (action.type) {
+    case "shortcut":
+      return Array.isArray(action.keys) && action.keys.length
+        ? formatShortcut(action.keys)
+        : "快捷键";
+    case "open-app":
+      return String(action.app || "打开应用");
+    case "run-macro":
+      return (
+        props.latestMacros.find((macro) => macro.macroId === action.macro_id)?.name ?? "运行宏"
+      );
+    case "focus-input":
+      return trDynamic("聚焦输入");
+    case "disabled":
+      return trDynamic("禁用");
+    case "common-phrase":
+      return trDynamic("常用语");
+    case "mouse":
+      return trDynamic("鼠标");
+    default:
+      return trDynamic("其他（保留）");
+  }
+}
+
+function bindingCount(): number {
+  return Object.values(draft.value.bindings ?? {}).reduce(
+    (total, triggers) => total + Object.keys(triggers ?? {}).length,
+    0,
+  );
+}
+
+function hasBinding(button: LogicalButton): boolean {
+  return PROFILE_TRIGGERS.some((trigger) => Boolean(actionFor(button, trigger)));
+}
+
+function isButtonModified(button: LogicalButton): boolean {
+  if (!props.baselineJson) return false;
+  try {
+    const baseline = JSON.parse(props.baselineJson) as ProfileDraft;
+    return (
+      JSON.stringify(draft.value.bindings[button] ?? null) !==
+      JSON.stringify(baseline.bindings?.[button] ?? null)
+    );
+  } catch {
+    return false;
+  }
+}
+
+const visibleButtons = computed(() => {
+  const value = query.value.trim().toLowerCase();
+  return PROFILE_BUTTONS.filter((button) => {
+    if (
+      onlyConfigured.value &&
+      !PROFILE_TRIGGERS.some((trigger) => actionFor(button.id, trigger))
+    ) {
+      return false;
+    }
+    if (!value) return true;
+    const actionText = PROFILE_TRIGGERS.map((trigger) => summary(button.id, trigger)).join(" ");
+    return `${button.label} ${button.id} ${actionText}`.toLowerCase().includes(value);
+  });
+});
+
+const selectedSummary = computed(() => summary(selectedButton.value, selectedTrigger.value));
+
+function selectButton(button: LogicalButton) {
+  selectedButton.value = button;
+}
+
+function selectTrigger(trigger: ProfileTrigger) {
+  selectedTrigger.value = trigger;
+}
+
+function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
+  selectedButton.value = button;
+  selectedTrigger.value = trigger;
+}
+</script>
+
+<template>
+  <div class="profile-workbench">
+    <template v-if="view === 'workbench'">
+      <aside class="remote-panel panel">
+        <div class="panel-head">
+          <span class="eyebrow">{{ tr("当前遥控器") }}</span>
+          <span class="device-pill">RC003 · {{ tr("已连接") }}</span>
+        </div>
+        <div class="product-stage">
+          <div class="product-remote">
+            <img
+              class="remote-photo"
+              :src="remoteImage"
+              alt="Xiaomi RC003 遥控器"
+              draggable="false"
+            />
+            <button
+              v-for="hotspot in REMOTE_HOTSPOTS"
+              :key="hotspot.id"
+              type="button"
+              class="remote-hotspot"
+              :class="[hotspot.shape, { selected: selectedButton === hotspot.id }]"
+              :style="hotspotStyle(hotspot)"
+              :aria-label="trDynamic(labelFor(hotspot.id))"
+              :aria-pressed="selectedButton === hotspot.id"
+              :title="trDynamic(labelFor(hotspot.id))"
+              @click="selectButton(hotspot.id)"
+            />
+          </div>
+          <p class="product-note">{{ tr("按 RC003 产品图对位；语音键为硬件键。") }}</p>
+        </div>
+        <div class="remote-footer">
+          <span>{{ tr("点击按键查看绑定") }}</span>
+          <span class="legend">
+            <span><i class="single" />{{ statusLabel("single") }}</span>
+            <span><i class="double" />{{ statusLabel("double") }}</span>
+            <span><i class="long" />{{ statusLabel("long") }}</span>
+          </span>
+        </div>
+      </aside>
+
+      <section class="binding-panel panel">
+        <div class="binding-head">
+          <div>
+            <span class="eyebrow">{{ tr("正在编辑") }}</span>
+            <h2>
+              {{ trDynamic(labelFor(selectedButton)) }}
+              <span class="mono">{{ selectedButton }}</span>
+            </h2>
+            <p>{{ tr("先选按键，再选手势，最后指定动作。当前选中键会显示金色描边。") }}</p>
+          </div>
+          <div class="head-stat">
+            <strong
+              >{{ bindingCount() }}<span> / {{ totalTriggers }}</span></strong
+            >
+            <small>{{ tr("已配置触发") }}</small>
+            <StatusPill v-if="dirty" :label="trDynamic('未保存')" tone="warning" dot />
+          </div>
+        </div>
+
+        <div class="binding-triggers">
+          <button
+            v-for="trigger in PROFILE_TRIGGERS"
+            :key="trigger"
+            type="button"
+            class="trigger-tab"
+            :class="{ active: selectedTrigger === trigger }"
+            @click="selectTrigger(trigger)"
+          >
+            <i :class="trigger" />
+            {{ statusLabel(trigger) }}
+          </button>
+        </div>
+
+        <ProfileBindingEditor
+          v-model:draft="draft"
+          :button-id="selectedButton"
+          :trigger="selectedTrigger"
+          :busy="busy"
+          :common-phrases-available="commonPhrasesAvailable"
+          :latest-macros="latestMacros"
+          @error="emit('error', $event)"
+        />
+
+        <footer class="binding-foot">
+          <span>{{ selectedSummary || tr("继承基线") }}</span>
+          <span class="mono">{{ selectedButton }} / {{ statusLabel(selectedTrigger) }}</span>
+        </footer>
+      </section>
+    </template>
+
+    <template v-else>
+      <section class="matrix-panel panel">
+        <div class="matrix-toolbar">
+          <label class="search-wrap">
+            <Search :size="14" />
+            <input v-model="query" class="search-input" :placeholder="tr('搜索按键或动作…')" />
+          </label>
+          <label class="filter-toggle">
+            <input v-model="onlyConfigured" type="checkbox" />
+            {{ tr("只看已配置") }}
+          </label>
+          <span class="matrix-count">{{ bindingCount() }} / {{ totalTriggers }}</span>
+        </div>
+        <div class="matrix-scroll">
+          <table class="matrix-table">
+            <thead>
+              <tr>
+                <th>{{ tr("按键") }}</th>
+                <th v-for="trigger in PROFILE_TRIGGERS" :key="trigger">
+                  <i class="tone-dot" :class="trigger" />
+                  {{ statusLabel(trigger) }}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="button in visibleButtons"
+                :key="button.id"
+                :class="{ selected: selectedButton === button.id }"
+              >
+                <td>
+                  <button
+                    type="button"
+                    class="matrix-key"
+                    :class="{ configured: hasBinding(button.id) }"
+                    @click="selectButton(button.id)"
+                  >
+                    <span class="key-cap">{{ CAPS[button.id] }}</span>
+                    <span>
+                      <strong>{{ trDynamic(button.label) }}</strong>
+                      <small>{{ button.id }}</small>
+                    </span>
+                    <span v-if="isButtonModified(button.id)" class="modified-dot" />
+                  </button>
+                </td>
+                <td v-for="trigger in PROFILE_TRIGGERS" :key="trigger">
+                  <button
+                    type="button"
+                    class="matrix-cell"
+                    :class="{
+                      selected: selectedButton === button.id && selectedTrigger === trigger,
+                      empty: !actionFor(button.id, trigger),
+                    }"
+                    @click="selectCell(button.id, trigger)"
+                  >
+                    <template v-if="actionFor(button.id, trigger)">
+                      <i class="tone-dot" :class="trigger" />
+                      <span class="cell-copy">
+                        <strong>{{ summary(button.id, trigger) }}</strong>
+                      </span>
+                    </template>
+                    <span v-else class="cell-add">＋</span>
+                  </button>
+                </td>
+              </tr>
+              <tr v-if="visibleButtons.length === 0">
+                <td colspan="4" class="empty-note">{{ tr("没有匹配的按键。") }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="matrix-foot">
+          <span>{{ tr("单击单元格即可在右侧修改") }}</span>
+          <span>{{ bindingCount() }} / {{ totalTriggers }}</span>
+        </div>
+      </section>
+
+      <aside class="inspector panel">
+        <div class="inspector-head">
+          <span class="eyebrow">{{ tr("正在编辑") }}</span>
+          <h2>
+            {{ trDynamic(labelFor(selectedButton)) }}<span class="mono">{{ selectedButton }}</span>
+          </h2>
+          <div class="inspector-triggers">
+            <button
+              v-for="trigger in PROFILE_TRIGGERS"
+              :key="trigger"
+              type="button"
+              class="trigger-tab"
+              :class="{ active: selectedTrigger === trigger }"
+              @click="selectTrigger(trigger)"
+            >
+              {{ statusLabel(trigger) }}
+            </button>
+          </div>
+        </div>
+        <div class="inspector-body">
+          <ProfileBindingEditor
+            v-model:draft="draft"
+            :button-id="selectedButton"
+            :trigger="selectedTrigger"
+            compact
+            :busy="busy"
+            :common-phrases-available="commonPhrasesAvailable"
+            :latest-macros="latestMacros"
+            @error="emit('error', $event)"
+          />
+        </div>
+      </aside>
+    </template>
+  </div>
+</template>
+
+<style scoped>
+.profile-workbench {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.profile-workbench:has(.remote-panel) {
+  grid-template-columns: clamp(280px, 31%, 340px) minmax(0, 1fr);
+  align-items: start;
+}
+
+.profile-workbench:has(.matrix-panel) {
+  grid-template-columns: minmax(0, 1fr) clamp(280px, 28%, 330px);
+  align-items: start;
+}
+
+.panel {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-sm);
+}
+
+.remote-panel {
+  overflow: hidden;
+}
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-4) var(--space-2);
+}
+
+.eyebrow {
+  color: var(--text-muted);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.device-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--bg-subtle);
+  padding: 3px 7px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+
+.device-pill::before {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--success);
+  content: "";
+}
+
+.product-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 590px;
+  padding: var(--space-2) var(--space-4) var(--space-3);
+  background:
+    radial-gradient(
+      circle at 50% 36%,
+      color-mix(in srgb, var(--accent) 10%, transparent),
+      transparent 52%
+    ),
+    linear-gradient(180deg, var(--bg-subtle), var(--bg));
+}
+
+.product-remote {
+  position: relative;
+  flex: 0 0 auto;
+  width: clamp(160px, 62%, 190px);
+}
+
+.remote-photo {
+  display: block;
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 22px 24px rgba(24, 48, 42, 0.2));
+  user-select: none;
+}
+
+.remote-hotspot {
+  position: absolute;
+  z-index: 1;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+}
+
+.remote-hotspot.zone {
+  border-radius: 999px;
+}
+
+.remote-hotspot:hover {
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.7),
+    0 0 0 4px rgba(15, 122, 99, 0.24);
+}
+
+.remote-hotspot:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.remote-hotspot.selected::after {
+  position: absolute;
+  inset: -3px;
+  border: 2px solid #e8b45c;
+  border-radius: inherit;
+  box-shadow:
+    0 0 0 3px rgba(232, 180, 92, 0.24),
+    0 0 16px rgba(15, 122, 99, 0.45);
+  content: "";
+  pointer-events: none;
+}
+
+.product-note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 9px;
+  line-height: 1.45;
+  text-align: center;
+}
+.remote-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  border-top: 1px solid var(--border);
+  padding: 10px var(--space-4) 12px;
+  color: var(--text-muted);
+  font-size: var(--text-2xs);
+}
+.legend {
+  display: flex;
+  gap: 9px;
+}
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.legend i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+}
+.legend i.single {
+  background: var(--accent);
+}
+.legend i.double {
+  background: var(--warning);
+}
+.legend i.long {
+  background: var(--info);
+}
+
+.binding-panel {
+  overflow: hidden;
+  padding: var(--space-5);
+}
+.binding-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.binding-head h2 {
+  margin: 4px 0 0;
+  font-size: var(--text-2xl);
+  letter-spacing: -0.04em;
+}
+.binding-head h2 span {
+  margin-left: 6px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.binding-head p {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: 1.55;
+}
+.head-stat {
+  flex: 0 0 auto;
+  text-align: right;
+}
+.head-stat strong {
+  display: block;
+  font-size: var(--text-xl);
+  letter-spacing: -0.03em;
+}
+.head-stat strong span {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+.head-stat small {
+  display: block;
+  margin: 2px 0 5px;
+  color: var(--text-muted);
+  font-size: var(--text-2xs);
+}
+
+.binding-triggers,
+.inspector-triggers {
+  display: flex;
+  gap: 4px;
+  margin: var(--space-4) 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  padding: 3px;
+  width: fit-content;
+}
+.trigger-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  padding: 5px 9px;
+  color: var(--text-muted);
+  font-size: var(--text-2xs);
+  font-weight: 650;
+  cursor: pointer;
+}
+.trigger-tab:hover {
+  color: var(--text);
+}
+.trigger-tab.active {
+  background: var(--bg-raised);
+  color: var(--text);
+  box-shadow: 0 2px 8px rgba(20, 40, 35, 0.08);
+}
+.trigger-tab i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+.trigger-tab i.single {
+  background: var(--accent);
+}
+.trigger-tab i.double {
+  background: var(--warning);
+}
+.trigger-tab i.long {
+  background: var(--info);
+}
+
+.binding-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-2xs);
+}
+.binding-foot .mono {
+  font-family: var(--font-mono);
+}
+
+.matrix-panel {
+  overflow: hidden;
+}
+.matrix-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border-bottom: 1px solid var(--border);
+  padding: var(--space-3);
+}
+.search-wrap {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 100px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  padding: 0 8px;
+  color: var(--text-muted);
+}
+.search-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 7px 0;
+  color: var(--text);
+  font-size: var(--text-xs);
+  outline: 0;
+}
+.filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: var(--text-2xs);
+  white-space: nowrap;
+}
+.filter-toggle input {
+  accent-color: var(--accent);
+}
+.matrix-count {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+}
+
+.matrix-scroll {
+  overflow: visible;
+  max-height: none;
+}
+.matrix-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.matrix-table th {
+  border-bottom: 0;
+  background: var(--bg-subtle);
+  padding: 9px 12px;
+  color: var(--text-muted);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: left;
+  text-transform: uppercase;
+}
+.matrix-table th:not(:first-child) {
+  text-align: center;
+}
+.matrix-table td {
+  border-top: 1px solid var(--border);
+  padding: 5px;
+  vertical-align: middle;
+}
+.matrix-table tr.selected td {
+  background: color-mix(in srgb, var(--accent-soft) 52%, transparent);
+}
+.matrix-table tr:hover td {
+  background: var(--bg-hover);
+}
+.matrix-key {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 6px;
+  text-align: left;
+  cursor: pointer;
+}
+.key-cap {
+  display: grid;
+  flex: 0 0 30px;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--bg-raised);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+.matrix-key.configured .key-cap {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+.matrix-key.configured strong {
+  color: var(--accent-ink);
+}
+.matrix-key strong {
+  display: block;
+  font-size: var(--text-xs);
+}
+.matrix-key small {
+  display: block;
+  margin-top: 1px;
+  color: var(--text-muted);
+  font-size: 8px;
+}
+.modified-dot {
+  width: 5px;
+  height: 5px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.matrix-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  padding: 5px 7px;
+  text-align: center;
+  cursor: pointer;
+}
+.matrix-cell:hover {
+  border-color: var(--border);
+  background: var(--bg-raised);
+}
+.matrix-cell.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.matrix-cell.empty {
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: var(--text-lg);
+}
+.cell-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  text-align: center;
+}
+.cell-copy strong {
+  overflow: hidden;
+  font-size: var(--text-2xs);
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cell-add {
+  color: var(--text-muted);
+  font-size: var(--text-base);
+}
+.tone-dot {
+  flex: 0 0 4px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+}
+.tone-dot.single {
+  background: var(--accent);
+}
+.tone-dot.double {
+  background: var(--warning);
+}
+.tone-dot.long {
+  background: var(--info);
+}
+.matrix-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  border-top: 1px solid var(--border);
+  padding: 10px 14px;
+  color: var(--text-muted);
+  font-size: var(--text-2xs);
+}
+.empty-note {
+  padding: var(--space-6);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.inspector {
+  position: sticky;
+  top: var(--space-4);
+  overflow: hidden;
+}
+.inspector-head {
+  padding: var(--space-4) var(--space-4) 0;
+}
+.inspector-head h2 {
+  margin: 4px 0 0;
+  font-size: var(--text-xl);
+  letter-spacing: -0.03em;
+}
+.inspector-head h2 span {
+  margin-left: 5px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.inspector-head .inspector-triggers {
+  margin: var(--space-3) 0 0;
+}
+.inspector-body {
+  padding: var(--space-4);
+}
+
+@media (max-width: 1180px) {
+  .profile-workbench:has(.matrix-panel) {
+    grid-template-columns: 1fr;
+  }
+  .inspector {
+    position: static;
+  }
+}
+
+@media (max-width: 900px) {
+  .profile-workbench:has(.remote-panel),
+  .profile-workbench:has(.matrix-panel) {
+    grid-template-columns: 1fr;
+  }
+  .inspector {
+    position: static;
+  }
+  .remote-stage {
+    min-height: 490px;
+  }
+}
+
+@media (max-width: 700px) {
+  .binding-panel {
+    padding: var(--space-4);
+  }
+  .matrix-table th,
+  .matrix-table td {
+    min-width: 120px;
+  }
+  .remote-shell {
+    transform: scale(0.92);
+  }
+}
+</style>

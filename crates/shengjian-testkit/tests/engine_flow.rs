@@ -229,6 +229,7 @@ fn engine_applies_auto_profile_after_foreground_sync() {
             app_targets: vec!["cloudmusic.exe".to_owned()],
             auto_apply: true,
             hold_repeat: None,
+            hold_repeat_by_button: std::collections::BTreeMap::new(),
             voice_input_tool: None,
             bindings: profile_bindings,
         }],

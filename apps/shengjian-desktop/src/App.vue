@@ -231,9 +231,7 @@ async function refreshTopbarVoiceInputTool() {
   try {
     const settings = await getSettings();
     const deviceId = store.snapshot?.connection.remote?.deviceId;
-    const override = deviceId
-      ? settings.devices[deviceId]?.windows?.voiceInputTool
-      : undefined;
+    const override = deviceId ? settings.devices[deviceId]?.windows?.voiceInputTool : undefined;
     status.setVoiceInputTool(override ?? settings.global.voice_input_tool);
   } catch {
     // Keep the current topbar value when settings are unavailable.
@@ -422,12 +420,9 @@ onUnmounted(() => {
               <span role="status" aria-live="polite">
                 <StatusPill :label="statusLabel(phase)" :tone="phaseTone" dot />
               </span>
-              <span
-                v-if="store.isConnected"
-                class="topbar-device"
-                :title="remoteName"
-                >{{ remoteName }}</span
-              >
+              <span v-if="store.isConnected" class="topbar-device" :title="remoteName">{{
+                remoteName
+              }}</span>
               <span
                 v-if="status.batteryLevel !== null"
                 class="topbar-chip"
