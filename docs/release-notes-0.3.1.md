@@ -50,14 +50,19 @@ Release 资产：
 
 ```text
 shengjian_0.3.1_x64-setup.exe
+大小：11345726 bytes
+SHA-256：BD4F83155AEFE0CD788ECC54B3BB44DCBFA9385C6925177F163223ED7961BECE
+
 shengjian_0.3.1_x64-portable.zip
+大小：14810009 bytes
+SHA-256：BE808628D9729D2379F12BF091A4137A6D3C04FD168EF377B5708630E301D50D
 ```
 
-SHA-256 见 Release 中的 `SHA256SUMS` 与 `manifest.json`。安装包未签名，Windows SmartScreen 可能提示；首次安装 RC003 helper 需要一次 UAC。覆盖安装会保留 `%LOCALAPPDATA%\Shengjian` 下的设置、方案、宏、转写历史与日志。
+SHA-256 同时写入 Release 中的 `SHA256SUMS` 与 `manifest.json`。安装包未签名，Windows SmartScreen 可能提示；首次安装 RC003 helper 需要一次 UAC。覆盖安装会保留 `%LOCALAPPDATA%\Shengjian` 下的设置、方案、宏、转写历史与日志。
 
 ## 已知限制
 
 - 仅 Windows x64；未提供 ARM64 包
-- 0.3.1 为本地未签名构建，待发布
+- 0.3.1 为未签名发布包
 - 无自动更新
 - RC001 / ARN9 设备身份映射仍为 deferred

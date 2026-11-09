@@ -20,9 +20,10 @@
 ## 当前状态
 
 - 版本：`0.3.1`（按键方案工作台、按键级连发与表格视图优化）
-- 本地发布：`release/0.3.1/manifest.json`；安装包 `shengjian_0.3.1_x64-setup.exe`（未签名、待发布）
+- GitHub Release 0.3.1：<https://github.com/xiaopohair/SHENGJIAN/releases/tag/v0.3.1>（CI 构建、未签名），安装包 `shengjian_0.3.1_x64-setup.exe`；清单见 `release/0.3.1/manifest.json`
 - 代码签名：已接入 **SignPath Foundation** 免费开源签名（release workflow 内置，配置后自动启用）；见 [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md) 与 [docs/signing.md](docs/signing.md)
 - 真机 RC003 已验证：连接、语音、按键手势、profile 自动切换、`run-macro`、返回键增强捕获
+- 本地发布清单：`release/0.3.1/manifest.json`
 - 发布说明：`docs/release-notes-0.3.1.md`
 - GitHub 仓库已创建并推送：<https://github.com/xiaopohair/SHENGJIAN>；发布由 `v*` tag 触发的 Release workflow 生成
 - 不包含自动更新器
@@ -201,19 +202,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -
 
 两个脚本从 `src-tauri/tauri.conf.json` 读取 `productName` 再拼安装包路径，品牌改名后不需要改脚本。
 
-本地构建 0.3.1（未发布）：
+GitHub Release 0.3.1（CI 构建）：
 
 ```text
 version=0.3.1
-installer_size=11343127 bytes
-installer_sha256=B4B5EEA985EE661CC27B4F7F3534FBB1FD599A9E7B45B9EEFD11715BCACFCF13
-portable_size=14810066 bytes
-portable_sha256=9A9425C53CBBB4F1AF2F0445ACD4080CB8E337EE3FF0F6F1B109839EB6D21450
+installer_size=11345726 bytes
+installer_sha256=BD4F83155AEFE0CD788ECC54B3BB44DCBFA9385C6925177F163223ED7961BECE
+portable_size=14810009 bytes
+portable_sha256=BE808628D9729D2379F12BF091A4137A6D3C04FD168EF377B5708630E301D50D
 signed=false
-published=false
+published=true
 ```
 
-0.3.1 的 SHA-256 同步写入 `docs/release-notes-0.3.1.md` 与 `release/0.3.1/SHA256SUMS`。
+0.3.1 的 SHA-256 同步写入 `docs/release-notes-0.3.1.md` 与 `release/0.3.1/SHA256SUMS`。该清单对应 GitHub Release 的 CI 构建产物；本地重新构建的包大小/哈希可能不同。
 
 ## GitHub 发布准备
 
@@ -229,12 +230,12 @@ published=false
 - 安全说明：[SECURITY.md](SECURITY.md)
 - 发布流程：[docs/release-process.md](docs/release-process.md)
 
-仓库已推送至 <https://github.com/xiaopohair/SHENGJIAN>；GitHub 当前 tag 为 `v0.3.0`，0.3.1 为本地构建、待打 tag 发布。
+仓库已推送至 <https://github.com/xiaopohair/SHENGJIAN>；当前 tag 为 `v0.3.1`，Release 已发布。
 
 ## 已知限制
 
 - 仅 Windows x64；ARM64 包未提供
-- 0.3.1 为本地未签名构建，待发布；CI 签名需仓库公开并通过 SignPath 审核
+- 0.3.1 为未签名发布包；CI 签名需仓库公开并通过 SignPath 审核
 - 无自动更新
 - helper 首次安装需要 UAC
 - RC001/ARN9 身份映射仍 deferred，见 [docs/device-identity.md](docs/device-identity.md)

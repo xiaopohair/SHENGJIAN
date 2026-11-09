@@ -3,7 +3,7 @@
 声键（SHENGJIAN）的 Windows 桌面宿主：Tauri 2 + Vue 3，in-process 使用 `shengjian-core`。
 
 当前版本：**0.3.1**
-状态：本地 x64 NSIS 包；未签名、未发布；无自动更新。
+状态：已通过 GitHub Release 发布（CI 构建、未签名）；无自动更新。
 
 ## 运行
 
