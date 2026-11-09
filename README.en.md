@@ -201,19 +201,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -
 
 Both scripts read `productName` from `src-tauri/tauri.conf.json` and then assemble the installer path, so renaming the brand does not require script changes.
 
-Local 0.2.0 build:
+GitHub Release 0.2.0 (CI build):
 
 ```text
 version=0.2.0
-installer_size=11019233 bytes
-installer_sha256=F16910F1FB0D767BB95108A849716F95EFC6C86B157EC367A124E846C421767C
-portable_size=14483536 bytes
-portable_sha256=45186F1200797988CB4A033595C16159F4181C6BD2E049140F9BCD8D1E026DA1
+installer_size=11016883 bytes
+installer_sha256=38A19D68EB4B0FC2940D2F446466C9A958E57BE430A2805FF1EF01AEC038901F
+portable_size=14483947 bytes
+portable_sha256=F418E626F3B2F100C9734380DE27B52C3565FFFEB76CCEF1665DB9FD61E6A58A
 signed=false
-published=false
+published=true
 ```
 
-The 0.2.0 hashes are also written to `docs/release-notes-0.2.0.md` and `release/0.2.0/SHA256SUMS`. The tag-triggered CI build regenerates the installer; actual published sizes/hashes may differ due to signing and build environment, and the Release asset `SHA256SUMS` is authoritative.
+The 0.2.0 hashes are also written to `docs/release-notes-0.2.0.md` and `release/0.2.0/SHA256SUMS`. This manifest corresponds to the GitHub Release CI build artifact; locally rebuilt packages may have different sizes/hashes.
 
 ## GitHub release preparation
 
