@@ -1,18 +1,22 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { getVersion } from "@tauri-apps/api/app";
-import { Boxes, FolderOpen, RotateCcw, ShieldCheck } from "lucide-vue-next";
+import { Boxes, FolderOpen, RefreshCw, RotateCcw, ShieldCheck } from "lucide-vue-next";
 import {
   getDeviceSupport,
   getHostCapabilities,
   openDiagnosticLogFolder,
+  openExternalUrl,
   errorMessage,
 } from "../lib/api";
 import { RESTART_ONBOARDING_EVENT } from "../lib/preferences";
 import { statusLabel, tr, trDynamic } from "../lib/i18n";
+import { useUpdateStore } from "../stores/update";
+import { usePairingStore } from "../stores/pairing";
 import PageHeader from "../components/PageHeader.vue";
 import Button from "../components/ui/Button.vue";
 import Card from "../components/ui/Card.vue";
+import Checkbox from "../components/ui/Checkbox.vue";
 import EmptyState from "../components/ui/EmptyState.vue";
 import Notice from "../components/ui/Notice.vue";
 import SectionHeader from "../components/ui/SectionHeader.vue";
@@ -27,6 +31,16 @@ const capabilities = ref<HostCapabilities | null>(null);
 const appVersion = ref("");
 const platformName = ref("windows");
 const error = ref<string | null>(null);
+const updateStore = useUpdateStore();
+const pairing = usePairingStore();
+const updateState = computed(() => updateStore.status);
+const latestRelease = computed(() => updateStore.latest);
+const includePrereleases = computed({
+  get: () => updateStore.includePrereleases,
+  set: (value: boolean) => {
+    void updateStore.setIncludePrereleases(value);
+  },
+});
 
 const PLATFORM_NAMES: Record<string, string> = {
   windows: "Windows",
@@ -92,6 +106,19 @@ function restartOnboarding() {
   window.dispatchEvent(new Event(RESTART_ONBOARDING_EVENT));
 }
 
+async function runUpdateCheck() {
+  await updateStore.check(true);
+}
+
+async function openReleasePage() {
+  if (!latestRelease.value) return;
+  try {
+    await openExternalUrl(latestRelease.value.url);
+  } catch (cause) {
+    updateStore.reportError(errorMessage(cause));
+  }
+}
+
 onMounted(async () => {
   const [version, caps, devices] = await Promise.all([
     getVersion().catch(() => ""),
@@ -102,6 +129,8 @@ onMounted(async () => {
   capabilities.value = caps;
   if (caps) platformName.value = caps.platform;
   deviceSupport.value = devices;
+  await updateStore.hydrate();
+  updateStore.setCurrentVersion(version);
 });
 </script>
 
@@ -115,7 +144,7 @@ onMounted(async () => {
 
     <Notice v-if="error" kind="error">{{ error }}</Notice>
 
-    <Card>
+    <Card data-about-hero>
       <div class="about-hero">
         <div class="about-brand">
           <BrandMark :height="84" />
@@ -131,18 +160,68 @@ onMounted(async () => {
               <StatusPill :label="platformNameFor(platformName)" tone="info" />
               <StatusPill :label="trDynamic('本地构建')" tone="neutral" />
               <StatusPill :label="trDynamic('未签名')" tone="warning" dot />
+              <button
+                v-if="updateState === 'available' && latestRelease"
+                type="button"
+                class="update-link"
+                :title="tr('查看发布')"
+                @click="openReleasePage"
+              >
+                <StatusPill
+                  :label="`${tr('发现新版本')} ${latestRelease.tagName}`"
+                  tone="accent"
+                  dot
+                />
+              </button>
+              <StatusPill
+                v-else-if="updateState === 'checking'"
+                :label="trDynamic('检查中')"
+                tone="neutral"
+                dot
+              />
+              <StatusPill
+                v-else-if="updateState === 'current'"
+                :label="trDynamic('已是最新')"
+                tone="success"
+                dot
+              />
+              <StatusPill
+                v-else-if="updateState === 'unavailable'"
+                :label="trDynamic('暂无发布')"
+                tone="neutral"
+                dot
+              />
+              <StatusPill
+                v-else-if="updateState === 'error'"
+                :label="trDynamic('检查失败')"
+                tone="danger"
+                dot
+              />
             </div>
           </div>
         </div>
-        <div class="about-actions">
-          <Button @click="openLogs">
-            <FolderOpen :size="16" />
-            {{ tr("打开日志目录") }}
-          </Button>
-          <Button @click="restartOnboarding">
-            <RotateCcw :size="16" />
-            {{ tr("重新运行首次配置") }}
-          </Button>
+        <div class="about-side">
+          <Checkbox v-model="includePrereleases" class="about-prerelease">
+            {{ tr("包含预发布版本") }}
+          </Checkbox>
+          <div class="about-actions">
+            <Button
+              variant="primary"
+              :disabled="updateState === 'checking'"
+              @click="runUpdateCheck"
+            >
+              <RefreshCw :size="16" :class="{ spin: updateState === 'checking' }" />
+              {{ trDynamic(updateState === "checking" ? "检查中" : "检查更新") }}
+            </Button>
+            <Button @click="openLogs">
+              <FolderOpen :size="16" />
+              {{ tr("日志目录") }}
+            </Button>
+            <Button @click="restartOnboarding">
+              <RotateCcw :size="16" />
+              {{ tr("配置向导") }}
+            </Button>
+          </div>
         </div>
       </div>
     </Card>
@@ -205,7 +284,16 @@ onMounted(async () => {
               </span>
             </div>
           </div>
-          <StatusPill :label="statusLabel(device.status)" :tone="supportTone(device.status)" dot />
+          <div class="support-actions">
+            <Button size="sm" variant="ghost" @click="pairing.show(device.model)">
+              {{ tr("配对帮助") }}
+            </Button>
+            <StatusPill
+              :label="statusLabel(device.status)"
+              :tone="supportTone(device.status)"
+              dot
+            />
+          </div>
         </li>
       </ul>
       <EmptyState
@@ -249,10 +337,9 @@ onMounted(async () => {
 
 <style scoped>
 .about-hero {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-5);
 }
 
@@ -265,6 +352,7 @@ onMounted(async () => {
 }
 
 .about-copy {
+  flex: 1 1 0;
   min-width: 0;
 }
 
@@ -296,7 +384,7 @@ onMounted(async () => {
 
 .about-tagline {
   margin-top: 6px;
-  max-width: 54ch;
+  max-width: 100%;
   color: var(--text-muted);
   font-size: var(--text-sm);
   line-height: 1.6;
@@ -309,9 +397,42 @@ onMounted(async () => {
   margin-top: var(--space-3);
 }
 
+.about-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  align-self: stretch;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.about-prerelease {
+  flex: 0 0 auto;
+}
+
+.update-link {
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.update-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.update-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .about-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-end;
   gap: var(--space-2);
 }
 
@@ -390,6 +511,14 @@ onMounted(async () => {
   gap: var(--space-2);
 }
 
+.support-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
 .support-platform {
   display: inline-flex;
   align-items: center;
@@ -432,13 +561,33 @@ onMounted(async () => {
   line-height: 1.55;
 }
 
+@media (min-width: 1200px) {
+  .about-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+}
+
 @media (max-width: 900px) {
+  .about-hero {
+    grid-template-columns: 1fr;
+  }
+
   .about-brand {
     align-items: flex-start;
   }
 
-  .about-actions {
+  .about-side {
     width: 100%;
+    align-self: auto;
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+
+  .about-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
   }
 }
 </style>

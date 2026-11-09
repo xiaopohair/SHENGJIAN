@@ -19,12 +19,12 @@ Brand positioning, slogan, logo, and visual guidelines: [brand/BRAND.md](brand/B
 
 ## Current status
 
-- Version: `0.2.0` (splash, portable build, and onboarding)
-- GitHub Release 0.2.0: built from the `v0.2.0` tag (CI-built, unsigned); installer `shengjian_0.2.0_x64-setup.exe`; manifest at `release/0.2.0/manifest.json`
+- Version: `0.3.0` (update checks, pairing help, and device status polish)
+- GitHub Release 0.3.0: built from the `v0.3.0` tag (CI-built, unsigned); installer `shengjian_0.3.0_x64-setup.exe`; manifest at `release/0.3.0/manifest.json`
 - Code signing: integrated with **SignPath Foundation** free open-source signing (built into the release workflow; enables automatically once configured); see [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md) and [docs/signing.md](docs/signing.md)
 - Verified on a physical RC003: connection, voice, button gestures, automatic profile switching, `run-macro`, and enhanced Back-key capture
-- Local release manifest: `release/0.2.0/manifest.json`
-- Release notes: `docs/release-notes-0.2.0.md`
+- Local release manifest: `release/0.3.0/manifest.json`
+- Release notes: `docs/release-notes-0.3.0.md`
 - GitHub repository created and pushed: <https://github.com/xiaopohair/SHENGJIAN>; releases are produced by the Release workflow triggered by `v*` tags
 - No auto-updater
 
@@ -45,7 +45,8 @@ Brand positioning, slogan, logo, and visual guidelines: [brand/BRAND.md](brand/B
 - History page: four tabs — voice events, button events, macro runs, and transcription records; voice/button events are retained for the current run, while macro runs and transcriptions are persisted
 - Settings page: global audio, theme, accent color, application language (Chinese/English/follow system), launch at login, close behavior, configuration backup/restore (settings, profiles, macro library, transcription history, appearance preferences, last device), log viewing/diagnostic bundle, health check, restore defaults, sectioned tabs; Data & diagnostics are still reachable if settings fail to load
 - Accessibility: page landmarks/heading hierarchy, form labels, focus trapping for tabs/command palette/confirmation dialogs, decorative icons hidden; see `docs/ui-accessibility-report.md`
-- About page: brand mark (light pine-green / deep pine-green depending on theme), app version, platform/build/signing, runtime information, local capabilities, supported remotes and platform status, components and licenses; can open the logs directory and re-run first-run setup
+- About page: brand mark (light pine-green / deep pine-green depending on theme), app version, platform/build/signing, runtime information, local capabilities, supported remotes and platform status, components and licenses; can open the logs directory and re-run first-run setup; checks GitHub Releases in the background at startup (24-hour limit) and surfaces updates via a toast, an About nav dot, and the tray menu, with optional pre-release filtering and no automatic download/install
+- Pairing help: available from each supported model row in About and from the first-run scan step; shows the RC003 / RC001 key combination, Windows Bluetooth steps, and the new-remote TV initialization note
 - Tray, first-run setup wizard (including voice input tool selection), single instance
 - Profile/macro import and export, diagnostic log entry points
 
@@ -124,7 +125,7 @@ pnpm build:installer
 
 `pnpm build:installer` = `tauri build` + filename normalization. Tauri first produces `声键_<version>_x64-setup.exe` from `productName`; then `scripts/normalize-installer-name.ps1` renames it to the ASCII lowercase release filename:
 
-`apps/shengjian-desktop/src-tauri/target/release/bundle/nsis/shengjian_0.2.0_x64-setup.exe`
+`apps/shengjian-desktop/src-tauri/target/release/bundle/nsis/shengjian_0.3.0_x64-setup.exe`
 
 Running only `pnpm tauri build` also builds, but produces a Chinese filename; releases, CI, and download links consistently use `shengjian_<version>_x64-setup.exe`.
 
@@ -177,10 +178,10 @@ Details: [docs/rc003-helper-setup.md](docs/rc003-helper-setup.md).
 ## Verification
 
 - Root workspace: `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test --workspace` pass (**689 passed**, including 490 in the `shengjian-windows` platform library)
-- Desktop Rust: **13 passed**
-- Desktop frontend: **28 passed**
+- Desktop Rust: **14 passed**
+- Desktop frontend: **33 passed**
 - Desktop E2E (real installer + WebView2 CDP): **4 passed**
-- Local build: `shengjian_0.2.0_x64-setup.exe` generated; `prepare-release.ps1` / `verify-release.ps1` pass
+- Local build: `shengjian_0.3.0_x64-setup.exe` generated; `prepare-release.ps1` / `verify-release.ps1` pass
 - Physical install / launch / uninstall: install directory, shortcuts, uninstall entry, and version cleanup are correct; user data `%LOCALAPPDATA%\Shengjian` is preserved
 - Installer wizard: welcome sidebar, header brand image, Chinese UI, and the "声键 安装" title are correct
 - Portable build: extracted to a path with spaces and Chinese characters and launched correctly; the splash window appeared and closed once the main window was ready
@@ -195,25 +196,25 @@ Details: [docs/rc003-helper-setup.md](docs/rc003-helper-setup.md).
 ## Local release
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1 -Version 0.2.0
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -Version 0.2.0
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1 -Version 0.3.0
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -Version 0.3.0
 ```
 
 Both scripts read `productName` from `src-tauri/tauri.conf.json` and then assemble the installer path, so renaming the brand does not require script changes.
 
-GitHub Release 0.2.0 (CI build):
+Local 0.3.0 build:
 
 ```text
-version=0.2.0
-installer_size=11016883 bytes
-installer_sha256=38A19D68EB4B0FC2940D2F446466C9A958E57BE430A2805FF1EF01AEC038901F
-portable_size=14483947 bytes
-portable_sha256=F418E626F3B2F100C9734380DE27B52C3565FFFEB76CCEF1665DB9FD61E6A58A
+version=0.3.0
+installer_size=11328888 bytes
+installer_sha256=9A1E6168044FFC4B88366FB22EC950BF85B5BF8D90CCC8AE7A6228C4BA6DE7E9
+portable_size=14793107 bytes
+portable_sha256=EA0F9286FCD764B49243D94DAF5EC752B3FD37BF601205E628888798AF3FD4FD
 signed=false
-published=true
+published=false
 ```
 
-The 0.2.0 hashes are also written to `docs/release-notes-0.2.0.md` and `release/0.2.0/SHA256SUMS`. This manifest corresponds to the GitHub Release CI build artifact; locally rebuilt packages may have different sizes/hashes.
+The 0.3.0 hashes are also written to `docs/release-notes-0.3.0.md` and `release/0.3.0/SHA256SUMS`. The tag-triggered CI build regenerates the installer; actual published sizes/hashes may differ due to signing and build environment, and the Release asset `SHA256SUMS` is authoritative.
 
 ## GitHub release preparation
 
@@ -229,12 +230,12 @@ Route: **public repository, x64, manual download, no auto-update**; free open-so
 - Security: [SECURITY.md](SECURITY.md)
 - Release process: [docs/release-process.md](docs/release-process.md)
 
-The repository has been pushed to <https://github.com/xiaopohair/SHENGJIAN>; releases are generated by the tag-triggered `.github/workflows/release.yml`, and the current tag is `v0.2.0`.
+The repository has been pushed to <https://github.com/xiaopohair/SHENGJIAN>; releases are generated by the tag-triggered `.github/workflows/release.yml`, and the current tag is `v0.3.0`.
 
 ## Known limitations
 
 - Windows x64 only; no ARM64 package
-- 0.2.0 is an unsigned release package; CI signing requires the repository to be public and pass SignPath review
+- 0.3.0 is an unsigned release package; CI signing requires the repository to be public and pass SignPath review
 - No auto-update
 - First helper installation requires UAC
 - RC001/ARN9 identity mapping is still deferred; see [docs/device-identity.md](docs/device-identity.md)

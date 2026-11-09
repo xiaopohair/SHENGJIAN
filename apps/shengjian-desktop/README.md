@@ -2,7 +2,7 @@
 
 声键（SHENGJIAN）的 Windows 桌面宿主：Tauri 2 + Vue 3，in-process 使用 `shengjian-core`。
 
-当前版本：**0.2.0**
+当前版本：**0.3.0**
 状态：本地 x64 NSIS 包由 `tauri build` 生成；未签名、未发布；无自动更新。
 
 ## 运行
@@ -20,7 +20,7 @@ pnpm lint
 pnpm format:check
 pnpm test
 pnpm build
-# 需要已安装 0.2.0；会重启桌面进程并通过 WebView2 CDP 跑真实安装包 E2E（安装路径从 tauri.conf.json 的 productName 派生）
+# 需要已安装 0.3.0；会重启桌面进程并通过 WebView2 CDP 跑真实安装包 E2E（安装路径从 tauri.conf.json 的 productName 派生）
 pnpm test:e2e
 
 cd src-tauri
@@ -125,7 +125,7 @@ pnpm tauri build
 
 输出（文件名由 `src-tauri/tauri.conf.json` 的 `productName` 派生）：
 
-`src-tauri/target/release/bundle/nsis/shengjian_0.2.0_x64-setup.exe`
+`src-tauri/target/release/bundle/nsis/shengjian_0.3.0_x64-setup.exe`
 
 包内包含：
 

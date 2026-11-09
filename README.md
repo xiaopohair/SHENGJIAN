@@ -19,12 +19,12 @@
 
 ## 当前状态
 
-- 版本：`0.2.0`（splash、便携版与首次配置）
-- GitHub Release 0.2.0：随 `v0.2.0` tag 构建（CI 构建、未签名），安装包 `shengjian_0.2.0_x64-setup.exe`；清单见 `release/0.2.0/manifest.json`
+- 版本：`0.3.0`（更新检查、配对帮助与设备状态优化）
+- GitHub Release 0.3.0：随 `v0.3.0` tag 构建（CI 构建、未签名），安装包 `shengjian_0.3.0_x64-setup.exe`；清单见 `release/0.3.0/manifest.json`
 - 代码签名：已接入 **SignPath Foundation** 免费开源签名（release workflow 内置，配置后自动启用）；见 [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md) 与 [docs/signing.md](docs/signing.md)
 - 真机 RC003 已验证：连接、语音、按键手势、profile 自动切换、`run-macro`、返回键增强捕获
-- 本地发布清单：`release/0.2.0/manifest.json`
-- 发布说明：`docs/release-notes-0.2.0.md`
+- 本地发布清单：`release/0.3.0/manifest.json`
+- 发布说明：`docs/release-notes-0.3.0.md`
 - GitHub 仓库已创建并推送：<https://github.com/xiaopohair/SHENGJIAN>；发布由 `v*` tag 触发的 Release workflow 生成
 - 不包含自动更新器
 
@@ -45,7 +45,8 @@
 - 历史页：语音事件、按键事件、宏运行、转写记录四个标签；语音/按键按本次运行保留，宏运行/转写持久保存
 - 设置页：全局音频、主题、强调色、应用语言（中文/English/跟随系统）、开机自启、关闭行为、配置备份/恢复（settings、profiles、宏库、转写历史、外观偏好、上次设备）、日志查看/诊断包、健康检查、恢复默认、分区选项卡；设置加载失败时仍可进入数据与诊断
 - 可访问性：页面 landmark/标题层级、表单 label、Tabs/命令面板/确认框焦点圈定、装饰图标隐藏；详见 `docs/ui-accessibility-report.md`
-- 关于页：品牌标记（随明暗切换亮松青 / 松青·深）、应用版本、平台/构建/签名、运行信息、本机能力、支持的遥控器与平台状态、组件与许可；可打开日志目录、重新运行首次配置
+- 关于页：品牌标记（随明暗切换亮松青 / 松青·深）、应用版本、平台/构建/签名、运行信息、本机能力、支持的遥控器与平台状态、组件与许可；可打开日志目录、重新运行首次配置；启动后台检查 GitHub Releases（24 小时限频），发现新版本时用 Toast、关于页红点和托盘菜单提示，支持预发布筛选，不自动下载安装
+- 配对帮助：关于页支持型号行和首次配置扫描页均可打开；按 RC003 / RC001 展示组合键、Windows 蓝牙步骤和新遥控器 TV 初始化提示
 - 托盘、首次配置向导（含语音输入工具选择）、单实例
 - Profile/宏导入导出、诊断日志入口
 
@@ -124,7 +125,7 @@ pnpm build:installer
 
 `pnpm build:installer` = `tauri build` + 文件名归一化。Tauri 会先按 `productName` 产出 `声键_<version>_x64-setup.exe`，随后 `scripts/normalize-installer-name.ps1` 把它改名为 ASCII 小写的发布文件名：
 
-`apps/shengjian-desktop/src-tauri/target/release/bundle/nsis/shengjian_0.2.0_x64-setup.exe`
+`apps/shengjian-desktop/src-tauri/target/release/bundle/nsis/shengjian_0.3.0_x64-setup.exe`
 
 只跑 `pnpm tauri build` 也能构建，但产出的是中文文件名；发布、CI 与下载链接统一用 `shengjian_<version>_x64-setup.exe`。
 
@@ -177,10 +178,10 @@ cargo test --workspace
 ## 验证
 
 - 根 workspace：`cargo fmt --all -- --check`、`cargo check --workspace`、`cargo test --workspace` 通过（**689 passed**，其中 `shengjian-windows` 平台库 490）
-- 桌面 Rust：**13 passed**
-- 桌面前端：**28 passed**
+- 桌面 Rust：**14 passed**
+- 桌面前端：**33 passed**
 - 桌面 E2E（真实安装包 + WebView2 CDP）：**4 passed**
-- 本地构建：`shengjian_0.2.0_x64-setup.exe` 生成，`prepare-release.ps1` / `verify-release.ps1` 通过
+- 本地构建：`shengjian_0.3.0_x64-setup.exe` 生成，`prepare-release.ps1` / `verify-release.ps1` 通过
 - 真机安装 / 启动 / 卸载：安装目录、快捷方式、卸载项、版本号清理正确；用户数据 `%LOCALAPPDATA%\Shengjian` 保留
 - 安装向导：欢迎页侧栏、页头品牌图、中文界面与「声键 安装」标题正常
 - 便携版：zip 解压到含空格/中文路径后启动正常；splash 窗口出现，主窗口就绪后自动关闭
@@ -195,25 +196,25 @@ cargo test --workspace
 ## 本地发布
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1 -Version 0.2.0
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -Version 0.2.0
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1 -Version 0.3.0
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -Version 0.3.0
 ```
 
 两个脚本从 `src-tauri/tauri.conf.json` 读取 `productName` 再拼安装包路径，品牌改名后不需要改脚本。
 
-GitHub Release 0.2.0（CI 构建）：
+本地构建 0.3.0：
 
 ```text
-version=0.2.0
-installer_size=11016883 bytes
-installer_sha256=38A19D68EB4B0FC2940D2F446466C9A958E57BE430A2805FF1EF01AEC038901F
-portable_size=14483947 bytes
-portable_sha256=F418E626F3B2F100C9734380DE27B52C3565FFFEB76CCEF1665DB9FD61E6A58A
+version=0.3.0
+installer_size=11328888 bytes
+installer_sha256=9A1E6168044FFC4B88366FB22EC950BF85B5BF8D90CCC8AE7A6228C4BA6DE7E9
+portable_size=14793107 bytes
+portable_sha256=EA0F9286FCD764B49243D94DAF5EC752B3FD37BF601205E628888798AF3FD4FD
 signed=false
-published=true
+published=false
 ```
 
-0.2.0 的 SHA-256 同步写入 `docs/release-notes-0.2.0.md` 与 `release/0.2.0/SHA256SUMS`。该清单对应 GitHub Release 的 CI 构建产物；本地重新构建的包大小/哈希可能不同。
+0.3.0 的 SHA-256 同步写入 `docs/release-notes-0.3.0.md` 与 `release/0.3.0/SHA256SUMS`。tag 触发的 CI 构建会重新生成安装包；因签名与构建环境差异，发布资产的实际大小/哈希以 GitHub Release 附件中的 `SHA256SUMS` 为准。
 
 ## GitHub 发布准备
 
@@ -229,12 +230,12 @@ published=true
 - 安全说明：[SECURITY.md](SECURITY.md)
 - 发布流程：[docs/release-process.md](docs/release-process.md)
 
-仓库已推送至 <https://github.com/xiaopohair/SHENGJIAN>；发布由 tag 触发 `.github/workflows/release.yml` 生成，当前 tag 为 `v0.2.0`。
+仓库已推送至 <https://github.com/xiaopohair/SHENGJIAN>；发布由 tag 触发 `.github/workflows/release.yml` 生成，当前 tag 为 `v0.3.0`。
 
 ## 已知限制
 
 - 仅 Windows x64；ARM64 包未提供
-- 0.2.0 为未签名发布包；CI 签名需仓库公开并通过 SignPath 审核
+- 0.3.0 为未签名发布包；CI 签名需仓库公开并通过 SignPath 审核
 - 无自动更新
 - helper 首次安装需要 UAC
 - RC001/ARN9 身份映射仍 deferred，见 [docs/device-identity.md](docs/device-identity.md)

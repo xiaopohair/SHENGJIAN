@@ -23,10 +23,18 @@ const ICONS = {
       <component :is="ICONS[toast.kind]" :size="16" class="toast-icon" />
       <span class="toast-message">{{ toast.message }}</span>
       <button
+        v-if="toast.actionLabel"
+        type="button"
+        class="toast-action"
+        @click="toast.onAction?.(); dismissToast(toast.id)"
+      >
+        {{ toast.actionLabel }}
+      </button>
+      <button
         type="button"
         class="toast-close"
         :aria-label="trDynamic('关闭')"
-        @click="dismissToast(toast.id)"
+        @click="toast.onClose?.(); dismissToast(toast.id)"
       >
         <X :size="14" />
       </button>
@@ -107,6 +115,23 @@ const ICONS = {
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
+}
+
+.toast-action {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: var(--accent-soft);
+  padding: 4px 8px;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.toast-action:hover {
+  background: var(--accent-soft-strong);
 }
 
 .toast-close:hover {

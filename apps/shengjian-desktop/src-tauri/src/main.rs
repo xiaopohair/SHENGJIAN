@@ -165,6 +165,7 @@ fn main() {
             commands::get_settings,
             commands::save_settings,
             commands::open_diagnostic_log_folder,
+            commands::open_external_url,
             commands::list_audio_endpoints,
             commands::select_audio_endpoint,
             commands::set_gain_db,
@@ -202,6 +203,7 @@ fn main() {
             commands::transcript_history,
             commands::clear_transcript_history,
             commands::set_tray_language,
+            commands::set_tray_update,
             tray::sync_tray_icons,
         ])
         .run(tauri::generate_context!())

@@ -17,6 +17,7 @@ import {
   Settings as SettingsIcon,
 } from "lucide-vue-next";
 import ConnectionPage from "./pages/ConnectionPage.vue";
+import DevicePairingHelp from "./components/DevicePairingHelp.vue";
 import OnboardingWizard from "./components/OnboardingWizard.vue";
 import ToastHost from "./components/ToastHost.vue";
 import TitleBar from "./components/TitleBar.vue";
@@ -27,18 +28,22 @@ import StatusPill from "./components/ui/StatusPill.vue";
 import { getSettings, setTrayLanguage } from "./lib/api";
 import { setLanguagePreference, statusLabel, tr, trDynamic, uiLocale } from "./lib/i18n";
 import { canLeavePage } from "./lib/navigation";
+import { deviceProductNameKey } from "./lib/deviceProduct";
 import {
   applyAccent,
   applyTheme,
   ACCENT_KEY,
   ONBOARDING_KEY,
   RESTART_ONBOARDING_EVENT,
+  SHOW_UPDATE_EVENT,
   SIDEBAR_KEY,
   getThemePreference,
 } from "./lib/preferences";
 import { finishStartup } from "./lib/startup";
 import { useEngineStore } from "./stores/engine";
 import { useStatusStore } from "./stores/status";
+import { useUpdateStore } from "./stores/update";
+import { usePairingStore } from "./stores/pairing";
 import type { PaletteCommand } from "./lib/palette";
 import type { EventEnvelope } from "./lib/types";
 import BrandMark from "./components/BrandMark.vue";
@@ -54,6 +59,8 @@ const AboutPage = defineAsyncComponent(() => import("./pages/AboutPage.vue"));
 
 const store = useEngineStore();
 const status = useStatusStore();
+const updateStore = useUpdateStore();
+const pairing = usePairingStore();
 const active = ref<PageId>("connection");
 const appVersion = ref("");
 const showOnboarding = ref(localStorage.getItem(ONBOARDING_KEY) !== "1");
@@ -67,6 +74,9 @@ let unlistenNavigate: UnlistenFn | undefined;
 let mediaQuery: MediaQueryList | undefined;
 let statusTimer: number | undefined;
 let scrollbarTimer: number | undefined;
+let updateTimer: number | undefined;
+
+const UPDATE_CHECK_DELAY_MS = 8000;
 
 const SCROLLBAR_IDLE_MS = 800;
 const SCROLLBAR_HINT_PX = 18;
@@ -147,7 +157,12 @@ const phaseTone = computed(() => {
   if (value === "failed" || value === "error") return "danger" as const;
   return "neutral" as const;
 });
-const remoteName = computed(() => store.snapshot?.connection.remote?.name ?? tr("未连接"));
+const remoteName = computed(() => {
+  const remote = store.snapshot?.connection.remote;
+  if (!remote) return tr("未连接");
+  const productKey = deviceProductNameKey(remote.model);
+  return productKey ? trDynamic(productKey) : remote.name;
+});
 const batteryLow = computed(() => status.batteryLevel !== null && status.batteryLevel <= 20);
 const batteryIcon = computed(() => (batteryLow.value ? BatteryLow : BatteryMedium));
 const inputToolLabel = computed(() =>
@@ -212,6 +227,26 @@ async function loadTheme() {
   syncTheme();
 }
 
+async function refreshTopbarVoiceInputTool() {
+  try {
+    const settings = await getSettings();
+    const deviceId = store.snapshot?.connection.remote?.deviceId;
+    const override = deviceId
+      ? settings.devices[deviceId]?.windows?.voiceInputTool
+      : undefined;
+    status.setVoiceInputTool(override ?? settings.global.voice_input_tool);
+  } catch {
+    // Keep the current topbar value when settings are unavailable.
+  }
+}
+
+watch(
+  () => store.snapshot?.connection.remote?.deviceId,
+  () => {
+    void refreshTopbarVoiceInputTool();
+  },
+);
+
 function refreshStatusIfVisible() {
   if (document.visibilityState === "visible") {
     void status.refreshDeviceStatus();
@@ -222,6 +257,28 @@ function finishOnboarding() {
   localStorage.setItem(ONBOARDING_KEY, "1");
   showOnboarding.value = false;
 }
+
+function scheduleUpdateCheck() {
+  if (updateTimer !== undefined) return;
+  updateTimer = window.setTimeout(() => {
+    updateTimer = undefined;
+    void updateStore.autoCheck();
+  }, UPDATE_CHECK_DELAY_MS);
+}
+
+function showUpdatePage() {
+  if (showOnboarding.value) return;
+  void goTo("about");
+  void nextTick(() => {
+    document
+      .querySelector("[data-about-hero]")
+      ?.scrollIntoView({ block: "start", behavior: "smooth" });
+  });
+}
+
+watch(showOnboarding, (value) => {
+  if (!value) scheduleUpdateCheck();
+});
 
 function restartOnboarding() {
   localStorage.removeItem(ONBOARDING_KEY);
@@ -275,11 +332,16 @@ onMounted(async () => {
   appVersion.value = await getVersion().catch(() => "");
   applyAccent(localStorage.getItem(ACCENT_KEY) ?? "default");
   await finishStartup();
+  await updateStore.hydrate();
+  updateStore.setCurrentVersion(appVersion.value);
+  if (!showOnboarding.value) scheduleUpdateCheck();
   await status.refreshDeviceStatus();
+  void refreshTopbarVoiceInputTool();
   statusTimer = window.setInterval(refreshStatusIfVisible, 3000);
   document.addEventListener("visibilitychange", refreshStatusIfVisible);
   window.addEventListener("keydown", onGlobalKeydown, true);
   window.addEventListener(RESTART_ONBOARDING_EVENT, restartOnboarding);
+  window.addEventListener(SHOW_UPDATE_EVENT, showUpdatePage);
   mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
   mediaQuery.addEventListener("change", syncSystemTheme);
 });
@@ -289,9 +351,11 @@ onUnmounted(() => {
   unlistenNavigate?.();
   if (statusTimer !== undefined) window.clearInterval(statusTimer);
   if (scrollbarTimer !== undefined) window.clearTimeout(scrollbarTimer);
+  if (updateTimer !== undefined) window.clearTimeout(updateTimer);
   document.removeEventListener("visibilitychange", refreshStatusIfVisible);
   window.removeEventListener("keydown", onGlobalKeydown, true);
   window.removeEventListener(RESTART_ONBOARDING_EVENT, restartOnboarding);
+  window.removeEventListener(SHOW_UPDATE_EVENT, showUpdatePage);
   mediaQuery?.removeEventListener("change", syncSystemTheme);
 });
 </script>
@@ -341,6 +405,11 @@ onUnmounted(() => {
             >
               <component :is="page.icon" :size="17" :stroke-width="1.8" />
               <span class="nav-label">{{ trDynamic(page.label) }}</span>
+              <span
+                v-if="page.id === 'about' && updateStore.hasUpdate"
+                class="nav-update-dot"
+                aria-hidden="true"
+              />
             </button>
           </div>
         </nav>
@@ -355,7 +424,7 @@ onUnmounted(() => {
               </span>
               <span
                 v-if="store.isConnected"
-                class="topbar-device text-truncate"
+                class="topbar-device"
                 :title="remoteName"
                 >{{ remoteName }}</span
               >
@@ -416,6 +485,11 @@ onUnmounted(() => {
 
     <ToastHost />
     <ConfirmDialog />
+    <DevicePairingHelp
+      v-if="pairing.open"
+      :initial-model="pairing.model"
+      @close="pairing.close()"
+    />
 
     <OnboardingWizard v-if="showOnboarding" @complete="finishOnboarding" />
   </div>
@@ -580,6 +654,7 @@ onUnmounted(() => {
 }
 
 .nav-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -596,6 +671,23 @@ onUnmounted(() => {
   transition:
     background var(--duration-fast) ease,
     color var(--duration-fast) ease;
+}
+
+.nav-update-dot {
+  flex: 0 0 7px;
+  width: 7px;
+  height: 7px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--warning);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 20%, transparent);
+}
+
+.sidebar.collapsed .nav-update-dot {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  margin: 0;
 }
 
 .nav-item:hover {
@@ -624,6 +716,8 @@ onUnmounted(() => {
 }
 
 .topbar {
+  position: relative;
+  z-index: 30;
   display: flex;
   flex: 0 0 auto;
   align-items: center;
@@ -660,9 +754,10 @@ onUnmounted(() => {
 }
 
 .topbar-device {
-  max-width: 180px;
+  flex: 0 0 auto;
   color: var(--text-secondary);
   font-size: var(--text-xs);
+  white-space: nowrap;
 }
 
 .topbar-chip {
@@ -717,20 +812,10 @@ onUnmounted(() => {
   outline: none;
 }
 
-@media (max-width: 1100px) {
-  .topbar-device {
-    max-width: 110px;
-  }
-}
-
 @media (max-width: 900px) {
   .topbar {
     gap: var(--space-2);
     padding-inline: var(--space-5);
-  }
-
-  .topbar-device {
-    max-width: 88px;
   }
 }
 </style>

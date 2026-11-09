@@ -180,6 +180,37 @@ pub fn open_diagnostic_log_folder(state: State<'_, AppState>) -> Result<(), Comm
 }
 
 #[tauri::command]
+pub fn open_external_url(url: String) -> Result<(), CommandError> {
+    const RELEASE_PREFIX: &str = "https://github.com/xiaopohair/SHENGJIAN/";
+    if !url.starts_with(RELEASE_PREFIX) || url.chars().any(char::is_whitespace) {
+        return Err(CommandError::new(
+            "invalid_url",
+            "invalid release URL",
+            false,
+        ));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("rundll32.exe")
+            .args(["url.dll,FileProtocolHandler", &url])
+            .spawn()
+            .map_err(|error| CommandError::new("open_url_failed", &error.to_string(), true))?;
+        Ok(())
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = url;
+        Err(CommandError::new(
+            "unsupported_platform",
+            "opening release URLs is only supported on Windows",
+            false,
+        ))
+    }
+}
+
+#[tauri::command]
 pub fn reset_settings(state: State<'_, AppState>) -> Result<(), CommandError> {
     let settings = AppSettings::default();
     let document = SettingsDocument::from_flat(settings.clone());
@@ -450,6 +481,12 @@ pub fn clear_transcript_history() -> Result<(), CommandError> {
 pub fn set_tray_language(app: tauri::AppHandle, language: String) -> Result<(), CommandError> {
     crate::tray::set_tray_language(&app, &language)
         .map_err(|message| CommandError::new("tray-language", &message, true))
+}
+
+#[tauri::command]
+pub fn set_tray_update(app: tauri::AppHandle, version: Option<String>) -> Result<(), CommandError> {
+    crate::tray::set_tray_update(&app, version)
+        .map_err(|message| CommandError::new("tray-update", &message, true))
 }
 
 #[tauri::command]

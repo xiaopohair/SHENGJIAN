@@ -92,6 +92,10 @@ export async function openDiagnosticLogFolder(): Promise<void> {
   return invoke<void>("open_diagnostic_log_folder");
 }
 
+export async function openExternalUrl(url: string): Promise<void> {
+  return invoke<void>("open_external_url", { url });
+}
+
 export async function getAutostartEnabled(): Promise<boolean> {
   return invoke<boolean>("get_autostart_enabled");
 }
@@ -183,6 +187,10 @@ export async function clearTranscriptHistory(): Promise<void> {
 
 export async function setTrayLanguage(language: string): Promise<void> {
   return invoke<void>("set_tray_language", { language });
+}
+
+export async function setTrayUpdate(version: string | null): Promise<void> {
+  return invoke<void>("set_tray_update", { version });
 }
 
 export async function exportMacroLibrary(

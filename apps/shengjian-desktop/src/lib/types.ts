@@ -115,6 +115,7 @@ export interface SettingsDocument {
     gain_db: number;
     audio_endpoint_id?: string | null;
     close_to_tray?: boolean;
+    check_prerelease_updates?: boolean;
     theme_preference?: string;
     rc003_capture_enabled?: boolean;
     voice_input_tool?: string | null;

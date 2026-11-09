@@ -3,6 +3,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 
 export const ONBOARDING_KEY = "shengjian-onboarding-complete";
 export const RESTART_ONBOARDING_EVENT = "shengjian:restart-onboarding";
+export const SHOW_UPDATE_EVENT = "shengjian:show-update";
 export const ACCENT_KEY = "shengjian-accent";
 export const SIDEBAR_KEY = "shengjian-sidebar-collapsed";
 

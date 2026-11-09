@@ -10,9 +10,11 @@ import {
   saveSettings,
 } from "../lib/api";
 import { PROFILE_BUTTONS } from "../lib/buttons";
+import { deviceProductNameKey } from "../lib/deviceProduct";
 import { statusLabel, tr, trDynamic } from "../lib/i18n";
 import type { AudioEndpoint, SettingsDocument } from "../lib/types";
 import { useEngineStore } from "../stores/engine";
+import { usePairingStore } from "../stores/pairing";
 import { useStatusStore } from "../stores/status";
 import Button from "./ui/Button.vue";
 import Checkbox from "./ui/Checkbox.vue";
@@ -26,6 +28,7 @@ type StatusTone = "neutral" | "success" | "warning" | "danger" | "info" | "accen
 const emit = defineEmits<{ complete: [] }>();
 const store = useEngineStore();
 const statusStore = useStatusStore();
+const pairing = usePairingStore();
 const step = ref(1);
 const connecting = ref(false);
 const settings = ref<SettingsDocument | null>(null);
@@ -55,6 +58,11 @@ const connected = computed(() => store.phase === "ready");
 const currentRemoteId = computed(() => store.snapshot?.connection.remote?.remoteId ?? null);
 function isCurrentRemote(remoteId: string): boolean {
   return connected.value && currentRemoteId.value === remoteId;
+}
+
+function remoteProductName(remote: { name: string; model: string | null }): string {
+  const key = deviceProductNameKey(remote.model);
+  return key ? trDynamic(key) : remote.name;
 }
 const isRc003 = computed(() => store.snapshot?.connection.remote?.model === "RC003");
 const detectedCount = computed(() => detectedButtons.value.length);
@@ -328,11 +336,17 @@ onUnmounted(() => {
             <Button variant="primary" :disabled="store.scanning" @click="scan">
               {{ trDynamic(store.scanning ? "扫描中" : "扫描设备") }}
             </Button>
+            <Button
+              variant="ghost"
+              @click="pairing.show(store.snapshot?.connection.remote?.model)"
+            >
+              {{ tr("配对帮助") }}
+            </Button>
           </div>
 
           <ul v-if="store.remotes.length" class="remote-list">
             <li v-for="remote in store.remotes" :key="remote.remoteId" class="remote-row">
-              <span class="remote-name text-truncate">{{ remote.name }}</span>
+              <span class="remote-name text-truncate">{{ remoteProductName(remote) }}</span>
               <StatusPill
                 v-if="isCurrentRemote(remote.remoteId)"
                 :label="statusLabel(store.phase)"

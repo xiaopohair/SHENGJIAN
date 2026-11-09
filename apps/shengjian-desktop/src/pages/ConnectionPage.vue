@@ -11,6 +11,7 @@ import {
 } from "../lib/api";
 import { statusLabel, tr, trDynamic, uiLocale } from "../lib/i18n";
 import { findLastRemote } from "../lib/connection";
+import { deviceProductNameKey } from "../lib/deviceProduct";
 import type { AudioEndpoint, SettingsDocument } from "../lib/types";
 import rc001Line from "../assets/devices/xiaomi-rc001-line.png";
 import rc003Line from "../assets/devices/xiaomi-rc003-line.png";
@@ -43,6 +44,7 @@ const rc003Capture = ref(false);
 const rc003HelperInstalled = ref(false);
 const helperMessage = ref<string | null>(null);
 const settingsDocument = ref<SettingsDocument | null>(null);
+const settingsDeviceId = ref<string | null>(null);
 let saveTimer: number | undefined;
 let helperPoll: number | undefined;
 let loadingSettings = false;
@@ -58,6 +60,10 @@ const supportsRc003Capture = computed(
 );
 const remoteModel = computed(() => store.snapshot?.connection.remote?.model ?? null);
 const isRc001 = computed(() => remoteModel.value === "RC001");
+const deviceProductName = computed(() => {
+  const key = deviceProductNameKey(remoteModel.value);
+  return key ? trDynamic(key) : deviceName.value;
+});
 const deviceArtwork = computed(() => {
   if (!store.isConnected) return null;
   return isRc001.value ? rc001Line : rc003Line;
@@ -69,6 +75,15 @@ const phaseFailure = computed(() => {
   const phase = String(store.phase);
   return phase === "failed" || phase === "error";
 });
+const hasConnectionNotices = computed(
+  () =>
+    autoConnecting.value ||
+    autoConnectFailed.value ||
+    lowBattery.value ||
+    Boolean(connectionError.value) ||
+    phaseFailure.value ||
+    Boolean(settingsError.value),
+);
 const hasFailure = computed(
   () =>
     Boolean(connectionError.value || autoConnectFailed.value || settingsError.value) ||
@@ -113,16 +128,24 @@ function applyDeviceOverride(settings: SettingsDocument) {
   deviceVoiceInputTool.value = String(override?.voiceInputTool ?? "");
 }
 
+function applyTopbarVoiceInputTool() {
+  const globalTool = String(settingsDocument.value?.global.voice_input_tool ?? "");
+  const overrideTool = useDeviceOverride.value ? deviceVoiceInputTool.value : "";
+  statusStore.setVoiceInputTool(overrideTool || globalTool);
+}
+
 async function loadDeviceSettings() {
   loadingSettings = true;
   settingsError.value = null;
   try {
     const settings = await getSettings();
     settingsDocument.value = settings;
+    settingsDeviceId.value = deviceId.value;
     endpoints.value = await listAudioEndpoints();
     rc003Capture.value = settings.global.rc003_capture_enabled ?? false;
     rc003HelperInstalled.value = await getRc003HelperInstalled();
     applyDeviceOverride(settings);
+    applyTopbarVoiceInputTool();
   } catch (cause) {
     settingsError.value = errorMessage(cause);
   } finally {
@@ -131,7 +154,7 @@ async function loadDeviceSettings() {
 }
 
 async function saveConnectionSettings() {
-  const id = deviceId.value;
+  const id = deviceId.value ?? settingsDeviceId.value;
   try {
     const latest = await getSettings();
     const devices = JSON.parse(JSON.stringify(latest.devices)) as SettingsDocument["devices"];
@@ -170,6 +193,7 @@ async function saveConnectionSettings() {
     };
     await saveSettings(next);
     settingsDocument.value = next;
+    applyTopbarVoiceInputTool();
   } catch (cause) {
     settingsError.value = errorMessage(cause);
   }
@@ -184,13 +208,31 @@ function scheduleConnectionSave() {
 }
 
 watch(
-  [rc003Capture, useDeviceOverride, deviceGain, deviceEndpointId, deviceVoiceInputTool],
+  [rc003Capture, deviceGain, deviceEndpointId],
   scheduleConnectionSave,
 );
 
+watch(useDeviceOverride, () => {
+  if (loadingSettings) return;
+  applyTopbarVoiceInputTool();
+  void saveConnectionSettings();
+});
+
+watch(deviceVoiceInputTool, () => {
+  if (loadingSettings) return;
+  applyTopbarVoiceInputTool();
+  void saveConnectionSettings();
+});
+
 watch(deviceId, () => {
   window.clearTimeout(saveTimer);
-  if (deviceId.value) void loadDeviceSettings();
+  if (deviceId.value) {
+    void loadDeviceSettings();
+  } else {
+    statusStore.setVoiceInputTool(
+      String(settingsDocument.value?.global.voice_input_tool ?? ""),
+    );
+  }
 });
 
 async function installHelper() {
@@ -249,6 +291,11 @@ function modelLabel(model: string | null): string {
   return model ?? tr("未知");
 }
 
+function remoteLabel(remote: { name: string; model: string | null }): string {
+  const key = deviceProductNameKey(remote.model);
+  return key ? trDynamic(key) : remote.name;
+}
+
 async function autoConnectLast() {
   if (
     sessionStorage.getItem(autoConnectAttemptedKey) === "1" ||
@@ -294,7 +341,7 @@ onUnmounted(() => {
     <PageHeader
       eyebrow="Connection"
       title="连接遥控器"
-      description="连接并管理遥控器；查看型号、固件版本、电量与重连状态。"
+      description="管理遥控器连接与设备状态。"
     >
       <template #actions>
         <Button variant="primary" :disabled="store.scanning" @click="refresh">
@@ -307,7 +354,7 @@ onUnmounted(() => {
       </template>
     </PageHeader>
 
-    <div class="stack stack-sm">
+    <div v-if="hasConnectionNotices" class="stack stack-sm">
       <Notice v-if="autoConnecting" kind="info">
         {{ tr("正在自动连接上次使用的遥控器…") }}
       </Notice>
@@ -357,42 +404,52 @@ onUnmounted(() => {
             <rect x="46" y="198" width="28" height="10" rx="5" class="remote-key" />
           </svg>
         </div>
-        <div class="metric-grid device-metrics">
-          <div class="metric">
+        <div class="device-summary">
+          <div class="device-identity">
             <p class="metric-label">{{ tr("遥控器") }}</p>
-            <p class="metric-value">
-              {{ store.snapshot?.connection.remote?.name ?? tr("未连接") }}
+            <p class="device-product-name">
+              {{ store.isConnected ? deviceProductName : tr("未连接") }}
             </p>
           </div>
-          <div class="metric">
-            <p class="metric-label">{{ tr("型号") }}</p>
-            <p class="metric-value">
-              {{ modelLabel(store.snapshot?.connection.remote?.model ?? null) }}
-            </p>
-          </div>
-          <div class="metric">
-            <p class="metric-label">{{ tr("固件版本") }}</p>
-            <p class="metric-value">{{ deviceStatus?.firmwareVersion ?? tr("未知") }}</p>
-          </div>
-          <div class="metric">
-            <p class="metric-label">{{ tr("电量") }}</p>
-            <p class="metric-value" :class="{ 'metric-warning': lowBattery }">
-              {{ battery === null ? tr("未知") : `${battery}%` }}
-            </p>
-          </div>
-          <div class="metric">
-            <p class="metric-label">{{ tr("重连次数") }}</p>
-            <p class="metric-value">{{ deviceStatus?.reconnectAttempt ?? 0 }}</p>
-          </div>
-          <div class="metric">
-            <p class="metric-label">{{ tr("电源通知") }}</p>
-            <p class="metric-value">
-              {{
-                deviceStatus
-                  ? trDynamic(deviceStatus.powerNotificationsAvailable ? "可用" : "不可用")
-                  : tr("未知")
-              }}
-            </p>
+          <div class="metric-grid device-metrics">
+            <div class="metric">
+              <p class="metric-label">{{ tr("型号") }}</p>
+              <p class="metric-value">
+                {{ modelLabel(store.snapshot?.connection.remote?.model ?? null) }}
+              </p>
+            </div>
+            <div class="metric">
+              <p class="metric-label">{{ tr("固件版本") }}</p>
+              <p class="metric-value">
+                {{
+                  store.isConnected
+                    ? (deviceStatus?.firmwareVersion ?? tr("未知"))
+                    : tr("未知")
+                }}
+              </p>
+            </div>
+            <div class="metric">
+              <p class="metric-label">{{ tr("电量") }}</p>
+              <p class="metric-value" :class="{ 'metric-warning': lowBattery }">
+                {{ battery === null ? tr("未知") : `${battery}%` }}
+              </p>
+            </div>
+            <div class="metric">
+              <p class="metric-label">{{ tr("重连次数") }}</p>
+              <p class="metric-value">{{ deviceStatus?.reconnectAttempt ?? 0 }}</p>
+            </div>
+            <div class="metric">
+              <p class="metric-label">{{ tr("电源通知") }}</p>
+              <p class="metric-value">
+                {{
+                  store.isConnected && deviceStatus
+                    ? trDynamic(
+                        deviceStatus.powerNotificationsAvailable ? "可用" : "不可用",
+                      )
+                    : tr("未知")
+                }}
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -431,7 +488,7 @@ onUnmounted(() => {
           <span class="device-icon"><Bluetooth :size="17" /></span>
           <span class="device-main">
             <span class="device-head">
-              <span class="device-name">{{ remote.name }}</span>
+              <span class="device-name">{{ remoteLabel(remote) }}</span>
               <StatusPill
                 v-if="isCurrent(remote.remoteId)"
                 :label="trDynamic('已连接')"
@@ -472,7 +529,7 @@ onUnmounted(() => {
     </Card>
 
     <Card v-if="deviceId" class="stack">
-      <SectionHeader title="当前设备覆盖" :hint="deviceName" />
+      <SectionHeader title="当前设备覆盖" :hint="deviceProductName" />
       <Checkbox v-model="useDeviceOverride">
         {{ tr("为此设备使用独立音频设置") }}
       </Checkbox>
@@ -616,8 +673,29 @@ onUnmounted(() => {
   stroke-width: 1.2;
 }
 
-.device-metrics {
+.device-summary {
+  display: flex;
   flex: 1;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.device-identity {
+  min-width: 0;
+}
+
+.device-product-name {
+  margin-top: 2px;
+  font-size: var(--text-lg);
+  font-weight: 650;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.device-metrics {
+  flex: none;
+  width: 100%;
   min-width: 0;
 }
 
