@@ -16,8 +16,8 @@ cd apps/shengjian-desktop
 pnpm tauri build
 
 cd ../..
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1 -Version 0.1.0
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -Version 0.1.0
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1 -Version 0.2.0
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -Version 0.2.0
 ```
 
 安装包先由 Tauri 按 `productName` 产出 `声键_<version>_x64-setup.exe`，再由
@@ -28,8 +28,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -
 
 产物：
 
-- `release/0.1.0/manifest.json`
-- `release/0.1.0/SHA256SUMS`
+- `release/0.2.0/manifest.json`
+- `release/0.2.0/SHA256SUMS`
 - 安装包位于 Tauri `target` 目录，不复制进仓库
 
 > 本地命令产出的是**未签名**包。代码签名只在 GitHub Actions 的 release workflow 中执行，
@@ -67,7 +67,7 @@ pnpm build:portable
 
 ```powershell
 Get-AuthenticodeSignature "apps/shengjian-desktop/src-tauri/target/release/shengjian-desktop.exe"
-Get-AuthenticodeSignature "apps/shengjian-desktop/src-tauri/target/release/bundle/nsis/shengjian_0.1.0_x64-setup.exe"
+Get-AuthenticodeSignature "apps/shengjian-desktop/src-tauri/target/release/bundle/nsis/shengjian_0.2.0_x64-setup.exe"
 ```
 
 ## GitHub 仓库
@@ -77,7 +77,7 @@ Get-AuthenticodeSignature "apps/shengjian-desktop/src-tauri/target/release/bundl
 ```powershell
 git remote add origin https://github.com/xiaopohair/SHENGJIAN.git
 git push -u origin main
-git push origin v0.1.0
+git push origin v0.2.0
 ```
 
 也可以使用 SSH：`git@github.com:xiaopohair/SHENGJIAN.git`。
@@ -87,8 +87,8 @@ git push origin v0.1.0
 推荐由 tag 触发 `.github/workflows/release.yml`：
 
 ```powershell
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
 workflow 会：
@@ -104,18 +104,18 @@ workflow 会：
 
 也可手工上传 Release 资产：
 
-- `shengjian_0.1.0_x64-setup.exe`
-- `shengjian_0.1.0_x64-portable.zip`
-- `release/0.1.0/manifest.json`
-- `release/0.1.0/portable-manifest.json`
-- `release/0.1.0/SHA256SUMS`
+- `shengjian_0.2.0_x64-setup.exe`
+- `shengjian_0.2.0_x64-portable.zip`
+- `release/0.2.0/manifest.json`
+- `release/0.2.0/portable-manifest.json`
+- `release/0.2.0/SHA256SUMS`
 - `LICENSE`
 - `ATTRIBUTION.md`
 - `THIRD_PARTY_NOTICES.md`
 - `brand/LICENSE-OFL.txt`
 - `helper/rc003/vendor/frida-gadget-COPYING`
 
-Release 正文来自 `docs/release-notes-<version>.md`（0.1.0 为 [release-notes-0.1.0.md](release-notes-0.1.0.md)）。
+Release 正文来自 `docs/release-notes-<version>.md`（0.2.0 为 [release-notes-0.2.0.md](release-notes-0.2.0.md)）。
 
 ## 发布前检查
 

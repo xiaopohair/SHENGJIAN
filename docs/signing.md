@@ -89,7 +89,7 @@ Artifact configuration 会校验 `ProductVersion`、`FileVersion`，并给 PE �
 Get-AuthenticodeSignature "apps/shengjian-desktop/src-tauri/target/release/shengjian-desktop.exe" |
   Format-List Status, StatusMessage, SignerCertificate
 
-Get-AuthenticodeSignature "apps/shengjian-desktop/src-tauri/target/release/bundle/nsis/shengjian_0.1.0_x64-setup.exe" |
+Get-AuthenticodeSignature "apps/shengjian-desktop/src-tauri/target/release/bundle/nsis/shengjian_0.2.0_x64-setup.exe" |
   Format-List Status, StatusMessage, SignerCertificate
 ```
 
