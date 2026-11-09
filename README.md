@@ -202,19 +202,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -
 
 两个脚本从 `src-tauri/tauri.conf.json` 读取 `productName` 再拼安装包路径，品牌改名后不需要改脚本。
 
-本地构建 0.3.0：
+GitHub Release 0.3.0（CI 构建）：
 
 ```text
 version=0.3.0
-installer_size=11328888 bytes
-installer_sha256=9A1E6168044FFC4B88366FB22EC950BF85B5BF8D90CCC8AE7A6228C4BA6DE7E9
-portable_size=14793107 bytes
-portable_sha256=EA0F9286FCD764B49243D94DAF5EC752B3FD37BF601205E628888798AF3FD4FD
+installer_size=11326700 bytes
+installer_sha256=B6FB79FCBC5B17952762C9D45DD8B42AA5FC72B5F51ADA2F98FB1501B381ABA5
+portable_size=14792199 bytes
+portable_sha256=23F6DEA7F74D9499B3DC5ADDE330CAF63697450A1D80DDE82D9CDAEAA9E9AA48
 signed=false
-published=false
+published=true
 ```
 
-0.3.0 的 SHA-256 同步写入 `docs/release-notes-0.3.0.md` 与 `release/0.3.0/SHA256SUMS`。tag 触发的 CI 构建会重新生成安装包；因签名与构建环境差异，发布资产的实际大小/哈希以 GitHub Release 附件中的 `SHA256SUMS` 为准。
+0.3.0 的 SHA-256 同步写入 `docs/release-notes-0.3.0.md` 与 `release/0.3.0/SHA256SUMS`。该清单对应 GitHub Release 的 CI 构建产物；本地重新构建的包大小/哈希可能不同。
 
 ## GitHub 发布准备
 
