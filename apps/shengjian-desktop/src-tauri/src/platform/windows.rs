@@ -5,7 +5,7 @@ use crate::host::{
     TranscriptRecord,
 };
 use shengjian_app::CoreEngine;
-use shengjian_domain::{MacroLibraryDocument, VoiceInputTool};
+use shengjian_domain::{MacroDefinition, MacroLibraryDocument, VoiceInputTool};
 use shengjian_windows::common_phrases::{current_common_phrase_host, CommonPhraseAccess};
 use shengjian_windows::macro_runtime::{macro_key_to_key_code, MacroRunReport, MacroStartError};
 use shengjian_windows::send_input::{KeyChord, KeyCode};
@@ -285,14 +285,14 @@ impl HostPlatform for PlatformHost {
         self.platform
             .macro_runtime()
             .start(macro_id)
-            .map_err(|error| {
-                let code = match error {
-                    MacroStartError::AlreadyRunning => "macro-already-running",
-                    MacroStartError::NotFound => "macro-not-found",
-                    MacroStartError::Invalid(_) => "macro-invalid",
-                };
-                HostError::new(code, code)
-            })
+            .map_err(macro_start_error)
+    }
+
+    fn test_macro_definition(&self, definition: MacroDefinition) -> Result<(), HostError> {
+        self.platform
+            .macro_runtime()
+            .start_definition(definition)
+            .map_err(macro_start_error)
     }
 
     fn macro_run_status(&self, macro_id: &str) -> MacroRunStatusView {
@@ -371,6 +371,15 @@ fn diagnostic_log_path() -> PathBuf {
 
 pub fn create_host(platform: Arc<WindowsPlatform>) -> Arc<dyn HostPlatform> {
     Arc::new(PlatformHost::new(platform))
+}
+
+fn macro_start_error(error: MacroStartError) -> HostError {
+    let code = match error {
+        MacroStartError::AlreadyRunning => "macro-already-running",
+        MacroStartError::NotFound => "macro-not-found",
+        MacroStartError::Invalid(_) => "macro-invalid",
+    };
+    HostError::new(code, code)
 }
 
 #[cfg(test)]

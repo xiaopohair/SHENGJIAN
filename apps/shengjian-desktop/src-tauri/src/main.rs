@@ -180,6 +180,7 @@ fn main() {
             commands::macro_library,
             commands::save_macro_library,
             commands::test_macro,
+            commands::test_macro_draft,
             commands::cancel_macro,
             commands::macro_run_status,
             commands::export_macro_library,

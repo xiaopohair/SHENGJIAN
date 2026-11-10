@@ -594,20 +594,128 @@ pub fn foreground_window_has_descendant_class(_prefix: &str) -> bool {
     false
 }
 
+/// 可由 ShellExecuteW 启动的常见可执行/脚本扩展名。
+/// 与前端选择程序对话框的过滤列表保持一致（`apps/.../lib/runnable.ts`）。
+#[cfg(windows)]
+const RUNNABLE_EXTENSIONS: [&str; 11] = [
+    "exe", "lnk", "bat", "cmd", "com", "scr", "msi", "ps1", "vbs", "js", "url",
+];
+
 /// 判断 OpenApp 目标是否为自定义路径（非预设 id）。
 ///
 /// 除了 .exe / .lnk，也接受可由 ShellExecuteW 启动的常见可执行/脚本类型。
 #[cfg(windows)]
 fn is_custom_path_target(target: &str) -> bool {
-    const RUNNABLE_EXTENSIONS: [&str; 11] = [
-        "exe", "lnk", "bat", "cmd", "com", "scr", "msi", "ps1", "vbs", "js", "url",
-    ];
     let lower = target.to_ascii_lowercase();
     (lower.contains('\\') || lower.contains('/'))
         && std::path::Path::new(&lower)
             .extension()
             .and_then(|extension| extension.to_str())
             .is_some_and(|extension| RUNNABLE_EXTENSIONS.contains(&extension))
+}
+
+/// 裸可执行文件名（不含路径分隔符），例如 `notepad.exe`。
+#[cfg(windows)]
+fn is_bare_executable_name(target: &str) -> bool {
+    let lower = target.to_ascii_lowercase();
+    !lower.contains('\\')
+        && !lower.contains('/')
+        && std::path::Path::new(&lower)
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .is_some_and(|extension| RUNNABLE_EXTENSIONS.contains(&extension))
+}
+
+/// 把裸文件名解析成绝对路径：App Paths → PATH → 常见安装目录 → 开始菜单快捷方式。
+///
+/// 宏里的「打开应用」允许直接写可执行文件名（用户从文件选择器拿到的是名字），
+/// 只对这个名字做 ShellExecuteW 会因为不在 PATH 而失败，所以先尽力定位真实路径。
+#[cfg(windows)]
+fn resolve_bare_executable(name: &str) -> Option<std::path::PathBuf> {
+    if let Some(path) = app_paths_exe_path(name) {
+        return Some(path);
+    }
+    if let Some(path) = search_path_dirs(name) {
+        return Some(path);
+    }
+    // 开始菜单索引的 key 是「小写、去掉扩展名」的快捷方式名。
+    let lower = name.to_ascii_lowercase();
+    let stem = lower
+        .strip_suffix(".exe")
+        .or_else(|| lower.strip_suffix(".lnk"))
+        .unwrap_or(&lower);
+    for shortcut in start_menu_shortcuts() {
+        if shortcut.0 != stem {
+            continue;
+        }
+        if let Some(resolved) = resolve_lnk(&shortcut.1.to_string_lossy()) {
+            if !resolved.exe_path.is_empty() {
+                return Some(std::path::PathBuf::from(resolved.exe_path));
+            }
+        }
+    }
+    None
+}
+
+/// 读取 `App Paths` 注册表项里的可执行文件完整路径。
+#[cfg(windows)]
+fn app_paths_exe_path(exe: &str) -> Option<std::path::PathBuf> {
+    use windows::core::PCWSTR;
+    use windows::Win32::System::Registry::{
+        RegCloseKey, RegOpenKeyExW, RegQueryValueExW, HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE,
+        KEY_READ, REG_VALUE_TYPE,
+    };
+
+    let subkey: String = format!(r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{exe}");
+    let wide: Vec<u16> = subkey.encode_utf16().chain(Some(0)).collect();
+    for root in [HKEY_LOCAL_MACHINE, HKEY_CURRENT_USER] {
+        let mut key = HKEY::default();
+        let opened =
+            unsafe { RegOpenKeyExW(root, PCWSTR(wide.as_ptr()), None, KEY_READ, &mut key) };
+        if opened.is_err() {
+            continue;
+        }
+        let mut buffer = [0u16; 1024];
+        let mut size = (buffer.len() * 2) as u32;
+        let mut kind = REG_VALUE_TYPE::default();
+        let value_name: Vec<u16> = "".encode_utf16().chain(Some(0)).collect();
+        let queried = unsafe {
+            RegQueryValueExW(
+                key,
+                PCWSTR(value_name.as_ptr()),
+                None,
+                Some(&mut kind),
+                Some(buffer.as_mut_ptr() as *mut u8),
+                Some(&mut size),
+            )
+        };
+        unsafe {
+            let _ = RegCloseKey(key);
+        }
+        if queried.is_err() {
+            continue;
+        }
+        let end = buffer.iter().position(|unit| *unit == 0).unwrap_or(0);
+        let text = String::from_utf16_lossy(&buffer[..end]);
+        let trimmed = text.trim().trim_matches('"');
+        if !trimmed.is_empty() {
+            return Some(std::path::PathBuf::from(trimmed));
+        }
+    }
+    None
+}
+
+/// 在 `PATH` 目录里找同名可执行文件。
+#[cfg(windows)]
+fn search_path_dirs(name: &str) -> Option<std::path::PathBuf> {
+    let path = std::env::var_os("PATH")?;
+    for dir in std::env::split_paths(&path) {
+        let candidate = dir.join(name);
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+    }
+    None
 }
 
 /// 宿主注册的"同步自身窗口可见性缓存"回调（Tauri 层在启动时注入一次）。
@@ -965,6 +1073,29 @@ pub fn activate_or_launch(id: &str) -> Result<(), String> {
                 );
             }
         }
+        return launch_path(id);
+    }
+    // 裸可执行文件名（如 notepad.exe）：宏允许直接写名字，先定位真实路径再启动。
+    if is_bare_executable_name(id) {
+        if let Some(path) = resolve_bare_executable(id) {
+            crate::ble::gatt_note(
+                "app_launcher action=activate_or_launch phase=resolved_bare_executable terminal_result=passed"
+                    .to_owned(),
+            );
+            let exe_name = path
+                .file_name()
+                .map(|name| name.to_string_lossy().to_string())
+                .unwrap_or_default();
+            match activate_running(&[&exe_name]) {
+                RunningActivation::Activated(_) => return Ok(()),
+                RunningActivation::ForegroundDenied => {
+                    return Err("Windows 拒绝将目标应用切换到前台".to_owned());
+                }
+                RunningActivation::NotFound => {}
+            }
+            return launch_explicit(&path.to_string_lossy(), None, None, true);
+        }
+        // 名字解析不到路径时仍然尝试一次 ShellExecuteW：它在 PATH 有命中时会成功。
         return launch_path(id);
     }
     Err(format!("未知预设应用：{id}"))
@@ -3750,6 +3881,42 @@ pub(crate) mod tests {
             "不支持的扩展名"
         );
         assert!(!is_custom_path_target("CAppsapp.exe"), "不含路径分隔符");
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn bare_executable_names_are_recognized() {
+        assert!(is_bare_executable_name("notepad.exe"));
+        assert!(is_bare_executable_name("shengjian-desktop.exe"));
+        assert!(is_bare_executable_name("TOOL.EXE"));
+        assert!(is_bare_executable_name("run.bat"));
+        assert!(
+            !is_bare_executable_name("wechat"),
+            "预设 id 不是可执行文件名"
+        );
+        assert!(
+            !is_bare_executable_name(r"C:\Apps\Tool.exe"),
+            "带路径不算裸名"
+        );
+        assert!(!is_bare_executable_name("readme.txt"), "不支持的扩展名");
+    }
+
+    /// 裸文件名解析：PATH 里能直接找到的命令应解析出存在的绝对路径。
+    #[test]
+    #[cfg(windows)]
+    fn resolve_bare_executable_finds_path_command() {
+        let resolved = resolve_bare_executable("cmd.exe").expect("cmd.exe 应在 PATH 中");
+        assert!(resolved.is_file(), "解析结果应是存在的文件：{resolved:?}");
+        assert!(resolved
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.eq_ignore_ascii_case("cmd.exe")));
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn resolve_bare_executable_returns_none_for_missing_name() {
+        assert!(resolve_bare_executable("definitely-not-a-real-app-xyz.exe").is_none());
     }
 
     #[test]

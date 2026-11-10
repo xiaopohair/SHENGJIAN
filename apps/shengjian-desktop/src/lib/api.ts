@@ -12,6 +12,7 @@ import type {
   DeviceSupport,
   EngineSnapshot,
   HostCapabilities,
+  MacroDefinition,
   MacroLibraryDocument,
   MacroHistoryEntry,
   MacroRunStatus,
@@ -159,6 +160,10 @@ export async function saveMacroLibrary(
 
 export async function testMacro(macroId: string): Promise<void> {
   return invoke<void>("test_macro", { macroId });
+}
+
+export async function testMacroDraft(definition: MacroDefinition): Promise<void> {
+  return invoke<void>("test_macro_draft", { definition });
 }
 
 export async function cancelMacro(macroId: string): Promise<boolean> {

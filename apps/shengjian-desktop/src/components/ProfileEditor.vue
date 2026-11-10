@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed } from "vue";
 import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpen } from "lucide-vue-next";
 import { errorMessage, resolveAppTarget } from "../lib/api";
@@ -11,7 +11,8 @@ import {
   type ProfileTrigger,
 } from "../lib/buttons";
 import { statusLabel, tr, trDynamic } from "../lib/i18n";
-import type { LogicalAction, LogicalButton, MacroDefinition } from "../lib/types";
+import { RUNNABLE_EXTENSIONS } from "../lib/runnable";
+import type { LogicalAction, LogicalButton, MacroChord, MacroDefinition } from "../lib/types";
 import Button from "./ui/Button.vue";
 import Card from "./ui/Card.vue";
 import Checkbox from "./ui/Checkbox.vue";
@@ -21,6 +22,9 @@ import SectionHeader from "./ui/SectionHeader.vue";
 import SelectInput from "./ui/SelectInput.vue";
 import StatusPill from "./ui/StatusPill.vue";
 import TextInput from "./ui/TextInput.vue";
+import ChordInput from "./ui/ChordInput.vue";
+
+const MODIFIER_IDS = new Set(["control", "alt", "shift", "win"]);
 
 const props = defineProps<{
   editingNew: boolean;
@@ -39,7 +43,6 @@ const emit = defineEmits<{
 }>();
 
 const draft = defineModel<ProfileDraft>("draft", { required: true });
-const capturingShortcut = ref<{ button: LogicalButton; trigger: ProfileTrigger } | null>(null);
 
 const TRIGGERS = PROFILE_TRIGGERS;
 type Trigger = ProfileTrigger;
@@ -73,10 +76,6 @@ const modifiedCount = computed(() => modifiedRows.value.size);
 
 function isRowModified(buttonId: string): boolean {
   return modifiedRows.value.has(buttonId);
-}
-
-function isCapturing(button: LogicalButton, trigger: Trigger): boolean {
-  return capturingShortcut.value?.button === button && capturingShortcut.value?.trigger === trigger;
 }
 
 function actionFor(button: LogicalButton, trigger: Trigger): LogicalAction | undefined {
@@ -137,9 +136,19 @@ function setActionType(button: LogicalButton, trigger: Trigger, value: string) {
   }
 }
 
-function shortcutValue(button: LogicalButton, trigger: Trigger): string {
+function shortcutChord(button: LogicalButton, trigger: Trigger): MacroChord {
   const action = actionFor(button, trigger);
-  return action?.type === "shortcut" && Array.isArray(action.keys) ? action.keys.join("+") : "";
+  const keys = action?.type === "shortcut" && Array.isArray(action.keys) ? action.keys : [];
+  const modifiers: string[] = [];
+  let key = "";
+  for (const entry of keys) {
+    if (MODIFIER_IDS.has(entry)) {
+      modifiers.push(entry);
+    } else {
+      key = entry;
+    }
+  }
+  return { modifiers, key };
 }
 
 function setShortcut(button: LogicalButton, trigger: Trigger, value: string) {
@@ -154,71 +163,8 @@ function setShortcut(button: LogicalButton, trigger: Trigger, value: string) {
   };
 }
 
-function startShortcutCapture(button: LogicalButton, trigger: Trigger) {
-  capturingShortcut.value = isCapturing(button, trigger) ? null : { button, trigger };
-}
-
-function normalizeShortcutKey(event: KeyboardEvent): string | null {
-  const code = event.code;
-  if (/^Key[A-Z]$/.test(code)) return code.slice(3).toLowerCase();
-  if (/^Digit[0-9]$/.test(code)) return code.slice(5).toLowerCase();
-  if (/^F([1-9]|1[0-2])$/.test(code)) return code.toLowerCase();
-  if (/^Numpad[0-9]$/.test(code)) return code.toLowerCase();
-  const map: Record<string, string> = {
-    Space: "space",
-    Enter: "enter",
-    NumpadEnter: "enter",
-    Tab: "tab",
-    Backspace: "backspace",
-    Delete: "delete",
-    Insert: "insert",
-    Home: "home",
-    End: "end",
-    PageUp: "pageup",
-    PageDown: "pagedown",
-    ArrowUp: "up",
-    ArrowDown: "down",
-    ArrowLeft: "left",
-    ArrowRight: "right",
-    Semicolon: ";",
-    Equal: "=",
-    Comma: ",",
-    Minus: "-",
-    Period: ".",
-    Slash: "/",
-    Backquote: "`",
-    BracketLeft: "[",
-    Backslash: "\\",
-    BracketRight: "]",
-    Quote: "'",
-    NumpadMultiply: "numpadmultiply",
-    NumpadAdd: "numpadadd",
-    NumpadSubtract: "numpadsubtract",
-    NumpadDecimal: "numpaddecimal",
-    NumpadDivide: "numpaddivide",
-  };
-  if (map[code]) return map[code];
-  return event.key.length === 1 ? event.key.toLowerCase() : null;
-}
-
-function handleShortcutCapture(event: KeyboardEvent) {
-  const target = capturingShortcut.value;
-  if (!target) return;
-  event.preventDefault();
-  event.stopPropagation();
-  if (event.key === "Escape") {
-    capturingShortcut.value = null;
-    return;
-  }
-  const key = normalizeShortcutKey(event);
-  if (!key) return;
-  const modifiers: string[] = [];
-  if (event.ctrlKey) modifiers.push("control");
-  if (event.altKey) modifiers.push("alt");
-  if (event.shiftKey) modifiers.push("shift");
-  if (event.metaKey) modifiers.push("win");
-  setShortcut(target.button, target.trigger, [...modifiers, key].join("+"));
-  capturingShortcut.value = null;
+function setShortcutChord(button: LogicalButton, trigger: Trigger, chord: MacroChord) {
+  setShortcut(button, trigger, [...chord.modifiers, chord.key].filter(Boolean).join("+"));
 }
 
 function appValue(button: LogicalButton, trigger: Trigger): string {
@@ -294,20 +240,6 @@ function useForegroundTarget() {
   draft.value.appTargets = targets.join(", ");
 }
 
-const RUNNABLE_EXTENSIONS = [
-  "exe",
-  "lnk",
-  "bat",
-  "cmd",
-  "com",
-  "scr",
-  "msi",
-  "ps1",
-  "vbs",
-  "js",
-  "url",
-];
-
 function executableName(path: string): string {
   return path.split(/[\\/]/).pop() ?? "";
 }
@@ -350,14 +282,6 @@ async function chooseAppAction(button: LogicalButton, trigger: Trigger) {
     emit("error", errorMessage(cause));
   }
 }
-
-onMounted(() => {
-  window.addEventListener("keydown", handleShortcutCapture, true);
-});
-
-onUnmounted(() => {
-  window.removeEventListener("keydown", handleShortcutCapture, true);
-});
 </script>
 
 <template>
@@ -372,7 +296,7 @@ onUnmounted(() => {
       <TextInput v-model="draft.name" :maxlength="80" />
     </Field>
     <Field label="应用目标">
-      <TextInput v-model="draft.appTargets" placeholder="notepad.exe, chrome.exe" />
+      <TextInput v-model="draft.appTargets" :placeholder="trDynamic('选择或填写应用')" />
     </Field>
     <div class="field-indent app-target-actions">
       <Button size="sm" :disabled="busy" @click="chooseAppTarget">
@@ -464,33 +388,16 @@ onUnmounted(() => {
             </SelectInput>
 
             <div v-if="actionType(button.id, trigger) === 'shortcut'" class="cell-stack">
-              <div class="cell-row">
-                <TextInput
-                  class="cell-input"
-                  placeholder="Ctrl+Shift+A"
-                  :aria-label="trDynamic('快捷键按键')"
-                  :model-value="shortcutValue(button.id, trigger)"
-                  @change="
-                    setShortcut(button.id, trigger, ($event.target as HTMLInputElement).value)
-                  "
-                />
-                <Button
-                  size="sm"
-                  :class="{ 'is-capturing': isCapturing(button.id, trigger) }"
-                  @click="startShortcutCapture(button.id, trigger)"
-                >
-                  {{ tr("捕获") }}
-                </Button>
-              </div>
-              <span v-if="isCapturing(button.id, trigger)" class="capture-hint">
-                {{ tr("按下组合键…") }}
-              </span>
+              <ChordInput
+                :model-value="shortcutChord(button.id, trigger)"
+                @update:model-value="setShortcutChord(button.id, trigger, $event)"
+              />
             </div>
 
             <div v-if="actionType(button.id, trigger) === 'open-app'" class="cell-row">
               <TextInput
                 class="cell-input"
-                placeholder="notepad.exe"
+                :placeholder="trDynamic('选择或填写应用')"
                 :model-value="appValue(button.id, trigger)"
                 @change="setApp(button.id, trigger, ($event.target as HTMLInputElement).value)"
               />

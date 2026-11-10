@@ -14,7 +14,7 @@ export const MACRO_ACTIONS = [
   { id: "open_url", label: "打开网址" },
   { id: "focus_input", label: "聚焦应用输入框" },
   { id: "focus_frontmost", label: "聚焦前台输入框" },
-  { id: "wait_for_application", label: "等待应用" },
+  { id: "wait_for_application", label: "等待应用运行" },
   { id: "system_action", label: "系统动作" },
   { id: "run_macro", label: "运行其他宏" },
 ] as const;
@@ -35,7 +35,8 @@ export function defaultMacroParameters(action: string): MacroParameters {
       return { target: "", state: "running" };
     case "send_shortcut":
     case "system_action":
-      return { chord: { modifiers: ["control"], key: "n" } };
+      // No prefilled chord: the user records the one they want.
+      return { chord: { modifiers: [], key: "" } };
     case "open_url":
       return { url: "https://" };
     case "run_macro":
@@ -82,7 +83,12 @@ export function nextMacroVersion(definitions: MacroDefinition[], macroId: string
     (definition) => definition.macroId === macroId,
   );
   if (!latest) return "1.0.0";
-  const parts = latest.version.split(".").map((part) => Number(part) || 0);
+  return bumpMacroVersion(latest.version);
+}
+
+/** Increment the patch part of a semver-like version. */
+export function bumpMacroVersion(version: string): string {
+  const parts = version.split(".").map((part) => Number(part) || 0);
   while (parts.length < 3) parts.push(0);
   parts[2] += 1;
   return parts.slice(0, 3).join(".");

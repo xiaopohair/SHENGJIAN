@@ -4,7 +4,7 @@
 //! only sees this trait. A future macOS/Linux host implements the same surface.
 
 use serde::{Deserialize, Serialize};
-use shengjian_domain::{MacroLibraryDocument, VoiceInputTool};
+use shengjian_domain::{MacroDefinition, MacroLibraryDocument, VoiceInputTool};
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize)]
@@ -92,6 +92,7 @@ pub trait HostPlatform: Send + Sync {
     fn configure_transcript_capture(&self, sink: Arc<dyn Fn(TranscriptRecord) + Send + Sync>);
     fn set_transcript_capture_enabled(&self, enabled: bool);
     fn test_macro(&self, macro_id: &str) -> Result<(), HostError>;
+    fn test_macro_definition(&self, definition: MacroDefinition) -> Result<(), HostError>;
     fn cancel_macro(&self, macro_id: &str) -> bool;
     fn macro_run_status(&self, macro_id: &str) -> MacroRunStatusView;
     fn helper_installed(&self) -> bool;

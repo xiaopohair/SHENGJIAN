@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   Ban,
@@ -20,13 +20,14 @@ import {
   type ProfileTrigger,
 } from "../lib/buttons";
 import { statusLabel, tr, trDynamic } from "../lib/i18n";
-import { formatShortcut } from "../lib/shortcuts";
-import type { LogicalAction, LogicalButton, MacroDefinition } from "../lib/types";
-import Button from "./ui/Button.vue";
+import type { LogicalAction, LogicalButton, MacroChord, MacroDefinition } from "../lib/types";
 import Checkbox from "./ui/Checkbox.vue";
 import IconButton from "./ui/IconButton.vue";
 import SelectInput from "./ui/SelectInput.vue";
 import TextInput from "./ui/TextInput.vue";
+import ChordInput from "./ui/ChordInput.vue";
+
+const MODIFIER_IDS = new Set(["control", "alt", "shift", "win"]);
 
 const props = defineProps<{
   buttonId: LogicalButton;
@@ -42,7 +43,6 @@ const emit = defineEmits<{
 }>();
 
 const draft = defineModel<ProfileDraft>("draft", { required: true });
-const capturingShortcut = ref(false);
 
 type ActionType = ProfileActionType;
 
@@ -212,11 +212,19 @@ const actionType = computed<ActionType>(() => {
   return "other";
 });
 
-const shortcutValue = computed(() => {
+const shortcutChord = computed<MacroChord>(() => {
   const action = currentAction.value;
-  return action?.type === "shortcut" && Array.isArray(action.keys)
-    ? formatShortcut(action.keys)
-    : "";
+  const keys = action?.type === "shortcut" && Array.isArray(action.keys) ? action.keys : [];
+  const modifiers: string[] = [];
+  let key = "";
+  for (const entry of keys) {
+    if (MODIFIER_IDS.has(entry)) {
+      modifiers.push(entry);
+    } else {
+      key = entry;
+    }
+  }
+  return { modifiers, key };
 });
 
 const appValue = computed(() => {
@@ -320,6 +328,10 @@ function setShortcut(value: string) {
   };
 }
 
+function setShortcutChord(chord: MacroChord) {
+  setShortcut([...chord.modifiers, chord.key].filter(Boolean).join("+"));
+}
+
 function setApp(value: string) {
   bindingsForButton()[props.trigger] = { type: "open-app", app: value.trim() };
 }
@@ -361,68 +373,6 @@ function setMouseAmount(value: string) {
   };
 }
 
-function normalizeShortcutKey(event: KeyboardEvent): string | null {
-  const code = event.code;
-  if (/^Key[A-Z]$/.test(code)) return code.slice(3).toLowerCase();
-  if (/^Digit[0-9]$/.test(code)) return code.slice(5).toLowerCase();
-  if (/^F([1-9]|1[0-2])$/.test(code)) return code.toLowerCase();
-  if (/^Numpad[0-9]$/.test(code)) return code.toLowerCase();
-  const map: Record<string, string> = {
-    Space: "space",
-    Enter: "enter",
-    NumpadEnter: "enter",
-    Tab: "tab",
-    Backspace: "backspace",
-    Delete: "delete",
-    Insert: "insert",
-    Home: "home",
-    End: "end",
-    PageUp: "pageup",
-    PageDown: "pagedown",
-    ArrowUp: "up",
-    ArrowDown: "down",
-    ArrowLeft: "left",
-    ArrowRight: "right",
-    Semicolon: ";",
-    Equal: "=",
-    Comma: ",",
-    Minus: "-",
-    Period: ".",
-    Slash: "/",
-    Backquote: "`",
-    BracketLeft: "[",
-    Backslash: "\\",
-    BracketRight: "]",
-    Quote: "'",
-    NumpadMultiply: "numpadmultiply",
-    NumpadAdd: "numpadadd",
-    NumpadSubtract: "numpadsubtract",
-    NumpadDecimal: "numpaddecimal",
-    NumpadDivide: "numpaddivide",
-  };
-  if (map[code]) return map[code];
-  return event.key.length === 1 ? event.key.toLowerCase() : null;
-}
-
-function onShortcutCapture(event: KeyboardEvent) {
-  if (!capturingShortcut.value) return;
-  event.preventDefault();
-  event.stopPropagation();
-  if (event.key === "Escape") {
-    capturingShortcut.value = false;
-    return;
-  }
-  const key = normalizeShortcutKey(event);
-  if (!key) return;
-  const modifiers: string[] = [];
-  if (event.ctrlKey) modifiers.push("control");
-  if (event.altKey) modifiers.push("alt");
-  if (event.shiftKey) modifiers.push("shift");
-  if (event.metaKey) modifiers.push("win");
-  setShortcut([...modifiers, key].join("+"));
-  capturingShortcut.value = false;
-}
-
 async function chooseApp() {
   try {
     const selected = await open({
@@ -444,9 +394,6 @@ function actionName(type: ActionType): string {
   if (type === "other") return trDynamic("其他（保留）");
   return trDynamic("继承基线");
 }
-
-onMounted(() => window.addEventListener("keydown", onShortcutCapture, true));
-onUnmounted(() => window.removeEventListener("keydown", onShortcutCapture, true));
 </script>
 
 <template>
@@ -483,21 +430,7 @@ onUnmounted(() => window.removeEventListener("keydown", onShortcutCapture, true)
     </div>
 
     <div v-if="actionType === 'shortcut'" class="binding-params">
-      <div class="binding-param-row">
-        <TextInput
-          :model-value="shortcutValue"
-          placeholder="Ctrl+Shift+A"
-          :aria-label="trDynamic('快捷键按键')"
-          @change="setShortcut(($event.target as HTMLInputElement).value)"
-        />
-        <Button
-          size="sm"
-          :class="{ 'is-capturing': capturingShortcut }"
-          @click="capturingShortcut = !capturingShortcut"
-        >
-          {{ trDynamic(capturingShortcut ? "按下组合键…" : "捕获") }}
-        </Button>
-      </div>
+      <ChordInput :model-value="shortcutChord" @update:model-value="setShortcutChord" />
       <p class="binding-hint">
         {{ tr("点击捕获后直接按组合键；Esc 退出。") }}
       </p>
@@ -507,7 +440,7 @@ onUnmounted(() => window.removeEventListener("keydown", onShortcutCapture, true)
       <div class="binding-param-row">
         <TextInput
           :model-value="appValue"
-          placeholder="notepad.exe"
+          :placeholder="trDynamic('选择或填写应用')"
           :aria-label="trDynamic('应用目标')"
           @change="setApp(($event.target as HTMLInputElement).value)"
         />
@@ -820,15 +753,15 @@ onUnmounted(() => window.removeEventListener("keydown", onShortcutCapture, true)
   color: var(--accent);
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1400px) {
   .binding-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 720px) {
   .binding-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 </style>

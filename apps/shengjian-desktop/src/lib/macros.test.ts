@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { compareMacroVersions, latestMacroDefinitions, nextMacroVersion } from "./macros";
+import {
+  bumpMacroVersion,
+  compareMacroVersions,
+  latestMacroDefinitions,
+  nextMacroVersion,
+} from "./macros";
 import type { MacroDefinition } from "./types";
 
 function definition(macroId: string, version: string, name = "Macro"): MacroDefinition {
@@ -40,5 +45,11 @@ describe("macro version helpers", () => {
     const definitions = [definition("macro-a", "1.0.0"), definition("macro-a", "1.0.9")];
     expect(nextMacroVersion(definitions, "macro-a")).toBe("1.0.10");
     expect(nextMacroVersion(definitions, "macro-b")).toBe("1.0.0");
+  });
+
+  it("bumps a specific version's patch number", () => {
+    expect(bumpMacroVersion("1.0.1")).toBe("1.0.2");
+    expect(bumpMacroVersion("2.3")).toBe("2.3.1");
+    expect(bumpMacroVersion("1.0.9")).toBe("1.0.10");
   });
 });

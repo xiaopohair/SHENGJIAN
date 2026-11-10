@@ -444,6 +444,17 @@ pub fn test_macro(state: State<'_, AppState>, macro_id: String) -> Result<(), Co
 }
 
 #[tauri::command]
+pub fn test_macro_draft(
+    state: State<'_, AppState>,
+    definition: shengjian_domain::MacroDefinition,
+) -> Result<(), CommandError> {
+    state
+        .host
+        .test_macro_definition(definition)
+        .map_err(CommandError::from)
+}
+
+#[tauri::command]
 pub fn cancel_macro(state: State<'_, AppState>, macro_id: String) -> bool {
     state.host.cancel_macro(&macro_id)
 }

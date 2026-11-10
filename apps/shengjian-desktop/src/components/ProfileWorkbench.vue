@@ -388,7 +388,7 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
 }
 
 .profile-workbench:has(.remote-panel) {
-  grid-template-columns: clamp(280px, 31%, 340px) minmax(0, 1fr);
+  grid-template-columns: clamp(240px, 26%, 280px) minmax(0, 1fr);
   align-items: start;
 }
 
@@ -413,7 +413,8 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  padding: var(--space-4) var(--space-4) var(--space-2);
+  /* Match .binding-panel's padding so both columns start on the same line. */
+  padding: var(--space-5) var(--space-4) var(--space-2);
 }
 
 .eyebrow {
@@ -450,7 +451,6 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
   flex-direction: column;
   align-items: center;
   gap: var(--space-2);
-  min-height: 590px;
   padding: var(--space-2) var(--space-4) var(--space-3);
   background:
     radial-gradient(
@@ -464,7 +464,7 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
 .product-remote {
   position: relative;
   flex: 0 0 auto;
-  width: clamp(160px, 62%, 190px);
+  width: clamp(120px, 54%, 150px);
 }
 
 .remote-photo {

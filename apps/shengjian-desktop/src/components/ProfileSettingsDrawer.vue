@@ -136,7 +136,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown, true));
             <TextInput v-model="draft.name" :maxlength="80" />
           </Field>
           <Field class="settings-field" label="应用目标">
-            <TextInput v-model="draft.appTargets" placeholder="notepad.exe, chrome.exe" />
+            <TextInput v-model="draft.appTargets" :placeholder="trDynamic('选择或填写应用')" />
           </Field>
 
           <div class="settings-action-row">
@@ -297,6 +297,8 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown, true));
 }
 
 .settings-foot {
+  display: flex;
+  justify-content: flex-end;
   border-top: 1px solid var(--border);
   padding: var(--space-3) var(--space-5);
 }

@@ -1,63 +1,60 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, ref, useTemplateRef, watch } from "vue";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { Command, Copy, FileDown, FileUp, Info, Pencil, Play, Plus, Trash2 } from "lucide-vue-next";
-import {
-  errorMessage,
-  exportMacroLibrary,
-  getMacroLibrary,
-  getMacroRunStatus,
-  importMacroLibrary,
-  saveMacroLibrary,
-  testMacro,
-  cancelMacro,
-} from "../lib/api";
-import {
-  compareMacroVersions,
-  createMacroStep,
-  latestMacroDefinitions,
-  MACRO_ACTIONS as ACTIONS,
-  nextMacroVersion,
-  type MacroDraft,
-} from "../lib/macros";
+import { Command, FileDown, FileUp, Plus } from "lucide-vue-next";
+import { errorMessage, exportMacroLibrary, importMacroLibrary, saveMacroLibrary } from "../lib/api";
+import { createMacroStep, type MacroDraft } from "../lib/macros";
 import { statusLabel, tr, trDynamic } from "../lib/i18n";
 import { confirmAction } from "../lib/confirm";
 import { useDraftGuard } from "../composables/useDraftGuard";
+import { useMacroLibrary, useMacroRunStates } from "../composables/useMacroLibrary";
+import { useMacroDraftTestRun } from "../composables/useMacroDraftTestRun";
 import PageHeader from "../components/PageHeader.vue";
 import Button from "../components/ui/Button.vue";
 import Card from "../components/ui/Card.vue";
 import EmptyState from "../components/ui/EmptyState.vue";
 import LoadingState from "../components/ui/LoadingState.vue";
-import IconButton from "../components/ui/IconButton.vue";
 import Notice from "../components/ui/Notice.vue";
-import SectionHeader from "../components/ui/SectionHeader.vue";
-import StatusPill from "../components/ui/StatusPill.vue";
-import TextInput from "../components/ui/TextInput.vue";
 import MacroEditor from "../components/MacroEditor.vue";
-import type {
-  MacroChord,
-  MacroDefinition,
-  MacroLibraryDocument,
-  MacroRunStatus,
-  MacroStep,
-} from "../lib/types";
+import MacroSettingsDrawer from "../components/macro-editor/MacroSettingsDrawer.vue";
+import type { MacroChord, MacroDefinition, MacroStep } from "../lib/types";
 
-const macroDocument = ref<MacroLibraryDocument | null>(null);
 const editor = ref<MacroDraft | null>(null);
 const editingNew = ref(false);
 const busy = ref(false);
-const loading = ref(true);
-const testingId = ref<string | null>(null);
-const testResult = ref<string | null>(null);
-const expandedId = ref<string | null>(null);
-const copiedId = ref<string | null>(null);
-const editorHost = ref<HTMLElement | null>(null);
-const baselineJson = ref("");
-const runStates = ref<Record<string, MacroRunStatus>>({});
 const error = ref<string | null>(null);
-const macroSearch = ref("");
-let runTimer: number | undefined;
-let copyTimer: number | undefined;
+const saveError = ref<string | null>(null);
+const editorHost = useTemplateRef<HTMLElement>("editorHost");
+const macroTabs = useTemplateRef<HTMLElement>("macroTabs");
+const baselineJson = ref("");
+
+const reportError = (cause: unknown) => {
+  const message = macroErrorMessage(cause);
+  // Errors raised from the editor toolbar stay next to the buttons that caused
+  // them, so the reason is visible without scrolling to the page top.
+  if (editor.value) {
+    saveError.value = message;
+    return;
+  }
+  error.value = message;
+};
+
+const {
+  macroDocument,
+  loading,
+  latestMacros,
+  nextVersion,
+  load: loadLibrary,
+} = useMacroLibrary(reportError);
+const { runStates, refreshRunStates } = useMacroRunStates(latestMacros);
+const {
+  draftRunStatus,
+  draftTesting,
+  testDraft: startDraftTest,
+  stopDraft: stopDraftRun,
+  resetDraftRun,
+  closeDraftRun,
+} = useMacroDraftTestRun(editor, reportError);
 
 const { dirty, confirmDiscard } = useDraftGuard({
   draft: editor,
@@ -65,99 +62,23 @@ const { dirty, confirmDiscard } = useDraftGuard({
   discardMessage: "当前宏的修改尚未保存，继续将丢失这些修改。",
 });
 
-const MODIFIER_LABELS: Record<string, string> = {
-  control: "Ctrl",
-  alt: "Alt",
-  shift: "Shift",
-  win: "Win",
-};
-
-const KEY_LABELS: Record<string, string> = {
-  space: "Space",
-  enter: "Enter",
-  tab: "Tab",
-  backspace: "Backspace",
-  delete: "Delete",
-  insert: "Insert",
-  home: "Home",
-  end: "End",
-  pageup: "PageUp",
-  pagedown: "PageDown",
-  up: "↑",
-  down: "↓",
-  left: "←",
-  right: "→",
-};
-
-function compareVersions(a: string, b: string): number {
-  return compareMacroVersions(a, b);
-}
-
-const versionsByMacro = computed(() => {
-  const versions = new Map<string, MacroDefinition[]>();
-  for (const definition of macroDocument.value?.definitions ?? []) {
-    const list = versions.get(definition.macroId) ?? [];
-    list.push(definition);
-    versions.set(definition.macroId, list);
-  }
-  for (const list of versions.values()) {
-    list.sort((left, right) => compareVersions(right.version, left.version));
-  }
-  return versions;
+const selectedDefinition = computed(() => {
+  const macroId = editor.value?.macroId;
+  if (!macroId) return null;
+  return latestMacros.value.find((definition) => definition.macroId === macroId) ?? null;
 });
-
-function versionsFor(macroId: string): MacroDefinition[] {
-  return versionsByMacro.value.get(macroId) ?? [];
-}
-
-function nextVersion(macroId: string): string {
-  return nextMacroVersion(macroDocument.value?.definitions ?? [], macroId);
-}
-
-const latestMacros = computed(() => latestMacroDefinitions(macroDocument.value?.definitions ?? []));
 
 const otherMacros = computed(() =>
   latestMacros.value.filter((definition) => definition.macroId !== editor.value?.macroId),
 );
 
-const visibleMacros = computed(() => {
-  const query = macroSearch.value.trim().toLowerCase();
-  if (!query) return latestMacros.value;
-  return latestMacros.value.filter((definition) => {
-    const haystack = [
-      definition.name,
-      definition.summary ?? "",
-      ...definition.steps.map((step) => stepSummary(step)),
-    ]
-      .join(" ")
-      .toLowerCase();
-    return haystack.includes(query);
-  });
-});
-
-function keyLabel(key: string): string {
-  if (!key) return "";
-  const mapped = KEY_LABELS[key];
-  if (mapped) return mapped;
-  return key.length === 1 ? key.toUpperCase() : key;
-}
-
-function chordLabel(value: MacroChord): string {
-  const parts = value.modifiers
-    .map((modifier) => MODIFIER_LABELS[modifier] ?? modifier)
-    .filter(Boolean);
-  const key = keyLabel(value.key);
-  if (key) parts.push(key);
-  return parts.join(" + ");
-}
-
-function waitStateLabel(value: string | null | undefined): string {
-  return value === "visible_window" ? tr("窗口可见") : tr("进程运行");
-}
-
-function versionCount(macroId: string): number {
-  return versionsFor(macroId).length;
-}
+const macroTabRows = computed(() =>
+  latestMacros.value.map((definition) => ({
+    definition,
+    status: statusText(definition.macroId),
+    tone: runTone(definition.macroId),
+  })),
+);
 
 function statusText(macroId: string): string {
   const status = runStates.value[macroId];
@@ -180,55 +101,22 @@ function runTone(
   return "danger";
 }
 
-function runReportFor(macroId: string) {
-  return runStates.value[macroId]?.report ?? null;
-}
-
-async function refreshRunStates() {
-  const entries = await Promise.all(
-    latestMacros.value.map(async (definition) => {
-      try {
-        const status = await getMacroRunStatus(definition.macroId);
-        return [definition.macroId, status] as const;
-      } catch {
-        return null;
-      }
-    }),
-  );
-  const next: Record<string, MacroRunStatus> = {};
-  for (const entry of entries) {
-    if (entry) next[entry[0]] = entry[1];
-  }
-  runStates.value = next;
-}
-
-async function load() {
-  try {
-    macroDocument.value = await getMacroLibrary();
-    await refreshRunStates();
-  } catch (cause) {
-    error.value = macroErrorMessage(cause);
-  } finally {
-    loading.value = false;
-  }
-}
-
-function toggleDetails(macroId: string) {
-  expandedId.value = expandedId.value === macroId ? null : macroId;
-}
-
 function syncBaseline() {
   baselineJson.value = editor.value ? JSON.stringify(editor.value) : "";
 }
 
 function closeEditor() {
+  closeDraftRun();
   editor.value = null;
   editingNew.value = false;
   baselineJson.value = "";
+  saveError.value = null;
 }
 
 async function openNew() {
   if (!(await confirmDiscard())) return;
+  resetDraftRun();
+  saveError.value = null;
   editingNew.value = true;
   editor.value = {
     macroId: `macro-${crypto.randomUUID()}`,
@@ -242,6 +130,8 @@ async function openNew() {
 
 async function openEdit(definition: MacroDefinition) {
   if (!(await confirmDiscard())) return;
+  resetDraftRun();
+  saveError.value = null;
   editingNew.value = false;
   editor.value = {
     macroId: definition.macroId,
@@ -255,6 +145,7 @@ async function openEdit(definition: MacroDefinition) {
 
 async function duplicateMacro(definition: MacroDefinition) {
   if (!(await confirmDiscard())) return;
+  resetDraftRun();
   editingNew.value = true;
   editor.value = {
     macroId: `macro-${crypto.randomUUID()}`,
@@ -265,6 +156,83 @@ async function duplicateMacro(definition: MacroDefinition) {
   };
   syncBaseline();
 }
+
+function duplicateCurrent() {
+  if (selectedDefinition.value) void duplicateMacro(selectedDefinition.value);
+}
+
+function deleteCurrent() {
+  if (selectedDefinition.value) void removeMacro(selectedDefinition.value);
+}
+
+async function testDraft() {
+  if (!editor.value || draftTesting.value) return;
+  const validation = validateDraft();
+  if (validation) {
+    saveError.value = validation;
+    return;
+  }
+  const definition: MacroDefinition = {
+    schemaVersion: "0.1",
+    macroId: `macro-draft-${crypto.randomUUID()}`,
+    version: editor.value.version,
+    name: editor.value.name.trim(),
+    summary: editor.value.summary.trim() || null,
+    steps: editor.value.steps,
+  };
+  saveError.value = null;
+  error.value = null;
+  await startDraftTest(definition);
+}
+
+async function stopDraft() {
+  await stopDraftRun();
+}
+
+/**
+ * A finished draft run that did not succeed explains itself next to the
+ * buttons: which step failed and why, so the reason is visible without hunting
+ * through the trace.
+ */
+watch(
+  () => draftRunStatus.value,
+  (status) => {
+    if (!status || status.running) return;
+    const report = status.report;
+    if (!report) return;
+    if (report.result === "completed" || report.result === "completed_with_unknown_result") {
+      return;
+    }
+    const failed = report.steps.find(
+      (step) => step.outcome !== "done" && step.outcome !== "unknown",
+    );
+    const reason = statusLabel(report.result);
+    saveError.value = failed
+      ? tr("第 {index} 步未完成：{reason}", {
+          index: failed.index + 1,
+          reason: statusLabel(failed.outcome),
+        })
+      : tr("试运行未成功：{reason}", { reason });
+  },
+);
+
+function onMacroWheel(event: WheelEvent) {
+  const element = event.currentTarget as HTMLElement;
+  if (element.scrollWidth <= element.clientWidth) return;
+  if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+  element.scrollLeft += event.deltaY;
+  event.preventDefault();
+}
+
+watch(
+  () => editor.value?.macroId,
+  async () => {
+    await nextTick();
+    macroTabs.value
+      ?.querySelector<HTMLElement>(".macro-tab.selected")
+      ?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  },
+);
 
 async function editLatest(definition: MacroDefinition) {
   if (editor.value?.macroId === definition.macroId && !editingNew.value) return;
@@ -278,33 +246,6 @@ async function cancelEdit() {
 
 function chord(step: MacroStep): MacroChord {
   return step.parameters.chord ?? { modifiers: [], key: "" };
-}
-
-function actionLabel(actionId: string): string {
-  return trDynamic(ACTIONS.find((action) => action.id === actionId)?.label ?? actionId);
-}
-
-function stepSummary(step: MacroStep): string {
-  switch (step.action) {
-    case "send_shortcut":
-    case "system_action":
-      return chordLabel(chord(step));
-    case "open_application":
-    case "focus_input":
-      return step.parameters.target ?? "";
-    case "open_url":
-      return step.parameters.url ?? "";
-    case "wait_for_application":
-      return `${step.parameters.target ?? ""} / ${waitStateLabel(step.parameters.state)}`;
-    case "run_macro":
-      return step.parameters.nestedMacroName ?? "";
-    default:
-      return tr("前台输入框");
-  }
-}
-
-function stepsSummary(steps: MacroStep[]): string {
-  return steps.map((step) => stepSummary(step)).join(" → ");
 }
 
 const MACRO_ISSUE_LABELS: Record<string, string> = {
@@ -369,30 +310,30 @@ function validateDraft(): string | null {
       step.timeoutMs !== undefined &&
       (step.timeoutMs < 100 || step.timeoutMs > maxTimeout)
     ) {
-      return tr("{position}超时超出范围（100–{max}ms）", { position, max: maxTimeout });
+      return tr("{position}：超时超出范围（100–{max}ms）", { position, max: maxTimeout });
     }
     switch (step.action) {
       case "send_shortcut":
       case "system_action":
-        if (!chord(step).key.trim()) return tr("{position}缺少快捷键", { position });
+        if (!chord(step).key.trim()) return tr("{position}：缺少快捷键", { position });
         break;
       case "open_application":
       case "focus_input":
         if (!(step.parameters.target ?? "").trim())
-          return tr("{position}缺少应用目标", { position });
+          return tr("{position}：缺少应用目标", { position });
         break;
       case "wait_for_application":
         if (!(step.parameters.target ?? "").trim())
-          return tr("{position}缺少应用目标", { position });
+          return tr("{position}：缺少应用目标", { position });
         break;
       case "open_url":
         if (!/^https?:\/\/\S+/i.test(step.parameters.url ?? "")) {
-          return tr("{position}网址必须是 http/https", { position });
+          return tr("{position}：网址必须是 http/https", { position });
         }
         break;
       case "run_macro":
         if (!(step.parameters.nestedMacroId ?? "").trim()) {
-          return tr("{position}未选择目标宏", { position });
+          return tr("{position}：未选择目标宏", { position });
         }
         break;
       default:
@@ -406,11 +347,11 @@ async function saveEditor() {
   if (!editor.value || !macroDocument.value) return;
   const validation = validateDraft();
   if (validation) {
-    error.value = validation;
+    saveError.value = validation;
     return;
   }
   busy.value = true;
-  error.value = null;
+  saveError.value = null;
   try {
     const definition: MacroDefinition = {
       schemaVersion: "0.1",
@@ -420,15 +361,29 @@ async function saveEditor() {
       summary: editor.value.summary.trim() || null,
       steps: editor.value.steps,
     };
-    const definitions = [...macroDocument.value.definitions, definition];
+    // Saving replaces every stored version of this macro: the library keeps one
+    // current definition per macro, and macros.json.bak covers recovery.
+    const definitions = [
+      ...macroDocument.value.definitions.filter((item) => item.macroId !== definition.macroId),
+      definition,
+    ];
     macroDocument.value = await saveMacroLibrary({
       ...macroDocument.value,
       definitions,
     });
-    closeEditor();
+    // Keep the editor open on the saved macro so further edits continue in place.
+    editor.value = {
+      macroId: definition.macroId,
+      name: definition.name,
+      summary: definition.summary ?? "",
+      version: definition.version,
+      steps: definition.steps,
+    };
+    editingNew.value = false;
+    syncBaseline();
     await refreshRunStates();
   } catch (cause) {
-    error.value = macroErrorMessage(cause);
+    saveError.value = macroErrorMessage(cause);
   } finally {
     busy.value = false;
   }
@@ -436,9 +391,12 @@ async function saveEditor() {
 
 async function removeMacro(definition: MacroDefinition) {
   if (!macroDocument.value) return;
+  const isLast = latestMacros.value.length <= 1;
   const confirmed = await confirmAction({
     title: tr("删除宏“{name}”？", { name: definition.name }),
-    message: tr("此操作不可恢复。"),
+    message: isLast
+      ? tr("这是最后一个宏，删除后宏库将为空。此操作不可恢复。")
+      : tr("此操作不可恢复。"),
     confirmLabel: tr("删除"),
     danger: true,
   });
@@ -454,74 +412,10 @@ async function removeMacro(definition: MacroDefinition) {
       definitions,
     });
     if (editor.value?.macroId === definition.macroId) closeEditor();
-    if (expandedId.value === definition.macroId) expandedId.value = null;
   } catch (cause) {
     error.value = macroErrorMessage(cause);
   } finally {
     busy.value = false;
-  }
-}
-
-async function removeVersion(definition: MacroDefinition) {
-  if (!macroDocument.value) return;
-  const versions = versionsFor(definition.macroId);
-  if (versions.length <= 1) {
-    error.value = tr("至少保留一个宏版本");
-    return;
-  }
-  const confirmed = await confirmAction({
-    title: tr("删除宏“{name}”的 v{version}？", {
-      name: definition.name,
-      version: definition.version,
-    }),
-    message: tr("此操作不可恢复。"),
-    confirmLabel: tr("删除"),
-    danger: true,
-  });
-  if (!confirmed) return;
-  busy.value = true;
-  error.value = null;
-  try {
-    const definitions = macroDocument.value.definitions.filter(
-      (item) => !(item.macroId === definition.macroId && item.version === definition.version),
-    );
-    macroDocument.value = await saveMacroLibrary({
-      ...macroDocument.value,
-      definitions,
-    });
-    await refreshRunStates();
-  } catch (cause) {
-    error.value = macroErrorMessage(cause);
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function runMacro(definition: MacroDefinition) {
-  testingId.value = definition.macroId;
-  testResult.value = null;
-  error.value = null;
-  try {
-    await testMacro(definition.macroId);
-    testResult.value = tr("宏“{name}”已启动", { name: definition.name });
-    await refreshRunStates();
-  } catch (cause) {
-    error.value = macroErrorMessage(cause);
-  } finally {
-    testingId.value = null;
-  }
-}
-
-async function stopMacro(definition: MacroDefinition) {
-  error.value = null;
-  try {
-    const cancelled = await cancelMacro(definition.macroId);
-    testResult.value = cancelled
-      ? tr("已请求取消“{name}”", { name: definition.name })
-      : tr("宏没有在运行");
-    await refreshRunStates();
-  } catch (cause) {
-    error.value = macroErrorMessage(cause);
   }
 }
 
@@ -552,26 +446,11 @@ async function importFile() {
     if (!path || Array.isArray(path)) return;
     macroDocument.value = await importMacroLibrary(path);
     closeEditor();
-    expandedId.value = null;
-    testResult.value = null;
     await refreshRunStates();
   } catch (cause) {
     error.value = macroErrorMessage(cause);
   } finally {
     busy.value = false;
-  }
-}
-
-async function copyId(macroId: string) {
-  try {
-    await navigator.clipboard.writeText(macroId);
-    copiedId.value = macroId;
-    if (copyTimer !== undefined) window.clearTimeout(copyTimer);
-    copyTimer = window.setTimeout(() => {
-      copiedId.value = null;
-    }, 1500);
-  } catch {
-    error.value = tr("无法复制 ID，请手动选择文本。");
   }
 }
 
@@ -587,21 +466,35 @@ watch(editor, async (value) => {
   }
 });
 
-onMounted(async () => {
-  await load();
-  runTimer = window.setInterval(() => {
-    if (window.document.visibilityState === "visible") void refreshRunStates();
-  }, 3000);
+const macroSettingsOpen = ref(false);
+
+/** Two-way bridges so the drawer edits the draft in place. */
+const editorNameModel = computed({
+  get: () => editor.value?.name ?? "",
+  set: (value: string) => {
+    if (editor.value) editor.value.name = value;
+  },
 });
 
-onUnmounted(() => {
-  if (runTimer !== undefined) window.clearInterval(runTimer);
-  if (copyTimer !== undefined) window.clearTimeout(copyTimer);
+const editorSummaryModel = computed({
+  get: () => editor.value?.summary ?? "",
+  set: (value: string) => {
+    if (editor.value) editor.value.summary = value;
+  },
+});
+
+onMounted(async () => {
+  await loadLibrary();
+  await refreshRunStates();
+  // Land on the first macro so the library is not an unexplained row of tabs.
+  if (!editor.value && latestMacros.value.length > 0) {
+    await openEdit(latestMacros.value[0]);
+  }
 });
 </script>
 
 <template>
-  <section class="page">
+  <section class="page page-macros">
     <PageHeader
       eyebrow="Macros"
       title="宏"
@@ -609,428 +502,244 @@ onUnmounted(() => {
     />
 
     <Notice v-if="error" kind="error">{{ error }}</Notice>
-    <Notice v-if="testResult" kind="info">{{ testResult }}</Notice>
 
-    <div class="split-layout">
-      <Card class="stack stack-sm library-card">
-        <SectionHeader
-          title="宏库"
-          :hint="
-            trDynamic('{count} 个宏 · {versions} 个版本', {
-              count: latestMacros.length,
-              versions: macroDocument?.definitions.length ?? 0,
-            })
-          "
-        />
-        <div class="library-tools">
-          <TextInput
-            v-model="macroSearch"
-            type="search"
-            :placeholder="trDynamic('搜索宏 / 动作')"
-            :aria-label="trDynamic('搜索宏')"
-          />
-          <div class="toolbar-actions">
-            <Button size="sm" :disabled="busy" @click="importFile">
-              <FileUp :size="14" />
-              {{ tr("导入") }}
-            </Button>
-            <Button size="sm" :disabled="busy || !macroDocument" @click="exportFile">
-              <FileDown :size="14" />
-              {{ tr("导出") }}
-            </Button>
-            <Button size="sm" variant="primary" :disabled="busy" @click="openNew">
-              <Plus :size="14" />
-              {{ tr("新建") }}
-            </Button>
-          </div>
-        </div>
-
-        <LoadingState v-if="loading" label="正在加载…" description="正在读取本地宏库…" />
-
-        <EmptyState
-          v-else-if="macroDocument && latestMacros.length === 0"
-          title="还没有宏"
-          description="新建一个宏，或从导入宏库开始。"
+    <div class="macro-toolbar">
+      <div class="macro-tabs-wrap">
+        <div
+          v-if="latestMacros.length || editingNew"
+          ref="macroTabs"
+          class="macro-tabs"
+          @wheel="onMacroWheel"
         >
+          <button v-if="editingNew" type="button" class="macro-tab selected new-tab">
+            <span class="macro-tab-index new">+</span>
+            <span class="macro-tab-name">{{ editor?.name || tr("新宏") }}</span>
+          </button>
+          <button
+            v-for="(row, index) in macroTabRows"
+            :key="row.definition.macroId"
+            type="button"
+            class="macro-tab"
+            :class="{ selected: editor?.macroId === row.definition.macroId }"
+            :title="`${row.definition.name} · ${tr('{count} 个步骤', { count: row.definition.steps.length })}`"
+            @click="editLatest(row.definition)"
+          >
+            <span class="macro-tab-index">{{ index + 1 }}</span>
+            <span class="macro-tab-name" :title="row.definition.name">
+              {{ row.definition.name }}
+            </span>
+            <span v-if="row.status" class="macro-tab-status" :class="row.tone">
+              {{ row.status }}
+            </span>
+          </button>
+        </div>
+      </div>
+      <div class="macro-toolbar-actions">
+        <Button size="sm" :disabled="busy" @click="importFile">
+          <FileUp :size="14" />
+          {{ tr("导入") }}
+        </Button>
+        <Button size="sm" :disabled="busy || !macroDocument" @click="exportFile">
+          <FileDown :size="14" />
+          {{ tr("导出") }}
+        </Button>
+        <Button size="sm" variant="primary" :disabled="busy" @click="openNew">
+          <Plus :size="14" />
+          {{ tr("新建") }}
+        </Button>
+      </div>
+    </div>
+
+    <LoadingState v-if="loading" label="正在加载…" description="正在读取本地宏库…" />
+
+    <EmptyState
+      v-else-if="macroDocument && latestMacros.length === 0 && !editor"
+      title="还没有宏"
+      description="新建一个宏，或从导入宏库开始。"
+    >
+      <template #icon><Command :size="20" /></template>
+      <template #actions>
+        <Button variant="primary" @click="openNew">{{ tr("新建宏") }}</Button>
+      </template>
+    </EmptyState>
+
+    <div
+      v-if="editor || (!loading && latestMacros.length > 0)"
+      ref="editorHost"
+      class="editor-host"
+    >
+      <MacroEditor
+        v-if="editor"
+        v-model:draft="editor"
+        :editing-new="editingNew"
+        :busy="busy"
+        :dirty="dirty"
+        :save-error="saveError"
+        :other-macros="otherMacros"
+        :run-status="draftRunStatus"
+        :draft-testing="draftTesting"
+        @save="saveEditor"
+        @cancel="cancelEdit"
+        @test-draft="testDraft"
+        @cancel-draft="stopDraft"
+        @duplicate-macro="duplicateCurrent"
+        @delete-macro="deleteCurrent"
+        @open-settings="macroSettingsOpen = true"
+      />
+
+      <Card v-else class="editor-placeholder">
+        <EmptyState title="选择一个宏开始编辑" description="从顶部宏库选择，或新建一个宏。">
           <template #icon><Command :size="20" /></template>
           <template #actions>
             <Button variant="primary" @click="openNew">{{ tr("新建宏") }}</Button>
           </template>
         </EmptyState>
-        <Notice v-else-if="visibleMacros.length === 0" kind="info">
-          {{ tr("没有匹配“{query}”的宏。", { query: macroSearch }) }}
-        </Notice>
-
-        <ul v-else class="macro-list">
-          <li
-            v-for="definition in visibleMacros"
-            :key="definition.macroId"
-            class="macro-item"
-            :class="{ editing: editor?.macroId === definition.macroId }"
-          >
-            <div class="macro-row">
-              <span class="macro-icon"><Command :size="16" /></span>
-              <div class="macro-main">
-                <span class="macro-name-row">
-                  <span class="macro-name text-truncate" :title="definition.name">
-                    {{ definition.name }}
-                  </span>
-                  <StatusPill :label="`v${definition.version}`" tone="neutral" />
-                  <StatusPill
-                    v-if="statusText(definition.macroId)"
-                    :label="statusText(definition.macroId)"
-                    :tone="runTone(definition.macroId)"
-                    dot
-                  />
-                  <StatusPill
-                    v-if="editor?.macroId === definition.macroId"
-                    :label="trDynamic('编辑中')"
-                    tone="accent"
-                    dot
-                  />
-                </span>
-                <span class="macro-steps text-truncate" :title="stepsSummary(definition.steps)">
-                  {{ stepsSummary(definition.steps) }}
-                </span>
-                <span class="macro-meta text-truncate">
-                  {{ tr("{count} 个步骤", { count: definition.steps.length }) }}
-                  · {{ tr("{count} 个版本", { count: versionCount(definition.macroId) }) }}
-                  <template v-if="definition.summary"> · {{ definition.summary }}</template>
-                </span>
-              </div>
-              <div class="macro-actions">
-                <Button
-                  v-if="runStates[definition.macroId]?.running"
-                  size="sm"
-                  @click="stopMacro(definition)"
-                >
-                  {{ tr("停止") }}
-                </Button>
-                <Button
-                  v-else
-                  size="sm"
-                  variant="primary"
-                  :disabled="testingId !== null"
-                  @click="runMacro(definition)"
-                >
-                  <Play :size="14" />
-                  {{
-                    trDynamic(
-                      testingId === definition.macroId
-                        ? "启动中"
-                        : statusText(definition.macroId)
-                          ? "重试"
-                          : "测试",
-                    )
-                  }}
-                </Button>
-                <IconButton
-                  size="sm"
-                  :label="trDynamic('复制宏')"
-                  :disabled="busy"
-                  @click="duplicateMacro(definition)"
-                >
-                  <Copy :size="14" />
-                </IconButton>
-                <IconButton size="sm" :label="trDynamic('编辑宏')" @click="editLatest(definition)">
-                  <Pencil :size="14" />
-                </IconButton>
-                <IconButton
-                  size="sm"
-                  variant="danger"
-                  :label="trDynamic('删除宏')"
-                  :disabled="busy"
-                  @click="removeMacro(definition)"
-                >
-                  <Trash2 :size="14" />
-                </IconButton>
-                <IconButton
-                  size="sm"
-                  :label="trDynamic('详情')"
-                  :aria-expanded="expandedId === definition.macroId"
-                  @click="toggleDetails(definition.macroId)"
-                >
-                  <Info :size="14" />
-                </IconButton>
-              </div>
-            </div>
-
-            <div v-if="expandedId === definition.macroId" class="macro-details">
-              <div class="detail-id">
-                <span class="muted">{{ tr("标识") }}</span>
-                <code class="mono text-truncate" :title="definition.macroId">
-                  {{ definition.macroId }}
-                </code>
-                <Button size="sm" variant="ghost" @click="copyId(definition.macroId)">
-                  {{ trDynamic(copiedId === definition.macroId ? "已复制" : "复制 ID") }}
-                </Button>
-              </div>
-
-              <div v-if="runReportFor(definition.macroId)" class="detail-block">
-                <p class="detail-title">
-                  {{ tr("最近运行") }}
-                  <span class="muted">
-                    · {{ statusLabel(runReportFor(definition.macroId)?.result ?? "") }} ·
-                    {{ runReportFor(definition.macroId)?.elapsedMs }}ms
-                  </span>
-                </p>
-                <div class="run-report">
-                  <span
-                    v-for="step in runReportFor(definition.macroId)?.steps ?? []"
-                    :key="step.index"
-                    class="run-step"
-                  >
-                    #{{ step.index + 1 }} {{ actionLabel(step.action) }} ·
-                    {{ statusLabel(step.outcome) }} · {{ step.elapsedMs }}ms
-                  </span>
-                </div>
-              </div>
-
-              <div class="detail-block version-block">
-                <p class="detail-title">
-                  {{ tr("版本历史") }}
-                  <span class="muted">
-                    · {{ tr("{count} 个版本", { count: versionCount(definition.macroId) }) }}
-                  </span>
-                </p>
-                <ul class="version-list">
-                  <li
-                    v-for="version in versionsFor(definition.macroId)"
-                    :key="version.version"
-                    class="version-row"
-                  >
-                    <span class="mono version-tag">v{{ version.version }}</span>
-                    <span class="version-name text-truncate" :title="version.name">
-                      {{ version.name }}
-                    </span>
-                    <span class="muted version-steps">
-                      {{ tr("{count} 个步骤", { count: version.steps.length }) }}
-                    </span>
-                    <Button size="sm" variant="ghost" @click="openEdit(version)">
-                      {{ tr("基于此版本编辑") }}
-                    </Button>
-                    <IconButton
-                      size="sm"
-                      variant="danger"
-                      :label="trDynamic('删除此版本')"
-                      :disabled="busy || versionCount(definition.macroId) <= 1"
-                      @click="removeVersion(version)"
-                    >
-                      <Trash2 :size="14" />
-                    </IconButton>
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </li>
-        </ul>
       </Card>
-
-      <div ref="editorHost" class="editor-host">
-        <MacroEditor
-          v-if="editor"
-          v-model:draft="editor"
-          :editing-new="editingNew"
-          :busy="busy"
-          :dirty="dirty"
-          :other-macros="otherMacros"
-          @save="saveEditor"
-          @cancel="cancelEdit"
-        />
-
-        <Card v-else class="editor-placeholder">
-          <EmptyState title="从左侧选择一个宏开始编辑" description="新建一个宏，或从导入宏库开始。">
-            <template #icon><Command :size="20" /></template>
-            <template #actions>
-              <Button variant="primary" @click="openNew">{{ tr("新建宏") }}</Button>
-            </template>
-          </EmptyState>
-        </Card>
-      </div>
     </div>
+
+    <MacroSettingsDrawer
+      v-if="editor"
+      v-model:name="editorNameModel"
+      v-model:summary="editorSummaryModel"
+      :open="macroSettingsOpen"
+      @close="macroSettingsOpen = false"
+    />
   </section>
 </template>
 
 <style scoped>
-.library-tools {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+.page-macros {
+  gap: var(--space-3);
 }
 
-.macro-list {
+.macro-toolbar {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--space-3);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--space-2);
+  min-width: 0;
 }
 
-.macro-item {
+.macro-tabs-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.macro-tabs {
   display: flex;
-  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 3px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: 10px;
+  background: var(--bg-subtle);
+  scrollbar-width: none;
+}
+.macro-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.macro-tab {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  max-width: 260px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  padding: 7px 14px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
   transition:
     border-color var(--duration-fast) ease,
-    background var(--duration-fast) ease;
+    background var(--duration-fast) ease,
+    color var(--duration-fast) ease;
 }
-
-.macro-item:hover {
-  background: var(--bg-subtle);
-}
-
-.macro-item.editing {
-  border-color: var(--accent);
-}
-
-.macro-row {
-  display: grid;
-  grid-template-columns: 32px minmax(0, 1fr);
-  gap: var(--space-2) var(--space-3);
-  align-items: start;
-  padding: var(--space-3);
-}
-
-.macro-icon {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-md);
-  background: var(--bg-hover);
-  color: var(--accent);
-}
-
-.macro-main {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-
-.macro-name-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-.macro-name {
-  font-weight: 600;
-}
-
-.macro-steps {
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-}
-
-.macro-meta {
-  color: var(--text-muted);
-  font-size: var(--text-2xs);
-}
-
-.macro-actions {
-  display: flex;
-  flex-wrap: wrap;
-  grid-column: 1 / -1;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-1);
-}
-
-.macro-details {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  border-top: 1px dashed var(--border);
-  padding: var(--space-3);
-}
-
-.detail-id {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-  font-size: var(--text-xs);
-}
-
-.detail-id code {
-  flex: 1 1 120px;
-  min-width: 0;
-}
-
-.detail-block {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-.detail-title {
-  color: var(--text-secondary);
-  font-size: var(--text-xs);
-  font-weight: 600;
-}
-
-.run-report {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-}
-
-.run-step {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 2px 6px;
-  color: var(--text-muted);
-  font-size: var(--text-2xs);
-}
-
-.version-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.version-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  border-left: 2px solid var(--border-strong);
-  padding: var(--space-1) var(--space-2);
-  color: var(--text-secondary);
-  font-size: var(--text-xs);
-}
-
-.version-tag {
+.macro-tab:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-raised);
   color: var(--text);
 }
-
-.version-name {
-  flex: 1 1 100px;
+.macro-tab.selected {
+  border-color: var(--accent);
+  background: var(--bg-raised);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+.macro-tab-index {
+  display: grid;
+  flex: 0 0 18px;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
+}
+.macro-tab.selected .macro-tab-index {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+.macro-tab.new-tab .macro-tab-index {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.macro-tab-name {
+  overflow: hidden;
   min-width: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-
-.version-steps {
+.macro-tab.selected .macro-tab-name {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.macro-tab-status {
+  max-width: 100px;
+  overflow: hidden;
   flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.macro-tab-status.success {
+  color: var(--success-text);
+}
+.macro-tab-status.danger {
+  color: var(--danger-text);
+}
+.macro-tab-status.warning {
+  color: var(--warning-text);
+}
+.macro-tab-status.accent,
+.macro-tab-status.info {
+  color: var(--info-text);
 }
 
+.macro-toolbar-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
 .editor-host {
   min-width: 0;
   scroll-margin-top: var(--space-4);
-}
-
-@media (max-width: 1120px) {
-  .editor-placeholder {
-    display: none;
-  }
 }
 </style>

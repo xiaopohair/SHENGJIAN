@@ -29,6 +29,7 @@ import LoadingState from "../components/ui/LoadingState.vue";
 import IconButton from "../components/ui/IconButton.vue";
 import Notice from "../components/ui/Notice.vue";
 import StatusPill from "../components/ui/StatusPill.vue";
+import Switch from "../components/ui/Switch.vue";
 import ProfileWorkbench from "../components/ProfileWorkbench.vue";
 import ProfileSettingsDrawer from "../components/ProfileSettingsDrawer.vue";
 import {
@@ -430,6 +431,15 @@ async function activateEditorProfile() {
   if (profile) await activate(profile);
 }
 
+/** One control that reflects the active state: click again to deactivate. */
+async function toggleEditorActivation() {
+  if (activeProfileId.value && activeProfileId.value === editor.value?.id) {
+    await clearActivation();
+    return;
+  }
+  await activateEditorProfile();
+}
+
 async function clearActivation() {
   busy.value = true;
   error.value = null;
@@ -529,7 +539,7 @@ onUnmounted(() => {
       <div v-if="profilesDocument?.profiles.length" class="profile-bar">
         <div class="profile-chips" @wheel="onProfileWheel">
           <button
-            v-for="profile in profilesDocument.profiles"
+            v-for="(profile, index) in profilesDocument.profiles"
             :key="profile.id"
             type="button"
             class="profile-chip"
@@ -541,24 +551,29 @@ onUnmounted(() => {
             :title="`${profile.name} · ${profile.appTargets.join(', ') || tr('未设置应用目标')}`"
             @click="editProfile(profile)"
           >
-            <span class="profile-chip-dot" aria-hidden="true" />
+            <span class="profile-chip-index">{{ index + 1 }}</span>
             <span class="profile-chip-copy">
               <strong class="text-truncate" :title="profile.name">{{ profile.name }}</strong>
+            </span>
+            <span
+              v-if="activeProfileId === profile.id"
+              class="profile-chip-flag"
+              :title="tr('已激活')"
+            >
+              {{ tr("激活") }}
             </span>
           </button>
         </div>
 
         <div class="profile-tools">
-          <IconButton :label="trDynamic('导入方案文件')" :disabled="busy" @click="importFile">
-            <FileUp :size="15" />
-          </IconButton>
-          <IconButton
-            :label="trDynamic('导出全部方案')"
-            :disabled="busy || !profilesDocument"
-            @click="exportFile"
-          >
-            <FileDown :size="15" />
-          </IconButton>
+          <Button size="sm" :disabled="busy" @click="importFile">
+            <FileUp :size="14" />
+            {{ tr("导入") }}
+          </Button>
+          <Button size="sm" :disabled="busy || !profilesDocument" @click="exportFile">
+            <FileDown :size="14" />
+            {{ tr("导出") }}
+          </Button>
           <Button size="sm" variant="primary" :disabled="busy" @click="startNew">
             <Plus :size="14" />
             {{ tr("新建") }}
@@ -568,8 +583,8 @@ onUnmounted(() => {
 
       <div v-if="editor" class="editor-toolbar">
         <div class="editor-context">
-          <span class="eyebrow">{{ editingNew ? tr("新建方案") : tr("当前方案") }}</span>
-          <strong>{{ editor.name || tr("未命名方案") }}</strong>
+          <span class="eyebrow">{{ editingNew ? tr("新建方案") : tr("编辑方案：") }}</span>
+          <strong class="editor-name">{{ editor.name || tr("未命名方案") }}</strong>
           <span class="editor-target text-truncate" :title="editor.appTargets">
             {{ editor.appTargets || tr("未设置应用目标") }}
           </span>
@@ -582,22 +597,24 @@ onUnmounted(() => {
                 : tr('不自动切换，需要手动激活')
             "
           />
+          <span v-if="!editingNew" class="activation-control">
+            <Switch
+              :model-value="activeProfileId === editor.id"
+              :disabled="busy || !currentProfileRecord"
+              :label="tr('激活')"
+              @update:model-value="toggleEditorActivation"
+            />
+            <span class="activation-state" :class="{ on: activeProfileId === editor.id }">
+              {{ activeProfileId === editor.id ? tr("已激活") : tr("未激活") }}
+            </span>
+          </span>
           <StatusPill v-if="justSaved" :label="trDynamic('已保存')" tone="accent" dot />
           <StatusPill v-if="dirty" :label="trDynamic('未保存')" tone="warning" dot />
         </div>
         <div class="editor-toolbar-actions">
-          <Button size="sm" @click="openSettings">
-            <SlidersHorizontal :size="14" />
-            {{ tr("方案设置") }}
-          </Button>
-          <Button
-            v-if="!editingNew"
-            size="sm"
-            :disabled="busy || !currentProfileRecord || activeProfileId === editor.id"
-            @click="activateEditorProfile"
-          >
-            {{ trDynamic(activeProfileId === editor.id ? "已激活" : "激活") }}
-          </Button>
+          <IconButton size="sm" :label="trDynamic('属性')" @click="openSettings">
+            <SlidersHorizontal :size="15" />
+          </IconButton>
           <IconButton
             v-if="!editingNew && currentProfileRecord"
             size="sm"
@@ -617,15 +634,6 @@ onUnmounted(() => {
           >
             <Trash2 :size="14" />
           </IconButton>
-          <Button
-            v-if="profilesDocument?.activeManualProfileId"
-            size="sm"
-            variant="ghost"
-            :disabled="busy"
-            @click="clearActivation"
-          >
-            {{ tr("清除手动激活") }}
-          </Button>
           <Button size="sm" :disabled="busy" @click="cancelEdit">{{ tr("取消") }}</Button>
           <Button
             size="sm"
@@ -633,7 +641,7 @@ onUnmounted(() => {
             :disabled="busy || (!dirty && !editingNew)"
             @click="saveEditor"
           >
-            {{ tr("保存方案") }}
+            {{ tr("保存") }}
           </Button>
         </div>
       </div>
@@ -734,11 +742,14 @@ onUnmounted(() => {
   flex: 1 1 auto;
   flex-wrap: nowrap;
   align-items: center;
-  gap: var(--space-2);
+  gap: 4px;
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 2px 2px 4px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-subtle);
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -749,50 +760,64 @@ onUnmounted(() => {
 
 .profile-chip {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
-  gap: var(--space-2);
+  gap: 8px;
   max-width: 245px;
   border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--bg-raised) 62%, transparent);
-  padding: 7px 9px;
+  border-radius: 7px;
+  background: transparent;
+  padding: 7px 14px;
   text-align: left;
   cursor: pointer;
   transition:
     border-color var(--duration-fast) ease,
-    background var(--duration-fast) ease;
+    background var(--duration-fast) ease,
+    color var(--duration-fast) ease;
 }
 
 .profile-chip:hover {
-  border-color: var(--border);
+  border-color: var(--border-strong);
   background: var(--bg-raised);
 }
 .profile-chip.active {
-  border-color: transparent;
   background: var(--bg-raised);
 }
 .profile-chip.selected {
-  border-color: transparent;
-  background: var(--accent-soft);
+  border-color: var(--accent);
+  background: var(--bg-raised);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 .profile-chip.selected .profile-chip-copy strong {
   color: var(--accent-ink);
 }
 
-.profile-chip-dot {
-  flex: 0 0 8px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--text-muted);
-  transition: background var(--duration-fast) ease;
+.profile-chip-index {
+  display: grid;
+  flex: 0 0 18px;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
 }
 
-.profile-chip.selected .profile-chip-dot {
+.profile-chip.selected .profile-chip-index {
   background: var(--accent);
+  color: var(--text-on-accent);
 }
-.profile-chip.active .profile-chip-dot {
-  background: var(--info);
+
+.profile-chip-flag {
+  border-radius: 4px;
+  background: var(--info-soft, color-mix(in srgb, var(--info) 14%, transparent));
+  padding: 1px 5px;
+  color: var(--info-text);
+  font-size: 9px;
+  line-height: 1.4;
 }
 
 .profile-chip-copy {
@@ -805,7 +830,7 @@ onUnmounted(() => {
   font-weight: 500;
 }
 .profile-chip.selected .profile-chip-copy strong {
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .profile-tools {
@@ -842,9 +867,26 @@ onUnmounted(() => {
   text-transform: uppercase;
 }
 
-.editor-context strong {
-  font-size: var(--text-sm);
+.editor-name {
+  font-size: var(--text-lg);
   font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.activation-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.activation-state {
+  color: var(--text-muted);
+  font-size: var(--text-2xs);
+}
+
+.activation-state.on {
+  color: var(--accent-ink);
+  font-weight: 600;
 }
 .editor-target {
   max-width: 230px;
