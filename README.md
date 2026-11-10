@@ -20,9 +20,10 @@
 ## 当前状态
 
 - 版本：`0.3.1`（按键方案工作台、按键级连发与表格视图优化）
+- 已支持设备：RC003（小米蓝牙语音遥控器 2 Pro）、RC001（小米蓝牙语音遥控器 2）；Windows x64
 - GitHub Release 0.3.1：<https://github.com/xiaopohair/SHENGJIAN/releases/tag/v0.3.1>（CI 构建、未签名），安装包 `shengjian_0.3.1_x64-setup.exe`；清单见 `release/0.3.1/manifest.json`
 - 代码签名：已接入 **SignPath Foundation** 免费开源签名（release workflow 内置，配置后自动启用）；见 [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md) 与 [docs/signing.md](docs/signing.md)
-- 真机 RC003 已验证：连接、语音、按键手势、profile 自动切换、`run-macro`、返回键增强捕获
+- 真机 RC003 已验证：连接、语音、按键手势、方案自动切换、运行宏（`run-macro`）、返回键增强捕获
 - 本地发布清单：`release/0.3.1/manifest.json`
 - 发布说明：`docs/release-notes-0.3.1.md`
 - GitHub 仓库已创建并推送：<https://github.com/xiaopohair/SHENGJIAN>；发布由 `v*` tag 触发的 Release workflow 生成
@@ -39,16 +40,16 @@
 - 连接页：扫描、连接、断开、多设备切换、记住上次设备、状态、型号、固件版本、电量、连接详情、当前设备音频/语音工具覆盖、RC003 增强捕获与 helper
 - 托盘：显示/隐藏、打开设置、打开日志目录、退出；tooltip 显示连接/电量；中英文菜单随语言即时切换；托盘图标随任务栏明暗使用亮松青 / 墨色两版
 - 语音页：voice/audio 状态、实时电平、语音测试、语音输入工具、自定义语音热键、转写历史开关
-- 按键页：profile 列表、编辑、激活、导入/全部方案导出；宽屏工作台 + 表格视图，未保存导航确认
-- Profile 编辑器：应用目标（支持选择程序/用当前前台）、当前前台填充、快捷键捕获、自动方案冲突提示、保存校验、按键级按住连发、Profile 语音工具覆盖、复制方案、12 键（含 TV、菜单）；常用语入口按平台能力显示
+- 按键页：方案列表、编辑、激活、导入/全部方案导出；宽屏工作台 + 表格视图，未保存导航确认
+- 方案编辑器：应用目标（支持选择程序/用当前前台）、当前前台填充、快捷键捕获、自动方案冲突提示、保存校验、按键级按住连发、方案语音工具覆盖、复制方案、12 键（含 TV、菜单）；常用语入口按平台能力显示
 - 宏页：创建/编辑/删除、8 种动作、多步骤拖拽排序/复制/超时、版本历史与单版本删除、复制、测试/取消/重试、分步运行结果、搜索、导入/导出、中文校验提示；宽屏列表 + 右侧编辑器
 - 历史页：语音事件、按键事件、宏运行、转写记录四个标签；语音/按键按本次运行保留，宏运行/转写持久保存
-- 设置页：全局音频、主题、强调色、应用语言（中文/English/跟随系统）、开机自启、关闭行为、配置备份/恢复（settings、profiles、宏库、转写历史、外观偏好、上次设备）、日志查看/诊断包、健康检查、恢复默认、分区选项卡；设置加载失败时仍可进入数据与诊断
+- 设置页：全局音频、主题、强调色、应用语言（中文/English/跟随系统）、开机自启、关闭行为、配置备份/恢复（设置、方案、宏库、转写历史、外观偏好、上次设备）、日志查看/诊断包、健康检查、恢复默认、分区选项卡；设置加载失败时仍可进入数据与诊断
 - 可访问性：页面 landmark/标题层级、表单 label、Tabs/命令面板/确认框焦点圈定、装饰图标隐藏；详见 `docs/ui-accessibility-report.md`
 - 关于页：品牌标记（随明暗切换亮松青 / 松青·深）、应用版本、平台/构建/签名、运行信息、本机能力、支持的遥控器与平台状态、组件与许可；可打开日志目录、重新运行首次配置；启动后台检查 GitHub Releases（24 小时限频），发现新版本时用 Toast、关于页红点和托盘菜单提示，支持预发布筛选，不自动下载安装
 - 配对帮助：关于页支持型号行和首次配置扫描页均可打开；按 RC003 / RC001 展示组合键、Windows 蓝牙步骤和新遥控器 TV 初始化提示
 - 托盘、首次配置向导（含语音输入工具选择）、单实例
-- Profile/宏导入导出、诊断日志入口
+- 方案/宏导入导出、诊断日志入口
 
 ### Core / 平台
 
@@ -189,8 +190,8 @@ cargo test --workspace
   - scan → connect `ready`
   - 语音 `streaming → draining → idle`
   - OK `single / double / long`
-  - Profile 前台自动切换
-  - 实体按键 `run-macro`（下键打开 Notepad）
+  - 方案前台自动切换
+  - 实体按键「运行宏」（`run-macro`，下键打开 Notepad）
   - 返回键增强捕获 `back` edge
 
 ## 本地发布
@@ -249,5 +250,5 @@ Free code signing provided by [SignPath.io](https://about.signpath.io), certific
 
 项目以 **GPL-3.0-only** 发布，见 [LICENSE](LICENSE)。
 
-来源、设备 profile 参考和命名清理见 [ATTRIBUTION.md](ATTRIBUTION.md)。
+来源、设备配置参考和命名清理见 [ATTRIBUTION.md](ATTRIBUTION.md)。
 第三方组件与 Frida Gadget 许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
