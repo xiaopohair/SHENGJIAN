@@ -105,52 +105,53 @@ gh release view v0.4.0              # 确认资产清单
 
 ## 发布说明与 SHA-256
 
+**规则：发布说明里不写死 SHA-256 和大小。**
+
 Release 正文由 workflow 直接从 `docs/release-notes-<version>.md` 读取
-（`body_path`），**逐字发布**。这带来一个必须注意的顺序问题：
+（`body_path`），**在 tag 推送时逐字发布**。而同一个 commit 在本地和 GitHub Actions
+上编译出的安装包不是逐字节相同的，哈希与大小都不一样。所以正文里一旦写了具体数值，
+就必须在 CI 发布后回填，很容易漏掉、漏掉就会和实际下载的文件对不上。
 
-1. tag 推送前，发布说明里还没有 CI 产物的哈希；
-2. CI 构建出的安装包与本地构建不同，哈希也就不同；
-3. 所以**发布说明里的 `SHA-256` 只能在 CI 发布完成之后回填**。
-
-推荐做法（二选一）：
-
-**A. 不在发布说明里写死哈希（推荐）**
-
-正文只写文件名和大小，哈希统一指向 Release 里的 `SHA256SUMS` 资产：
+正文只列文件名，校验信息指向 Release 资产：
 
 ```text
-下载后请用随包的 SHA256SUMS 校验：
+Release 资产：
+  shengjian_0.4.0_x64-setup.exe      安装包（NSIS，未签名）
+  shengjian_0.4.0_x64-portable.zip   便携版（免安装 zip）
+  SHA256SUMS                         两个产物的 SHA-256
+  manifest.json                      安装包大小与 SHA-256
+  portable-manifest.json             便携版大小与 SHA-256
+
+下载后用随包的 SHA256SUMS 校验：
   Get-FileHash shengjian_0.4.0_x64-setup.exe -Algorithm SHA256
 ```
 
-这样说明与 CI 产物天然一致，不存在回填问题。
+这样说明与 CI 产物天然一致，不需要任何回填步骤。
 
-**B. 回填（当前 0.3.x / 0.4.0 采用）**
+### 如果确实要在正文写哈希
 
-CI 发布后按下面的步骤把真实哈希写回，并且**必须同步线上的 Release 正文**——
-只改仓库文件不会更新已经发布的 Release：
+只改仓库文件**不会**更新已经发布的 Release，必须同步线上正文：
 
 ```powershell
 gh release download v0.4.0 --pattern SHA256SUMS --dir $env:TEMP --clobber
-# 从 SHA256SUMS 取值，填入 docs/release-notes-0.4.0.md 的「安装」小节
 gh release download v0.4.0 --pattern manifest.json --dir $env:TEMP --clobber
-# manifest.json 的 sizeBytes 用于填写「大小」
+# 用这两个文件里的值替换正文中的占位符
 
-# 1) 更新线上正文（否则 Release 页仍是旧值）
 gh release edit v0.4.0 --notes-file docs/release-notes-0.4.0.md
-
-# 2) 提交仓库，让源码里的说明与发布一致
-git add docs/release-notes-0.4.0.md release/0.4.0/manifest.json
-git commit -m "fix(release): 0.4.0 说明改用 CI 实际产物哈希"
+git add docs/release-notes-0.4.0.md
+git commit -m "docs: 回填 0.4.0 发布说明的校验值"
 git push origin main
 ```
 
-顺带核对：`release/<version>/manifest.json` 在仓库里记录的是本地构建结果，
-CI 会重新生成同名文件并上传，因此仓库版本与线上资产可能不同。以线上资产为准。
+0.3.x 的发布说明用的是这种写法，可以直接比对 `docs/release-notes-0.3.1.md`。
 
-> `manifest.json` 里的 `published` 字段由 `prepare-release.ps1` 固定写 `false`，
-> CI 不会改写它，代码中也没有任何消费者读取该字段（App 的更新检查读的是
-> GitHub API 的 `published_at`）。该字段目前只是占位，**不要依据它判断发布状态**。
+### manifest.json 的两个注意点
+
+- 仓库里的 `release/<version>/manifest.json` 记录的是**本地**构建结果；
+  CI 会重新生成同名文件并上传，所以仓库版本与线上资产可能不同，**以线上资产为准**。
+- 其中的 `published` 字段由 `prepare-release.ps1` 固定写 `false`，CI 不会改写它，
+  代码里也没有任何消费者（App 的更新检查读的是 GitHub API 的 `published_at`）。
+  该字段只是占位，**不要依据它判断发布状态**。
 
 ## 发布
 
@@ -200,9 +201,10 @@ Release 正文来自 `docs/release-notes-<version>.md`（0.3.0 为 [release-note
 - 品牌：深色界面/窗口图标用亮松青，浅色界面/窗口图标用松青·深（`#0F7A63`）；托盘深色任务栏用亮松青、浅色任务栏用墨色
 - 卸载后计划任务清理、数据保留
 - Release 资产齐全：安装包、便携 zip、`SHA256SUMS`、`manifest.json`、`portable-manifest.json`、许可证
-- 发布说明里的 `SHA-256` / `大小` 与 **Release 资产**一致（不是本地构建的哈希）；
-  核对方式：`gh release download v<version> --pattern SHA256SUMS --dir $env:TEMP --clobber`
-- 若 tag 之后改动过发布说明，已用 `gh release edit v<version> --notes-file ...` 同步线上正文
+- 发布说明里**没有**硬编码的 `SHA-256` / 大小，校验信息指向 `SHA256SUMS` 资产；
+  若确实写死了数值，已用 `gh release edit v<version> --notes-file ...` 同步线上正文
+- Release 里 `SHA256SUMS` 与 `manifest.json` 的哈希相互一致
+  （`gh release download v<version> --pattern SHA256SUMS --dir $env:TEMP --clobber`）
 - Release 用户能看到 SmartScreen 未签名提示和 SHA-256 校验说明
 - 启用签名后：两个 SignPath 签名请求审批通过，`Get-AuthenticodeSignature` 对 exe 与安装包均为 `Valid`
 
