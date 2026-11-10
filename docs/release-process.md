@@ -145,13 +145,17 @@ git push origin main
 
 0.3.x 的发布说明用的是这种写法，可以直接比对 `docs/release-notes-0.3.1.md`。
 
-### manifest.json 的两个注意点
+### manifest.json 的注意点
 
-- 仓库里的 `release/<version>/manifest.json` 记录的是**本地**构建结果；
-  CI 会重新生成同名文件并上传，所以仓库版本与线上资产可能不同，**以线上资产为准**。
-- 其中的 `published` 字段由 `prepare-release.ps1` 固定写 `false`，CI 不会改写它，
-  代码里也没有任何消费者（App 的更新检查读的是 GitHub API 的 `published_at`）。
-  该字段只是占位，**不要依据它判断发布状态**。
+仓库里的 `release/<version>/manifest.json` 记录的是**本地**构建结果；
+CI 会重新生成同名文件并上传，所以仓库版本与线上资产可能不同，**以线上资产为准**。
+
+字段固定为 `version` / `file` / `sizeBytes` / `sha256` / `builtAtUtc` / `signed`，
+由 `prepare-release.ps1` 写入、`verify-release.ps1` 校验、release workflow 读取 `file`。
+
+> 早期版本还写过一个 `published` 字段，它恒为 `false`、CI 不改写、代码里也没有消费者
+> （App 的更新检查读的是 GitHub API 的 `published_at`），容易误判发布状态，
+> 已在 0.4.0 之后从脚本与产物中移除。判断发布状态请用 `gh release view`。
 
 ## 发布
 

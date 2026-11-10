@@ -32,7 +32,6 @@ $manifest = [ordered]@{
     sha256 = $hash
     builtAtUtc = $file.LastWriteTimeUtc.ToString("o")
     signed = ($signature.Status -eq "Valid")
-    published = $false
 }
 $manifestPath = Join-Path $releaseDir "manifest.json"
 $manifestJson = $manifest | ConvertTo-Json -Depth 5
