@@ -55,9 +55,19 @@ Release 资产：
 shengjian_0.4.0_x64-setup.exe
 大小：11355370 bytes
 SHA-256：C95DEE346C0AA9DA295151741138B5753D31956B479613FFBBE8E885E94CE31B
+
+shengjian_0.4.0_x64-portable.zip
+大小：14823199 bytes
+SHA-256：7385B4D9446B29039CE43FDA8F31870B401635F957859219DA573F0902D3960E
 ```
 
-SHA-256 同时写入 Release 中的 `SHA256SUMS` 与 `manifest.json`。安装包未签名，Windows SmartScreen 可能提示；首次安装 RC003 helper 需要一次 UAC。覆盖安装会保留 `%LOCALAPPDATA%\Shengjian` 下的设置、方案、宏、转写历史与日志。
+下载后建议用随包的 `SHA256SUMS` 自行校验：
+
+```powershell
+Get-FileHash shengjian_0.4.0_x64-setup.exe -Algorithm SHA256
+```
+
+安装包未签名，Windows SmartScreen 可能提示；首次安装 RC003 helper 需要一次 UAC。覆盖安装会保留 `%LOCALAPPDATA%\Shengjian` 下的设置、方案、宏、转写历史与日志。
 
 ## 已知限制
 
