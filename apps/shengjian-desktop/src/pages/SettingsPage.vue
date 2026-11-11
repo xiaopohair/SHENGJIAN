@@ -48,7 +48,6 @@ import IconButton from "../components/ui/IconButton.vue";
 import LoadingState from "../components/ui/LoadingState.vue";
 import Notice from "../components/ui/Notice.vue";
 import RangeInput from "../components/ui/RangeInput.vue";
-import SectionHeader from "../components/ui/SectionHeader.vue";
 import SelectInput from "../components/ui/SelectInput.vue";
 import StatusPill from "../components/ui/StatusPill.vue";
 import Switch from "../components/ui/Switch.vue";
@@ -633,47 +632,49 @@ onMounted(async () => {
         <template v-if="!loading && sectionVisible('diagnostics')">
           <p class="settings-group-label">{{ tr("数据") }}</p>
           <Card>
-            <SectionHeader title="配置备份" hint="单 JSON 备份" />
-            <div class="card-body">
-              <p class="muted">
-                {{ tr("导出为单个 JSON，用于迁移或故障恢复；恢复会覆盖当前配置。") }}
-              </p>
-              <p class="muted">
-                {{ tr("备份包含 设置、方案、宏库、转写历史、强调色和上次设备。") }}
-              </p>
-              <div class="footer-actions">
-                <Button :disabled="backupBusy" @click="exportBackup">
-                  <Download :size="16" />
-                  {{ tr("导出备份") }}
+            <div class="settings-rows">
+              <SettingRow
+                label="导出备份"
+                hint="导出为单个 JSON，含设置、方案、宏库、转写历史与上次设备"
+              >
+                <Button size="sm" :disabled="backupBusy" @click="exportBackup">
+                  <Download :size="14" />
+                  {{ tr("导出") }}
                 </Button>
-                <Button :disabled="backupBusy" @click="importBackup">
-                  <Upload :size="16" />
-                  {{ tr("恢复备份") }}
+              </SettingRow>
+
+              <SettingRow label="恢复备份" hint="从备份文件恢复，会覆盖当前配置">
+                <Button size="sm" :disabled="backupBusy" @click="importBackup">
+                  <Upload :size="14" />
+                  {{ tr("恢复") }}
                 </Button>
-              </div>
-              <p v-if="backupMessage" class="muted">{{ backupMessage }}</p>
+              </SettingRow>
+
+              <p v-if="backupMessage" class="settings-inline-note">{{ backupMessage }}</p>
             </div>
           </Card>
 
           <p class="settings-group-label">{{ tr("诊断") }}</p>
           <Card>
-            <SectionHeader title="诊断" hint="不包含语音内容" />
-            <div class="card-body">
-              <p class="muted">
-                {{ tr("诊断日志位于本机 `%LOCALAPPDATA%\\Shengjian\\Logs`。") }}
-              </p>
-              <div class="footer-actions">
-                <Button @click="openLogs">
-                  <FolderOpen :size="16" />
-                  {{ tr("打开日志目录") }}
+            <div class="settings-rows">
+              <SettingRow label="日志目录" hint="诊断日志位于 %LOCALAPPDATA%\Shengjian\Logs">
+                <Button size="sm" @click="openLogs">
+                  <FolderOpen :size="14" />
+                  {{ tr("打开") }}
                 </Button>
-                <Button :disabled="diagnosticBusy" @click="loadDiagnostics">
-                  {{ trDynamic(diagnosticBusy ? "读取中" : "查看日志") }}
-                </Button>
-                <Button :disabled="diagnosticBusy" @click="exportDiagnostics">
-                  {{ tr("导出诊断包") }}
-                </Button>
-              </div>
+              </SettingRow>
+
+              <SettingRow label="诊断日志" hint="查看最近的运行日志，不含语音内容">
+                <div class="setting-row-inline">
+                  <Button size="sm" :disabled="diagnosticBusy" @click="loadDiagnostics">
+                    {{ trDynamic(diagnosticBusy ? "读取中" : "查看") }}
+                  </Button>
+                  <Button size="sm" :disabled="diagnosticBusy" @click="exportDiagnostics">
+                    {{ tr("导出诊断包") }}
+                  </Button>
+                </div>
+              </SettingRow>
+
               <div v-if="diagnosticText !== null" class="log-block">
                 <div class="row-between">
                   <span class="muted">{{ tr("日志预览") }}</span>
@@ -689,26 +690,27 @@ onMounted(async () => {
             </div>
           </Card>
 
+          <p class="settings-group-label">{{ tr("健康检查") }}</p>
           <Card>
-            <SectionHeader title="健康检查" hint="本机运行状态" />
-            <div class="card-body">
-              <p class="muted">
-                {{ tr("检查平台、RC003增强服务、音频、连接、电量和前台应用识别。") }}
-              </p>
-              <div class="footer-actions">
-                <Button :disabled="healthBusy" @click="runHealthCheck">
-                  {{ trDynamic(healthBusy ? "检查中" : "运行健康检查") }}
+            <div class="settings-rows">
+              <SettingRow
+                label="运行健康检查"
+                hint="检查平台、RC003 增强服务、音频、连接、电量和前台应用识别"
+              >
+                <Button size="sm" :disabled="healthBusy" @click="runHealthCheck">
+                  {{ trDynamic(healthBusy ? "检查中" : "运行") }}
                 </Button>
-              </div>
+              </SettingRow>
+
               <ul v-if="healthChecks.length" class="health-list">
                 <li v-for="check in healthChecks" :key="check.label" class="health-row">
                   <span class="health-label">{{ check.label }}</span>
+                  <span class="mono muted health-detail">{{ check.detail }}</span>
                   <StatusPill
                     :label="trDynamic(check.ok ? '可用' : '不可用')"
                     :tone="check.ok ? 'success' : 'warning'"
                     dot
                   />
-                  <span class="mono muted health-detail">{{ check.detail }}</span>
                 </li>
               </ul>
             </div>
@@ -718,32 +720,27 @@ onMounted(async () => {
         <template v-if="!loading && sectionVisible('advanced')">
           <p class="settings-group-label">{{ tr("维护") }}</p>
           <Card>
-            <SectionHeader title="高级" hint="首次配置与维护操作" />
-            <div class="card-body">
-              <p class="muted">
-                {{ tr("重新运行首次配置向导，可重新检查遥控器连接与语音链路。") }}
-              </p>
-              <div class="footer-actions">
-                <Button @click="restartOnboarding">
-                  <RotateCcw :size="16" />
-                  {{ tr("重新运行首次配置") }}
+            <div class="settings-rows">
+              <SettingRow label="重新运行首次配置" hint="重新检查遥控器连接与语音链路">
+                <Button size="sm" @click="restartOnboarding">
+                  <RotateCcw :size="14" />
+                  {{ tr("运行") }}
                 </Button>
-              </div>
+              </SettingRow>
             </div>
           </Card>
 
+          <p class="settings-group-label">{{ tr("危险区域") }}</p>
           <Card class="danger-card">
-            <SectionHeader title="危险区域" hint="以下操作不可恢复" />
-            <div class="card-body">
-              <p class="muted">
-                {{ tr("恢复默认设置会清除全局设置和设备覆盖，不影响 profile、宏和转写历史。") }}
-              </p>
-              <div class="footer-actions">
-                <Button variant="danger" :disabled="busy" @click="resetAllSettings">
-                  {{ tr("恢复默认设置") }}
+            <div class="settings-rows">
+              <SettingRow
+                label="恢复默认设置"
+                hint="清除全局设置与设备覆盖，不影响方案、宏和转写历史。此操作不可恢复"
+              >
+                <Button size="sm" variant="danger" :disabled="busy" @click="resetAllSettings">
+                  {{ tr("恢复默认") }}
                 </Button>
-                <span class="muted">{{ tr("更改会即时保存") }}</span>
-              </div>
+              </SettingRow>
             </div>
           </Card>
         </template>
@@ -861,6 +858,20 @@ onMounted(async () => {
   color: var(--text-muted);
   font-size: var(--text-xs);
   font-weight: 600;
+}
+
+/* Several controls inside one row (e.g. 查看 + 导出诊断包). */
+.setting-row-inline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Feedback text that belongs to a row group rather than a single row. */
+.settings-inline-note {
+  margin: var(--space-2) 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
 }
 
 .settings-rows {
