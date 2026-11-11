@@ -121,6 +121,9 @@ function startOrCancelRun() {
   display: flex;
   flex: 0 0 auto;
   flex-direction: column;
+  /* Cap the column at its intrinsic width; otherwise it stretches and starves the title. */
+  width: max-content;
+  max-width: 100%;
   align-items: flex-end;
   gap: 6px;
   min-width: 0;
@@ -179,7 +182,10 @@ function startOrCancelRun() {
 .editor-actions {
   display: flex;
   flex: 0 0 auto;
-  flex-wrap: wrap;
+  /* Keep the whole action row on one line at the minimum window width. */
+  width: max-content;
+  max-width: 100%;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-end;
   gap: 4px;
@@ -190,7 +196,8 @@ function startOrCancelRun() {
   background: transparent;
   padding: 0;
 }
-@media (max-width: 1260px) {
+/* Only below the supported minimum width: stack the header and let actions fill. */
+@media (max-width: 1100px) {
   .editor-head {
     flex-direction: column;
   }

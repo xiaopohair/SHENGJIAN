@@ -718,7 +718,7 @@ onMounted(async () => {
   color: var(--danger-text);
 }
 
-@media (max-width: 1260px) {
+@media (max-width: 1100px) {
   .health-row {
     grid-template-columns: minmax(0, 1fr) auto;
   }

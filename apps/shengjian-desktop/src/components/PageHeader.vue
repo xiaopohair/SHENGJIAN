@@ -28,7 +28,10 @@ withDefaults(
 <style scoped>
 .ui-page-header {
   display: flex;
-  flex-wrap: wrap;
+  /* Actions stay on the same line as the title; the heading shrinks instead.
+     Wrapping here pushed primary actions onto a second row at the minimum
+     window width (1200px viewport → ~925px content). */
+  flex-wrap: nowrap;
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-4);
@@ -36,6 +39,7 @@ withDefaults(
 }
 
 .ui-page-heading {
+  flex: 1 1 auto;
   min-width: 0;
 }
 
@@ -66,16 +70,10 @@ withDefaults(
 
 .ui-page-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
   align-items: center;
   gap: var(--space-2);
   padding-top: 2px;
-}
-
-@media (max-width: 1260px) {
-  .ui-page-header {
-    flex-direction: column;
-    align-items: stretch;
-  }
 }
 </style>

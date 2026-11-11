@@ -881,7 +881,9 @@ onUnmounted(() => {
 
 .editor-toolbar {
   display: flex;
-  flex-wrap: wrap;
+  /* Single row at every supported width: the context block shrinks and
+     truncates instead of pushing the action buttons onto a second line. */
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
@@ -892,10 +894,23 @@ onUnmounted(() => {
 
 .editor-context {
   display: flex;
-  flex-wrap: wrap;
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
+  overflow: hidden;
+}
+
+.editor-context .eyebrow {
+  flex: 0 0 auto;
+}
+
+.editor-name {
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .editor-context .eyebrow {
@@ -936,7 +951,11 @@ onUnmounted(() => {
 
 .editor-toolbar-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex: 0 0 auto;
+  /* Cap the row at its intrinsic width so the context block keeps the rest. */
+  width: max-content;
+  max-width: 100%;
+  flex-wrap: nowrap;
   align-items: center;
   gap: var(--space-2);
 }
@@ -945,7 +964,7 @@ onUnmounted(() => {
   padding-top: var(--space-2);
 }
 
-@media (max-width: 1260px) {
+@media (max-width: 1100px) {
   .profile-bar {
     align-items: flex-start;
   }

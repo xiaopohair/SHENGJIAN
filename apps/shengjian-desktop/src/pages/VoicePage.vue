@@ -716,7 +716,7 @@ onUnmounted(() => {
   }
 }
 
-@media (max-width: 1260px) {
+@media (max-width: 1100px) {
   .setting-row {
     grid-template-columns: 1fr;
   }

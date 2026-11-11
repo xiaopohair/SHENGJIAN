@@ -65,14 +65,22 @@ function onKeydown(event: KeyboardEvent, index: number) {
 <style scoped>
 .ui-tabs {
   display: flex;
-  flex-wrap: wrap;
+  /* One row, scroll horizontally when there are too many tabs. */
+  flex-wrap: nowrap;
   gap: var(--space-1);
+  overflow-x: auto;
   border-bottom: 1px solid var(--border);
   padding-bottom: var(--space-2);
+  scrollbar-width: none;
+}
+
+.ui-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .ui-tab {
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 6px;
   border: 0;
