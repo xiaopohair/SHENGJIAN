@@ -43,6 +43,7 @@ import { useHotkeyRecorder } from "../composables/useHotkeyRecorder";
 import Button from "../components/ui/Button.vue";
 import Card from "../components/ui/Card.vue";
 import SettingRow from "../components/ui/SettingRow.vue";
+import ToggleGroup from "../components/ui/ToggleGroup.vue";
 import IconButton from "../components/ui/IconButton.vue";
 import LoadingState from "../components/ui/LoadingState.vue";
 import Notice from "../components/ui/Notice.vue";
@@ -79,6 +80,26 @@ const SECTIONS: SettingsSection[] = [
   { id: "diagnostics", label: "数据与诊断", icon: HardDrive, group: "系统" },
   { id: "advanced", label: "高级", icon: Wrench, group: "系统" },
 ];
+
+/** Options rendered as segmented buttons in the appearance section. */
+const THEME_OPTIONS = [
+  { value: "system", label: "跟随系统" },
+  { value: "light", label: "浅色" },
+  { value: "dark", label: "深色" },
+] as const;
+
+const ACCENT_OPTIONS = [
+  { value: "default", label: "默认", swatch: "var(--accent)" },
+  { value: "blue", label: "蓝色", swatch: "#2563eb" },
+  { value: "purple", label: "紫色", swatch: "#7c3aed" },
+  { value: "orange", label: "橙色", swatch: "#ea7317" },
+] as const;
+
+const LANGUAGE_OPTIONS = [
+  { value: "system", label: "跟随系统" },
+  { value: "zh-Hans", label: "中文" },
+  { value: "en", label: "English" },
+] as const;
 
 const NAV_GROUPS = ["常规", "系统"];
 
@@ -516,28 +537,19 @@ onMounted(async () => {
           <Card v-if="settingsDocument">
             <div class="settings-rows">
               <SettingRow label="主题">
-                <SelectInput v-model="theme">
-                  <option value="system">{{ tr("跟随系统") }}</option>
-                  <option value="light">{{ tr("浅色") }}</option>
-                  <option value="dark">{{ tr("深色") }}</option>
-                </SelectInput>
+                <ToggleGroup v-model="theme" :items="THEME_OPTIONS" aria-label="主题" />
               </SettingRow>
 
               <SettingRow label="强调色">
-                <SelectInput v-model="accentModel">
-                  <option value="default">{{ tr("默认") }}</option>
-                  <option value="blue">{{ tr("蓝色") }}</option>
-                  <option value="purple">{{ tr("紫色") }}</option>
-                  <option value="orange">{{ tr("橙色") }}</option>
-                </SelectInput>
+                <ToggleGroup v-model="accentModel" :items="ACCENT_OPTIONS" aria-label="强调色" />
               </SettingRow>
 
               <SettingRow label="应用语言">
-                <SelectInput v-model="languageModel">
-                  <option value="system">{{ tr("跟随系统") }}</option>
-                  <option value="zh-Hans">{{ tr("中文") }}</option>
-                  <option value="en">{{ tr("English") }}</option>
-                </SelectInput>
+                <ToggleGroup
+                  v-model="languageModel"
+                  :items="LANGUAGE_OPTIONS"
+                  aria-label="应用语言"
+                />
               </SettingRow>
             </div>
           </Card>
