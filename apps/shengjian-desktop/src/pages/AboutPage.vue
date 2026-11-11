@@ -1,15 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, shallowRef } from "vue";
 import { getVersion } from "@tauri-apps/api/app";
-import { Boxes, FolderOpen, RefreshCw, RotateCcw, ShieldCheck } from "lucide-vue-next";
-import {
-  getDeviceSupport,
-  getHostCapabilities,
-  openDiagnosticLogFolder,
-  openExternalUrl,
-  errorMessage,
-} from "../lib/api";
-import { RESTART_ONBOARDING_EVENT } from "../lib/preferences";
+import { Boxes, RefreshCw, ShieldCheck } from "lucide-vue-next";
+import { getDeviceSupport, getHostCapabilities, openExternalUrl, errorMessage } from "../lib/api";
 import { statusLabel, tr, trDynamic } from "../lib/i18n";
 import { useUpdateStore } from "../stores/update";
 import { usePairingStore } from "../stores/pairing";
@@ -92,18 +85,6 @@ function orderedPlatforms(device: DeviceSupport) {
       priority(left.platform, device.platforms.indexOf(left)) -
       priority(right.platform, device.platforms.indexOf(right)),
   );
-}
-
-async function openLogs() {
-  try {
-    await openDiagnosticLogFolder();
-  } catch (cause) {
-    error.value = errorMessage(cause);
-  }
-}
-
-function restartOnboarding() {
-  window.dispatchEvent(new Event(RESTART_ONBOARDING_EVENT));
 }
 
 async function runUpdateCheck() {
@@ -212,14 +193,6 @@ onMounted(async () => {
             >
               <RefreshCw :size="16" :class="{ spin: updateState === 'checking' }" />
               {{ trDynamic(updateState === "checking" ? "检查中" : "检查更新") }}
-            </Button>
-            <Button @click="openLogs">
-              <FolderOpen :size="16" />
-              {{ tr("日志目录") }}
-            </Button>
-            <Button @click="restartOnboarding">
-              <RotateCcw :size="16" />
-              {{ tr("配置向导") }}
             </Button>
           </div>
         </div>
@@ -569,7 +542,9 @@ onMounted(async () => {
   }
 }
 
-@media (max-width: 1320px) {
+/* Only collapse to a single column below the application minimum width, so the
+   version/update side keeps its top-right / bottom-right corners at 1200px. */
+@media (max-width: 1100px) {
   .about-hero {
     grid-template-columns: 1fr;
   }
