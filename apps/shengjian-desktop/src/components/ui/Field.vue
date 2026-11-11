@@ -62,7 +62,10 @@ withDefaults(
   line-height: 1.4;
 }
 
-@media (max-width: 1260px) {
+/* Keep the label and control side by side down to the application minimum
+   window width (1200px viewport); the content area is still ~925px there.
+   Only stack below that, as a safety net. */
+@media (max-width: 1100px) {
   .ui-field {
     grid-template-columns: 1fr;
     align-items: stretch;

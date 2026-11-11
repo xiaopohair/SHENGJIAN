@@ -57,9 +57,12 @@ function startOrCancelRun() {
     </div>
     <div class="editor-actions-wrap">
       <div class="editor-actions">
-        <Button variant="ghost" :disabled="busy" @click="emit('cancel')">{{ tr("取消") }}</Button>
+        <Button size="sm" variant="ghost" :disabled="busy" @click="emit('cancel')">{{
+          tr("取消")
+        }}</Button>
         <Button
           v-if="runStatus?.running"
+          size="sm"
           variant="danger"
           :disabled="busy"
           @click="startOrCancelRun"
@@ -67,18 +70,30 @@ function startOrCancelRun() {
           <Square :size="13" />
           {{ tr("停止") }}
         </Button>
-        <Button v-else variant="secondary" :disabled="!canTest || busy" @click="startOrCancelRun">
+        <Button
+          v-else
+          size="sm"
+          variant="secondary"
+          :disabled="!canTest || busy"
+          @click="startOrCancelRun"
+        >
           <Play :size="14" />
           {{ draftTesting ? tr("启动中…") : tr("试运行") }}
         </Button>
-        <Button variant="primary" :loading="busy" @click="emit('save')">
+        <Button size="sm" variant="primary" :loading="busy" @click="emit('save')">
           {{ tr("保存") }}
         </Button>
-        <IconButton :label="trDynamic('属性')" :disabled="busy" @click="emit('open-settings')">
+        <IconButton
+          size="sm"
+          :label="trDynamic('属性')"
+          :disabled="busy"
+          @click="emit('open-settings')"
+        >
           <SlidersHorizontal :size="14" />
         </IconButton>
         <template v-if="!editingNew">
           <IconButton
+            size="sm"
             :label="trDynamic('复制宏')"
             :disabled="busy"
             @click="emit('duplicate-macro')"
@@ -86,6 +101,7 @@ function startOrCancelRun() {
             <Copy :size="14" />
           </IconButton>
           <IconButton
+            size="sm"
             variant="danger"
             :label="trDynamic('删除宏')"
             :disabled="busy"
