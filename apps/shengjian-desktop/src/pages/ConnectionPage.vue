@@ -84,11 +84,6 @@ const hasConnectionNotices = computed(
     phaseFailure.value ||
     Boolean(settingsError.value),
 );
-const hasFailure = computed(
-  () =>
-    Boolean(connectionError.value || autoConnectFailed.value || settingsError.value) ||
-    phaseFailure.value,
-);
 
 function isCurrent(remoteId: string): boolean {
   return store.isConnected && currentRemoteId.value === remoteId;
@@ -258,10 +253,8 @@ async function refresh() {
   autoConnectFailed.value = false;
   await store.scan();
   await statusStore.refreshDeviceStatus();
-}
-
-async function retry() {
-  await refresh();
+  // A failed settings load is part of the page's failure state; recover it from
+  // the same button so the primary action always clears the error it shows.
   if (settingsError.value) {
     await loadDeviceSettings();
   }
@@ -338,9 +331,6 @@ onUnmounted(() => {
         <Button variant="primary" :disabled="store.scanning" @click="refresh">
           <RefreshCw :size="16" :class="{ spin: store.scanning }" />
           {{ trDynamic(store.scanning ? "扫描中" : "扫描设备") }}
-        </Button>
-        <Button v-if="hasFailure" variant="secondary" @click="retry">
-          {{ tr("重试") }}
         </Button>
       </template>
     </PageHeader>
