@@ -45,7 +45,6 @@ import SectionHeader from "../components/ui/SectionHeader.vue";
 import SelectInput from "../components/ui/SelectInput.vue";
 import StatusPill from "../components/ui/StatusPill.vue";
 import Switch from "../components/ui/Switch.vue";
-import Tabs from "../components/ui/Tabs.vue";
 import { pushToast } from "../lib/toast";
 import type { AudioEndpoint, SettingsDocument } from "../lib/types";
 import { useEngineStore } from "../stores/engine";
@@ -95,13 +94,6 @@ let loadingSettings = false;
 function sectionVisible(id: SectionId): boolean {
   return activeSection.value === id;
 }
-
-const sectionModel = computed({
-  get: () => activeSection.value,
-  set: (value: string) => {
-    activeSection.value = value as SectionId;
-  },
-});
 
 const accentModel = computed({
   get: () => accent.value,
@@ -442,251 +434,316 @@ onMounted(async () => {
 
     <Notice v-if="error" kind="error">{{ error }}</Notice>
 
-    <Tabs v-model="sectionModel" :items="SECTIONS" aria-label="设置分区" />
+    <div class="settings-shell">
+      <nav class="settings-nav" role="tablist" :aria-label="tr('设置分区')">
+        <button
+          v-for="section in SECTIONS"
+          :id="`tab-${section.id}`"
+          :key="section.id"
+          type="button"
+          role="tab"
+          class="settings-nav-item"
+          :class="{ active: activeSection === section.id }"
+          :aria-selected="activeSection === section.id"
+          :aria-controls="`panel-${section.id}`"
+          :tabindex="activeSection === section.id ? 0 : -1"
+          @click="activeSection = section.id"
+        >
+          {{ trDynamic(section.label) }}
+        </button>
+      </nav>
 
-    <div
-      class="settings-content stack"
-      role="tabpanel"
-      :id="`panel-${activeSection}`"
-      :aria-labelledby="`tab-${activeSection}`"
-      :aria-busy="loading || undefined"
-    >
-      <LoadingState v-if="loading" label="正在加载…" description="正在读取本地设置…" />
+      <div
+        class="settings-content stack"
+        role="tabpanel"
+        :id="`panel-${activeSection}`"
+        :aria-labelledby="`tab-${activeSection}`"
+        :aria-busy="loading || undefined"
+      >
+        <LoadingState v-if="loading" label="正在加载…" description="正在读取本地设置…" />
 
-      <template v-if="!loading && sectionVisible('appearance')">
-        <Card v-if="settingsDocument">
-          <SectionHeader title="外观与语言" hint="界面主题、强调色与应用语言" />
-          <div class="card-body settings-form">
-            <Field label="主题">
-              <SelectInput v-model="theme">
-                <option value="system">{{ tr("跟随系统") }}</option>
-                <option value="light">{{ tr("浅色") }}</option>
-                <option value="dark">{{ tr("深色") }}</option>
-              </SelectInput>
-            </Field>
+        <template v-if="!loading && sectionVisible('appearance')">
+          <Card v-if="settingsDocument">
+            <SectionHeader title="外观与语言" hint="界面主题、强调色与应用语言" />
+            <div class="card-body settings-form">
+              <Field label="主题">
+                <SelectInput v-model="theme">
+                  <option value="system">{{ tr("跟随系统") }}</option>
+                  <option value="light">{{ tr("浅色") }}</option>
+                  <option value="dark">{{ tr("深色") }}</option>
+                </SelectInput>
+              </Field>
 
-            <Field label="强调色">
-              <SelectInput v-model="accentModel">
-                <option value="default">{{ tr("默认") }}</option>
-                <option value="blue">{{ tr("蓝色") }}</option>
-                <option value="purple">{{ tr("紫色") }}</option>
-                <option value="orange">{{ tr("橙色") }}</option>
-              </SelectInput>
-            </Field>
+              <Field label="强调色">
+                <SelectInput v-model="accentModel">
+                  <option value="default">{{ tr("默认") }}</option>
+                  <option value="blue">{{ tr("蓝色") }}</option>
+                  <option value="purple">{{ tr("紫色") }}</option>
+                  <option value="orange">{{ tr("橙色") }}</option>
+                </SelectInput>
+              </Field>
 
-            <Field label="应用语言">
-              <SelectInput v-model="languageModel">
-                <option value="system">{{ tr("跟随系统") }}</option>
-                <option value="zh-Hans">{{ tr("中文") }}</option>
-                <option value="en">{{ tr("English") }}</option>
-              </SelectInput>
-            </Field>
-          </div>
-        </Card>
-      </template>
-
-      <template v-if="!loading && sectionVisible('audio')">
-        <Card v-if="settingsDocument">
-          <SectionHeader title="音频" hint="全局设置" />
-          <div class="card-body settings-form">
-            <Field label="增益">
-              <div class="range-control">
-                <RangeInput v-model="gain" :min="0" :max="24" :step="1" />
-                <span class="range-value mono">{{ gain }} dB</span>
-              </div>
-            </Field>
-
-            <Field label="音频输入设备">
-              <SelectInput v-model="endpointId">
-                <option value="">{{ tr("未设置（连接时自动选 CABLE）") }}</option>
-                <option v-for="endpoint in endpoints" :key="endpoint.id" :value="endpoint.id">
-                  {{ endpoint.name }}{{ endpoint.recommended ? tr("（推荐）") : "" }}
-                </option>
-              </SelectInput>
-            </Field>
-
-            <Field label="输入法">
-              <SelectInput v-model="voiceInputTool">
-                <option value="">{{ tr("未选择") }}</option>
-                <option value="wechat">{{ tr("微信输入法") }}</option>
-                <option value="doubao">{{ tr("豆包输入法") }}</option>
-                <option value="vokie">{{ tr("Vokie 桌面版") }}</option>
-                <option value="other">{{ tr("其他工具") }}</option>
-              </SelectInput>
-            </Field>
-
-            <Field label="语音热键">
-              <div class="hotkey-inline">
-                <kbd class="hotkey-value" :class="{ recording }" aria-live="polite">
-                  <span v-if="recording" class="hotkey-recording-dot" aria-hidden="true" />
-                  {{ hotkeyLabel }}
-                </kbd>
-                <IconButton
-                  :label="trDynamic(recording ? '取消录制' : '录制热键')"
-                  @click="toggleHotkey"
-                >
-                  <Keyboard :size="15" />
-                </IconButton>
-                <IconButton v-if="hasCustom" :label="trDynamic('恢复默认')" @click="resetHotkey">
-                  <RotateCcw :size="15" />
-                </IconButton>
-              </div>
-            </Field>
-
-            <div class="setting-toggle">
-              <div class="setting-toggle-copy">
-                <span class="setting-toggle-label">{{ tr("本机转写历史") }}</span>
-                <span class="setting-toggle-hint">{{ tr("只保存转写文字，不保存音频。") }}</span>
-              </div>
-              <Switch v-model="transcriptHistory" :label="trDynamic('本机转写历史')" />
+              <Field label="应用语言">
+                <SelectInput v-model="languageModel">
+                  <option value="system">{{ tr("跟随系统") }}</option>
+                  <option value="zh-Hans">{{ tr("中文") }}</option>
+                  <option value="en">{{ tr("English") }}</option>
+                </SelectInput>
+              </Field>
             </div>
-          </div>
-        </Card>
-      </template>
+          </Card>
+        </template>
 
-      <template v-if="!loading && sectionVisible('startup')">
-        <Card v-if="settingsDocument">
-          <SectionHeader title="启动与窗口" hint="系统启动与关闭行为" />
-          <div class="card-body settings-form">
-            <div class="setting-toggle">
-              <div class="setting-toggle-copy">
-                <span class="setting-toggle-label">{{ tr("开机自动启动") }}</span>
+        <template v-if="!loading && sectionVisible('audio')">
+          <Card v-if="settingsDocument">
+            <SectionHeader title="音频" hint="全局设置" />
+            <div class="card-body settings-form">
+              <Field label="增益">
+                <div class="range-control">
+                  <RangeInput v-model="gain" :min="0" :max="24" :step="1" />
+                  <span class="range-value mono">{{ gain }} dB</span>
+                </div>
+              </Field>
+
+              <Field label="音频输入设备">
+                <SelectInput v-model="endpointId">
+                  <option value="">{{ tr("未设置（连接时自动选 CABLE）") }}</option>
+                  <option v-for="endpoint in endpoints" :key="endpoint.id" :value="endpoint.id">
+                    {{ endpoint.name }}{{ endpoint.recommended ? tr("（推荐）") : "" }}
+                  </option>
+                </SelectInput>
+              </Field>
+
+              <Field label="输入法">
+                <SelectInput v-model="voiceInputTool">
+                  <option value="">{{ tr("未选择") }}</option>
+                  <option value="wechat">{{ tr("微信输入法") }}</option>
+                  <option value="doubao">{{ tr("豆包输入法") }}</option>
+                  <option value="vokie">{{ tr("Vokie 桌面版") }}</option>
+                  <option value="other">{{ tr("其他工具") }}</option>
+                </SelectInput>
+              </Field>
+
+              <Field label="语音热键">
+                <div class="hotkey-inline">
+                  <kbd class="hotkey-value" :class="{ recording }" aria-live="polite">
+                    <span v-if="recording" class="hotkey-recording-dot" aria-hidden="true" />
+                    {{ hotkeyLabel }}
+                  </kbd>
+                  <IconButton
+                    :label="trDynamic(recording ? '取消录制' : '录制热键')"
+                    @click="toggleHotkey"
+                  >
+                    <Keyboard :size="15" />
+                  </IconButton>
+                  <IconButton v-if="hasCustom" :label="trDynamic('恢复默认')" @click="resetHotkey">
+                    <RotateCcw :size="15" />
+                  </IconButton>
+                </div>
+              </Field>
+
+              <div class="setting-toggle">
+                <div class="setting-toggle-copy">
+                  <span class="setting-toggle-label">{{ tr("本机转写历史") }}</span>
+                  <span class="setting-toggle-hint">{{ tr("只保存转写文字，不保存音频。") }}</span>
+                </div>
+                <Switch v-model="transcriptHistory" :label="trDynamic('本机转写历史')" />
               </div>
-              <Switch v-model="autostart" :label="trDynamic('开机自动启动')" />
             </div>
+          </Card>
+        </template>
 
-            <div class="setting-toggle">
-              <div class="setting-toggle-copy">
-                <span class="setting-toggle-label">
-                  {{ tr("关闭窗口时隐藏到托盘（关闭则直接退出）") }}
-                </span>
+        <template v-if="!loading && sectionVisible('startup')">
+          <Card v-if="settingsDocument">
+            <SectionHeader title="启动与窗口" hint="系统启动与关闭行为" />
+            <div class="card-body settings-form">
+              <div class="setting-toggle">
+                <div class="setting-toggle-copy">
+                  <span class="setting-toggle-label">{{ tr("开机自动启动") }}</span>
+                </div>
+                <Switch v-model="autostart" :label="trDynamic('开机自动启动')" />
               </div>
-              <Switch
-                v-model="closeToTray"
-                :label="trDynamic('关闭窗口时隐藏到托盘（关闭则直接退出）')"
-              />
-            </div>
-          </div>
-        </Card>
-      </template>
 
-      <template v-if="!loading && sectionVisible('diagnostics')">
-        <Card>
-          <SectionHeader title="配置备份" hint="单 JSON 备份" />
-          <div class="card-body">
-            <p class="muted">
-              {{ tr("导出为单个 JSON，用于迁移或故障恢复；恢复会覆盖当前配置。") }}
-            </p>
-            <p class="muted">
-              {{ tr("备份包含 设置、方案、宏库、转写历史、强调色和上次设备。") }}
-            </p>
-            <div class="footer-actions">
-              <Button :disabled="backupBusy" @click="exportBackup">
-                <Download :size="16" />
-                {{ tr("导出备份") }}
-              </Button>
-              <Button :disabled="backupBusy" @click="importBackup">
-                <Upload :size="16" />
-                {{ tr("恢复备份") }}
-              </Button>
+              <div class="setting-toggle">
+                <div class="setting-toggle-copy">
+                  <span class="setting-toggle-label">
+                    {{ tr("关闭窗口时隐藏到托盘（关闭则直接退出）") }}
+                  </span>
+                </div>
+                <Switch
+                  v-model="closeToTray"
+                  :label="trDynamic('关闭窗口时隐藏到托盘（关闭则直接退出）')"
+                />
+              </div>
             </div>
-            <p v-if="backupMessage" class="muted">{{ backupMessage }}</p>
-          </div>
-        </Card>
+          </Card>
+        </template>
 
-        <Card>
-          <SectionHeader title="诊断" hint="不包含语音内容" />
-          <div class="card-body">
-            <p class="muted">
-              {{ tr("诊断日志位于本机 `%LOCALAPPDATA%\\Shengjian\\Logs`。") }}
-            </p>
-            <div class="footer-actions">
-              <Button @click="openLogs">
-                <FolderOpen :size="16" />
-                {{ tr("打开日志目录") }}
-              </Button>
-              <Button :disabled="diagnosticBusy" @click="loadDiagnostics">
-                {{ trDynamic(diagnosticBusy ? "读取中" : "查看日志") }}
-              </Button>
-              <Button :disabled="diagnosticBusy" @click="exportDiagnostics">
-                {{ tr("导出诊断包") }}
-              </Button>
-            </div>
-            <div v-if="diagnosticText !== null" class="log-block">
-              <div class="row-between">
-                <span class="muted">{{ tr("日志预览") }}</span>
-                <Button variant="ghost" size="sm" @click="logOpen = !logOpen">
-                  <component :is="logOpen ? ChevronUp : ChevronDown" :size="14" />
-                  {{ trDynamic(logOpen ? "收起日志" : "展开日志") }}
+        <template v-if="!loading && sectionVisible('diagnostics')">
+          <Card>
+            <SectionHeader title="配置备份" hint="单 JSON 备份" />
+            <div class="card-body">
+              <p class="muted">
+                {{ tr("导出为单个 JSON，用于迁移或故障恢复；恢复会覆盖当前配置。") }}
+              </p>
+              <p class="muted">
+                {{ tr("备份包含 设置、方案、宏库、转写历史、强调色和上次设备。") }}
+              </p>
+              <div class="footer-actions">
+                <Button :disabled="backupBusy" @click="exportBackup">
+                  <Download :size="16" />
+                  {{ tr("导出备份") }}
+                </Button>
+                <Button :disabled="backupBusy" @click="importBackup">
+                  <Upload :size="16" />
+                  {{ tr("恢复备份") }}
                 </Button>
               </div>
-              <pre v-show="logOpen" class="log-preview">{{ diagnosticText || tr("日志为空") }}</pre>
+              <p v-if="backupMessage" class="muted">{{ backupMessage }}</p>
             </div>
-          </div>
-        </Card>
+          </Card>
 
-        <Card>
-          <SectionHeader title="健康检查" hint="本机运行状态" />
-          <div class="card-body">
-            <p class="muted">
-              {{ tr("检查平台、RC003增强服务、音频、连接、电量和前台应用识别。") }}
-            </p>
-            <div class="footer-actions">
-              <Button :disabled="healthBusy" @click="runHealthCheck">
-                {{ trDynamic(healthBusy ? "检查中" : "运行健康检查") }}
-              </Button>
+          <Card>
+            <SectionHeader title="诊断" hint="不包含语音内容" />
+            <div class="card-body">
+              <p class="muted">
+                {{ tr("诊断日志位于本机 `%LOCALAPPDATA%\\Shengjian\\Logs`。") }}
+              </p>
+              <div class="footer-actions">
+                <Button @click="openLogs">
+                  <FolderOpen :size="16" />
+                  {{ tr("打开日志目录") }}
+                </Button>
+                <Button :disabled="diagnosticBusy" @click="loadDiagnostics">
+                  {{ trDynamic(diagnosticBusy ? "读取中" : "查看日志") }}
+                </Button>
+                <Button :disabled="diagnosticBusy" @click="exportDiagnostics">
+                  {{ tr("导出诊断包") }}
+                </Button>
+              </div>
+              <div v-if="diagnosticText !== null" class="log-block">
+                <div class="row-between">
+                  <span class="muted">{{ tr("日志预览") }}</span>
+                  <Button variant="ghost" size="sm" @click="logOpen = !logOpen">
+                    <component :is="logOpen ? ChevronUp : ChevronDown" :size="14" />
+                    {{ trDynamic(logOpen ? "收起日志" : "展开日志") }}
+                  </Button>
+                </div>
+                <pre v-show="logOpen" class="log-preview">{{
+                  diagnosticText || tr("日志为空")
+                }}</pre>
+              </div>
             </div>
-            <ul v-if="healthChecks.length" class="health-list">
-              <li v-for="check in healthChecks" :key="check.label" class="health-row">
-                <span class="health-label">{{ check.label }}</span>
-                <StatusPill
-                  :label="trDynamic(check.ok ? '可用' : '不可用')"
-                  :tone="check.ok ? 'success' : 'warning'"
-                  dot
-                />
-                <span class="mono muted health-detail">{{ check.detail }}</span>
-              </li>
-            </ul>
-          </div>
-        </Card>
-      </template>
+          </Card>
 
-      <template v-if="!loading && sectionVisible('advanced')">
-        <Card>
-          <SectionHeader title="高级" hint="首次配置与维护操作" />
-          <div class="card-body">
-            <p class="muted">
-              {{ tr("重新运行首次配置向导，可重新检查遥控器连接与语音链路。") }}
-            </p>
-            <div class="footer-actions">
-              <Button @click="restartOnboarding">
-                <RotateCcw :size="16" />
-                {{ tr("重新运行首次配置") }}
-              </Button>
+          <Card>
+            <SectionHeader title="健康检查" hint="本机运行状态" />
+            <div class="card-body">
+              <p class="muted">
+                {{ tr("检查平台、RC003增强服务、音频、连接、电量和前台应用识别。") }}
+              </p>
+              <div class="footer-actions">
+                <Button :disabled="healthBusy" @click="runHealthCheck">
+                  {{ trDynamic(healthBusy ? "检查中" : "运行健康检查") }}
+                </Button>
+              </div>
+              <ul v-if="healthChecks.length" class="health-list">
+                <li v-for="check in healthChecks" :key="check.label" class="health-row">
+                  <span class="health-label">{{ check.label }}</span>
+                  <StatusPill
+                    :label="trDynamic(check.ok ? '可用' : '不可用')"
+                    :tone="check.ok ? 'success' : 'warning'"
+                    dot
+                  />
+                  <span class="mono muted health-detail">{{ check.detail }}</span>
+                </li>
+              </ul>
             </div>
-          </div>
-        </Card>
+          </Card>
+        </template>
 
-        <Card class="danger-card">
-          <SectionHeader title="危险区域" hint="以下操作不可恢复" />
-          <div class="card-body">
-            <p class="muted">
-              {{ tr("恢复默认设置会清除全局设置和设备覆盖，不影响 profile、宏和转写历史。") }}
-            </p>
-            <div class="footer-actions">
-              <Button variant="danger" :disabled="busy" @click="resetAllSettings">
-                {{ tr("恢复默认设置") }}
-              </Button>
-              <span class="muted">{{ tr("更改会即时保存") }}</span>
+        <template v-if="!loading && sectionVisible('advanced')">
+          <Card>
+            <SectionHeader title="高级" hint="首次配置与维护操作" />
+            <div class="card-body">
+              <p class="muted">
+                {{ tr("重新运行首次配置向导，可重新检查遥控器连接与语音链路。") }}
+              </p>
+              <div class="footer-actions">
+                <Button @click="restartOnboarding">
+                  <RotateCcw :size="16" />
+                  {{ tr("重新运行首次配置") }}
+                </Button>
+              </div>
             </div>
-          </div>
-        </Card>
-      </template>
+          </Card>
+
+          <Card class="danger-card">
+            <SectionHeader title="危险区域" hint="以下操作不可恢复" />
+            <div class="card-body">
+              <p class="muted">
+                {{ tr("恢复默认设置会清除全局设置和设备覆盖，不影响 profile、宏和转写历史。") }}
+              </p>
+              <div class="footer-actions">
+                <Button variant="danger" :disabled="busy" @click="resetAllSettings">
+                  {{ tr("恢复默认设置") }}
+                </Button>
+                <span class="muted">{{ tr("更改会即时保存") }}</span>
+              </div>
+            </div>
+          </Card>
+        </template>
+      </div>
     </div>
   </section>
 </template>
 
 <style scoped>
+/* Left section nav, right content panel: uses the horizontal space a single
+   vertical form left empty. */
+.settings-shell {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: sticky;
+  top: var(--space-2);
+  min-width: 0;
+}
+
+.settings-nav-item {
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  padding: 9px 12px;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) ease,
+    color var(--duration-fast) ease;
+}
+
+.settings-nav-item:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.settings-nav-item.active {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
 .settings-content {
   min-width: 0;
 }
@@ -695,13 +752,12 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  max-width: 720px;
   margin-top: var(--space-4);
   min-width: 0;
 }
 
 .settings-form {
-  max-width: 640px;
+  min-width: 0;
 }
 
 .range-control {
