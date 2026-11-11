@@ -544,6 +544,11 @@ const ENGLISH = {
   导出备份: "Export backup",
   恢复备份: "Restore backup",
   诊断: "Diagnostics",
+  搜索设置项: "Search settings",
+  没有匹配的设置项: "No matching settings",
+  常规: "General",
+  数据: "Data",
+  维护: "Maintenance",
   不包含语音内容: "No voice content",
   "诊断日志位于本机 `%LOCALAPPDATA%\\Shengjian\\Logs`。":
     "Diagnostic logs are stored at `%LOCALAPPDATA%\\Shengjian\\Logs`.",

@@ -1,14 +1,20 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch, type Component } from "vue";
 import { open, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import {
   ChevronDown,
   ChevronUp,
   Download,
   FolderOpen,
+  HardDrive,
+  Palette,
+  Power,
   Keyboard,
   RotateCcw,
+  Search,
   Upload,
+  Volume2,
+  Wrench,
 } from "lucide-vue-next";
 import {
   errorMessage,
@@ -36,7 +42,7 @@ import PageHeader from "../components/PageHeader.vue";
 import { useHotkeyRecorder } from "../composables/useHotkeyRecorder";
 import Button from "../components/ui/Button.vue";
 import Card from "../components/ui/Card.vue";
-import Field from "../components/ui/Field.vue";
+import SettingRow from "../components/ui/SettingRow.vue";
 import IconButton from "../components/ui/IconButton.vue";
 import LoadingState from "../components/ui/LoadingState.vue";
 import Notice from "../components/ui/Notice.vue";
@@ -58,13 +64,31 @@ interface HealthCheck {
   detail: string;
 }
 
-const SECTIONS: { id: SectionId; label: string }[] = [
-  { id: "appearance", label: "外观与语言" },
-  { id: "audio", label: "音频" },
-  { id: "startup", label: "启动与窗口" },
-  { id: "diagnostics", label: "数据与诊断" },
-  { id: "advanced", label: "高级" },
+interface SettingsSection {
+  id: SectionId;
+  label: string;
+  icon: Component;
+  /** Nav group this section belongs to. */
+  group: string;
+}
+
+const SECTIONS: SettingsSection[] = [
+  { id: "appearance", label: "外观与语言", icon: Palette, group: "常规" },
+  { id: "audio", label: "音频", icon: Volume2, group: "常规" },
+  { id: "startup", label: "启动与窗口", icon: Power, group: "系统" },
+  { id: "diagnostics", label: "数据与诊断", icon: HardDrive, group: "系统" },
+  { id: "advanced", label: "高级", icon: Wrench, group: "系统" },
 ];
+
+const NAV_GROUPS = ["常规", "系统"];
+
+const navQuery = shallowRef("");
+
+const visibleSections = computed(() => {
+  const query = navQuery.value.trim().toLowerCase();
+  if (!query) return SECTIONS;
+  return SECTIONS.filter((section) => trDynamic(section.label).toLowerCase().includes(query));
+});
 
 const store = useEngineStore();
 const statusStore = useStatusStore();
@@ -435,22 +459,47 @@ onMounted(async () => {
     <Notice v-if="error" kind="error">{{ error }}</Notice>
 
     <div class="settings-shell">
-      <nav class="settings-nav" role="tablist" :aria-label="tr('设置分区')">
-        <button
-          v-for="section in SECTIONS"
-          :id="`tab-${section.id}`"
-          :key="section.id"
-          type="button"
-          role="tab"
-          class="settings-nav-item"
-          :class="{ active: activeSection === section.id }"
-          :aria-selected="activeSection === section.id"
-          :aria-controls="`panel-${section.id}`"
-          :tabindex="activeSection === section.id ? 0 : -1"
-          @click="activeSection = section.id"
-        >
-          {{ trDynamic(section.label) }}
-        </button>
+      <nav class="settings-nav" :aria-label="tr('设置分区')">
+        <label class="settings-search">
+          <Search :size="14" />
+          <input
+            v-model="navQuery"
+            type="search"
+            :placeholder="tr('搜索设置项')"
+            :aria-label="tr('搜索设置项')"
+          />
+        </label>
+
+        <div class="settings-nav-scroll">
+          <template v-for="group in NAV_GROUPS" :key="group">
+            <p
+              v-if="visibleSections.some((section) => section.group === group)"
+              class="settings-nav-group"
+            >
+              {{ trDynamic(group) }}
+            </p>
+            <button
+              v-for="section in visibleSections.filter((item) => item.group === group)"
+              :id="`tab-${section.id}`"
+              :key="section.id"
+              type="button"
+              role="tab"
+              class="settings-nav-item"
+              :class="{ active: activeSection === section.id }"
+              :aria-selected="activeSection === section.id"
+              :aria-controls="`panel-${section.id}`"
+              :tabindex="activeSection === section.id ? 0 : -1"
+              @click="activeSection = section.id"
+            >
+              <component :is="section.icon" :size="15" />
+              {{ trDynamic(section.label) }}
+            </button>
+          </template>
+
+          <p v-if="!visibleSections.length" class="settings-nav-empty">
+            {{ tr("没有匹配的设置项") }}
+          </p>
+        </div>
       </nav>
 
       <div
@@ -463,58 +512,58 @@ onMounted(async () => {
         <LoadingState v-if="loading" label="正在加载…" description="正在读取本地设置…" />
 
         <template v-if="!loading && sectionVisible('appearance')">
+          <p class="settings-group-label">{{ tr("常规") }}</p>
           <Card v-if="settingsDocument">
-            <SectionHeader title="外观与语言" hint="界面主题、强调色与应用语言" />
-            <div class="card-body settings-form">
-              <Field label="主题">
+            <div class="settings-rows">
+              <SettingRow label="主题">
                 <SelectInput v-model="theme">
                   <option value="system">{{ tr("跟随系统") }}</option>
                   <option value="light">{{ tr("浅色") }}</option>
                   <option value="dark">{{ tr("深色") }}</option>
                 </SelectInput>
-              </Field>
+              </SettingRow>
 
-              <Field label="强调色">
+              <SettingRow label="强调色">
                 <SelectInput v-model="accentModel">
                   <option value="default">{{ tr("默认") }}</option>
                   <option value="blue">{{ tr("蓝色") }}</option>
                   <option value="purple">{{ tr("紫色") }}</option>
                   <option value="orange">{{ tr("橙色") }}</option>
                 </SelectInput>
-              </Field>
+              </SettingRow>
 
-              <Field label="应用语言">
+              <SettingRow label="应用语言">
                 <SelectInput v-model="languageModel">
                   <option value="system">{{ tr("跟随系统") }}</option>
                   <option value="zh-Hans">{{ tr("中文") }}</option>
                   <option value="en">{{ tr("English") }}</option>
                 </SelectInput>
-              </Field>
+              </SettingRow>
             </div>
           </Card>
         </template>
 
         <template v-if="!loading && sectionVisible('audio')">
+          <p class="settings-group-label">{{ tr("音频") }}</p>
           <Card v-if="settingsDocument">
-            <SectionHeader title="音频" hint="全局设置" />
-            <div class="card-body settings-form">
-              <Field label="增益">
+            <div class="settings-rows">
+              <SettingRow label="增益" hint="语音输入的音量增益">
                 <div class="range-control">
                   <RangeInput v-model="gain" :min="0" :max="24" :step="1" />
                   <span class="range-value mono">{{ gain }} dB</span>
                 </div>
-              </Field>
+              </SettingRow>
 
-              <Field label="音频输入设备">
+              <SettingRow label="音频输入设备" hint="未设置时连接后自动选择 CABLE">
                 <SelectInput v-model="endpointId">
                   <option value="">{{ tr("未设置（连接时自动选 CABLE）") }}</option>
                   <option v-for="endpoint in endpoints" :key="endpoint.id" :value="endpoint.id">
                     {{ endpoint.name }}{{ endpoint.recommended ? tr("（推荐）") : "" }}
                   </option>
                 </SelectInput>
-              </Field>
+              </SettingRow>
 
-              <Field label="输入法">
+              <SettingRow label="输入法" hint="遥控器语音转写注入的目标输入法">
                 <SelectInput v-model="voiceInputTool">
                   <option value="">{{ tr("未选择") }}</option>
                   <option value="wechat">{{ tr("微信输入法") }}</option>
@@ -522,9 +571,9 @@ onMounted(async () => {
                   <option value="vokie">{{ tr("Vokie 桌面版") }}</option>
                   <option value="other">{{ tr("其他工具") }}</option>
                 </SelectInput>
-              </Field>
+              </SettingRow>
 
-              <Field label="语音热键">
+              <SettingRow label="语音热键" hint="按下遥控器语音键时注入的组合键">
                 <div class="hotkey-inline">
                   <kbd class="hotkey-value" :class="{ recording }" aria-live="polite">
                     <span v-if="recording" class="hotkey-recording-dot" aria-hidden="true" />
@@ -540,46 +589,32 @@ onMounted(async () => {
                     <RotateCcw :size="15" />
                   </IconButton>
                 </div>
-              </Field>
+              </SettingRow>
 
-              <div class="setting-toggle">
-                <div class="setting-toggle-copy">
-                  <span class="setting-toggle-label">{{ tr("本机转写历史") }}</span>
-                  <span class="setting-toggle-hint">{{ tr("只保存转写文字，不保存音频。") }}</span>
-                </div>
+              <SettingRow label="本机转写历史" hint="只保存转写文字，不保存音频。">
                 <Switch v-model="transcriptHistory" :label="trDynamic('本机转写历史')" />
-              </div>
+              </SettingRow>
             </div>
           </Card>
         </template>
 
         <template v-if="!loading && sectionVisible('startup')">
+          <p class="settings-group-label">{{ tr("系统") }}</p>
           <Card v-if="settingsDocument">
-            <SectionHeader title="启动与窗口" hint="系统启动与关闭行为" />
-            <div class="card-body settings-form">
-              <div class="setting-toggle">
-                <div class="setting-toggle-copy">
-                  <span class="setting-toggle-label">{{ tr("开机自动启动") }}</span>
-                </div>
+            <div class="settings-rows">
+              <SettingRow label="开机自动启动" hint="登录 Windows 后自动启动声键">
                 <Switch v-model="autostart" :label="trDynamic('开机自动启动')" />
-              </div>
+              </SettingRow>
 
-              <div class="setting-toggle">
-                <div class="setting-toggle-copy">
-                  <span class="setting-toggle-label">
-                    {{ tr("关闭窗口时隐藏到托盘（关闭则直接退出）") }}
-                  </span>
-                </div>
-                <Switch
-                  v-model="closeToTray"
-                  :label="trDynamic('关闭窗口时隐藏到托盘（关闭则直接退出）')"
-                />
-              </div>
+              <SettingRow label="关闭窗口时隐藏到托盘" hint="关闭后点窗口关闭按钮将直接退出应用">
+                <Switch v-model="closeToTray" :label="trDynamic('关闭窗口时隐藏到托盘')" />
+              </SettingRow>
             </div>
           </Card>
         </template>
 
         <template v-if="!loading && sectionVisible('diagnostics')">
+          <p class="settings-group-label">{{ tr("数据") }}</p>
           <Card>
             <SectionHeader title="配置备份" hint="单 JSON 备份" />
             <div class="card-body">
@@ -603,6 +638,7 @@ onMounted(async () => {
             </div>
           </Card>
 
+          <p class="settings-group-label">{{ tr("诊断") }}</p>
           <Card>
             <SectionHeader title="诊断" hint="不包含语音内容" />
             <div class="card-body">
@@ -663,6 +699,7 @@ onMounted(async () => {
         </template>
 
         <template v-if="!loading && sectionVisible('advanced')">
+          <p class="settings-group-label">{{ tr("维护") }}</p>
           <Card>
             <SectionHeader title="高级" hint="首次配置与维护操作" />
             <div class="card-body">
@@ -699,11 +736,10 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-/* Left section nav, right content panel: uses the horizontal space a single
-   vertical form left empty. */
+/* Sidebar nav (search + grouped items) beside a scrolling content panel. */
 .settings-shell {
   display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
+  grid-template-columns: 236px minmax(0, 1fr);
   align-items: start;
   gap: var(--space-5);
   min-width: 0;
@@ -712,13 +748,64 @@ onMounted(async () => {
 .settings-nav {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-2);
   position: sticky;
   top: var(--space-2);
   min-width: 0;
 }
 
+.settings-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  padding: 0 10px;
+  color: var(--text-muted);
+  transition: border-color var(--duration-fast) ease;
+}
+
+.settings-search:focus-within {
+  border-color: var(--accent);
+}
+
+.settings-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  padding: 8px 0;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-sm);
+}
+
+.settings-search input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.settings-nav-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.settings-nav-group {
+  margin: var(--space-3) 0 2px;
+  padding: 0 12px;
+  color: var(--text-muted);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
 .settings-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   border: 0;
   border-radius: var(--radius-md);
   background: transparent;
@@ -742,6 +829,27 @@ onMounted(async () => {
   background: var(--accent-soft);
   color: var(--accent-ink);
   font-weight: 600;
+}
+
+.settings-nav-empty {
+  margin: var(--space-3) 0 0;
+  padding: 0 12px;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+/* Group label above a card, mirroring the reference settings layout. */
+.settings-group-label {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.settings-rows {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .settings-content {
