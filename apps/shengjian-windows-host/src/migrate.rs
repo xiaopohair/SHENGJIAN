@@ -3,10 +3,9 @@ use serde::de::DeserializeOwned;
 use shengjian_app::{SettingsDocument, SettingsStorePort};
 use shengjian_contract::{ButtonMappingSet, ButtonProfilesDocument};
 use shengjian_domain::AppSettings;
-use shengjian_profiles::model::ButtonProfilesDocument as LegacyProfiles;
 use shengjian_windows::send_input::ButtonMappings;
 use shengjian_windows_adapter::{
-    migrate_button_mappings, migrate_button_profiles_document, WindowsSettingsStore,
+    migrate_button_mappings, migrate_button_profiles_document, LegacyProfiles, WindowsSettingsStore,
 };
 use std::error::Error;
 use std::fs;
@@ -66,8 +65,7 @@ fn write_json<T: serde::Serialize>(path: &Path, value: &T) -> Result<(), Box<dyn
 #[cfg(test)]
 mod tests {
     use super::*;
-    use shengjian_profiles::model::ButtonProfilesDocument as LegacyProfiles;
-    use shengjian_windows::send_input::ButtonMappings;
+        use shengjian_windows::send_input::ButtonMappings;
 
     fn temp_dir() -> PathBuf {
         std::env::temp_dir().join(format!(

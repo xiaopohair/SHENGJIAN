@@ -9,6 +9,6 @@ description = "Windows platform implementations of the Shengjian core ports"
 shengjian-app = { path = "../shengjian-app" }
 shengjian-contract = { path = "../shengjian-contract" }
 shengjian-domain = { path = "../shengjian-domain" }
-shengjian-profiles = { path = "../shengjian-profiles" }
 shengjian-windows = { path = "../shengjian-windows" }
+serde.workspace = true
 serde_json.workspace = true

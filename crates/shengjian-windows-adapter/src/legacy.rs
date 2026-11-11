@@ -7,10 +7,36 @@ use shengjian_contract::{
     FocusStrategy, LogicalAction, LogicalButton, MouseActionKind, TriggerBindings,
     BUTTON_PROFILES_SCHEMA_VERSION,
 };
-use shengjian_profiles::model::{
-    ButtonProfile as LegacyProfile, ButtonProfilesDocument as LegacyProfiles,
-    TriggerBindings as LegacyTriggerBindings,
-};
+// The legacy profile model used to live in a separate crate. Only three types are
+// needed for this one-way migration, so they are declared here and the crate is gone.
+pub type LegacyTriggerBindings = BTreeMap<LegacyTrigger, LegacyAction>;
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LegacyProfile {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub created_at: u64,
+    #[serde(default)]
+    pub app_targets: Vec<String>,
+    #[serde(default)]
+    pub auto_apply: bool,
+    #[serde(default)]
+    pub bindings: BTreeMap<RemoteButton, LegacyTriggerBindings>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LegacyProfiles {
+    #[serde(default)]
+    pub schema_version: u32,
+    #[serde(default)]
+    pub profiles: Vec<LegacyProfile>,
+    #[serde(default)]
+    pub active_manual_profile_id: Option<String>,
+}
+use serde::{Deserialize, Serialize};
 use shengjian_windows::raw_input::RemoteButton;
 use shengjian_windows::send_input::{
     ButtonAction as LegacyAction, ButtonActions as LegacyActions, ButtonMappings as LegacyMappings,

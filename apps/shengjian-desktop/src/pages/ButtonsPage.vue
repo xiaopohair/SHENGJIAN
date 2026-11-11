@@ -16,6 +16,7 @@ import { latestMacroDefinitions } from "../lib/macros";
 import {
   PROFILE_BUTTONS,
   PROFILE_TRIGGERS,
+  isGlobalProfile,
   type ProfileDraft,
   type ProfileTrigger,
 } from "../lib/buttons";
@@ -650,7 +651,7 @@ onUnmounted(() => {
             <Copy :size="14" />
           </IconButton>
           <IconButton
-            v-if="!editingNew && currentProfileRecord"
+            v-if="!editingNew && currentProfileRecord && !isGlobalProfile(currentProfileRecord)"
             size="sm"
             variant="danger"
             :label="trDynamic('删除方案')"

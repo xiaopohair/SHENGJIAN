@@ -6,7 +6,9 @@
 
 mod legacy;
 
-pub use legacy::{migrate_button_mappings, migrate_button_profiles_document};
+pub use legacy::{
+    migrate_button_mappings, migrate_button_profiles_document, LegacyProfile, LegacyProfiles,
+};
 
 use shengjian_app::{
     ActionSinkPort, AudioSinkPort, ButtonMappingStorePort, ButtonProfilesStorePort,

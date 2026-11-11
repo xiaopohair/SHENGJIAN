@@ -13,7 +13,6 @@ path = "src/main.rs"
 shengjian-app = { path = "../../crates/shengjian-app" }
 shengjian-contract = { path = "../../crates/shengjian-contract" }
 shengjian-domain = { path = "../../crates/shengjian-domain" }
-shengjian-profiles = { path = "../../crates/shengjian-profiles" }
 shengjian-windows = { path = "../../crates/shengjian-windows" }
 shengjian-windows-adapter = { path = "../../crates/shengjian-windows-adapter" }
 serde.workspace = true

@@ -32,7 +32,7 @@
 
 - [x] 完整手势：单击/双击/长按、按住连发、锁屏释放延迟、OK 上下文点击、deadline ticker。
 - [x] 键位方案覆盖层与前台自动应用：contract `ButtonProfilesDocument`、`ButtonProfileService`、`ForegroundPort` + Windows 实现。
-- [x] 旧平台 `ButtonMappings` / 旧版 `shengjian-profiles` 到 core 模型的迁移函数。
+- [x] 旧平台 `ButtonMappings` / 旧版方案文件到 core 模型的迁移函数（遗留类型已内联进 adapter，`shengjian-profiles` crate 已删除）。
 - [x] 宿主把旧 profile/mapping 文件读入并切换到 core 方案存储。
 - [x] core 按键配置持久化：`ButtonProfilesStorePort` / `ButtonMappingStorePort`，启动自动加载、变更写回。
 - [x] 隐私边界：contract `RemoteId` 使用 opaque token，事件/诊断日志不含蓝牙地址或 HID 路径。

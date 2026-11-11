@@ -52,7 +52,7 @@ helper/rc003
 - `WindowsVoiceSource` 轮询平台 `ConnectionSnapshot.voice_state`，`CoreEngine` ticker 将其 reconcile 到 `VoiceService`；真实语音键会出现在 core 事件流。
 - `AudioService::sync` 轮询 `AudioSinkPort::snapshot`，ticker 在流式/失效状态变化时发 `audio.changed`。
 - `WindowsSettingsStore` 提供中性命名空间下的文件读写（默认 `%LOCALAPPDATA%\Shengjian\settings.json`）。
-- core 键位方案：`ButtonProfilesDocument` + `ButtonProfileService` 做手动/前台自动选择与按 `(button, trigger)` 继承的覆盖层；`ForegroundPort` 由 Windows adapter 用只读前台可执行文件名实现。旧版 `shengjian-profiles` 与平台 `ButtonMappings` 可通过 adapter 的 `migrate_*` 函数转成 core 模型，文件读取/切换仍由宿主完成。
+- core 键位方案：`ButtonProfilesDocument` + `ButtonProfileService` 做手动/前台自动选择与按 `(button, trigger)` 继承的覆盖层；`ForegroundPort` 由 Windows adapter 用只读前台可执行文件名实现。旧版方案/映射文件（遗留 `button-profiles.json` 形状与平台 `ButtonMappings`）可通过 adapter 的 `migrate_*` 函数转成 core 模型；这些遗留类型已内联在 adapter 的 `legacy` 模块里，原 `shengjian-profiles` crate 已删除（它不在运行链路上）。
 - 设置命名空间：`SettingsDocument` 保留 global `AppSettings`，设备覆盖放在 `devices.<id>.<platform>.*`；`WindowsSettingsStore` 已写命名空间文档，并兼容读取同路径的旧扁平文件作为 `global`。
 - `DeviceCatalog::load_dir` / `resolve` 支持运行时 profile 加载，并优先用 `device_id`、其次型号/蓝牙名匹配；RC001/ARN9 的真实身份仍未确认。
 - `CoreEngine::disconnect` 在断连时强制释放 voice 与按键手势状态，`shutdown` 是幂等退出路径。

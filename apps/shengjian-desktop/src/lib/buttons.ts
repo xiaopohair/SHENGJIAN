@@ -15,6 +15,17 @@ export const PROFILE_BUTTONS: Array<{ id: LogicalButton; label: string }> = [
   { id: "volume-down", label: "音量-" },
 ];
 
+/** 全局方案的固定 id：恒存在、排首位、不可删除、不关联应用。 */
+export const GLOBAL_PROFILE_ID = "global";
+
+/** 全局方案的显示名（后端固定，不随用户改名变化）。 */
+export const GLOBAL_PROFILE_NAME = "全局";
+
+/** 是否为不可删除的全局方案。 */
+export function isGlobalProfile(profile: { id: string }): boolean {
+  return profile.id === GLOBAL_PROFILE_ID;
+}
+
 export const PROFILE_TRIGGERS = ["single", "double", "long"] as const;
 export type ProfileTrigger = (typeof PROFILE_TRIGGERS)[number];
 export type ProfileActionType =
