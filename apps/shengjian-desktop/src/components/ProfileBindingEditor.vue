@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, ref, shallowRef, watch } from "vue";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   Ban,
@@ -244,7 +244,7 @@ const mouseKind = computed(() => {
 
 type MouseDirection = "up" | "down" | "left" | "right";
 const lastMouseDirection = ref<MouseDirection>("down");
-const lastMouseAmount = ref(3);
+const lastMouseAmount = shallowRef(3);
 
 const mouseDirection = computed(() => {
   const action = currentAction.value;

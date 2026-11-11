@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, shallowRef } from "vue";
 import { Search } from "lucide-vue-next";
 import remoteImage from "../assets/devices/xiaomi-rc003.png";
 import {
@@ -31,8 +31,8 @@ const emit = defineEmits<{
 const draft = defineModel<ProfileDraft>("draft", { required: true });
 const selectedButton = ref<LogicalButton>("home");
 const selectedTrigger = ref<ProfileTrigger>("single");
-const query = ref("");
-const onlyConfigured = ref(false);
+const query = shallowRef("");
+const onlyConfigured = shallowRef(false);
 
 const CAPS: Record<string, string> = {
   power: "⏻",

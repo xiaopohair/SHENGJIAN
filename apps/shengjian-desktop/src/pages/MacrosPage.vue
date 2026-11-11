@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, useTemplateRef, watch } from "vue";
+import { computed, nextTick, onMounted, ref, shallowRef, useTemplateRef, watch } from "vue";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { Command, FileDown, FileUp, Plus } from "lucide-vue-next";
 import { errorMessage, exportMacroLibrary, importMacroLibrary, saveMacroLibrary } from "../lib/api";
@@ -20,13 +20,13 @@ import MacroSettingsDrawer from "../components/macro-editor/MacroSettingsDrawer.
 import type { MacroChord, MacroDefinition, MacroStep } from "../lib/types";
 
 const editor = ref<MacroDraft | null>(null);
-const editingNew = ref(false);
-const busy = ref(false);
-const error = ref<string | null>(null);
-const saveError = ref<string | null>(null);
+const editingNew = shallowRef(false);
+const busy = shallowRef(false);
+const error = shallowRef<string | null>(null);
+const saveError = shallowRef<string | null>(null);
 const editorHost = useTemplateRef<HTMLElement>("editorHost");
 const macroTabs = useTemplateRef<HTMLElement>("macroTabs");
-const baselineJson = ref("");
+const baselineJson = shallowRef("");
 
 const reportError = (cause: unknown) => {
   const message = macroErrorMessage(cause);
@@ -466,7 +466,7 @@ watch(editor, async (value) => {
   }
 });
 
-const macroSettingsOpen = ref(false);
+const macroSettingsOpen = shallowRef(false);
 
 /** Two-way bridges so the drawer edits the draft in place. */
 const editorNameModel = computed({

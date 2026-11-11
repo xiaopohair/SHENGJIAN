@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, useTemplateRef, watch } from "vue";
 import { CheckCircle2, CircleHelp, Mic, Radio, Tv, X } from "lucide-vue-next";
 import { tr, trDynamic } from "../lib/i18n";
 import { normalizePairingModel, type PairingModel } from "../stores/pairing";
@@ -61,8 +61,8 @@ const activeModel = ref<PairingModel>(normalizePairingModel(props.initialModel))
 const model = computed(() => MODELS[activeModel.value]);
 const title = computed(() => tr("如何配对{name}", { name: trDynamic(model.value.nameKey) }));
 
-const dialogRef = ref<HTMLElement | null>(null);
-const closeButton = ref<HTMLElement | null>(null);
+const dialogRef = useTemplateRef<HTMLElement>("dialogRef");
+const closeButton = useTemplateRef<HTMLElement>("closeButton");
 let previousFocus: HTMLElement | null = null;
 
 function close() {

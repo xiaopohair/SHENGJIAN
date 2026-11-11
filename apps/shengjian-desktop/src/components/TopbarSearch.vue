@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, ref, shallowRef, useTemplateRef, watch } from "vue";
 import { Search } from "lucide-vue-next";
 import type { PaletteCommand } from "../lib/palette";
 import { tr, trDynamic } from "../lib/i18n";
@@ -12,12 +12,12 @@ const emit = defineEmits<{
   run: [command: PaletteCommand];
 }>();
 
-const expanded = ref(false);
-const query = ref("");
-const activeIndex = ref(0);
-const rootRef = ref<HTMLElement | null>(null);
-const inputRef = ref<HTMLInputElement | null>(null);
-const toggleRef = ref<HTMLButtonElement | null>(null);
+const expanded = shallowRef(false);
+const query = shallowRef("");
+const activeIndex = shallowRef(0);
+const rootRef = useTemplateRef<HTMLElement>("rootRef");
+const inputRef = useTemplateRef<HTMLInputElement>("inputRef");
+const toggleRef = useTemplateRef<HTMLButtonElement>("toggleRef");
 const optionRefs = ref<HTMLElement[]>([]);
 
 const filtered = computed(() => {

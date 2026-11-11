@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from "vue";
+import { computed, onBeforeUnmount, ref, shallowRef } from "vue";
 import { ArrowDown, ArrowUp, CircleAlert, GripVertical, Plus } from "lucide-vue-next";
 import { statusLabel, tr, trDynamic } from "../../lib/i18n";
 import { actionIcon, actionLabel, actionTone, runStepTone } from "../../lib/macroEditor";
@@ -26,8 +26,8 @@ const selectedIndex = computed(() =>
 );
 
 const listRef = ref<HTMLElement | null>(null);
-const dragFrom = ref<number | null>(null);
-const dragOver = ref<number | null>(null);
+const dragFrom = shallowRef<number | null>(null);
+const dragOver = shallowRef<number | null>(null);
 const dragHandle = ref<HTMLElement | null>(null);
 let dragPointerId: number | null = null;
 const runByIndex = computed(() => {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, shallowRef } from "vue";
 import { getVersion } from "@tauri-apps/api/app";
 import { Boxes, FolderOpen, RefreshCw, RotateCcw, ShieldCheck } from "lucide-vue-next";
 import {
@@ -28,9 +28,9 @@ type StatusTone = "neutral" | "success" | "warning" | "danger" | "info" | "accen
 
 const deviceSupport = ref<DeviceSupport[]>([]);
 const capabilities = ref<HostCapabilities | null>(null);
-const appVersion = ref("");
+const appVersion = shallowRef("");
 const platformName = ref("windows");
-const error = ref<string | null>(null);
+const error = shallowRef<string | null>(null);
 const updateStore = useUpdateStore();
 const pairing = usePairingStore();
 const updateState = computed(() => updateStore.status);

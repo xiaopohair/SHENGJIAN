@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { computed, onBeforeUnmount, shallowRef, watch } from "vue";
 import { Keyboard, X } from "lucide-vue-next";
 import { tr, trDynamic } from "../../lib/i18n";
 import { chordParts } from "../../lib/macroEditor";
@@ -8,23 +8,17 @@ import type { MacroChord } from "../../lib/types";
 import Button from "./Button.vue";
 import IconButton from "./IconButton.vue";
 
-const props = defineProps<{
-  modelValue: MacroChord;
-}>();
+const model = defineModel<MacroChord>({ required: true });
 
-const emit = defineEmits<{
-  "update:modelValue": [value: MacroChord];
-}>();
-
-const capturing = ref(false);
-const parts = computed(() => chordParts(props.modelValue));
+const capturing = shallowRef(false);
+const parts = computed(() => chordParts(model.value));
 const hasChord = computed(
-  () => props.modelValue.key.trim().length > 0 || props.modelValue.modifiers.length > 0,
+  () => model.value.key.trim().length > 0 || model.value.modifiers.length > 0,
 );
 
 function clear() {
   stop();
-  emit("update:modelValue", { modifiers: [], key: "" });
+  model.value = { modifiers: [], key: "" };
 }
 
 function onKeydown(event: KeyboardEvent) {
@@ -38,7 +32,7 @@ function onKeydown(event: KeyboardEvent) {
   }
   const chord = chordFromKeyboardEvent(event);
   if (!chord) return;
-  emit("update:modelValue", chord);
+  model.value = chord;
   stop();
 }
 

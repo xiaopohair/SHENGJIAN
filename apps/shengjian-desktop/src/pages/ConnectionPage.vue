@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 import { Bluetooth, RefreshCw } from "lucide-vue-next";
 import {
   errorMessage,
@@ -34,17 +34,17 @@ const store = useEngineStore();
 const statusStore = useStatusStore();
 const battery = computed(() => statusStore.batteryLevel);
 const deviceStatus = computed(() => statusStore.deviceStatus);
-const settingsError = ref<string | null>(null);
+const settingsError = shallowRef<string | null>(null);
 const endpoints = ref<AudioEndpoint[]>([]);
-const useDeviceOverride = ref(false);
-const deviceGain = ref(0);
-const deviceEndpointId = ref("");
-const deviceVoiceInputTool = ref("");
-const rc003Capture = ref(false);
-const rc003HelperInstalled = ref(false);
-const helperMessage = ref<string | null>(null);
+const useDeviceOverride = shallowRef(false);
+const deviceGain = shallowRef(0);
+const deviceEndpointId = shallowRef("");
+const deviceVoiceInputTool = shallowRef("");
+const rc003Capture = shallowRef(false);
+const rc003HelperInstalled = shallowRef(false);
+const helperMessage = shallowRef<string | null>(null);
 const settingsDocument = ref<SettingsDocument | null>(null);
-const settingsDeviceId = ref<string | null>(null);
+const settingsDeviceId = shallowRef<string | null>(null);
 let saveTimer: number | undefined;
 let helperPoll: number | undefined;
 let loadingSettings = false;
@@ -68,8 +68,8 @@ const deviceArtwork = computed(() => {
   if (!store.isConnected) return null;
   return isRc001.value ? rc001Line : rc003Line;
 });
-const autoConnecting = ref(false);
-const autoConnectFailed = ref(false);
+const autoConnecting = shallowRef(false);
+const autoConnectFailed = shallowRef(false);
 const connectionError = computed(() => (store.error ? errorMessage(store.error) : null));
 const phaseFailure = computed(() => {
   const phase = String(store.phase);

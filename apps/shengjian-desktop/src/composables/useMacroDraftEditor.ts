@@ -1,4 +1,4 @@
-import { computed, ref, toRaw, watch, type Ref } from "vue";
+import { computed, shallowRef, toRaw, watch, type Ref } from "vue";
 import { createMacroStep, defaultMacroParameters, type MacroDraft } from "../lib/macros";
 import { stepIssue as calculateStepIssue, stepSummary } from "../lib/macroEditor";
 import type { MacroStep } from "../lib/types";
@@ -11,7 +11,7 @@ export interface MacroStepRow {
 }
 
 export function useMacroDraftEditor(draft: Ref<MacroDraft>) {
-  const selectedStepId = ref<string | null>(null);
+  const selectedStepId = shallowRef<string | null>(null);
 
   const selectedStep = computed(
     () => draft.value.steps.find((step) => step.stepId === selectedStepId.value) ?? null,

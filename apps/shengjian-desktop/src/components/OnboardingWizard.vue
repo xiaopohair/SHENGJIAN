@@ -1,5 +1,14 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import {
+  computed,
+  nextTick,
+  onMounted,
+  onUnmounted,
+  ref,
+  shallowRef,
+  useTemplateRef,
+  watch,
+} from "vue";
 import { Check, CheckCircle2, Keyboard, Mic, Radio, ShieldCheck } from "lucide-vue-next";
 import {
   errorMessage,
@@ -29,22 +38,22 @@ const emit = defineEmits<{ complete: [] }>();
 const store = useEngineStore();
 const statusStore = useStatusStore();
 const pairing = usePairingStore();
-const step = ref(1);
-const connecting = ref(false);
+const step = shallowRef(1);
+const connecting = shallowRef(false);
 const settings = ref<SettingsDocument | null>(null);
-const voiceInputTool = ref("");
-const audioEndpointId = ref("");
+const voiceInputTool = shallowRef("");
+const audioEndpointId = shallowRef("");
 const endpoints = ref<AudioEndpoint[]>([]);
-const rc003Capture = ref(false);
-const rc003HelperInstalled = ref(false);
-const helperBusy = ref(false);
-const helperMessage = ref<string | null>(null);
+const rc003Capture = shallowRef(false);
+const rc003HelperInstalled = shallowRef(false);
+const helperBusy = shallowRef(false);
+const helperMessage = shallowRef<string | null>(null);
 const detectedButtons = ref<string[]>([]);
-const voiceFailure = ref(false);
-const settingsReady = ref(false);
-const saving = ref(false);
-const error = ref<string | null>(null);
-const wizardRef = ref<HTMLElement | null>(null);
+const voiceFailure = shallowRef(false);
+const settingsReady = shallowRef(false);
+const saving = shallowRef(false);
+const error = shallowRef<string | null>(null);
+const wizardRef = useTemplateRef<HTMLElement>("wizardRef");
 let previousFocus: HTMLElement | null = null;
 let helperPoll: number | undefined;
 let buttonBaseline = 0;

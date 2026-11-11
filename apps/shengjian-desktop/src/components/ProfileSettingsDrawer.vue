@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { nextTick, onMounted, onUnmounted, useTemplateRef, watch } from "vue";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { FolderOpen, X } from "lucide-vue-next";
 import { errorMessage, resolveAppTarget } from "../lib/api";
@@ -23,7 +23,7 @@ const emit = defineEmits<{
 }>();
 
 const draft = defineModel<ProfileDraft>("draft", { required: true });
-const drawerRef = ref<HTMLElement | null>(null);
+const drawerRef = useTemplateRef<HTMLElement>("drawerRef");
 let previousFocus: HTMLElement | null = null;
 
 const RUNNABLE_EXTENSIONS = [

@@ -1,4 +1,4 @@
-import { onScopeDispose, ref, type Ref } from "vue";
+import { onScopeDispose, ref, shallowRef, type Ref } from "vue";
 import { cancelMacro, getMacroRunStatus, testMacroDraft } from "../lib/api";
 import type { MacroDefinition, MacroRunStatus } from "../lib/types";
 
@@ -13,8 +13,8 @@ export function useMacroDraftTestRun(
   reportError: ErrorReporter,
 ) {
   const draftRunStatus = ref<MacroRunStatus | null>(null);
-  const draftRunMacroId = ref<string | null>(null);
-  const draftTesting = ref(false);
+  const draftRunMacroId = shallowRef<string | null>(null);
+  const draftTesting = shallowRef(false);
   let pollTimer: number | undefined;
 
   function clearPoll() {

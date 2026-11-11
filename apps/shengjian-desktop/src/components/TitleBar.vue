@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from "vue";
+import { onMounted, onUnmounted, shallowRef } from "vue";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { Copy, Minus, Square, X } from "lucide-vue-next";
@@ -7,7 +7,7 @@ import BrandMark from "./BrandMark.vue";
 import { trDynamic } from "../lib/i18n";
 
 const appWindow = getCurrentWindow();
-const maximized = ref(false);
+const maximized = shallowRef(false);
 let unlisten: UnlistenFn | undefined;
 
 async function syncMaximized() {

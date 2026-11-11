@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, shallowRef, watch } from "vue";
 import { Command, FileText, Keyboard, Mic, Trash2 } from "lucide-vue-next";
 import {
   clearMacroRunHistory,
@@ -33,10 +33,10 @@ interface MacroHistoryEntryView {
 }
 
 const store = useEngineStore();
-const activeTab = ref<string>("voice");
+const activeTab = shallowRef<string>("voice");
 const macroHistory = ref<MacroHistoryEntryView[]>([]);
 const transcripts = ref<TranscriptRecord[]>([]);
-const error = ref<string | null>(null);
+const error = shallowRef<string | null>(null);
 
 const tabs = computed(() => [
   { id: "voice", label: "语音", count: store.voiceHistory.length },

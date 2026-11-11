@@ -1,11 +1,11 @@
-import { computed, onMounted, onScopeDispose, ref, type Ref } from "vue";
+import { computed, onMounted, onScopeDispose, ref, shallowRef, type Ref } from "vue";
 import { getMacroLibrary, getMacroRunStatus } from "../lib/api";
 import { compareMacroVersions, latestMacroDefinitions, nextMacroVersion } from "../lib/macros";
 import type { MacroDefinition, MacroLibraryDocument, MacroRunStatus } from "../lib/types";
 
 export function useMacroLibrary(reportError: (cause: unknown) => void) {
   const macroDocument = ref<MacroLibraryDocument | null>(null);
-  const loading = ref(true);
+  const loading = shallowRef(true);
 
   const latestMacros = computed(() =>
     latestMacroDefinitions(macroDocument.value?.definitions ?? []),

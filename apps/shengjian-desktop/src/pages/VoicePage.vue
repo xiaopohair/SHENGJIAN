@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 import { Check, Keyboard, RotateCcw } from "lucide-vue-next";
 import { errorMessage, getSettings, getVoiceLevel, saveSettings } from "../lib/api";
 import { statusLabel, tr, trDynamic } from "../lib/i18n";
@@ -22,11 +22,11 @@ type PillTone = "neutral" | "success" | "warning" | "danger" | "info" | "accent"
 
 const store = useEngineStore();
 const statusStore = useStatusStore();
-const error = ref<string | null>(null);
-const voiceInputTool = ref("");
-const transcriptHistory = ref(false);
+const error = shallowRef<string | null>(null);
+const voiceInputTool = shallowRef("");
+const transcriptHistory = shallowRef(false);
 const voiceHotkey = ref<string[] | null>(null);
-const recordingHotkey = ref(false);
+const recordingHotkey = shallowRef(false);
 const DEFAULT_HOTKEYS: Record<string, string[]> = {
   wechat: ["ControlLeft", "MetaLeft"],
   doubao: ["AltRight"],
@@ -123,7 +123,7 @@ let pressedHotkeyCodes = new Set<string>();
 let capturedHotkeyCodes: string[] = [];
 const testPhase = ref<"idle" | "waiting" | "streaming" | "done">("idle");
 const TEST_STEPS = ["等待按下", "收到语音流", "会话结束"] as const;
-const voiceLevelDbfs = ref(-120);
+const voiceLevelDbfs = shallowRef(-120);
 const levelPercent = computed(() => voiceLevelPercent(voiceLevelDbfs.value));
 const testStatusText = computed(() => {
   switch (testPhase.value) {

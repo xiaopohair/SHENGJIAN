@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { open, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { ChevronDown, ChevronUp, Download, FolderOpen, RotateCcw, Upload } from "lucide-vue-next";
 import {
@@ -61,24 +61,24 @@ const store = useEngineStore();
 const statusStore = useStatusStore();
 const settingsDocument = ref<SettingsDocument | null>(null);
 const endpoints = ref<AudioEndpoint[]>([]);
-const gain = ref(0);
-const endpointId = ref("");
-const autostart = ref(false);
-const closeToTray = ref(true);
+const gain = shallowRef(0);
+const endpointId = shallowRef("");
+const autostart = shallowRef(false);
+const closeToTray = shallowRef(true);
 const theme = ref("system");
 const language = ref("system");
 const accent = ref(localStorage.getItem(ACCENT_KEY) ?? "default");
-const backupBusy = ref(false);
-const backupMessage = ref<string | null>(null);
-const diagnosticText = ref<string | null>(null);
-const diagnosticBusy = ref(false);
-const logOpen = ref(false);
+const backupBusy = shallowRef(false);
+const backupMessage = shallowRef<string | null>(null);
+const diagnosticText = shallowRef<string | null>(null);
+const diagnosticBusy = shallowRef(false);
+const logOpen = shallowRef(false);
 const healthChecks = ref<HealthCheck[]>([]);
-const healthBusy = ref(false);
+const healthBusy = shallowRef(false);
 const activeSection = ref<SectionId>("appearance");
-const busy = ref(false);
-const loading = ref(true);
-const error = ref<string | null>(null);
+const busy = shallowRef(false);
+const loading = shallowRef(true);
+const error = shallowRef<string | null>(null);
 let saveTimer: number | undefined;
 let loadingSettings = false;
 

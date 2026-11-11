@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import {
   Copy,
@@ -55,10 +55,10 @@ const TRIGGERS = PROFILE_TRIGGERS;
 type Trigger = ProfileTrigger;
 
 const profilesDocument = ref<ButtonProfilesDocument | null>(null);
-const activeProfileId = ref<string | null>(null);
+const activeProfileId = shallowRef<string | null>(null);
 const macroDefinitions = ref<MacroDefinition[]>([]);
-const commonPhrasesAvailable = ref(false);
-const foregroundApp = ref("");
+const commonPhrasesAvailable = shallowRef(false);
+const foregroundApp = shallowRef("");
 const latestMacros = computed(() => latestMacroDefinitions(macroDefinitions.value));
 
 const autoProfileConflicts = computed(() => {
@@ -77,15 +77,15 @@ const autoProfileConflicts = computed(() => {
     .filter(([, names]) => names.length > 1)
     .map(([target, names]) => ({ target, names }));
 });
-const busy = ref(false);
-const loading = ref(true);
-const error = ref<string | null>(null);
+const busy = shallowRef(false);
+const loading = shallowRef(true);
+const error = shallowRef<string | null>(null);
 const editor = ref<ProfileDraft | null>(null);
-const editingNew = ref(false);
-const baselineJson = ref("");
+const editingNew = shallowRef(false);
+const baselineJson = shallowRef("");
 const view = ref<"workbench" | "table">("workbench");
-const settingsOpen = ref(false);
-const justSaved = ref(false);
+const settingsOpen = shallowRef(false);
+const justSaved = shallowRef(false);
 let timer: number | undefined;
 let savedTimer: number | undefined;
 let autoOpened = false;

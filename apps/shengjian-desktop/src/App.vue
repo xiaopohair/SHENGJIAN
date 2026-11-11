@@ -1,5 +1,15 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import {
+  computed,
+  defineAsyncComponent,
+  nextTick,
+  onMounted,
+  onUnmounted,
+  ref,
+  shallowRef,
+  useTemplateRef,
+  watch,
+} from "vue";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getVersion } from "@tauri-apps/api/app";
 import {
@@ -62,10 +72,10 @@ const status = useStatusStore();
 const updateStore = useUpdateStore();
 const pairing = usePairingStore();
 const active = ref<PageId>("connection");
-const appVersion = ref("");
+const appVersion = shallowRef("");
 const showOnboarding = ref(localStorage.getItem(ONBOARDING_KEY) !== "1");
-const scrollArea = ref<HTMLElement | null>(null);
-const scrollbarVisible = ref(false);
+const scrollArea = useTemplateRef<HTMLElement>("scrollArea");
+const scrollbarVisible = shallowRef(false);
 const themePreference = ref("system");
 const sidebarCollapsed = ref(localStorage.getItem(SIDEBAR_KEY) === "1");
 const topbarSearch = ref<InstanceType<typeof TopbarSearch> | null>(null);
