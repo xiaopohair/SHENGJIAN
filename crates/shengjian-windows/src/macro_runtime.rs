@@ -235,6 +235,12 @@ pub fn execute_macro(
             StepOutcome::Failed => return finish(MacroTerminalResult::StepFailed, steps),
         }
     }
+    // A cancel requested while the last step was running has no further loop
+    // iteration to observe it, so the macro would report Completed even though
+    // the user asked to stop. Check once more before claiming success.
+    if cancel.load(Ordering::Relaxed) {
+        return finish(MacroTerminalResult::Cancelled, steps);
+    }
     finish(
         if nested_missing_dependency {
             MacroTerminalResult::MissingDependency
