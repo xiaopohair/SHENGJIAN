@@ -481,7 +481,10 @@ function setNestedMacro(macroId: string) {
 .action-empty span {
   font-size: 12px;
 }
-@media (max-width: 1260px) {
+/* Keep 4 per row: the panel is ~600px wide at the minimum window width, which
+   still fits four 145px cards without clipping their labels. Only fall back to
+   two columns below the supported minimum. */
+@media (max-width: 1100px) {
   .action-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
