@@ -13,13 +13,8 @@ import {
   RotateCcw,
 } from "lucide-vue-next";
 import { errorMessage, resolveAppTarget } from "../lib/api";
-import {
-  PROFILE_BUTTONS,
-  type ProfileActionType,
-  type ProfileDraft,
-  type ProfileTrigger,
-} from "../lib/buttons";
-import { statusLabel, tr, trDynamic } from "../lib/i18n";
+import { type ProfileActionType, type ProfileDraft, type ProfileTrigger } from "../lib/buttons";
+import { tr, trDynamic } from "../lib/i18n";
 import type { LogicalAction, LogicalButton, MacroChord, MacroDefinition } from "../lib/types";
 import Checkbox from "./ui/Checkbox.vue";
 import IconButton from "./ui/IconButton.vue";
@@ -120,10 +115,6 @@ const ACTIONS = computed(() =>
       tone: "muted",
     },
   ].filter((action) => !action.hidden),
-);
-
-const label = computed(
-  () => PROFILE_BUTTONS.find((button) => button.id === props.buttonId)?.label ?? props.buttonId,
 );
 
 const holdRepeatSetting = computed<"inherit" | "off" | "single" | "long">({
@@ -387,28 +378,10 @@ async function chooseApp() {
     emit("error", errorMessage(cause));
   }
 }
-
-function actionName(type: ActionType): string {
-  const action = ACTIONS.value.find((item) => item.type === type);
-  if (action) return trDynamic(action.label);
-  if (type === "other") return trDynamic("其他（保留）");
-  return trDynamic("继承基线");
-}
 </script>
 
 <template>
   <div class="binding-editor" :class="{ compact }">
-    <div class="binding-editor-head">
-      <div>
-        <span class="eyebrow">{{ tr("当前绑定") }}</span>
-        <p class="binding-summary">
-          <strong>{{ trDynamic(label) }}</strong>
-          <span class="mono">{{ statusLabel(trigger) }}</span>
-        </p>
-      </div>
-      <span class="binding-current">{{ actionName(actionType) }}</span>
-    </div>
-
     <div class="binding-actions" :class="{ compact }">
       <button
         v-for="action in ACTIONS"
@@ -541,42 +514,6 @@ function actionName(type: ActionType): string {
 <style scoped>
 .binding-editor {
   min-width: 0;
-}
-
-.binding-editor-head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-bottom: var(--space-3);
-}
-
-.eyebrow {
-  color: var(--text-muted);
-  font-size: var(--text-2xs);
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.binding-summary {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  margin: 3px 0 0;
-}
-
-.binding-summary strong {
-  font-size: var(--text-lg);
-}
-.binding-summary .mono {
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-}
-.binding-current {
-  color: var(--accent);
-  font-size: var(--text-xs);
-  font-weight: 650;
 }
 
 .binding-actions {
