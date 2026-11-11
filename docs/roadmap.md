@@ -43,6 +43,7 @@
 - [ ] `Engine` 取消/退订与 headless 入口（基础 facade 和 disconnect 生命周期已有）。
 - [x] 运行时 profile loader：`ProfileCatalog::from_dir` / `DeviceCatalog::resolve`。
 - [ ] RC001/ARN9 身份复核后再启用 profile 运行时匹配。**deferred（2026-11-04 跳过，见 [device-identity.md](device-identity.md)）**
+- [ ] 方案按设备型号配置（第一步：模型结构 + RC003 生效）。**计划见 [plan-device-model-profiles.md](plan-device-model-profiles.md)**
 
 ## Phase 4 — 可选 shell / 客户端
 

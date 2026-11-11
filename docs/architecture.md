@@ -72,5 +72,6 @@ helper/rc003
 ## 下一步
 
 1. 复核 RC001/ARN9 设备身份，通过后再启用 profile 运行时匹配（见 `device-identity.md`）。
+   方案按设备型号配置分两步：第一步只做模型结构并让 RC003 生效，计划见 `plan-device-model-profiles.md`。
 2. 决定是否把 `helper/rc003` 并入顶层 workspace，统一 `cargo test --workspace` 覆盖。
 3. 对外发布前实跑 GitHub Actions（tag → release workflow），并视授权启用 SignPath 签名与 ARM64。
