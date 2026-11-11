@@ -860,7 +860,7 @@ onUnmounted(() => {
   flex: 1;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1260px) {
   .button-check-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

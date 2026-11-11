@@ -707,13 +707,13 @@ onUnmounted(() => {
   transition: width 80ms linear;
 }
 
-@media (max-width: 1120px) {
+@media (max-width: 1320px) {
   .voice-layout {
     grid-template-columns: 1fr;
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1260px) {
   .setting-row {
     grid-template-columns: 1fr;
   }
@@ -721,9 +721,7 @@ onUnmounted(() => {
   .setting-label {
     padding-top: 0;
   }
-}
 
-@media (max-width: 720px) {
   .test-progress {
     grid-template-columns: 1fr;
   }

@@ -318,7 +318,7 @@ defineExpose({ open });
   text-align: center;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1260px) {
   .topbar-search-field {
     width: 280px;
   }

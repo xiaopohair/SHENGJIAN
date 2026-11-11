@@ -807,7 +807,7 @@ onUnmounted(() => {
   outline: none;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1260px) {
   .topbar {
     gap: var(--space-2);
     padding-inline: var(--space-5);

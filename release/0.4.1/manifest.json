@@ -1,0 +1,8 @@
+{
+    "version":  "0.4.1",
+    "file":  "apps/shengjian-desktop/src-tauri/target/release/bundle/nsis/shengjian_0.4.1_x64-setup.exe",
+    "sizeBytes":  11355764,
+    "sha256":  "0DBEF462D5E65C86C079EC2D76B571A1A070E079F29ED6DF2A7C70D373AAA551",
+    "builtAtUtc":  "2026-11-11T07:07:19.5181318Z",
+    "signed":  false
+}

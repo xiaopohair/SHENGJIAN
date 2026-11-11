@@ -72,7 +72,7 @@ withDefaults(
   padding-top: 2px;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 1260px) {
   .ui-page-header {
     flex-direction: column;
     align-items: stretch;

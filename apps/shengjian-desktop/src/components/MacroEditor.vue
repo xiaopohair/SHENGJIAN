@@ -137,12 +137,12 @@ function removeSelected() {
   background: var(--bg-raised);
   box-shadow: var(--shadow-sm);
 }
-@media (max-width: 1120px) {
+@media (max-width: 1320px) {
   .editor-grid {
     grid-template-columns: 276px minmax(0, 1fr);
   }
 }
-@media (max-width: 980px) {
+@media (max-width: 1260px) {
   .editor-grid {
     grid-template-columns: 1fr;
   }

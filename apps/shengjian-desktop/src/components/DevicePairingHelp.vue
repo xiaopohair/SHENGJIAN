@@ -590,7 +590,7 @@ onUnmounted(() => {
   line-height: 1.5;
 }
 
-@media (max-width: 820px) {
+@media (max-width: 1320px) {
   .pairing-body {
     grid-template-columns: 1fr;
   }
@@ -605,7 +605,7 @@ onUnmounted(() => {
   }
 }
 
-@media (max-width: 560px) {
+@media (max-width: 1260px) {
   .pairing-backdrop {
     padding: var(--space-2);
   }

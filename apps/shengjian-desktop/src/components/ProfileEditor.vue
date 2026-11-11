@@ -667,7 +667,7 @@ async function chooseAppAction(button: LogicalButton, trigger: Trigger) {
   font-weight: 600;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1260px) {
   .field-indent {
     padding-left: 0;
   }

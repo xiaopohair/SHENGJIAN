@@ -398,7 +398,7 @@ watch(activeTab, (tab) => {
   white-space: pre-wrap;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1260px) {
   .history-row {
     grid-template-columns: minmax(0, 1fr) auto;
   }

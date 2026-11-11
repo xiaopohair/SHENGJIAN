@@ -758,10 +758,4 @@ function actionName(type: ActionType): string {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
-
-@media (max-width: 720px) {
-  .binding-actions {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
 </style>

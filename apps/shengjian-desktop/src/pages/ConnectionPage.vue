@@ -513,7 +513,8 @@ onUnmounted(() => {
       </ul>
     </Card>
 
-    <Card v-if="deviceId" class="stack">
+    <!-- Only offer per-device overrides while a device is actually connected. -->
+    <Card v-if="store.isConnected && deviceId" class="stack">
       <SectionHeader title="当前设备覆盖" :hint="deviceProductName" />
       <Checkbox v-model="useDeviceOverride">
         {{ tr("为此设备使用独立音频设置") }}
@@ -543,12 +544,6 @@ onUnmounted(() => {
           </SelectInput>
         </Field>
       </template>
-    </Card>
-    <Card v-else class="stack">
-      <SectionHeader title="当前设备覆盖" />
-      <Notice kind="info">
-        {{ tr("连接设备后可配置该设备的独立音频设置。") }}
-      </Notice>
     </Card>
 
     <Card v-if="supportsRc003Capture" class="stack">
@@ -805,7 +800,7 @@ onUnmounted(() => {
   line-height: 1.6;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1260px) {
   .device-status-body {
     flex-direction: column;
     align-items: flex-start;
@@ -826,9 +821,7 @@ onUnmounted(() => {
     width: 78px;
     height: 156px;
   }
-}
 
-@media (max-width: 720px) {
   .device-row {
     grid-template-columns: auto minmax(0, 1fr);
   }

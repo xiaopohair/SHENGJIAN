@@ -52,8 +52,6 @@ function startOrCancelRun() {
           :aria-label="tr('名称')"
           @input="emit('update:name', ($event.target as HTMLInputElement).value)"
         />
-      </div>
-      <div class="editor-meta">
         <StatusPill v-if="dirty" :label="trDynamic('未保存')" tone="warning" dot />
       </div>
     </div>
@@ -111,7 +109,9 @@ function startOrCancelRun() {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  padding: 0 2px;
+  /* Match the buttons page title row: a 1px rule under the editor title. */
+  padding: 0 2px 8px;
+  border-bottom: 1px solid var(--border);
 }
 .editor-identity {
   flex: 1;
@@ -143,7 +143,7 @@ function startOrCancelRun() {
 }
 .name-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
   min-width: 0;
 }
@@ -156,7 +156,10 @@ function startOrCancelRun() {
   text-transform: uppercase;
 }
 .name-input {
-  width: min(520px, 100%);
+  flex: 1 1 200px;
+  width: auto;
+  max-width: 520px;
+  min-width: 0;
   border: 0;
   outline: 0;
   background: transparent;
@@ -170,18 +173,8 @@ function startOrCancelRun() {
 .name-input:focus {
   border-bottom: 1px solid var(--accent);
 }
-.editor-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 12px;
-  margin-top: 8px;
-  color: var(--text-muted);
-  font-size: 12px;
-  line-height: 1.5;
-}
-.meta-item {
-  color: var(--text-muted);
+.name-row > .ui-status {
+  flex: 0 0 auto;
 }
 .editor-actions {
   display: flex;
@@ -197,7 +190,7 @@ function startOrCancelRun() {
   background: transparent;
   padding: 0;
 }
-@media (max-width: 620px) {
+@media (max-width: 1260px) {
   .editor-head {
     flex-direction: column;
   }

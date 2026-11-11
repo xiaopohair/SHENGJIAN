@@ -527,8 +527,6 @@ const ENGLISH = {
   "保存本机转写历史（只存文字，不存音频）": "Save local transcript history (text only, no audio)",
   "安装/更新 helper": "Install/update helper",
   当前设备覆盖: "Current device overrides",
-  "连接设备后可配置该设备的独立音频设置。":
-    "Connect a device to configure per-device audio settings.",
   为此设备使用独立音频设置: "Use device-specific audio settings",
   设备增益: "Device gain",
   设备端点: "Device endpoint",

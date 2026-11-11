@@ -205,7 +205,7 @@ watch(
     await nextTick();
     document
       .querySelector(".profile-chip.selected")
-      ?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+      ?.scrollIntoView?.({ block: "nearest", inline: "nearest", behavior: "smooth" });
   },
 );
 
@@ -492,7 +492,13 @@ onUnmounted(() => {
       description="为遥控器按键绑定动作或宏，并按前台应用自动切换。"
     >
       <template #actions>
-        <div class="view-switch" role="tablist" aria-label="视图切换">
+        <!-- No profiles and no draft: nothing to switch between yet. -->
+        <div
+          v-if="profilesDocument?.profiles.length || editor"
+          class="view-switch"
+          role="tablist"
+          aria-label="视图切换"
+        >
           <button
             type="button"
             class="view-button"
@@ -536,8 +542,23 @@ onUnmounted(() => {
     <LoadingState v-if="loading" label="正在加载…" description="正在读取本地键位方案…" />
 
     <template v-else>
-      <div v-if="profilesDocument?.profiles.length" class="profile-bar">
-        <div class="profile-chips" @wheel="onProfileWheel">
+      <div v-if="profilesDocument" class="profile-bar">
+        <div
+          v-if="profilesDocument.profiles.length || editingNew"
+          class="profile-chips"
+          @wheel="onProfileWheel"
+        >
+          <button
+            v-if="editingNew && editor"
+            type="button"
+            class="profile-chip new-chip selected"
+            :title="editor.name || tr('新方案')"
+          >
+            <span class="profile-chip-index">+</span>
+            <span class="profile-chip-copy">
+              <strong class="text-truncate">{{ editor.name || tr("新方案") }}</strong>
+            </span>
+          </button>
           <button
             v-for="(profile, index) in profilesDocument.profiles"
             :key="profile.id"
@@ -570,7 +591,11 @@ onUnmounted(() => {
             <FileUp :size="14" />
             {{ tr("导入") }}
           </Button>
-          <Button size="sm" :disabled="busy || !profilesDocument" @click="exportFile">
+          <Button
+            size="sm"
+            :disabled="busy || !profilesDocument || !profilesDocument.profiles.length"
+            @click="exportFile"
+          >
             <FileDown :size="14" />
             {{ tr("导出") }}
           </Button>
@@ -646,19 +671,8 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <EmptyState
-        v-if="!profilesDocument?.profiles.length"
-        title="还没有键位方案"
-        description="新建一个方案开始绑定按键。"
-      >
-        <template #icon><Keyboard :size="20" /></template>
-        <template #actions>
-          <Button variant="primary" @click="startNew">{{ tr("新建方案") }}</Button>
-        </template>
-      </EmptyState>
-
       <ProfileWorkbench
-        v-else-if="editor"
+        v-if="editor"
         v-model:draft="editor"
         :view="view"
         :busy="busy"
@@ -669,6 +683,17 @@ onUnmounted(() => {
         :latest-macros="latestMacros"
         @error="onEditorError"
       />
+
+      <EmptyState
+        v-else-if="!profilesDocument?.profiles.length"
+        title="还没有键位方案"
+        description="新建一个方案开始绑定按键。"
+      >
+        <template #icon><Keyboard :size="20" /></template>
+        <template #actions>
+          <Button variant="primary" @click="startNew">{{ tr("新建方案") }}</Button>
+        </template>
+      </EmptyState>
 
       <div v-else class="empty-workspace">
         <EmptyState title="选择一个方案开始编辑" description="也可以新建方案，或从模板快速创建。">
@@ -811,6 +836,18 @@ onUnmounted(() => {
   color: var(--text-on-accent);
 }
 
+.profile-chip.new-chip {
+  cursor: default;
+}
+
+/* Equal specificity to `.profile-chip.selected .profile-chip-index` but later,
+   so the "+" badge keeps its accent-soft treatment on the selected new chip. */
+.profile-chip.new-chip .profile-chip-index {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .profile-chip-flag {
   border-radius: 4px;
   background: var(--info-soft, color-mix(in srgb, var(--info) 14%, transparent));
@@ -838,6 +875,8 @@ onUnmounted(() => {
   flex: 0 0 auto;
   align-items: center;
   gap: var(--space-2);
+  /* Keep the actions on the right edge even when the chip strip is hidden. */
+  margin-left: auto;
 }
 
 .editor-toolbar {
@@ -906,13 +945,10 @@ onUnmounted(() => {
   padding-top: var(--space-2);
 }
 
-@media (max-width: 1120px) {
+@media (max-width: 1260px) {
   .profile-bar {
     align-items: flex-start;
   }
-}
-
-@media (max-width: 720px) {
   .profile-chip {
     max-width: none;
     flex: 0 0 auto;

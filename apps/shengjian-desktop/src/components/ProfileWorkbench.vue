@@ -903,7 +903,7 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
   padding: var(--space-4);
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 1320px) {
   .profile-workbench:has(.matrix-panel) {
     grid-template-columns: 1fr;
   }
@@ -912,7 +912,7 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1260px) {
   .profile-workbench:has(.remote-panel),
   .profile-workbench:has(.matrix-panel) {
     grid-template-columns: 1fr;
@@ -923,9 +923,6 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
   .remote-stage {
     min-height: 490px;
   }
-}
-
-@media (max-width: 700px) {
   .binding-panel {
     padding: var(--space-4);
   }

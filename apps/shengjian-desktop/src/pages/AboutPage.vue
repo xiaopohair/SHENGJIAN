@@ -569,7 +569,7 @@ onMounted(async () => {
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1320px) {
   .about-hero {
     grid-template-columns: 1fr;
   }

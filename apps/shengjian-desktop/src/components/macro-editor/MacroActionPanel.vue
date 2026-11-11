@@ -481,17 +481,7 @@ function setNestedMacro(macroId: string) {
 .action-empty span {
   font-size: 12px;
 }
-@media (max-width: 1120px) {
-  .action-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-@media (max-width: 980px) {
-  .action-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-@media (max-width: 620px) {
+@media (max-width: 1260px) {
   .action-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
