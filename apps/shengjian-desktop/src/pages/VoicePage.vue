@@ -707,7 +707,10 @@ onUnmounted(() => {
   transition: width 80ms linear;
 }
 
-@media (max-width: 1320px) {
+/* Layout stays multi-column down to the app minimum window width (1200px);
+   the content area is ~960px there once the 208px sidebar is subtracted.
+   These rules only apply below the supported minimum, as a safety net. */
+@media (max-width: 1100px) {
   .voice-layout {
     grid-template-columns: 1fr;
   }
