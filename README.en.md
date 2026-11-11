@@ -19,13 +19,13 @@ Brand positioning, slogan, logo, and visual guidelines: [brand/BRAND.md](brand/B
 
 ## Current status
 
-- Version: `0.4.1` (buttons/connection/macros page fixes, larger minimum window height, responsive breakpoint cleanup)
+- Version: `0.5.0` (buttons/connection/macros page fixes, larger minimum window height, responsive breakpoint cleanup)
 - Supported devices: RC003 (Xiaomi Bluetooth Voice Remote 2 Pro) and RC001 (Xiaomi Bluetooth Voice Remote 2); Windows x64
-- GitHub Release 0.4.1: <https://github.com/xiaopohair/SHENGJIAN/releases/tag/v0.4.1> (CI-built, unsigned); installer `shengjian_0.4.1_x64-setup.exe`; verify with the `SHA256SUMS` asset in the release
+- GitHub Release 0.5.0: <https://github.com/xiaopohair/SHENGJIAN/releases/tag/v0.5.0> (CI-built, unsigned); installer `shengjian_0.5.0_x64-setup.exe`; verify with the `SHA256SUMS` asset in the release
 - Code signing: integrated with **SignPath Foundation** free open-source signing (built into the release workflow; enables automatically once configured); see [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md) and [docs/signing.md](docs/signing.md)
 - Verified on a physical RC003: connection, voice, button gestures, automatic profile switching, Run macro (`run-macro`), and enhanced Back-key capture
-- Local release manifest: `release/0.4.1/manifest.json` (records the local build; the release asset is authoritative)
-- Release notes: `docs/release-notes-0.4.1.md`
+- Local release manifest: `release/0.5.0/manifest.json` (records the local build; the release asset is authoritative)
+- Release notes: `docs/release-notes-0.5.0.md`
 - GitHub repository: <https://github.com/xiaopohair/SHENGJIAN>; releases are produced by the Release workflow triggered by `v*` tags
 - No auto-updater
 
@@ -126,7 +126,7 @@ pnpm build:installer
 
 `pnpm build:installer` = `tauri build` + filename normalization. Tauri first produces `声键_<version>_x64-setup.exe` from `productName`; then `scripts/normalize-installer-name.ps1` renames it to the ASCII lowercase release filename:
 
-`apps/shengjian-desktop/src-tauri/target/release/bundle/nsis/shengjian_0.4.1_x64-setup.exe`
+`apps/shengjian-desktop/src-tauri/target/release/bundle/nsis/shengjian_0.5.0_x64-setup.exe`
 
 Running only `pnpm tauri build` also builds, but produces a Chinese filename; releases, CI, and download links consistently use `shengjian_<version>_x64-setup.exe`.
 
@@ -181,7 +181,7 @@ Details: [docs/rc003-helper-setup.md](docs/rc003-helper-setup.md).
 - Root workspace: `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test --workspace` pass (**694 passed**, including 493 in the `shengjian-windows` platform library)
 - Desktop Rust: **14 passed**
 - Desktop frontend: `pnpm lint`, `pnpm format:check`, `pnpm test` (**61 passed**), `pnpm build` pass
-- Local build: `shengjian_0.4.1_x64-setup.exe` generated; `prepare-release.ps1` / `verify-release.ps1` pass
+- Local build: `shengjian_0.5.0_x64-setup.exe` generated; `prepare-release.ps1` / `verify-release.ps1` pass
 - Physical install / launch / uninstall: install directory, shortcuts, uninstall entry, and version cleanup are correct; user data `%LOCALAPPDATA%\Shengjian` is preserved
 - Installer wizard: welcome sidebar, header brand image, Chinese UI, and the "声键 安装" title are correct
 - Portable build: extracted to a path with spaces and Chinese characters and launched correctly; the splash window appeared and closed once the main window was ready
@@ -196,20 +196,20 @@ Details: [docs/rc003-helper-setup.md](docs/rc003-helper-setup.md).
 ## Local release
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1 -Version 0.4.1
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -Version 0.4.1
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1 -Version 0.5.0
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -Version 0.5.0
 ```
 
 Both scripts read `productName` from `src-tauri/tauri.conf.json` and then assemble the installer path, so renaming the brand does not require script changes.
 `prepare-release.ps1` writes `release/<version>/manifest.json` (`version` / `file` / `sizeBytes` / `sha256` /
 `builtAtUtc` / `signed`); `verify-release.ps1` checks the local installer against it.
 
-GitHub Release 0.4.1 (CI build):
+GitHub Release 0.5.0 (CI build):
 
 ```text
-version=0.4.1
-installer=shengjian_0.4.1_x64-setup.exe
-portable=shengjian_0.4.1_x64-portable.zip
+version=0.5.0
+installer=shengjian_0.5.0_x64-setup.exe
+portable=shengjian_0.5.0_x64-portable.zip
 sha256/size: see the SHA256SUMS and manifest.json assets in the release
 signed=false
 ```
@@ -232,12 +232,12 @@ Route: **public repository, x64, manual download, no auto-update**; free open-so
 - Security: [SECURITY.md](SECURITY.md)
 - Release process: [docs/release-process.md](docs/release-process.md)
 
-The repository has been pushed to <https://github.com/xiaopohair/SHENGJIAN>; releases are generated by the tag-triggered `.github/workflows/release.yml`. The current tag is `v0.4.1` and the release is published: <https://github.com/xiaopohair/SHENGJIAN/releases/tag/v0.4.1>.
+The repository has been pushed to <https://github.com/xiaopohair/SHENGJIAN>; releases: <https://github.com/xiaopohair/SHENGJIAN/releases> (`v0.4.1` is published; `0.5.0` is pending).
 
 ## Known limitations
 
 - Windows x64 only; no ARM64 package
-- 0.4.1 is an unsigned release package; CI signing requires the repository to be public and pass SignPath review
+- Release packages are unsigned; CI signing requires the repository to be public and pass SignPath review
 - No auto-update
 - First helper installation requires UAC
 - RC001/ARN9 identity mapping is still deferred; see [docs/device-identity.md](docs/device-identity.md)
