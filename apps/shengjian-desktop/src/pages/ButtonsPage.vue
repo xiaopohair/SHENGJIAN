@@ -8,6 +8,7 @@ import {
   Keyboard,
   LayoutGrid,
   Plus,
+  RotateCcw,
   SlidersHorizontal,
   Table2,
   Trash2,
@@ -472,6 +473,30 @@ async function removeCurrentProfile() {
   const profile = currentProfile();
   if (profile) await removeProfile(profile);
 }
+/**
+ * Clear every explicit binding in the open draft so the profile falls back to
+ * its inherited defaults (the global profile for normal profiles, the factory
+ * mapping set for the global profile itself). Confirmed because it is destructive.
+ */
+async function resetCurrentProfile() {
+  if (!editor.value || busy.value) return;
+  const global = isGlobalProfile(editor.value);
+  const confirmed = await confirmAction({
+    title: tr("重置方案“{name}”？", { name: editor.value.name || tr("未命名方案") }),
+    message: global
+      ? tr("将清空全局方案的所有动作，全部回到遥控器出厂默认。此操作不可恢复。")
+      : tr("将清空本方案的所有动作，全部回到全局方案的默认值。此操作不可恢复。"),
+    confirmLabel: tr("重置"),
+    danger: true,
+  });
+  if (!confirmed) return;
+  editor.value = {
+    ...editor.value,
+    bindings: {},
+    holdRepeat: "",
+    holdRepeatByButton: {},
+  };
+}
 
 function openSettings() {
   settingsOpen.value = true;
@@ -658,6 +683,15 @@ onUnmounted(() => {
             @click="duplicateCurrentProfile"
           >
             <Copy :size="14" />
+          </IconButton>
+          <IconButton
+            v-if="!editingNew && currentProfileRecord"
+            size="sm"
+            :label="trDynamic('重置方案')"
+            :disabled="busy"
+            @click="resetCurrentProfile"
+          >
+            <RotateCcw :size="14" />
           </IconButton>
           <IconButton
             v-if="!editingNew && currentProfileRecord && !isGlobalProfile(currentProfileRecord)"

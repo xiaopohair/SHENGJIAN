@@ -220,6 +220,12 @@ const ENGLISH = {
   启动与窗口: "Startup & window",
   系统启动与关闭行为: "Startup and close behavior",
   重置: "Reset",
+  重置方案: "Reset profile",
+  "重置方案“{name}”？": "Reset profile “{name}”?",
+  "将清空全局方案的所有动作，全部回到遥控器出厂默认。此操作不可恢复。":
+    "This clears every action in the global profile, returning all buttons to the factory defaults. This cannot be undone.",
+  "将清空本方案的所有动作，全部回到全局方案的默认值。此操作不可恢复。":
+    "This clears every action in this profile, returning all buttons to the global profile defaults. This cannot be undone.",
   仅影响设置: "Settings only",
   "恢复默认设置会清除全局设置和设备覆盖，不影响 profile、宏和转写历史。":
     "Restoring defaults clears global settings and device overrides; profiles, macros, and transcripts are unaffected.",
