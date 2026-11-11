@@ -22,6 +22,10 @@ const props = defineProps<{
   foregroundApp: string;
   commonPhrasesAvailable: boolean;
   latestMacros: MacroDefinition[];
+  /** Whether a remote is actually connected right now. */
+  remoteConnected: boolean;
+  /** Connected remote model, when known (e.g. "RC003"). */
+  remoteModel: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -30,6 +34,12 @@ const emit = defineEmits<{
 
 const draft = defineModel<ProfileDraft>("draft", { required: true });
 const selectedButton = ref<LogicalButton>("home");
+/** Model + connection state; never claims "connected" without a real session. */
+const devicePillText = computed(() => {
+  const model = props.remoteModel?.trim() || tr("遥控器");
+  return `${model} · ${props.remoteConnected ? tr("已连接") : tr("未连接")}`;
+});
+
 const selectedTrigger = ref<ProfileTrigger>("single");
 const query = shallowRef("");
 const onlyConfigured = shallowRef(false);
@@ -182,7 +192,9 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
       <aside class="remote-panel panel">
         <div class="panel-head">
           <span class="eyebrow">{{ tr("当前遥控器") }}</span>
-          <span class="device-pill">RC003 · {{ tr("已连接") }}</span>
+          <span class="device-pill" :class="{ offline: !remoteConnected }">
+            {{ devicePillText }}
+          </span>
         </div>
         <div class="product-stage">
           <div class="product-remote">
@@ -444,6 +456,11 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
   border-radius: 50%;
   background: var(--success);
   content: "";
+}
+
+/* Not connected: the dot must not read as "online". */
+.device-pill.offline::before {
+  background: var(--text-muted);
 }
 
 .product-stage {

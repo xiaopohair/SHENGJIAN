@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
+import { createPinia } from "pinia";
 import { setLanguagePreference } from "../lib/i18n";
 import type { ButtonProfilesDocument } from "../lib/types";
 
@@ -75,7 +76,8 @@ beforeEach(() => {
 });
 
 async function mountPage() {
-  const wrapper = mount(ButtonsPage);
+  // The page reads connection state from the engine store.
+  const wrapper = mount(ButtonsPage, { global: { plugins: [createPinia()] } });
   await flushPromises();
   return wrapper;
 }

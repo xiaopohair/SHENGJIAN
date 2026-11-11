@@ -25,6 +25,7 @@ import {
 import { statusLabel, tr, trDynamic } from "../lib/i18n";
 import { confirmAction } from "../lib/confirm";
 import { useDraftGuard } from "../composables/useDraftGuard";
+import { useEngineStore } from "../stores/engine";
 import PageHeader from "../components/PageHeader.vue";
 import Button from "../components/ui/Button.vue";
 import EmptyState from "../components/ui/EmptyState.vue";
@@ -59,6 +60,10 @@ type Trigger = ProfileTrigger;
 
 const profilesDocument = ref<ButtonProfilesDocument | null>(null);
 const activeProfileId = shallowRef<string | null>(null);
+const engineStore = useEngineStore();
+const remoteConnected = computed(() => engineStore.isConnected);
+const remoteModel = computed(() => engineStore.snapshot?.connection.remote?.model ?? null);
+
 const macroDefinitions = ref<MacroDefinition[]>([]);
 const commonPhrasesAvailable = shallowRef(false);
 const foregroundApp = shallowRef("");
@@ -725,6 +730,8 @@ onUnmounted(() => {
         :foreground-app="foregroundApp"
         :common-phrases-available="commonPhrasesAvailable"
         :latest-macros="latestMacros"
+        :remote-connected="remoteConnected"
+        :remote-model="remoteModel"
         @error="onEditorError"
       />
 
