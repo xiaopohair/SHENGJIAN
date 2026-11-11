@@ -74,7 +74,7 @@ interface SettingsSection {
 
 const SECTIONS: SettingsSection[] = [
   { id: "appearance", label: "外观与语言", icon: Palette, group: "常规" },
-  { id: "audio", label: "音频", icon: Volume2, group: "常规" },
+  { id: "audio", label: "音频及语音", icon: Volume2, group: "常规" },
   { id: "startup", label: "启动与窗口", icon: Power, group: "系统" },
   { id: "diagnostics", label: "数据与诊断", icon: HardDrive, group: "系统" },
   { id: "advanced", label: "高级", icon: Wrench, group: "系统" },
@@ -547,14 +547,14 @@ onMounted(async () => {
           <p class="settings-group-label">{{ tr("音频") }}</p>
           <Card v-if="settingsDocument">
             <div class="settings-rows">
-              <SettingRow label="增益" hint="语音输入的音量增益">
+              <SettingRow label="增益" hint="语音播放的音量增益">
                 <div class="range-control">
                   <RangeInput v-model="gain" :min="0" :max="24" :step="1" />
                   <span class="range-value mono">{{ gain }} dB</span>
                 </div>
               </SettingRow>
 
-              <SettingRow label="音频输入设备" hint="未设置时连接后自动选择 CABLE">
+              <SettingRow label="音频输出设备" hint="语音播放到的设备；未设置时连接后自动选 CABLE">
                 <SelectInput v-model="endpointId">
                   <option value="">{{ tr("未设置（连接时自动选 CABLE）") }}</option>
                   <option v-for="endpoint in endpoints" :key="endpoint.id" :value="endpoint.id">
@@ -562,7 +562,12 @@ onMounted(async () => {
                   </option>
                 </SelectInput>
               </SettingRow>
+            </div>
+          </Card>
 
+          <p class="settings-group-label">{{ tr("语音") }}</p>
+          <Card v-if="settingsDocument">
+            <div class="settings-rows">
               <SettingRow label="输入法" hint="遥控器语音转写注入的目标输入法">
                 <SelectInput v-model="voiceInputTool">
                   <option value="">{{ tr("未选择") }}</option>

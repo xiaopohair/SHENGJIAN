@@ -549,6 +549,8 @@ const ENGLISH = {
   常规: "General",
   数据: "Data",
   维护: "Maintenance",
+  音频及语音: "Audio & voice",
+  音频输出设备: "Audio output device",
   不包含语音内容: "No voice content",
   "诊断日志位于本机 `%LOCALAPPDATA%\\Shengjian\\Logs`。":
     "Diagnostic logs are stored at `%LOCALAPPDATA%\\Shengjian\\Logs`.",
