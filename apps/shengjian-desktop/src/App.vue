@@ -58,9 +58,8 @@ import type { PaletteCommand } from "./lib/palette";
 import type { EventEnvelope } from "./lib/types";
 import BrandMark from "./components/BrandMark.vue";
 
-type PageId = "connection" | "voice" | "buttons" | "macros" | "history" | "settings" | "about";
+type PageId = "connection" | "buttons" | "macros" | "history" | "settings" | "about";
 
-const VoicePage = defineAsyncComponent(() => import("./pages/VoicePage.vue"));
 const ButtonsPage = defineAsyncComponent(() => import("./pages/ButtonsPage.vue"));
 const MacrosPage = defineAsyncComponent(() => import("./pages/MacrosPage.vue"));
 const SettingsPage = defineAsyncComponent(() => import("./pages/SettingsPage.vue"));
@@ -136,7 +135,6 @@ const INPUT_TOOL_LABELS: Record<string, string> = {
 
 const pages = [
   { id: "connection" as const, label: "连接", icon: Radio, component: ConnectionPage },
-  { id: "voice" as const, label: "语音", icon: Mic, component: VoicePage },
   { id: "buttons" as const, label: "按键", icon: Keyboard, component: ButtonsPage },
   { id: "macros" as const, label: "宏", icon: Command, component: MacrosPage },
   { id: "history" as const, label: "历史", icon: HistoryIcon, component: HistoryPage },
@@ -145,7 +143,7 @@ const pages = [
 ];
 
 const navGroups = [
-  { label: "设备", ids: ["connection", "voice"] as PageId[] },
+  { label: "设备", ids: ["connection"] as PageId[] },
   { label: "自动化", ids: ["buttons", "macros"] as PageId[] },
   { label: "记录", ids: ["history"] as PageId[] },
   { label: "系统", ids: ["settings", "about"] as PageId[] },
@@ -206,13 +204,6 @@ const paletteCommands = computed<PaletteCommand[]>(() => [
     group: "操作",
     icon: RefreshCw,
     keywords: "scan bluetooth 扫描",
-  },
-  {
-    id: "action:voice",
-    label: "打开语音测试",
-    group: "操作",
-    icon: Mic,
-    keywords: "voice test 语音 测试",
   },
 ]);
 
@@ -309,8 +300,6 @@ function runPaletteCommand(command: PaletteCommand) {
     void goTo(command.id.slice(4) as PageId);
   } else if (command.id === "action:scan") {
     void store.scan();
-  } else if (command.id === "action:voice") {
-    void goTo("voice");
   }
 }
 

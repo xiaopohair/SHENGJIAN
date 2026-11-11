@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue";
 import { open, save as saveDialog } from "@tauri-apps/plugin-dialog";
-import { ChevronDown, ChevronUp, Download, FolderOpen, RotateCcw, Upload } from "lucide-vue-next";
+import {
+  ChevronDown,
+  ChevronUp,
+  Download,
+  FolderOpen,
+  Keyboard,
+  RotateCcw,
+  Upload,
+} from "lucide-vue-next";
 import {
   errorMessage,
   exportConfiguration,
@@ -25,9 +33,11 @@ import { ONBOARDING_KEY, ACCENT_KEY, applyAccent, applyTheme } from "../lib/pref
 import { confirmAction } from "../lib/confirm";
 import { setLanguagePreference, statusLabel, tr, trDynamic, uiLocale } from "../lib/i18n";
 import PageHeader from "../components/PageHeader.vue";
+import { useHotkeyRecorder } from "../composables/useHotkeyRecorder";
 import Button from "../components/ui/Button.vue";
 import Card from "../components/ui/Card.vue";
 import Field from "../components/ui/Field.vue";
+import IconButton from "../components/ui/IconButton.vue";
 import LoadingState from "../components/ui/LoadingState.vue";
 import Notice from "../components/ui/Notice.vue";
 import RangeInput from "../components/ui/RangeInput.vue";
@@ -98,6 +108,24 @@ const accentModel = computed({
   set: (value: string) => changeAccent(value),
 });
 
+const voiceInputTool = shallowRef("");
+const transcriptHistory = shallowRef(false);
+const voiceHotkey = ref<string[] | null>(null);
+const DEFAULT_VOICE_HOTKEYS: Record<string, string[]> = {
+  wechat: ["ControlLeft", "MetaLeft"],
+  doubao: ["AltRight"],
+};
+const {
+  recording,
+  label: hotkeyLabel,
+  hasCustom,
+  toggle: toggleHotkey,
+  reset: resetHotkey,
+} = useHotkeyRecorder({
+  hotkey: voiceHotkey,
+  fallback: () => DEFAULT_VOICE_HOTKEYS[voiceInputTool.value] ?? [],
+});
+
 const languageModel = computed({
   get: () => language.value,
   set: (value: string) => changeLanguage(value),
@@ -110,6 +138,11 @@ async function load() {
     const settings = await getSettings();
     settingsDocument.value = settings;
     statusStore.setVoiceInputTool(settings.global.voice_input_tool);
+    voiceInputTool.value = String(settings.global.voice_input_tool ?? "");
+    const storedHotkey = settings.global.voice_hotkey;
+    voiceHotkey.value =
+      Array.isArray(storedHotkey) && storedHotkey.length > 0 ? storedHotkey : null;
+    transcriptHistory.value = settings.global.local_transcript_history_enabled ?? false;
     gain.value = settings.global.gain_db;
     endpointId.value = settings.global.audio_endpoint_id ?? "";
     autostart.value = await getAutostartEnabled();
@@ -152,6 +185,9 @@ async function save(auto = false) {
         ...latest.global,
         gain_db: gain.value,
         audio_endpoint_id: endpointId.value || null,
+        voice_input_tool: voiceInputTool.value || null,
+        voice_hotkey: voiceHotkey.value,
+        local_transcript_history_enabled: transcriptHistory.value,
         close_to_tray: closeToTray.value,
         theme_preference: theme.value,
         application_language: language.value,
@@ -178,7 +214,20 @@ function scheduleAutoSave() {
   }, 250);
 }
 
-watch([gain, endpointId, theme, language, autostart, closeToTray], scheduleAutoSave);
+watch(
+  [
+    gain,
+    endpointId,
+    theme,
+    language,
+    autostart,
+    closeToTray,
+    voiceInputTool,
+    transcriptHistory,
+    voiceHotkey,
+  ],
+  scheduleAutoSave,
+);
 
 onBeforeUnmount(() => {
   if (saveTimer === undefined) return;
@@ -455,6 +504,42 @@ onMounted(async () => {
                 </option>
               </SelectInput>
             </Field>
+
+            <Field label="输入法">
+              <SelectInput v-model="voiceInputTool">
+                <option value="">{{ tr("未选择") }}</option>
+                <option value="wechat">{{ tr("微信输入法") }}</option>
+                <option value="doubao">{{ tr("豆包输入法") }}</option>
+                <option value="vokie">{{ tr("Vokie 桌面版") }}</option>
+                <option value="other">{{ tr("其他工具") }}</option>
+              </SelectInput>
+            </Field>
+
+            <Field label="语音热键">
+              <div class="hotkey-inline">
+                <kbd class="hotkey-value" :class="{ recording }" aria-live="polite">
+                  <span v-if="recording" class="hotkey-recording-dot" aria-hidden="true" />
+                  {{ hotkeyLabel }}
+                </kbd>
+                <IconButton
+                  :label="trDynamic(recording ? '取消录制' : '录制热键')"
+                  @click="toggleHotkey"
+                >
+                  <Keyboard :size="15" />
+                </IconButton>
+                <IconButton v-if="hasCustom" :label="trDynamic('恢复默认')" @click="resetHotkey">
+                  <RotateCcw :size="15" />
+                </IconButton>
+              </div>
+            </Field>
+
+            <div class="setting-toggle">
+              <div class="setting-toggle-copy">
+                <span class="setting-toggle-label">{{ tr("本机转写历史") }}</span>
+                <span class="setting-toggle-hint">{{ tr("只保存转写文字，不保存音频。") }}</span>
+              </div>
+              <Switch v-model="transcriptHistory" :label="trDynamic('本机转写历史')" />
+            </div>
           </div>
         </Card>
       </template>
@@ -651,6 +736,57 @@ onMounted(async () => {
 .setting-toggle-label {
   color: var(--text-secondary);
   font-size: var(--text-sm);
+}
+
+.hotkey-inline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.hotkey-value {
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 34px;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  padding: 0 var(--space-2);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition:
+    border-color var(--duration-fast) ease,
+    background var(--duration-fast) ease,
+    color var(--duration-fast) ease;
+}
+
+.hotkey-value.recording {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.hotkey-recording-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: hotkey-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes hotkey-pulse {
+  50% {
+    opacity: 0.25;
+  }
 }
 
 .setting-toggle-hint {
