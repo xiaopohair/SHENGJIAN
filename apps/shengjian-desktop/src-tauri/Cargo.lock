@@ -3270,15 +3270,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "shengjian-profiles"
-version = "0.0.0"
-dependencies = [
- "serde",
- "serde_json",
- "shengjian-windows",
-]
-
-[[package]]
 name = "shengjian-windows"
 version = "0.1.0"
 dependencies = [
@@ -3300,11 +3291,11 @@ dependencies = [
 name = "shengjian-windows-adapter"
 version = "0.1.0"
 dependencies = [
+ "serde",
  "serde_json",
  "shengjian-app",
  "shengjian-contract",
  "shengjian-domain",
- "shengjian-profiles",
  "shengjian-windows",
 ]
 

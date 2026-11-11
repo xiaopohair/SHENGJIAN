@@ -65,7 +65,7 @@ fn write_json<T: serde::Serialize>(path: &Path, value: &T) -> Result<(), Box<dyn
 #[cfg(test)]
 mod tests {
     use super::*;
-        use shengjian_windows::send_input::ButtonMappings;
+    use shengjian_windows::send_input::ButtonMappings;
 
     fn temp_dir() -> PathBuf {
         std::env::temp_dir().join(format!(
@@ -125,7 +125,9 @@ mod tests {
             &fs::read_to_string(out.join("button-profiles.json")).expect("profiles"),
         )
         .expect("core profiles");
-        assert!(profiles.profiles.is_empty());
+        // Normalization always adds the global profile.
+        assert_eq!(profiles.profiles.len(), 1);
+        assert_eq!(profiles.profiles[0].id, "global");
         let _ = fs::remove_dir_all(dir);
     }
 }

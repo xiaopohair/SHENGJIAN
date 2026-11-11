@@ -11,7 +11,8 @@ pub mod model;
 
 pub use button_profile::{
     compose_profile_mappings, is_profile_button, ButtonProfile, ButtonProfilesDocument,
-    TriggerBindings, BUTTON_PROFILES_SCHEMA_VERSION, PROFILE_BUTTONS,
+    TriggerBindings, BUTTON_PROFILES_SCHEMA_VERSION, GLOBAL_PROFILE_ID, GLOBAL_PROFILE_NAME,
+    PROFILE_BUTTONS,
 };
 pub use device::{
     Capability, DeviceIdentity, DeviceProfile, HidIdentity, PlatformKind, PlatformSupport,

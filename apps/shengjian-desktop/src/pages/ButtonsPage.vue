@@ -16,6 +16,7 @@ import { latestMacroDefinitions } from "../lib/macros";
 import {
   PROFILE_BUTTONS,
   PROFILE_TRIGGERS,
+  GLOBAL_PROFILE_ID,
   isGlobalProfile,
   type ProfileDraft,
   type ProfileTrigger,
@@ -360,6 +361,8 @@ async function importFile() {
 
 async function removeProfile(profile: ButtonProfile) {
   if (!profilesDocument.value) return;
+  // The global profile is permanent; the backend rejects this too.
+  if (isGlobalProfile(profile)) return;
   const confirmed = await confirmAction({
     title: tr("删除方案“{name}”？", { name: profile.name }),
     message: tr("此操作不可恢复。"),
@@ -426,6 +429,12 @@ function currentProfile(): ButtonProfile | null {
 }
 
 const currentProfileRecord = computed(() => currentProfile());
+/** Backend `null` means "no manual profile" → the global profile is in effect. */
+const effectiveActiveId = computed(() => activeProfileId.value ?? GLOBAL_PROFILE_ID);
+
+function isActiveProfile(id: string): boolean {
+  return effectiveActiveId.value === id;
+}
 
 async function activateEditorProfile() {
   const profile = currentProfile();
@@ -566,7 +575,7 @@ onUnmounted(() => {
             type="button"
             class="profile-chip"
             :class="{
-              active: activeProfileId === profile.id,
+              active: isActiveProfile(profile.id),
               selected: editor?.id === profile.id,
             }"
             :aria-pressed="editor?.id === profile.id"
@@ -578,7 +587,7 @@ onUnmounted(() => {
               <strong class="text-truncate" :title="profile.name">{{ profile.name }}</strong>
             </span>
             <span
-              v-if="activeProfileId === profile.id"
+              v-if="isActiveProfile(profile.id)"
               class="profile-chip-flag"
               :title="tr('已激活')"
             >
@@ -625,13 +634,13 @@ onUnmounted(() => {
           />
           <span v-if="!editingNew" class="activation-control">
             <Switch
-              :model-value="activeProfileId === editor.id"
+              :model-value="isActiveProfile(editor.id)"
               :disabled="busy || !currentProfileRecord"
               :label="tr('激活')"
               @update:model-value="toggleEditorActivation"
             />
-            <span class="activation-state" :class="{ on: activeProfileId === editor.id }">
-              {{ activeProfileId === editor.id ? tr("已激活") : tr("未激活") }}
+            <span class="activation-state" :class="{ on: isActiveProfile(editor.id) }">
+              {{ isActiveProfile(editor.id) ? tr("已激活") : tr("未激活") }}
             </span>
           </span>
           <StatusPill v-if="justSaved" :label="trDynamic('已保存')" tone="accent" dot />

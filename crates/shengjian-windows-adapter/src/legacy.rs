@@ -2,6 +2,14 @@
 //! types. The legacy files are read by the host; this module only translates
 //! already-parsed values.
 
+use serde::{Deserialize, Serialize};
+use shengjian_windows::raw_input::RemoteButton;
+use shengjian_windows::send_input::{
+    ButtonAction as LegacyAction, ButtonActions as LegacyActions, ButtonMappings as LegacyMappings,
+    ButtonTrigger as LegacyTrigger, KeyCode, MoveDirection, ScrollDirection,
+};
+use std::collections::BTreeMap;
+
 use shengjian_contract::{
     ButtonActions as ContractActions, ButtonMappingSet, ButtonProfilesDocument, ButtonTrigger,
     FocusStrategy, LogicalAction, LogicalButton, MouseActionKind, TriggerBindings,
@@ -36,14 +44,6 @@ pub struct LegacyProfiles {
     #[serde(default)]
     pub active_manual_profile_id: Option<String>,
 }
-use serde::{Deserialize, Serialize};
-use shengjian_windows::raw_input::RemoteButton;
-use shengjian_windows::send_input::{
-    ButtonAction as LegacyAction, ButtonActions as LegacyActions, ButtonMappings as LegacyMappings,
-    ButtonTrigger as LegacyTrigger, KeyCode, MoveDirection, ScrollDirection,
-};
-use std::collections::BTreeMap;
-
 pub fn migrate_button_mappings(legacy: &LegacyMappings) -> ButtonMappingSet {
     let actions = legacy
         .actions
@@ -249,11 +249,13 @@ mod tests {
             active_manual_profile_id: Some("p1".to_owned()),
         };
         let migrated = migrate_button_profiles_document(&legacy);
-        assert_eq!(migrated.profiles.len(), 1);
-        assert_eq!(migrated.profiles[0].id, "p1");
-        assert_eq!(migrated.profiles[0].auto_apply, true);
+        // Normalization always adds the global profile at index 0.
+        assert_eq!(migrated.profiles.len(), 2);
+        assert_eq!(migrated.profiles[0].id, "global");
+        assert_eq!(migrated.profiles[1].id, "p1");
+        assert_eq!(migrated.profiles[1].auto_apply, true);
         assert_eq!(
-            migrated.profiles[0].bindings[&LogicalButton::Up][&ButtonTrigger::Single],
+            migrated.profiles[1].bindings[&LogicalButton::Up][&ButtonTrigger::Single],
             LogicalAction::Shortcut {
                 label: "j".to_owned(),
                 keys: vec!["j".to_owned()],

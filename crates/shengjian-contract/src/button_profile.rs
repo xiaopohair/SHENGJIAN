@@ -10,6 +10,15 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub const BUTTON_PROFILES_SCHEMA_VERSION: u32 = 4;
 
+/// 全局方案的固定 id：恒存在、排首位、不可删除、不关联应用。
+///
+/// 它承载「遥控器默认状态」：其他方案未显式绑定的 `(按键, 触发)` 继承它的动作，
+/// 它自身未绑定的位置再继承基础映射（`button-mappings.json`）。
+pub const GLOBAL_PROFILE_ID: &str = "global";
+
+/// 全局方案的显示名（固定，不随用户改名变化）。
+pub const GLOBAL_PROFILE_NAME: &str = "全局";
+
 pub type TriggerBindings = BTreeMap<ButtonTrigger, LogicalAction>;
 
 /// Buttons a profile may override (12 keys; TV and Menu included, Mute base-owned).
@@ -56,6 +65,26 @@ pub struct ButtonProfile {
 }
 
 impl ButtonProfile {
+    /// 是否为不可删除的全局方案。
+    pub fn is_global(&self) -> bool {
+        self.id == GLOBAL_PROFILE_ID
+    }
+
+    /// 新建全局方案（恒存在，无应用绑定，不允许自动应用）。
+    pub fn global() -> Self {
+        Self {
+            id: GLOBAL_PROFILE_ID.to_owned(),
+            name: GLOBAL_PROFILE_NAME.to_owned(),
+            created_at: 0,
+            app_targets: Vec::new(),
+            auto_apply: false,
+            hold_repeat: None,
+            hold_repeat_by_button: BTreeMap::new(),
+            voice_input_tool: None,
+            bindings: BTreeMap::new(),
+        }
+    }
+
     pub fn bound_button_count(&self) -> usize {
         self.bindings.len()
     }
@@ -93,6 +122,27 @@ impl ButtonProfilesDocument {
         let mut seen_ids = BTreeSet::new();
         self.profiles
             .retain(|profile| seen_ids.insert(profile.id.clone()));
+
+        // 全局方案恒存在且排首位；名称固定、不关联应用、不自动应用。
+        match self
+            .profiles
+            .iter()
+            .position(|profile| profile.id == GLOBAL_PROFILE_ID)
+        {
+            Some(index) => {
+                {
+                    let global = &mut self.profiles[index];
+                    global.name = GLOBAL_PROFILE_NAME.to_owned();
+                    global.app_targets.clear();
+                    global.auto_apply = false;
+                }
+                if index != 0 {
+                    let global = self.profiles.remove(index);
+                    self.profiles.insert(0, global);
+                }
+            }
+            None => self.profiles.insert(0, ButtonProfile::global()),
+        }
         for profile in &mut self.profiles {
             profile.name = profile.name.trim().to_owned();
             let mut targets = Vec::new();
@@ -236,10 +286,12 @@ mod tests {
         }
         .normalized();
         assert_eq!(document.schema_version, BUTTON_PROFILES_SCHEMA_VERSION);
-        assert_eq!(document.profiles.len(), 2);
-        assert_eq!(document.profiles[0].name, "第一");
+        // The global profile is always present and first.
+        assert_eq!(document.profiles.len(), 3);
+        assert_eq!(document.profiles[0].id, GLOBAL_PROFILE_ID);
+        assert_eq!(document.profiles[1].name, "第一");
         assert_eq!(
-            document.profiles[0].app_targets,
+            document.profiles[1].app_targets,
             vec!["cloudmusic.exe".to_owned()]
         );
         assert_eq!(document.active_manual_profile_id, None);

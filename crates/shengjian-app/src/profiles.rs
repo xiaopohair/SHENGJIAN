@@ -1,6 +1,7 @@
 use crate::ports::ForegroundPort;
 use shengjian_contract::{
     compose_profile_mappings, ButtonMappingSet, ButtonProfile, ButtonProfilesDocument,
+    GLOBAL_PROFILE_ID,
 };
 use std::sync::{Arc, Mutex};
 
@@ -18,7 +19,9 @@ impl ButtonProfileService {
     pub fn new(foreground: Arc<dyn ForegroundPort>) -> Self {
         Self {
             foreground,
-            document: Mutex::new(ButtonProfilesDocument::default()),
+            // Normalizing the empty document materializes the global profile, so
+            // a fresh install already has a working default instead of no profiles.
+            document: Mutex::new(ButtonProfilesDocument::default().normalized()),
             base: Mutex::new(ButtonMappingSet::default()),
         }
     }
@@ -78,11 +81,25 @@ impl ButtonProfileService {
         Some(profile.clone())
     }
 
+    /// Effective baseline: the factory mapping set with the global profile on top.
+    ///
+    /// Layering is `button-mappings.json` → global profile → active profile, so a
+    /// button the global profile edits becomes the default for every other profile.
+    fn layered_base(&self, document: &ButtonProfilesDocument) -> ButtonMappingSet {
+        let factory = self.base.lock().expect("base mappings").clone();
+        match document.profile(GLOBAL_PROFILE_ID) {
+            Some(global) => compose_profile_mappings(global, &factory),
+            None => factory,
+        }
+    }
+
     /// Compute the effective complete mapping set for the current foreground.
     pub fn sync_foreground(&self) -> ButtonMappingSet {
-        let base = self.base.lock().expect("base mappings").clone();
-        match self.active_profile() {
+        let document = self.document.lock().expect("profiles document").clone();
+        let base = self.layered_base(&document);
+        match self.selected_profile() {
             Some(profile) => compose_profile_mappings(&profile, &base),
+            // No manual/auto profile: the global profile itself is in effect.
             None => base,
         }
     }
@@ -147,6 +164,72 @@ mod tests {
             voice_input_tool: None,
             bindings: bindings_by_button,
         }
+    }
+
+    #[test]
+    fn global_profile_is_the_default_and_feeds_other_profiles() {
+        let foreground = Arc::new(FakeForeground::default());
+        let service = ButtonProfileService::new(foreground.clone());
+        service.set_base_mappings(base());
+
+        // Global overrides Up/single; a normal profile overrides Up/long only.
+        let mut global = ButtonProfile {
+            id: "global".to_owned(),
+            name: "全局".to_owned(),
+            created_at: 0,
+            app_targets: Vec::new(),
+            auto_apply: false,
+            hold_repeat: None,
+            hold_repeat_by_button: std::collections::BTreeMap::new(),
+            voice_input_tool: None,
+            bindings: std::collections::BTreeMap::new(),
+        };
+        let mut global_up = std::collections::BTreeMap::new();
+        global_up.insert(ButtonTrigger::Single, shortcut("G"));
+        global.bindings.insert(LogicalButton::Up, global_up);
+
+        let mut scoped = profile("p2", "cloudmusic.exe");
+        let mut scoped_up = std::collections::BTreeMap::new();
+        scoped_up.insert(ButtonTrigger::Long, shortcut("L"));
+        scoped.bindings.insert(LogicalButton::Up, scoped_up);
+
+        service.set_document(ButtonProfilesDocument {
+            profiles: vec![global, scoped],
+            ..ButtonProfilesDocument::default()
+        });
+
+        // No manual profile → the global profile is in effect.
+        let effective = service.sync_foreground();
+        assert_eq!(effective.actions[&LogicalButton::Up].single, shortcut("G"));
+        assert_eq!(
+            effective.actions[&LogicalButton::Up].long,
+            shortcut("PageUp"),
+            "unbound trigger still inherits the factory base"
+        );
+
+        // A normal profile inherits the global single and overrides long.
+        foreground.set(Some("cloudmusic.exe"));
+        let effective = service.sync_foreground();
+        assert_eq!(
+            effective.actions[&LogicalButton::Up].single,
+            shortcut("G"),
+            "inherits the global profile, not the factory value"
+        );
+        assert_eq!(effective.actions[&LogicalButton::Up].long, shortcut("L"));
+    }
+
+    #[test]
+    fn global_profile_survives_document_replacement() {
+        let foreground = Arc::new(FakeForeground::default());
+        let service = ButtonProfileService::new(foreground);
+        // A document that dropped the global profile gets it back via normalization.
+        service.set_document(ButtonProfilesDocument {
+            profiles: vec![profile("p1", "a.exe")],
+            ..ButtonProfilesDocument::default()
+        });
+        let document = service.document();
+        assert_eq!(document.profiles[0].id, "global");
+        assert_eq!(document.profiles.len(), 2);
     }
 
     #[test]

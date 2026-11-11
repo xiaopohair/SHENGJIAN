@@ -38,6 +38,7 @@ use shengjian_windows::{
     ConnectionSnapshot as PlatformConnectionSnapshot, PairedRemote, PlatformError, RemoteModel,
     WindowsPlatform,
 };
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::fs;
 use std::hash::{Hash, Hasher};
@@ -1007,13 +1008,35 @@ fn default_settings_path() -> PathBuf {
     base.join("Shengjian").join("settings.json")
 }
 
+/// One profile per file, plus a small index file.
+///
+/// ```text
+/// <state_dir>/
+///   profiles.json            索引：schemaVersion + activeManualProfileId
+///   profiles/
+///     global.json            全局方案（固定 id，不可删除）
+///     音乐播放-7f3a2b1c.json  普通方案：文件名 = 清洗后的名称 + id 尾段
+/// ```
+///
+/// 文件名带方案名是为了分享时可识别；id 尾段保证唯一。改名时先写新文件再删旧
+/// 文件，中途失败不会丢数据。
 pub struct WindowsProfileStore {
-    path: PathBuf,
+    index_path: PathBuf,
+    profiles_dir: PathBuf,
 }
 
 impl WindowsProfileStore {
     pub fn new(path: PathBuf) -> Self {
-        Self { path }
+        // `path` is the historical single-file location; derive the new layout
+        // from its directory so existing callers keep working.
+        let dir = path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(std::env::temp_dir);
+        Self {
+            index_path: dir.join("profiles.json"),
+            profiles_dir: dir.join("profiles"),
+        }
     }
 
     pub fn live() -> Self {
@@ -1021,31 +1044,169 @@ impl WindowsProfileStore {
     }
 
     pub fn path(&self) -> &Path {
-        &self.path
+        &self.index_path
     }
+
+    pub fn profiles_dir(&self) -> &Path {
+        &self.profiles_dir
+    }
+}
+
+#[derive(Debug, Default, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProfilesIndex {
+    #[serde(default)]
+    schema_version: u32,
+    #[serde(default)]
+    active_manual_profile_id: Option<String>,
+}
+
+/// 方案文件名：`<清洗后的名称>-<id 尾段>.json`；全局方案固定为 `global.json`。
+fn profile_file_name(profile: &shengjian_contract::ButtonProfile) -> String {
+    if profile.is_global() {
+        return "global.json".to_owned();
+    }
+    let stem = sanitize_profile_name(&profile.name);
+    let suffix: String = profile
+        .id
+        .rsplit('-')
+        .next()
+        .unwrap_or(&profile.id)
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric())
+        .collect();
+    match (stem.is_empty(), suffix.is_empty()) {
+        (true, true) => "profile.json".to_owned(),
+        (true, false) => format!("{suffix}.json"),
+        (false, true) => format!("{stem}.json"),
+        (false, false) => format!("{stem}-{suffix}.json"),
+    }
+}
+
+/// Windows 文件名非法字符替换为 `-`，折叠空白，限制长度。
+fn sanitize_profile_name(name: &str) -> String {
+    let mut cleaned = String::new();
+    let mut last_space = false;
+    for ch in name.chars() {
+        let replacement = match ch {
+            '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*' => '-',
+            c if c.is_control() => ' ',
+            c => c,
+        };
+        if replacement == ' ' {
+            if last_space || cleaned.is_empty() {
+                continue;
+            }
+            last_space = true;
+        } else {
+            last_space = false;
+        }
+        cleaned.push(replacement);
+    }
+    let trimmed = cleaned.trim_end_matches(['.', ' ']).trim();
+    trimmed.chars().take(40).collect()
 }
 
 impl ButtonProfilesStorePort for WindowsProfileStore {
     fn load(&self) -> CoreResult<Option<ButtonProfilesDocument>> {
-        match fs::read_to_string(&self.path) {
-            Ok(contents) => {
-                let document = serde_json::from_str::<ButtonProfilesDocument>(&contents)
-                    .map_err(|_| config_error("profile-store-invalid"))?;
-                if document.schema_version > BUTTON_PROFILES_SCHEMA_VERSION {
-                    let _ = backup_for_rejected_schema(&self.path);
-                    return Err(config_error("profile-store-newer-schema"));
-                }
-                Ok(Some(document.normalized()))
-            }
-            Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
-            Err(_) => Err(config_error("profile-store-read-failed")),
+        let index: Option<ProfilesIndex> = match fs::read_to_string(&self.index_path) {
+            Ok(contents) => Some(
+                serde_json::from_str(&contents)
+                    .map_err(|_| config_error("profile-store-invalid"))?,
+            ),
+            Err(error) if error.kind() == ErrorKind::NotFound => None,
+            Err(_) => return Err(config_error("profile-store-read-failed")),
+        };
+        // No index and no profile files: first run.
+        if index.is_none() && !self.profiles_dir.exists() {
+            return Ok(None);
         }
+        let index = index.unwrap_or_default();
+        if index.schema_version > BUTTON_PROFILES_SCHEMA_VERSION {
+            let _ = backup_for_rejected_schema(&self.index_path);
+            return Err(config_error("profile-store-newer-schema"));
+        }
+
+        let mut profiles = Vec::new();
+        if let Ok(entries) = fs::read_dir(&self.profiles_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().and_then(|value| value.to_str()) != Some("json") {
+                    continue;
+                }
+                let Ok(contents) = fs::read_to_string(&path) else {
+                    continue;
+                };
+                // A damaged single file must not take the whole library down.
+                if let Ok(profile) =
+                    serde_json::from_str::<shengjian_contract::ButtonProfile>(&contents)
+                {
+                    profiles.push(profile);
+                }
+            }
+        }
+        profiles.sort_by(|left, right| {
+            left.created_at
+                .cmp(&right.created_at)
+                .then_with(|| left.name.cmp(&right.name))
+        });
+        Ok(Some(
+            ButtonProfilesDocument {
+                schema_version: index.schema_version,
+                profiles,
+                active_manual_profile_id: index.active_manual_profile_id,
+            }
+            .normalized(),
+        ))
     }
 
     fn save(&self, document: &ButtonProfilesDocument) -> CoreResult<()> {
-        let contents = serde_json::to_string_pretty(&document.clone().normalized())
+        let document = document.clone().normalized();
+        fs::create_dir_all(&self.profiles_dir)
+            .map_err(|_| config_error("profile-store-mkdir-failed"))?;
+
+        // Map id -> current file so renames can delete the stale file.
+        let mut existing: BTreeMap<String, PathBuf> = BTreeMap::new();
+        if let Ok(entries) = fs::read_dir(&self.profiles_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().and_then(|value| value.to_str()) != Some("json") {
+                    continue;
+                }
+                if let Ok(contents) = fs::read_to_string(&path) {
+                    if let Ok(profile) =
+                        serde_json::from_str::<shengjian_contract::ButtonProfile>(&contents)
+                    {
+                        existing.insert(profile.id.clone(), path);
+                    }
+                }
+            }
+        }
+
+        for profile in &document.profiles {
+            let target = self.profiles_dir.join(profile_file_name(profile));
+            let contents = serde_json::to_string_pretty(profile)
+                .map_err(|_| config_error("profile-store-serialize-failed"))?;
+            write_json_atomic(&target, contents, "profile-store")?;
+            if let Some(previous) = existing.get(&profile.id) {
+                if previous != &target {
+                    let _ = fs::remove_file(previous);
+                }
+            }
+        }
+        for (id, path) in &existing {
+            if !document.profiles.iter().any(|profile| &profile.id == id) {
+                let _ = fs::remove_file(path);
+            }
+        }
+
+        let index = ProfilesIndex {
+            schema_version: document.schema_version,
+            active_manual_profile_id: document.active_manual_profile_id,
+        };
+        let contents = serde_json::to_string_pretty(&index)
             .map_err(|_| config_error("profile-store-serialize-failed"))?;
-        write_json_atomic(&self.path, contents, "profile-store")
+        write_json_atomic(&self.index_path, contents, "profile-store")
     }
 }
 
@@ -1694,9 +1855,19 @@ mod button_store_tests {
         let dir = temporary_dir();
         let store = WindowsProfileStore::new(dir.join("button-profiles.json"));
         assert!(store.load().expect("missing").is_none());
+
         let document = ButtonProfilesDocument::default();
         store.save(&document).expect("save");
-        assert_eq!(store.load().expect("load"), Some(document));
+        // Saving normalizes, which materializes the global profile.
+        let expected = document.normalized();
+        assert_eq!(store.load().expect("load"), Some(expected));
+
+        // One file per profile, plus the index.
+        assert!(store.path().is_file(), "index file");
+        assert!(
+            store.profiles_dir().join("global.json").is_file(),
+            "global profile file"
+        );
         let _ = fs::remove_dir_all(dir);
     }
 
@@ -1716,15 +1887,22 @@ mod button_store_tests {
         let dir = temporary_dir();
         fs::create_dir_all(&dir).expect("dir");
         let path = dir.join("button-profiles.json");
+        let store = WindowsProfileStore::new(path);
         let mut document = ButtonProfilesDocument::default();
         document.schema_version = BUTTON_PROFILES_SCHEMA_VERSION + 1;
-        fs::write(&path, serde_json::to_string(&document).expect("json")).expect("write");
+        fs::write(
+            store.path(),
+            serde_json::to_string(&ProfilesIndex {
+                schema_version: document.schema_version,
+                active_manual_profile_id: None,
+            })
+            .expect("json"),
+        )
+        .expect("write");
 
-        let error = WindowsProfileStore::new(path.clone())
-            .load()
-            .expect_err("newer schema");
+        let error = store.load().expect_err("newer schema");
         assert_eq!(error.code, "profile-store-newer-schema");
-        assert!(path.with_extension("json.bak").is_file());
+        assert!(store.path().with_extension("json.bak").is_file());
         let _ = fs::remove_dir_all(dir);
     }
 
@@ -1732,14 +1910,12 @@ mod button_store_tests {
     fn corrupt_button_store_files_are_stable_configuration_errors() {
         let dir = temporary_dir();
         fs::create_dir_all(&dir).expect("dir");
-        let profile_path = dir.join("button-profiles.json");
+        let profile_store = WindowsProfileStore::new(dir.join("button-profiles.json"));
         let mapping_path = dir.join("button-mappings.json");
-        fs::write(&profile_path, b"not json").expect("profile write");
+        fs::write(profile_store.path(), b"not json").expect("profile write");
         fs::write(&mapping_path, b"not json").expect("mapping write");
 
-        let profile_error = WindowsProfileStore::new(profile_path)
-            .load()
-            .expect_err("profile invalid");
+        let profile_error = profile_store.load().expect_err("profile invalid");
         assert_eq!(profile_error.domain, ErrorDomain::Configuration);
         assert_eq!(profile_error.code, "profile-store-invalid");
 

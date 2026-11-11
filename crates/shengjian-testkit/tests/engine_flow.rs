@@ -401,6 +401,8 @@ fn persisted_button_config_survives_engine_restart() {
 
     first.set_button_mappings(base.clone());
     first.set_button_profiles(document.clone());
+    // Saving normalizes the document, which always materializes the global profile.
+    let document = document.normalized();
     first.shutdown();
 
     assert!(profiles.document().is_some());
