@@ -99,29 +99,26 @@ const RC003_HOTSPOTS: RemoteHotspot[] = [
 ];
 
 /**
- * RC001（小米蓝牙语音遥控器 2）：341 x 1103 产品图。
+ * RC001（小米蓝牙语音遥控器 2）：335 x 1081 产品图。
  *
- * 这张图机身浅银、按键纯黑，对比度高，所以直接用**暗块连通域**测每个按键的圆心与
- * 直径（比径向梯度稳）：电源 66px，主页/返回/菜单/音量/TV 均 82px；
- * D-pad 整盘 214px（r=107），径向剖面在 r=53 找到内盘（OK）边缘；
- * 音量是 82x178 的摇杆，+/− 取杆内亮字形质心（y=443.9 / 539.5）。
- * 交叉验证：back/home/menu 与 音量+/音量−/TV 三行 y 完全对齐。
- *
- * 布局：电源+麦克风双键在顶，左侧 back/home/menu 竖列，右侧音量摇杆 + TV。
+ * 该图已按 RC003 的画布与机身尺寸规范化（机身 bbox 同为 (35,30)-(297,1059)、
+ * 263x1030），所以热区是把原 341x1103 版本整体平移 (-3, -9) 得到的，无需重标。
+ * 布局：电源+麦克风双键在顶，D-pad 居中，左侧 back/home/menu 竖列，
+ * 右侧音量摇杆 + TV。
  */
 const RC001_HOTSPOTS: RemoteHotspot[] = [
-  { id: "power", x: 31.29, y: 10.21, w: 19.35, h: 5.98, shape: "circle" },
-  { id: "up", x: 49.62, y: 18.19, w: 15.25, h: 4.71, shape: "circle" },
-  { id: "down", x: 49.62, y: 32.69, w: 15.25, h: 4.71, shape: "circle" },
-  { id: "left", x: 26.16, y: 25.44, w: 15.25, h: 4.71, shape: "circle" },
-  { id: "right", x: 73.08, y: 25.44, w: 15.25, h: 4.71, shape: "circle" },
-  { id: "ok", x: 49.62, y: 25.44, w: 31.09, h: 9.61, shape: "circle" },
-  { id: "back", x: 33.67, y: 40.24, w: 24.05, h: 7.43, shape: "circle" },
-  { id: "home", x: 33.67, y: 48.9, w: 24.05, h: 7.43, shape: "circle" },
-  { id: "menu", x: 33.67, y: 57.56, w: 24.05, h: 7.43, shape: "circle" },
-  { id: "volume-up", x: 65.22, y: 40.24, w: 24.05, h: 7.43, shape: "circle" },
-  { id: "volume-down", x: 65.25, y: 48.91, w: 24.05, h: 7.43, shape: "circle" },
-  { id: "tv", x: 65.31, y: 57.56, w: 24.05, h: 7.43, shape: "circle" },
+  { id: "power", x: 30.95, y: 9.59, w: 19.7, h: 6.1, shape: "circle" },
+  { id: "up", x: 49.61, y: 17.73, w: 15.52, h: 4.81, shape: "circle" },
+  { id: "down", x: 49.61, y: 32.52, w: 15.52, h: 4.81, shape: "circle" },
+  { id: "left", x: 25.73, y: 25.13, w: 15.52, h: 4.81, shape: "circle" },
+  { id: "right", x: 73.49, y: 25.13, w: 15.52, h: 4.81, shape: "circle" },
+  { id: "ok", x: 49.61, y: 25.13, w: 31.65, h: 9.81, shape: "circle" },
+  { id: "back", x: 33.38, y: 40.23, w: 24.48, h: 7.59, shape: "circle" },
+  { id: "home", x: 33.38, y: 49.06, w: 24.48, h: 7.59, shape: "circle" },
+  { id: "menu", x: 33.38, y: 57.9, w: 24.48, h: 7.59, shape: "circle" },
+  { id: "volume-up", x: 65.49, y: 40.23, w: 24.48, h: 7.59, shape: "circle" },
+  { id: "volume-down", x: 65.52, y: 49.07, w: 24.48, h: 7.59, shape: "circle" },
+  { id: "tv", x: 65.58, y: 57.9, w: 24.48, h: 7.59, shape: "circle" },
 ];
 
 /**
