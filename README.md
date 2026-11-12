@@ -19,13 +19,13 @@
 
 ## 当前状态
 
-- 版本：`0.5.1`（新增「启动后隐藏到系统托盘」、文案统一为「语音记录」）
-- 已支持设备：RC003（小米蓝牙语音遥控器 2 Pro）、RC001（小米蓝牙语音遥控器 2）；Windows x64
-- GitHub Release 0.5.1：<https://github.com/xiaopohair/SHENGJIAN/releases/tag/v0.5.1>（CI 构建、未签名），安装包 `shengjian_0.5.1_x64-setup.exe`；校验值以 Release 内的 `SHA256SUMS` 为准
+- 版本：`0.6.0`（方案按设备型号隔离；新增 ARN9 支持；三款遥控器各有产品图与实测热区）
+- 已支持设备：RC003（小米蓝牙语音遥控器 2 Pro）、RC001（小米蓝牙语音遥控器 2）、ARN9（小米蓝牙语音遥控器）；Windows x64
+- GitHub Release 0.6.0：<https://github.com/xiaopohair/SHENGJIAN/releases/tag/v0.6.0>（CI 构建、未签名），安装包 `shengjian_0.6.0_x64-setup.exe`；校验值以 Release 内的 `SHA256SUMS` 为准
 - 代码签名：已接入 **SignPath Foundation** 免费开源签名（release workflow 内置，配置后自动启用）；见 [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md) 与 [docs/signing.md](docs/signing.md)
-- 真机 RC003 已验证：连接、语音、按键手势、方案自动切换、运行宏（`run-macro`）、返回键增强捕获
-- 本地发布清单：`release/0.5.1/manifest.json`（记录本地构建结果，线上资产以 Release 为准）
-- 发布说明：`docs/release-notes-0.5.1.md`
+- 真机已验证：RC003（连接、语音、按键手势、方案自动切换、运行宏、返回键增强捕获）；ARN9（连接、ATVV 语音链路、导航键、音量/返回增强捕获）
+- 本地发布清单：`release/0.6.0/manifest.json`（记录本地构建结果，线上资产以 Release 为准）
+- 发布说明：`docs/release-notes-0.6.0.md`
 - GitHub 仓库已创建并推送：<https://github.com/xiaopohair/SHENGJIAN>；发布由 `v*` tag 触发的 Release workflow 生成
 - 不包含自动更新器
 
@@ -47,7 +47,7 @@
 - 设置页：全局音频、主题、强调色、应用语言（中文/English/跟随系统）、开机自启、启动后隐藏到系统托盘、关闭行为、配置备份/恢复（设置、方案、宏库、语音记录、外观偏好、上次设备）、日志查看/诊断包、健康检查、恢复默认、分区选项卡；设置加载失败时仍可进入数据与诊断
 - 可访问性：页面 landmark/标题层级、表单 label、Tabs/命令面板/确认框焦点圈定、装饰图标隐藏；详见 `docs/ui-accessibility-report.md`
 - 关于页：品牌标记（随明暗切换亮松青 / 松青·深）、应用版本、平台/构建/签名、运行信息、本机能力、支持的遥控器与平台状态、组件与许可；可打开日志目录、重新运行首次配置；启动后台检查 GitHub Releases（24 小时限频），发现新版本时用 Toast、关于页红点和托盘菜单提示，支持预发布筛选，不自动下载安装
-- 配对帮助：关于页支持型号行和首次配置扫描页均可打开；按 RC003 / RC001 展示组合键、Windows 蓝牙步骤和新遥控器 TV 初始化提示
+- 配对帮助：关于页支持型号行和首次配置扫描页均可打开；按 RC003 / RC001 / ARN9 三个型号展示组合键、Windows 蓝牙步骤与 TV 初始化提示（ARN9 无 TV 键，不显示该提示）
 - 托盘、首次配置向导（含语音输入工具选择）、单实例
 - 方案/宏导入导出、诊断日志入口
 
@@ -126,7 +126,7 @@ pnpm build:installer
 
 `pnpm build:installer` = `tauri build` + 文件名归一化。Tauri 会先按 `productName` 产出 `声键_<version>_x64-setup.exe`，随后 `scripts/normalize-installer-name.ps1` 把它改名为 ASCII 小写的发布文件名：
 
-`apps/shengjian-desktop/src-tauri/target/release/bundle/nsis/shengjian_0.5.1_x64-setup.exe`
+`apps/shengjian-desktop/src-tauri/target/release/bundle/nsis/shengjian_0.6.0_x64-setup.exe`
 
 只跑 `pnpm tauri build` 也能构建，但产出的是中文文件名；发布、CI 与下载链接统一用 `shengjian_<version>_x64-setup.exe`。
 
@@ -178,10 +178,10 @@ cargo test --workspace
 
 ## 验证
 
-- 根 workspace：`cargo fmt --all -- --check`、`cargo check --workspace`、`cargo test --workspace` 通过（**670 passed**，其中 `shengjian-windows` 平台库 493）
+- 根 workspace：`cargo fmt --all -- --check`、`cargo check --workspace`、`cargo test --workspace` 通过（**684 passed**，其中 `shengjian-windows` 平台库 494）
 - 桌面 Rust：**14 passed**
-- 桌面前端：`pnpm lint`、`pnpm format:check`、`pnpm test`（**61 passed**）、`pnpm build` 通过
-- 本地构建：`shengjian_0.5.1_x64-setup.exe` 生成，`prepare-release.ps1` / `verify-release.ps1` 通过
+- 桌面前端：`pnpm lint`、`pnpm format:check`、`pnpm test`（**66 passed**）、`pnpm build` 通过
+- 本地构建：`shengjian_0.6.0_x64-setup.exe` 生成，`prepare-release.ps1` / `verify-release.ps1` 通过
 - 真机安装 / 启动 / 卸载：安装目录、快捷方式、卸载项、版本号清理正确；用户数据 `%LOCALAPPDATA%\Shengjian` 保留
 - 安装向导：欢迎页侧栏、页头品牌图、中文界面与「声键 安装」标题正常
 - 便携版：zip 解压到含空格/中文路径后启动正常；splash 窗口出现，主窗口就绪后自动关闭
@@ -192,24 +192,29 @@ cargo test --workspace
   - 方案前台自动切换
   - 实体按键「运行宏」（`run-macro`，下键打开 Notepad）
   - 返回键增强捕获 `back` edge
+- 真机 ARN9（小米蓝牙语音遥控器，无 TV 键）：
+  - 型号识别为 ARN9（不再被误判成 RC003），方案与 RC003 相互隔离
+  - ATVV 语音链路：2.49 秒会话、36480 采样、peak −2.7 dBFS 无削波，识别结果入库
+  - 导航六键（上/下/左/右/Home/菜单）映射正确
+  - 音量 ± 与返回键走增强捕获（`0x80` / `0x81` / `0xF1`）
 
 ## 本地发布
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1 -Version 0.5.1
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -Version 0.5.1
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1 -Version 0.6.0
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -Version 0.6.0
 ```
 
 两个脚本从 `src-tauri/tauri.conf.json` 读取 `productName` 再拼安装包路径，品牌改名后不需要改脚本。
 `prepare-release.ps1` 写 `release/<version>/manifest.json`（`version` / `file` / `sizeBytes` / `sha256` /
 `builtAtUtc` / `signed`），`verify-release.ps1` 用它逐项比对本地安装包。
 
-GitHub Release 0.5.1（CI 构建）：
+GitHub Release 0.6.0（CI 构建）：
 
 ```text
-version=0.5.1
-installer=shengjian_0.5.1_x64-setup.exe
-portable=shengjian_0.5.1_x64-portable.zip
+version=0.6.0
+installer=shengjian_0.6.0_x64-setup.exe
+portable=shengjian_0.6.0_x64-portable.zip
 sha256/size：见 Release 内的 SHA256SUMS 与 manifest.json
 signed=false
 ```
@@ -232,7 +237,7 @@ signed=false
 - 安全说明：[SECURITY.md](SECURITY.md)
 - 发布流程：[docs/release-process.md](docs/release-process.md)
 
-仓库已推送至 <https://github.com/xiaopohair/SHENGJIAN>；Release 列表：<https://github.com/xiaopohair/SHENGJIAN/releases>（已发布 `v0.4.1`、`v0.5.0`、`v0.5.1`）。
+仓库已推送至 <https://github.com/xiaopohair/SHENGJIAN>；Release 列表：<https://github.com/xiaopohair/SHENGJIAN/releases>（已发布 `v0.4.1`、`v0.5.0`、`v0.5.1`、`v0.6.0`）。
 
 ## 已知限制
 
@@ -240,7 +245,7 @@ signed=false
 - 发布包未签名；CI 签名需仓库公开并通过 SignPath 审核
 - 无自动更新
 - helper 首次安装需要 UAC
-- RC001/ARN9 身份映射仍 deferred，见 [docs/device-identity.md](docs/device-identity.md)
+- RC001 身份映射仍为 `research`（不进入运行时型号匹配）；ARN9 已于 2026-11-12 解冻并接入，见 [docs/device-identity.md](docs/device-identity.md)
 - 无第二个客户端 IPC；桌面宿主为 in-process
 
 ## Code signing policy
