@@ -10,7 +10,12 @@ import {
   saveSettings,
 } from "../lib/api";
 import { statusLabel, tr, trDynamic, uiLocale } from "../lib/i18n";
-import { findLastRemote } from "../lib/connection";
+import {
+  deviceAction,
+  findLastRemote,
+  type DeviceAction,
+  type PendingDeviceOperation,
+} from "../lib/connection";
 import { deviceProductNameKey } from "../lib/deviceProduct";
 import type { AudioEndpoint, SettingsDocument } from "../lib/types";
 import rc001Line from "../assets/devices/xiaomi-rc001-line.png";
@@ -91,15 +96,31 @@ function isCurrent(remoteId: string): boolean {
   return store.isConnected && currentRemoteId.value === remoteId;
 }
 
+/**
+ * 正在进行中的连接操作落在哪台设备上、是连还是断。
+ *
+ * `store.connecting` 只是「有连接操作在进行」的全局标记，不能拿它给每一行上
+ * 文案——否则点一台设备时，列表里所有其他设备的按钮都会变成「连接中」。
+ */
+const pendingOperation = shallowRef<PendingDeviceOperation | null>(null);
+
+/** 四种动作的双语文案；判定逻辑在 lib/connection.ts 的 deviceAction 里，已单测覆盖。 */
+const DEVICE_ACTION_TEXT: Record<DeviceAction, { zh: string; en: string }> = {
+  connect: { zh: "连接", en: "Connect" },
+  disconnect: { zh: "断开", en: "Disconnect" },
+  connecting: { zh: "连接中", en: "Connecting" },
+  disconnecting: { zh: "断开中", en: "Disconnecting" },
+};
+
 function deviceActionLabel(remoteId: string): string {
-  const current = isCurrent(remoteId);
-  if (store.connecting) {
-    return trDynamic(current ? "断开中" : "连接中");
-  }
-  if (uiLocale.value === "en") {
-    return current ? "Disconnect" : "Connect";
-  }
-  return current ? "断开" : "连接";
+  const action = deviceAction({
+    remoteId,
+    isCurrent: isCurrent(remoteId),
+    connecting: store.connecting,
+    pending: pendingOperation.value,
+  });
+  const text = DEVICE_ACTION_TEXT[action];
+  return uiLocale.value === "en" ? text.en : text.zh;
 }
 
 async function toggleDevice(remoteId: string) {
@@ -263,18 +284,30 @@ async function refresh() {
 }
 
 async function connect(remoteId: string) {
-  if (store.isConnected && currentRemoteId.value !== remoteId) {
-    await store.disconnect();
+  // 整个操作（含先断开旧设备）都算在这一行上，用户点了哪台就哪台显示「连接中」。
+  pendingOperation.value = { remoteId, kind: "connect" };
+  try {
+    if (store.isConnected && currentRemoteId.value !== remoteId) {
+      await store.disconnect();
+    }
+    await store.connect(remoteId);
+    lastRemoteId.value = remoteId;
+    localStorage.setItem(lastRemoteKey, remoteId);
+    await statusStore.refreshDeviceStatus();
+  } finally {
+    pendingOperation.value = null;
   }
-  await store.connect(remoteId);
-  lastRemoteId.value = remoteId;
-  localStorage.setItem(lastRemoteKey, remoteId);
-  await statusStore.refreshDeviceStatus();
 }
 
 async function disconnect() {
-  await store.disconnect();
-  statusStore.clearDeviceStatus();
+  const remoteId = currentRemoteId.value;
+  if (remoteId) pendingOperation.value = { remoteId, kind: "disconnect" };
+  try {
+    await store.disconnect();
+    statusStore.clearDeviceStatus();
+  } finally {
+    pendingOperation.value = null;
+  }
 }
 
 function modelLabel(model: string | null): string {
