@@ -122,7 +122,7 @@ async function clearMacroHistory() {
 
 async function clearTranscripts() {
   const confirmed = await confirmAction({
-    title: "清除全部本机转写历史？此操作不可恢复。",
+    title: "清除全部语音记录？此操作不可恢复。",
     confirmLabel: "清除全部",
     danger: true,
   });
@@ -272,11 +272,11 @@ watch(activeTab, (tab) => {
       aria-labelledby="tab-transcripts"
     >
       <Card class="stack">
-        <SectionHeader title="本机转写历史" hint="只保存转写文字，不保存音频。">
+        <SectionHeader title="语音记录" hint="只保存转写文字，不保存音频。">
           <template #actions>
             <span class="muted">{{ transcripts.length }} {{ tr("条") }}</span>
             <IconButton
-              :label="trDynamic('清除全部本机转写历史')"
+              :label="trDynamic('清除全部语音记录')"
               variant="danger"
               :disabled="!transcripts.length"
               @click="clearTranscripts"

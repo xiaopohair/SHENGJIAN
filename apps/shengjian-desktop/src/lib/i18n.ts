@@ -72,7 +72,7 @@ const ENGLISH = {
     "Adjust appearance, audio, startup, and diagnostics; all changes save immediately.",
   "清空后无法恢复。": "This cannot be undone.",
   清空宏运行历史: "Clear macro run history",
-  清除全部本机转写历史: "Clear all local transcript history",
+  清除全部语音记录: "Clear all voice recordings",
   数据与诊断: "Data & diagnostics",
   高级: "Advanced",
   危险区域: "Danger zone",
@@ -530,7 +530,7 @@ const ENGLISH = {
   开机自动启动: "Start with Windows",
   "关闭窗口时隐藏到托盘（关闭则直接退出）": "Hide to tray on close (otherwise quit)",
   "启用 RC003 增强捕获": "Enable RC003 enhanced capture",
-  "保存本机转写历史（只存文字，不存音频）": "Save local transcript history (text only, no audio)",
+  "保存语音记录（只存文字，不存音频）": "Save voice recordings (text only, no audio)",
   "安装/更新 helper": "Install/update helper",
   当前设备覆盖: "Current device overrides",
   为此设备使用独立音频设置: "Use device-specific audio settings",
@@ -780,12 +780,11 @@ const ENGLISH = {
     "Restored {profiles} profiles and {macros} macro definitions.",
   "恢复完成：{profiles} 个 profile，{macros} 个宏定义，{transcripts} 条转写。":
     "Restored {profiles} profiles, {macros} macro definitions, {transcripts} transcripts.",
-  本机转写历史: "Local transcript history",
+  语音记录: "Voice recordings",
   记录: "Records",
   条: "items",
   清除全部: "Clear all",
-  "清除全部本机转写历史？此操作不可恢复。":
-    "Clear all local transcript history? This cannot be undone.",
+  "清除全部语音记录？此操作不可恢复。": "Clear all voice recordings? This cannot be undone.",
   "还没有转写记录。请先在设置中开启开关，并使用语音键。":
     "No transcripts yet. Enable the setting and use the voice key first.",
   首次配置: "Initial setup",

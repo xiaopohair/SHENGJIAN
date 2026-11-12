@@ -607,8 +607,8 @@ onMounted(async () => {
                 </div>
               </SettingRow>
 
-              <SettingRow label="本机转写历史" hint="只保存转写文字，不保存音频。">
-                <Switch v-model="transcriptHistory" :label="trDynamic('本机转写历史')" />
+              <SettingRow label="语音记录" hint="只保存转写文字，不保存音频。">
+                <Switch v-model="transcriptHistory" :label="trDynamic('语音记录')" />
               </SettingRow>
             </div>
           </Card>
