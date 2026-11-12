@@ -221,10 +221,20 @@ onUnmounted(() => {
                 class="remote-figure"
                 :style="{ aspectRatio: `${model.width} / ${model.height}` }"
               >
-                <!-- 图片与热区同处一层并一起缩放：热区坐标是相对这层算的，
-                     所以整体 scale 不会让圈和按键错位。 -->
-                <div class="remote-inner" :style="{ transform: `scale(${model.bodyScale})` }">
-                  <img :src="model.image" :alt="trDynamic(model.nameKey)" class="remote-photo" />
+                <!-- 三张产品图常驻 DOM，切型号只切换显隐：换 <img src> 会让浏览器
+                     丢弃当前位图重新解码，中间闪过一帧空白，切标签时看起来就是抖一下。 -->
+                <img
+                  v-for="(info, key) in MODELS"
+                  :key="key"
+                  :src="info.image"
+                  class="remote-photo"
+                  :class="{ active: key === activeModel }"
+                  :style="{ transform: `scale(${info.bodyScale})` }"
+                  :alt="key === activeModel ? trDynamic(info.nameKey) : ''"
+                  :aria-hidden="key === activeModel ? undefined : 'true'"
+                />
+                <!-- 热区单独一层，按当前型号的 bodyScale 整体缩放，保证圈与按键对齐。 -->
+                <div class="hotspot-layer" :style="{ transform: `scale(${model.bodyScale})` }">
                   <span
                     v-for="spot in model.hotspots"
                     :key="spot.label"
@@ -481,18 +491,28 @@ onUnmounted(() => {
   margin-top: var(--space-2);
 }
 
-.remote-inner {
+/* 三张产品图叠在同一位置，只有当前型号那张可见；都用 contain 铺满同一个框。 */
+.remote-photo {
   position: absolute;
   inset: 0;
-  transform-origin: center center;
-}
-
-.remote-photo {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: contain;
   filter: drop-shadow(0 14px 22px rgba(0, 0, 0, 0.45));
+  transform-origin: center center;
+  visibility: hidden;
+  user-select: none;
+}
+
+.remote-photo.active {
+  visibility: visible;
+}
+
+.hotspot-layer {
+  position: absolute;
+  inset: 0;
+  transform-origin: center center;
 }
 
 .button-hotspot {
