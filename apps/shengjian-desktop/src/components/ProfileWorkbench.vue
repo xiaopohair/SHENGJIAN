@@ -94,27 +94,28 @@ const RC003_HOTSPOTS: RemoteHotspot[] = [
 ];
 
 /**
- * ARN9 普通款：514 x 1640 产品图，坐标由图像边缘检测实测得出（不是目测）。
+ * ARN9 普通款：514 x 1640 产品图。
  *
- * 实测几何：D-pad 外圈圆心 (257.5, 482)、半径 157；内圈(OK) 半径 64；
- * 电源圆心 (258, 122)；三键行 y = 735；音量摇杆 +/− 中心 y = 858 / 976。
- * 方向键取环带中径（外 157、内 64 → 110）上四个正方向的点。
+ * 坐标不是目测：D-pad 用**径向亮度剖面**（对 48 个角度取平均以抑制机身纹理）找到
+ * 两级圆盘的边缘——圆心 (260, 492)、外盘 r=160、内盘 r=65；方向键取环带中径
+ * (160+65)/2 = 112.5 上四个正方向的点，键区直径 90（环带厚 95，留余量不越界）。
+ * 电源/主页/返回/菜单/音量的圆心取自渲染后图标质心的实测值。
  *
  * 与 RC003 的布局差异：没有 TV 键；Home / 返回 / 菜单 是同一行的三颗独立键；
  * 音量是一根上下摇杆（+ 上半、− 下半）。
  */
 const ARN9_HOTSPOTS: RemoteHotspot[] = [
-  { id: "power", x: 50.3, y: 7.47, w: 16, h: 5, shape: "circle" },
-  { id: "up", x: 50.3, y: 22.65, w: 17.1, h: 5.4, shape: "circle" },
-  { id: "down", x: 50.3, y: 36.13, w: 17.1, h: 5.4, shape: "circle" },
-  { id: "left", x: 28.8, y: 29.39, w: 17.1, h: 5.4, shape: "circle" },
-  { id: "right", x: 71.8, y: 29.39, w: 17.1, h: 5.4, shape: "circle" },
-  { id: "ok", x: 50.1, y: 29.42, w: 23.3, h: 7.3, shape: "circle" },
-  { id: "home", x: 27.3, y: 44.82, w: 16, h: 5, shape: "circle" },
-  { id: "back", x: 49.8, y: 44.82, w: 16, h: 5, shape: "circle" },
-  { id: "menu", x: 73.6, y: 44.82, w: 16, h: 5, shape: "circle" },
-  { id: "volume-up", x: 50.1, y: 52.32, w: 16, h: 5, shape: "circle" },
-  { id: "volume-down", x: 50.1, y: 59.51, w: 16, h: 5, shape: "circle" },
+  { id: "power", x: 50.6, y: 7.47, w: 15.95, h: 5, shape: "circle" },
+  { id: "up", x: 50.58, y: 23.14, w: 17.51, h: 5.49, shape: "circle" },
+  { id: "down", x: 50.58, y: 36.86, w: 17.51, h: 5.49, shape: "circle" },
+  { id: "left", x: 28.7, y: 30, w: 17.51, h: 5.49, shape: "circle" },
+  { id: "right", x: 72.47, y: 30, w: 17.51, h: 5.49, shape: "circle" },
+  { id: "ok", x: 50.58, y: 30, w: 24.12, h: 7.56, shape: "circle" },
+  { id: "home", x: 26.77, y: 44.7, w: 15.95, h: 5, shape: "circle" },
+  { id: "back", x: 50.73, y: 44.7, w: 15.95, h: 5, shape: "circle" },
+  { id: "menu", x: 74.27, y: 44.7, w: 15.95, h: 5, shape: "circle" },
+  { id: "volume-up", x: 50.61, y: 51.96, w: 15.95, h: 5, shape: "circle" },
+  { id: "volume-down", x: 50.4, y: 60.27, w: 15.95, h: 5, shape: "circle" },
 ];
 
 const isArn9 = computed(() => (props.remoteModel ?? "").trim().toUpperCase() === "ARN9");
