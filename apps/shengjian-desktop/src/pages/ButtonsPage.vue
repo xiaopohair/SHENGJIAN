@@ -63,6 +63,8 @@ const activeProfileId = shallowRef<string | null>(null);
 const engineStore = useEngineStore();
 const remoteConnected = computed(() => engineStore.isConnected);
 const remoteModel = computed(() => engineStore.snapshot?.connection.remote?.model ?? null);
+/** 蓝牙名：型号识别不出来时，界面退回显示它。 */
+const remoteName = computed(() => engineStore.snapshot?.connection.remote?.name ?? null);
 
 /** 上次连接过的型号（未连接时用它决定展示哪一套方案）。 */
 const LAST_MODEL_KEY = "shengjian.last-model";
@@ -837,6 +839,7 @@ onUnmounted(() => {
         :latest-macros="latestMacros"
         :remote-connected="remoteConnected"
         :remote-model="remoteModel"
+        :remote-name="remoteName"
         @error="onEditorError"
       />
 

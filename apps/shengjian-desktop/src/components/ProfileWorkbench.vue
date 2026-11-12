@@ -12,6 +12,7 @@ import {
   type ProfileTrigger,
 } from "../lib/buttons";
 import { statusLabel, tr, trDynamic } from "../lib/i18n";
+import { deviceProductNameKey } from "../lib/deviceProduct";
 import { formatShortcut } from "../lib/shortcuts";
 import type { LogicalAction, LogicalButton, MacroDefinition } from "../lib/types";
 import ProfileBindingEditor from "./ProfileBindingEditor.vue";
@@ -29,6 +30,8 @@ const props = defineProps<{
   remoteConnected: boolean;
   /** Connected remote model, when known (e.g. "RC003"). */
   remoteModel: string | null;
+  /** 设备上报的蓝牙名（型号识别不出来时的兜底显示）。 */
+  remoteName: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -37,10 +40,11 @@ const emit = defineEmits<{
 
 const draft = defineModel<ProfileDraft>("draft", { required: true });
 const selectedButton = ref<LogicalButton>("home");
-/** Model + connection state; never claims "connected" without a real session. */
+/** 型号 + 连接状态。型号识别得出来就用产品正式名，识别不出来退回蓝牙名。 */
 const devicePillText = computed(() => {
-  const model = props.remoteModel?.trim() || tr("遥控器");
-  return `${model} · ${props.remoteConnected ? tr("已连接") : tr("未连接")}`;
+  const productKey = deviceProductNameKey(props.remoteModel);
+  const label = productKey ? trDynamic(productKey) : props.remoteName?.trim() || tr("遥控器");
+  return `${label} · ${props.remoteConnected ? tr("已连接") : tr("未连接")}`;
 });
 
 const selectedTrigger = ref<ProfileTrigger>("single");
@@ -275,8 +279,9 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
   <div class="profile-workbench">
     <template v-if="view === 'workbench'">
       <aside class="remote-panel panel">
+        <!-- 不再单列「当前遥控器」标签：型号识别得出来时胶囊里是产品正式名，
+             名称本身就说明了这是当前遥控器，省下的宽度让长名称能单行放下。 -->
         <div class="panel-head">
-          <span class="eyebrow">{{ tr("当前遥控器") }}</span>
           <span class="device-pill" :class="{ offline: !remoteConnected }">
             {{ devicePillText }}
           </span>
@@ -503,7 +508,7 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
 .panel-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: var(--space-2);
   /* Match .binding-panel's padding so both columns start on the same line. */
   padding: var(--space-5) var(--space-4) var(--space-2);
@@ -528,6 +533,7 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
   color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: 9px;
+  white-space: nowrap;
 }
 
 .device-pill::before {
