@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef } from "vue";
 import { Search } from "lucide-vue-next";
-import remoteImage from "../assets/devices/xiaomi-rc003.png";
+import rc003Image from "../assets/devices/xiaomi-rc003.png";
+import arn9Image from "../assets/devices/xiaomi-arn9.png";
 import {
   PROFILE_BUTTONS,
   PROFILE_TRIGGERS,
+  profileButtonsForModel,
   type ProfileDraft,
   type ProfileTrigger,
 } from "../lib/buttons";
@@ -59,7 +61,10 @@ const CAPS: Record<string, string> = {
   "volume-down": "−",
 };
 
-const totalTriggers = PROFILE_BUTTONS.length * PROFILE_TRIGGERS.length;
+// 触发总数必须跟着型号走：ARN9 无 TV 键，是 11×3 而不是 12×3。
+const totalTriggers = computed(
+  () => profileButtonsForModel(props.remoteModel).length * PROFILE_TRIGGERS.length,
+);
 
 interface RemoteHotspot {
   id: LogicalButton;
@@ -70,10 +75,10 @@ interface RemoteHotspot {
   shape: "circle" | "zone";
 }
 
-// Percentages are measured from xiaomi-rc003.png (335 x 1081).
-// Only the 12 logical buttons are interactive; the hardware mic remains
-// visible on the product photo but is not a profile target.
-const REMOTE_HOTSPOTS: RemoteHotspot[] = [
+// x/y 是热区**中心**（CSS 用 translate(-50%,-50%)），w/h 是尺寸，均为图片宽高的百分比。
+// 只标逻辑按键；硬件麦克风在产品图上可见但不是方案目标。
+// 百分比是按各自产品图单独量的——两张图尺寸不同，不能共用一套坐标。
+const RC003_HOTSPOTS: RemoteHotspot[] = [
   { id: "power", x: 29.55, y: 9.3, w: 17.6, h: 5.55, shape: "circle" },
   { id: "up", x: 49.85, y: 17.5, w: 17, h: 4.8, shape: "circle" },
   { id: "down", x: 49.85, y: 31.2, w: 17, h: 4.8, shape: "circle" },
@@ -87,6 +92,43 @@ const REMOTE_HOTSPOTS: RemoteHotspot[] = [
   { id: "volume-down", x: 65.67, y: 48.33, w: 25.4, h: 7.86, shape: "circle" },
   { id: "tv", x: 65.67, y: 57.42, w: 25.4, h: 7.86, shape: "circle" },
 ];
+
+/**
+ * ARN9 普通款：514 x 1640 产品图，坐标由图像边缘检测实测得出（不是目测）。
+ *
+ * 实测几何：D-pad 外圈圆心 (257.5, 482)、半径 157；内圈(OK) 半径 64；
+ * 电源圆心 (258, 122)；三键行 y = 735；音量摇杆 +/− 中心 y = 858 / 976。
+ * 方向键取环带中径（外 157、内 64 → 110）上四个正方向的点。
+ *
+ * 与 RC003 的布局差异：没有 TV 键；Home / 返回 / 菜单 是同一行的三颗独立键；
+ * 音量是一根上下摇杆（+ 上半、− 下半）。
+ */
+const ARN9_HOTSPOTS: RemoteHotspot[] = [
+  { id: "power", x: 50.3, y: 7.47, w: 16, h: 5, shape: "circle" },
+  { id: "up", x: 50.3, y: 22.65, w: 17.1, h: 5.4, shape: "circle" },
+  { id: "down", x: 50.3, y: 36.13, w: 17.1, h: 5.4, shape: "circle" },
+  { id: "left", x: 28.8, y: 29.39, w: 17.1, h: 5.4, shape: "circle" },
+  { id: "right", x: 71.8, y: 29.39, w: 17.1, h: 5.4, shape: "circle" },
+  { id: "ok", x: 50.1, y: 29.42, w: 23.3, h: 7.3, shape: "circle" },
+  { id: "home", x: 27.3, y: 44.82, w: 16, h: 5, shape: "circle" },
+  { id: "back", x: 49.8, y: 44.82, w: 16, h: 5, shape: "circle" },
+  { id: "menu", x: 73.6, y: 44.82, w: 16, h: 5, shape: "circle" },
+  { id: "volume-up", x: 50.1, y: 52.32, w: 16, h: 5, shape: "circle" },
+  { id: "volume-down", x: 50.1, y: 59.51, w: 16, h: 5, shape: "circle" },
+];
+
+const isArn9 = computed(() => (props.remoteModel ?? "").trim().toUpperCase() === "ARN9");
+const remoteImage = computed(() => (isArn9.value ? arn9Image : rc003Image));
+const REMOTE_HOTSPOTS = computed(() => (isArn9.value ? ARN9_HOTSPOTS : RC003_HOTSPOTS));
+const remoteAlt = computed(() =>
+  isArn9.value ? tr("小米蓝牙语音遥控器") : tr("小米蓝牙语音遥控器 2 Pro"),
+);
+/** 产品图说明：两张图各自对位，不要写成同一句。 */
+const productNote = computed(() =>
+  isArn9.value
+    ? tr("按 ARN9 产品图对位；语音键为硬件键。")
+    : tr("按 RC003 产品图对位；语音键为硬件键。"),
+);
 
 function hotspotStyle(hotspot: RemoteHotspot) {
   return {
@@ -157,7 +199,8 @@ function isButtonModified(button: LogicalButton): boolean {
 
 const visibleButtons = computed(() => {
   const value = query.value.trim().toLowerCase();
-  return PROFILE_BUTTONS.filter((button) => {
+  // 该型号没有的按键（ARN9 无 TV 键）不列出来，避免让人去配一个按不到的键。
+  return profileButtonsForModel(props.remoteModel).filter((button) => {
     if (
       onlyConfigured.value &&
       !PROFILE_TRIGGERS.some((trigger) => actionFor(button.id, trigger))
@@ -198,12 +241,7 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
         </div>
         <div class="product-stage">
           <div class="product-remote">
-            <img
-              class="remote-photo"
-              :src="remoteImage"
-              alt="Xiaomi RC003 遥控器"
-              draggable="false"
-            />
+            <img class="remote-photo" :src="remoteImage" :alt="remoteAlt" draggable="false" />
             <button
               v-for="hotspot in REMOTE_HOTSPOTS"
               :key="hotspot.id"
@@ -217,7 +255,7 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
               @click="selectButton(hotspot.id)"
             />
           </div>
-          <p class="product-note">{{ tr("按 RC003 产品图对位；语音键为硬件键。") }}</p>
+          <p class="product-note">{{ productNote }}</p>
         </div>
         <div class="remote-footer">
           <span>{{ tr("点击按键查看绑定") }}</span>

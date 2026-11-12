@@ -5,6 +5,7 @@ import { tr, trDynamic } from "../lib/i18n";
 import { normalizePairingModel, type PairingModel } from "../stores/pairing";
 import rc001Photo from "../assets/devices/xiaomi-rc001.png";
 import rc003Photo from "../assets/devices/xiaomi-rc003.png";
+import arn9Photo from "../assets/devices/xiaomi-arn9.png";
 
 const props = defineProps<{
   initialModel?: string | null;
@@ -27,6 +28,8 @@ interface ModelInfo {
   image: string;
   width: number;
   height: number;
+  /** 该型号是否有 TV 键：决定「先按 TV 完成初始化」这条提示是否显示。 */
+  hasTvKey: boolean;
   hotspots: ButtonHotspot[];
 }
 
@@ -37,6 +40,7 @@ const MODELS: Record<PairingModel, ModelInfo> = {
     image: rc003Photo,
     width: 335,
     height: 1081,
+    hasTvKey: true,
     hotspots: [
       { label: "主页键", x: 0.334, y: 0.483, side: "left" },
       { label: "菜单键", x: 0.334, y: 0.574, side: "left" },
@@ -49,10 +53,24 @@ const MODELS: Record<PairingModel, ModelInfo> = {
     image: rc001Photo,
     width: 341,
     height: 1103,
+    hasTvKey: true,
     hotspots: [
       { label: "主页键", x: 0.336, y: 0.489, side: "left" },
       { label: "菜单键", x: 0.336, y: 0.576, side: "left" },
       { label: "TV", x: 0.652, y: 0.576, side: "right" },
+    ],
+  },
+  // ARN9 普通款：514 x 1640 实拍图；没有 TV 键，Home / 返回 / 菜单 是同一行的三颗独立键。
+  ARN9: {
+    nameKey: "小米蓝牙语音遥控器",
+    bluetoothName: "小米蓝牙语音遥控器",
+    image: arn9Photo,
+    width: 514,
+    height: 1640,
+    hasTvKey: false,
+    hotspots: [
+      { label: "主页键", x: 0.27, y: 0.447, side: "left" },
+      { label: "菜单键", x: 0.755, y: 0.447, side: "right" },
     ],
   },
 };
@@ -224,7 +242,8 @@ onUnmounted(() => {
               </li>
             </ol>
 
-            <p class="init-note">
+            <!-- ARN9 没有 TV 键，这条初始化提示只对本型号不适用。 -->
+            <p v-if="model.hasTvKey" class="init-note">
               <Tv :size="16" />
               <span>{{ tr("新遥控器请先按一次「TV」键完成初始化，再进入配对。") }}</span>
             </p>

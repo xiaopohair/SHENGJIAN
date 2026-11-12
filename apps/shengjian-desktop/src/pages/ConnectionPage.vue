@@ -15,6 +15,7 @@ import { deviceProductNameKey } from "../lib/deviceProduct";
 import type { AudioEndpoint, SettingsDocument } from "../lib/types";
 import rc001Line from "../assets/devices/xiaomi-rc001-line.png";
 import rc003Line from "../assets/devices/xiaomi-rc003-line.png";
+import arn9Line from "../assets/devices/xiaomi-arn9-line.png";
 import PageHeader from "../components/PageHeader.vue";
 import Button from "../components/ui/Button.vue";
 import Card from "../components/ui/Card.vue";
@@ -66,6 +67,7 @@ const deviceProductName = computed(() => {
 });
 const deviceArtwork = computed(() => {
   if (!store.isConnected) return null;
+  if (remoteModel.value === "ARN9") return arn9Line;
   return isRc001.value ? rc001Line : rc003Line;
 });
 const autoConnecting = shallowRef(false);

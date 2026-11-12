@@ -1,9 +1,11 @@
 import { defineStore } from "pinia";
 
-export type PairingModel = "RC001" | "RC003";
+export type PairingModel = "RC001" | "RC003" | "ARN9";
 
 export function normalizePairingModel(model?: string | null): PairingModel {
-  return model === "RC001" ? "RC001" : "RC003";
+  if (model === "RC001") return "RC001";
+  if (model === "ARN9") return "ARN9";
+  return "RC003";
 }
 
 export const usePairingStore = defineStore("pairing", {

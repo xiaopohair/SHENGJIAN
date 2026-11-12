@@ -3,6 +3,7 @@ import { computed, onMounted, ref, shallowRef } from "vue";
 import { getVersion } from "@tauri-apps/api/app";
 import { Boxes, RefreshCw, ShieldCheck } from "lucide-vue-next";
 import { getDeviceSupport, getHostCapabilities, openExternalUrl, errorMessage } from "../lib/api";
+import { deviceProductNameKey } from "../lib/deviceProduct";
 import { statusLabel, tr, trDynamic } from "../lib/i18n";
 import { useUpdateStore } from "../stores/update";
 import { usePairingStore } from "../stores/pairing";
@@ -58,9 +59,8 @@ function platformNameFor(id: string): string {
 }
 
 function supportDeviceName(device: DeviceSupport): string {
-  if (device.model === "RC003") return tr("小米蓝牙语音遥控器 2 Pro");
-  if (device.model === "RC001") return tr("小米蓝牙语音遥控器 2");
-  return device.displayName;
+  const key = deviceProductNameKey(device.model);
+  return key ? trDynamic(key) : device.displayName;
 }
 
 function supportTone(status: string): StatusTone {
