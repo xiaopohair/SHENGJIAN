@@ -13,7 +13,7 @@
 
 ## 设备 Profile
 
-- `profiles/schema.json`、`profiles/xiaomi-rc003.json`、`profiles/xiaomi-rc001.json` 参考 `https://github.com/nijez/open-voice-bridge` 的 `specs/device-profile.schema.json` 与 `device-profiles/*.json`，以及原始 Windows 实现的设备 profile。原项目均为 GPL-3.0-only。
+- `profiles/schema.json`、`profiles/xiaomi-rc003.json`、`profiles/xiaomi-rc001.json`、`profiles/xiaomi-arn9.json` 参考 `https://github.com/nijez/open-voice-bridge` 的 `specs/device-profile.schema.json` 与 `device-profiles/*.json`，以及原始 Windows 实现的设备 profile。原项目均为 GPL-3.0-only。
 - RC003 的 VID/PID、ATVV、能力事实来自上述已记录资料；RC001 的 profile 是草案，身份未与 upstream `xiaomi-arn9` 对齐，不得作为运行时匹配依据。
 
 ## 架构参考

@@ -340,12 +340,35 @@ impl CoreEngine {
 
     /// Recompute the profile overlay after the host observes a foreground change.
     pub fn sync_foreground(&self) {
+        self.sync_device_model();
         self.apply_effective_mappings();
+    }
+
+    /// 把当前连接设备的型号同步给方案服务（方案按型号隔离）。
+    ///
+    /// 连接、断开、切换设备都要走一次：型号没同步过去，界面会继续显示上一个型号的
+    /// 方案，甚至把别的型号的按键映射套到当前遥控器上。型号变了且补建了默认方案时
+    /// 顺手落盘。
+    pub fn sync_device_model(&self) {
+        let model = self
+            .connection
+            .snapshot()
+            .remote
+            .and_then(|remote| remote.model);
+        if self.profiles.set_current_device_model(model.as_deref()) {
+            self.persist_profile_document();
+        }
+    }
+
+    /// 当前生效的按键方案所属设备型号（大写型号号，如 `RC003` / `ARN9`）。
+    pub fn current_device_model(&self) -> Option<String> {
+        self.profiles.current_device_model()
     }
 
     /// Poll-friendly foreground sync: only reapplies mappings when the active
     /// profile id changes, so gesture state is not reset every tick.
     pub fn sync_foreground_if_changed(&self) -> bool {
+        self.sync_device_model();
         let active = self.profiles.active_profile_id();
         let mut cached = self.active_profile_id.lock().expect("active profile id");
         if *cached == active {

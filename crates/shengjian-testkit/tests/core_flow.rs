@@ -204,7 +204,14 @@ fn settings_round_trip_and_bundled_catalog_capabilities() {
     assert!(capabilities.bluetooth);
     assert!(capabilities.audio);
     assert!(capabilities.full_key_capture);
-    assert_eq!(capabilities.profiles, vec![DeviceId::new("xiaomi-rc003")]);
+    assert_eq!(
+        capabilities.profiles,
+        vec![
+            DeviceId::new("xiaomi-rc003"),
+            // ARN9 于 2026-11-12 真机验收，升为 implemented 后进入能力列表。
+            DeviceId::new("xiaomi-arn9"),
+        ]
+    );
 }
 
 #[test]

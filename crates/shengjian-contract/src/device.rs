@@ -239,7 +239,8 @@ impl ProfileCatalog {
     pub fn bundled() -> Result<Self, ProfileError> {
         let rc003 = Self::from_json(include_str!("../../../profiles/xiaomi-rc003.json"))?;
         let rc001 = Self::from_json(include_str!("../../../profiles/xiaomi-rc001.json"))?;
-        Self::new(vec![rc003, rc001])
+        let arn9 = Self::from_json(include_str!("../../../profiles/xiaomi-arn9.json"))?;
+        Self::new(vec![rc003, rc001, arn9])
     }
 
     pub fn profiles(&self) -> &[DeviceProfile] {
@@ -282,7 +283,7 @@ mod tests {
     #[test]
     fn bundled_profiles_parse_and_validate() {
         let catalog = ProfileCatalog::bundled().expect("bundled profiles must be valid");
-        assert_eq!(catalog.profiles().len(), 2);
+        assert_eq!(catalog.profiles().len(), 3);
         let rc003 = catalog
             .get(&DeviceId::new("xiaomi-rc003"))
             .expect("rc003 profile");
@@ -296,6 +297,23 @@ mod tests {
             .expect("rc001 profile");
         assert_eq!(rc001.support.status, SupportStatus::Research);
         assert!(rc001.identity.hid.is_none());
+
+        // ARN9：真机已验证，与 RC003 同族硬件但独立档案。
+        let arn9 = catalog
+            .get(&DeviceId::new("xiaomi-arn9"))
+            .expect("arn9 profile");
+        assert_eq!(arn9.support.status, SupportStatus::Implemented);
+        assert_eq!(arn9.model, "ARN9");
+        assert!(arn9.supports_platform(PlatformKind::Windows));
+        assert!(arn9.has_capability(Capability::VoiceCapture));
+        assert_eq!(arn9.identity.model_numbers, vec!["ARN9".to_owned()]);
+        let hid = arn9.identity.hid.as_ref().expect("arn9 hid identity");
+        assert_eq!((hid.vendor_id, hid.product_id), (10007, 12984));
+        // 广播名与 RC003 完全相同，不能拿名字做身份判定。
+        assert!(
+            arn9.identity.bluetooth_names.is_empty(),
+            "ARN9 与 RC003 同名，bluetoothNames 必须留空，只能靠型号号识别"
+        );
     }
 
     #[test]

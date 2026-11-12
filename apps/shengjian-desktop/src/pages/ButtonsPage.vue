@@ -17,8 +17,8 @@ import { latestMacroDefinitions } from "../lib/macros";
 import {
   PROFILE_BUTTONS,
   PROFILE_TRIGGERS,
-  GLOBAL_PROFILE_ID,
-  isGlobalProfile,
+  isDefaultProfile,
+  profileAppliesToModel,
   type ProfileDraft,
   type ProfileTrigger,
 } from "../lib/buttons";
@@ -63,6 +63,86 @@ const activeProfileId = shallowRef<string | null>(null);
 const engineStore = useEngineStore();
 const remoteConnected = computed(() => engineStore.isConnected);
 const remoteModel = computed(() => engineStore.snapshot?.connection.remote?.model ?? null);
+
+/** 上次连接过的型号（未连接时用它决定展示哪一套方案）。 */
+const LAST_MODEL_KEY = "shengjian.last-model";
+const rememberedModel = shallowRef<string | null>(readRememberedModel());
+
+function readRememberedModel(): string | null {
+  try {
+    const value = window.localStorage.getItem(LAST_MODEL_KEY)?.trim();
+    return value ? value.toUpperCase() : null;
+  } catch {
+    return null;
+  }
+}
+
+watch(
+  remoteModel,
+  (model) => {
+    const normalized = model?.trim().toUpperCase();
+    if (!normalized) return;
+    rememberedModel.value = normalized;
+    try {
+      window.localStorage.setItem(LAST_MODEL_KEY, normalized);
+    } catch {
+      // localStorage 不可用不影响主流程
+    }
+  },
+  { immediate: true },
+);
+
+/**
+ * 当前型号：已连接型号 → 上次连接型号 → 未知。
+ *
+ * 方案按型号隔离，所以「现在该展示哪一套方案」完全取决于这个值；型号未知时只有
+ * 通用方案可见。
+ */
+const effectiveModel = computed(
+  () => remoteModel.value?.trim().toUpperCase() || rememberedModel.value,
+);
+
+/** 当前型号可见的方案；型号已有自己的默认方案时不再列出通用默认。 */
+const visibleProfiles = computed(() => {
+  const model = effectiveModel.value;
+  const all = profilesDocument.value?.profiles ?? [];
+  const own = (profile: ButtonProfile) => (profile.deviceModel ?? "").trim().toUpperCase();
+  const hasOwnDefault = Boolean(
+    model && all.some((profile) => isDefaultProfile(profile) && own(profile) === model),
+  );
+  return all.filter((profile) => {
+    if (!profileAppliesToModel(profile, model)) return false;
+    if (hasOwnDefault && isDefaultProfile(profile) && !own(profile)) return false;
+    return true;
+  });
+});
+
+/** 当前型号的默认方案（后端保证每个型号恒有一份）。 */
+const defaultProfile = computed(
+  () => visibleProfiles.value.find((profile) => isDefaultProfile(profile)) ?? null,
+);
+
+/**
+ * 型号变了就把编辑区换到新型号的默认方案。
+ *
+ * 不换的话会留下一个「型号 A 的方案」的草稿，而遥控器已经换成型号 B——界面上的
+ * 触发总数、按键布局全对不上，用户还会以为正在编辑的是当前这台的方案。
+ * 有未保存修改时先确认，避免默默丢弃。
+ */
+watch(effectiveModel, async (model) => {
+  const draft = editor.value;
+  if (!draft) return;
+  const draftModel = (draft.deviceModel ?? "").trim().toUpperCase();
+  if (!draftModel || draftModel === (model ?? "")) return;
+  if (dirty.value && !(await confirmDiscard())) return;
+  closeEditor();
+  autoOpened = false;
+  const next = visibleProfiles.value.find((profile) => isDefaultProfile(profile));
+  if (next) {
+    autoOpened = true;
+    openDraft(next);
+  }
+});
 
 const macroDefinitions = ref<MacroDefinition[]>([]);
 const commonPhrasesAvailable = shallowRef(false);
@@ -109,12 +189,16 @@ async function load() {
     const state = await getButtonProfileState();
     profilesDocument.value = state.document;
     activeProfileId.value = state.activeProfileId;
-    if (!editor.value && !autoOpened && state.document.profiles.length > 0) {
-      autoOpened = true;
-      const initial =
-        state.document.profiles.find((profile) => profile.id === state.activeProfileId) ??
-        state.document.profiles[0];
-      openDraft(initial);
+    if (!editor.value && !autoOpened) {
+      const candidates = visibleProfiles.value;
+      if (candidates.length > 0) {
+        autoOpened = true;
+        const initial =
+          candidates.find((profile) => profile.id === state.activeProfileId) ??
+          candidates.find((profile) => isDefaultProfile(profile)) ??
+          candidates[0];
+        openDraft(initial);
+      }
     }
   } catch (cause) {
     error.value = errorMessage(cause);
@@ -189,6 +273,9 @@ function createNewDraft() {
     autoApply: false,
     holdRepeat: "",
     voiceInputTool: "",
+    // 新方案归当前型号所有，这样它与别的型号互不干扰。
+    deviceModel: effectiveModel.value,
+    isDefault: false,
     bindings: {},
   };
   syncBaseline();
@@ -234,6 +321,8 @@ function openDraft(profile: ButtonProfile) {
     holdRepeat: profile.holdRepeat ?? "",
     holdRepeatByButton: repeatSettingsFromProfile(profile),
     voiceInputTool: profile.voiceInputTool ?? "",
+    deviceModel: profile.deviceModel ?? null,
+    isDefault: isDefaultProfile(profile),
     bindings: cloneBindings(profile),
   };
   syncBaseline();
@@ -309,6 +398,8 @@ async function saveEditor() {
       holdRepeat: editor.value.holdRepeat || null,
       holdRepeatByButton: repeatSettingsForSave(editor.value),
       voiceInputTool: editor.value.voiceInputTool || null,
+      deviceModel: editor.value.deviceModel ?? effectiveModel.value ?? null,
+      isDefault: Boolean(editor.value.isDefault),
       bindings: cleanBindings(),
     };
     const profiles = profilesDocument.value.profiles.some((item) => item.id === profile.id)
@@ -367,8 +458,8 @@ async function importFile() {
 
 async function removeProfile(profile: ButtonProfile) {
   if (!profilesDocument.value) return;
-  // The global profile is permanent; the backend rejects this too.
-  if (isGlobalProfile(profile)) return;
+  // 默认方案是每个型号的基线，不可删除；后端归一化也会重建它。
+  if (isDefaultProfile(profile)) return;
   const confirmed = await confirmAction({
     title: tr("删除方案“{name}”？", { name: profile.name }),
     message: tr("此操作不可恢复。"),
@@ -400,6 +491,8 @@ async function duplicateProfile(profile: ButtonProfile) {
       id: `profile-${crypto.randomUUID()}`,
       name: tr("{name} 副本", { name: profile.name }),
       autoApply: false,
+      // 副本永远是普通方案：默认方案每个型号只能有一份。
+      isDefault: false,
       bindings: JSON.parse(JSON.stringify(profile.bindings ?? {})),
     };
     await saveButtonProfiles({
@@ -435,8 +528,8 @@ function currentProfile(): ButtonProfile | null {
 }
 
 const currentProfileRecord = computed(() => currentProfile());
-/** Backend `null` means "no manual profile" → the global profile is in effect. */
-const effectiveActiveId = computed(() => activeProfileId.value ?? GLOBAL_PROFILE_ID);
+/** 后端 `null` 表示「没有手动方案」→ 当前型号的默认方案在生效。 */
+const effectiveActiveId = computed(() => activeProfileId.value ?? defaultProfile.value?.id ?? null);
 
 function isActiveProfile(id: string): boolean {
   return effectiveActiveId.value === id;
@@ -485,12 +578,12 @@ async function removeCurrentProfile() {
  */
 async function resetCurrentProfile() {
   if (!editor.value || busy.value) return;
-  const global = isGlobalProfile(editor.value);
+  const isDefault = Boolean(editor.value.isDefault);
   const confirmed = await confirmAction({
     title: tr("重置方案“{name}”？", { name: editor.value.name || tr("未命名方案") }),
-    message: global
-      ? tr("将清空全局方案的所有动作，全部回到遥控器出厂默认。此操作不可恢复。")
-      : tr("将清空本方案的所有动作，全部回到全局方案的默认值。此操作不可恢复。"),
+    message: isDefault
+      ? tr("将清空默认方案的所有动作，全部回到遥控器出厂默认。此操作不可恢复。")
+      : tr("将清空本方案的所有动作，全部回到默认方案的默认值。此操作不可恢复。"),
     confirmLabel: tr("重置"),
     danger: true,
   });
@@ -600,7 +693,7 @@ onUnmounted(() => {
             </span>
           </button>
           <button
-            v-for="(profile, index) in profilesDocument.profiles"
+            v-for="(profile, index) in visibleProfiles"
             :key="profile.id"
             type="button"
             class="profile-chip"
@@ -617,7 +710,14 @@ onUnmounted(() => {
               <strong class="text-truncate" :title="profile.name">{{ profile.name }}</strong>
             </span>
             <span
-              v-if="isActiveProfile(profile.id)"
+              v-if="isDefaultProfile(profile)"
+              class="profile-chip-flag"
+              :title="tr('该型号的默认方案')"
+            >
+              {{ tr("默认") }}
+            </span>
+            <span
+              v-else-if="isActiveProfile(profile.id)"
               class="profile-chip-flag"
               :title="tr('已激活')"
             >
@@ -654,15 +754,20 @@ onUnmounted(() => {
             {{ editor.appTargets || tr("未设置应用目标") }}
           </span>
           <StatusPill
-            :label="editor.autoApply ? tr('自动应用') : tr('手动')"
-            :tone="editor.autoApply ? 'info' : 'neutral'"
+            :label="
+              editor.isDefault ? tr('默认方案') : editor.autoApply ? tr('自动应用') : tr('手动')
+            "
+            :tone="editor.isDefault ? 'accent' : editor.autoApply ? 'info' : 'neutral'"
             :title="
-              editor.autoApply
-                ? tr('前台应用匹配时自动切换到此方案')
-                : tr('不自动切换，需要手动激活')
+              editor.isDefault
+                ? tr('该型号的基线方案，始终生效')
+                : editor.autoApply
+                  ? tr('前台应用匹配时自动切换到此方案')
+                  : tr('不自动切换，需要手动激活')
             "
           />
-          <span v-if="!editingNew" class="activation-control">
+          <!-- 默认方案就是当前型号的基线，不存在「激活/未激活」，不显示开关。 -->
+          <span v-if="!editingNew && !editor.isDefault" class="activation-control">
             <Switch
               :model-value="isActiveProfile(editor.id)"
               :disabled="busy || !currentProfileRecord"
@@ -699,7 +804,7 @@ onUnmounted(() => {
             <RotateCcw :size="14" />
           </IconButton>
           <IconButton
-            v-if="!editingNew && currentProfileRecord && !isGlobalProfile(currentProfileRecord)"
+            v-if="!editingNew && currentProfileRecord && !isDefaultProfile(currentProfileRecord)"
             size="sm"
             variant="danger"
             :label="trDynamic('删除方案')"

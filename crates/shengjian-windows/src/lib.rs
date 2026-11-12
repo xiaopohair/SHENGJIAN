@@ -215,6 +215,13 @@ pub fn device_token(raw: &str) -> String {
 pub enum RemoteModel {
     Rc001,
     Rc003,
+    /// 小米蓝牙语音遥控器普通款（GATT 型号号 `ARN9`）。
+    ///
+    /// 与 RC003 **硬件等价**（同 VID 10007 / PID 12984、同 ATVV 语音服务、
+    /// 导航键 HID 码一致），但**没有 TV 键**，且型号号/软件版本不同。
+    /// 2026-11-12 真机探测：型号号 `ARN9`、软件版本 `A.4.2.0`、固件 `2671`。
+    /// 见 `docs/device-identity.md`。
+    Arn9,
     #[default]
     Unknown,
 }
@@ -1548,9 +1555,11 @@ pub fn remote_model_from_name(raw_name: &str) -> RemoteModel {
         "xiaomibluetoothremote2" | "小米蓝牙遥控器2" | "小米蓝牙语音遥控器2" => {
             RemoteModel::Rc001
         }
-        "xiaomibluetoothremote2pro" | "小米蓝牙遥控器2pro" | "小米蓝牙语音遥控器2pro" | "arn9" => {
+        "xiaomibluetoothremote2pro" | "小米蓝牙遥控器2pro" | "小米蓝牙语音遥控器2pro" => {
             RemoteModel::Rc003
         }
+        // 广播名/型号代号里出现 ARN9 就是普通款（无 TV 键），不能并到 RC003。
+        "arn9" => RemoteModel::Arn9,
         _ => RemoteModel::Unknown,
     }
 }
@@ -1560,7 +1569,10 @@ pub fn remote_model_from_model_number(model_number: &str) -> Option<RemoteModel>
     match normalized.as_str() {
         "RC001" => Some(RemoteModel::Rc001),
         "RC003" => Some(RemoteModel::Rc003),
-        value if value.contains("ARN9") => Some(RemoteModel::Rc003),
+        // 真机证据（2026-11-12）：ARN9 的 GATT 型号号就是 `ARN9`，与 RC003 不是同一款
+        // （无 TV 键、软件版本 A.4.2.0 vs A.7.0.6）。此前一律映射成 Rc003，会让 ARN9
+        // 套上含 TV 键的 RC003 布局，也与 upstream `xiaomi-arn9.json` 相冲突。
+        value if value.contains("ARN9") => Some(RemoteModel::Arn9),
         _ => None,
     }
 }
@@ -1822,6 +1834,26 @@ mod tests {
             Some(RemoteModel::Rc003)
         );
         assert_eq!(remote_model_from_model_number("RC002"), None);
+    }
+
+    #[test]
+    fn identifies_arn9_as_its_own_model_not_rc003() {
+        // 2026-11-12 真机：GATT 型号号 `ARN9`，无 TV 键，与 RC003 不是同一款。
+        assert_eq!(
+            remote_model_from_model_number("ARN9"),
+            Some(RemoteModel::Arn9)
+        );
+        assert_eq!(
+            remote_model_from_model_number(" arn9\r\n"),
+            Some(RemoteModel::Arn9),
+            "型号号归一化：大小写与首尾空白"
+        );
+        assert_eq!(remote_model_from_name("ARN9"), RemoteModel::Arn9);
+        assert_ne!(
+            remote_model_from_model_number("ARN9"),
+            Some(RemoteModel::Rc003),
+            "ARN9 不能再被当成 RC003，否则会套上含 TV 键的布局"
+        );
     }
 
     #[test]

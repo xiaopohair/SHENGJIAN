@@ -234,6 +234,8 @@ fn model_label(model: RemoteModel) -> Option<String> {
     match model {
         RemoteModel::Rc001 => Some("RC001".to_owned()),
         RemoteModel::Rc003 => Some("RC003".to_owned()),
+        // 型号标签是**按键方案隔离**的依据（大写型号号，见 docs/plan-device-model-profiles.md）。
+        RemoteModel::Arn9 => Some("ARN9".to_owned()),
         RemoteModel::Unknown => None,
     }
 }
@@ -242,6 +244,10 @@ fn device_id_for(model: RemoteModel) -> Option<DeviceId> {
     match model {
         RemoteModel::Rc001 => Some(DeviceId::new("xiaomi-rc001")),
         RemoteModel::Rc003 => Some(DeviceId::new("xiaomi-rc003")),
+        // ARN9 有自己的设备档案 `profiles/xiaomi-arn9.json`：同族硬件（同 VID/PID、
+        // 同 ATVV 服务、导航键 HID 码一致），但型号号不同、没有 TV 键，
+        // 而且电池服务少了 RC003 上的 0x2BED 特征，值得单独记录。
+        RemoteModel::Arn9 => Some(DeviceId::new("xiaomi-arn9")),
         RemoteModel::Unknown => None,
     }
 }
@@ -1061,11 +1067,16 @@ struct ProfilesIndex {
     active_manual_profile_id: Option<String>,
 }
 
-/// 方案文件名：`<清洗后的名称>-<id 尾段>.json`；全局方案固定为 `global.json`。
+/// 方案文件名：`<型号或「通用」>-<清洗后的名称>-<id 尾段>.json`。
+///
+/// 型号段便于分享/备份时一眼看出归属；id 尾段避免同型号下重名冲突。
 fn profile_file_name(profile: &shengjian_contract::ButtonProfile) -> String {
-    if profile.is_global() {
-        return "global.json".to_owned();
-    }
+    let model = profile
+        .device_model
+        .as_deref()
+        .map(sanitize_profile_name)
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "通用".to_owned());
     let stem = sanitize_profile_name(&profile.name);
     let suffix: String = profile
         .id
@@ -1075,12 +1086,59 @@ fn profile_file_name(profile: &shengjian_contract::ButtonProfile) -> String {
         .chars()
         .filter(|ch| ch.is_ascii_alphanumeric())
         .collect();
-    match (stem.is_empty(), suffix.is_empty()) {
-        (true, true) => "profile.json".to_owned(),
-        (true, false) => format!("{suffix}.json"),
-        (false, true) => format!("{stem}.json"),
-        (false, false) => format!("{stem}-{suffix}.json"),
+    let mut parts: Vec<String> = vec![model];
+    if !stem.is_empty() {
+        parts.push(stem);
     }
+    if !suffix.is_empty() {
+        parts.push(suffix);
+    }
+    // 名称与 id 都被清空时仍要能落盘，不能生成 `RC003-.json`。
+    if parts.len() == 1 {
+        parts.push("profile".to_owned());
+    }
+    format!("{}.json", parts.join("-"))
+}
+
+/// 备份整个方案目录（迁移前调用）。返回备份路径；目录不存在时返回 None。
+fn backup_profiles_dir(profiles_dir: &Path) -> Option<PathBuf> {
+    if !profiles_dir.exists() {
+        return None;
+    }
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|value| value.as_secs())
+        .unwrap_or_default();
+    let parent = profiles_dir.parent()?;
+    let backup = parent.join(format!("profiles.backup-{stamp}"));
+    let mut source = fs::read_dir(profiles_dir).ok()?;
+    fs::create_dir_all(&backup).ok()?;
+    while let Some(Ok(entry)) = source.next() {
+        let target = backup.join(entry.file_name());
+        let _ = fs::copy(entry.path(), target);
+    }
+    Some(backup)
+}
+
+/// v4 → v5：把只含「全局方案」的旧文档迁移成 (型号 × 默认方案)。
+///
+/// 决策（`docs/plan-device-model-profiles.md`）：旧数据全部归给 **RC003**，
+/// 原来的 `global` 方案变成 RC003 的默认方案（改名「默认」）。
+fn migrate_to_device_models(mut document: ButtonProfilesDocument) -> ButtonProfilesDocument {
+    for profile in &mut document.profiles {
+        if profile.device_model.is_none() {
+            profile.device_model = Some("RC003".to_owned());
+        }
+        if profile.id == "global" {
+            profile.id = shengjian_contract::default_profile_id(Some("RC003"));
+            profile.is_default = true;
+            profile.name = shengjian_contract::DEFAULT_PROFILE_NAME.to_owned();
+            profile.app_targets.clear();
+            profile.auto_apply = false;
+        }
+    }
+    document.schema_version = BUTTON_PROFILES_SCHEMA_VERSION;
+    document.normalized()
 }
 
 /// Windows 文件名非法字符替换为 `-`，折叠空白，限制长度。
@@ -1150,14 +1208,20 @@ impl ButtonProfilesStorePort for WindowsProfileStore {
                 .cmp(&right.created_at)
                 .then_with(|| left.name.cmp(&right.name))
         });
-        Ok(Some(
-            ButtonProfilesDocument {
-                schema_version: index.schema_version,
-                profiles,
-                active_manual_profile_id: index.active_manual_profile_id,
-            }
-            .normalized(),
-        ))
+        let document = ButtonProfilesDocument {
+            schema_version: index.schema_version,
+            profiles,
+            active_manual_profile_id: index.active_manual_profile_id,
+        };
+        if index.schema_version < BUTTON_PROFILES_SCHEMA_VERSION {
+            // v4 → v5：旧数据没有 deviceModel，全部归给 RC003，原 `global` 变成
+            // RC003 的默认方案。迁移前整目录备份，出问题可从 `profiles.backup-*` 恢复。
+            let _ = backup_profiles_dir(&self.profiles_dir);
+            let migrated = migrate_to_device_models(document);
+            let _ = self.save(&migrated);
+            return Ok(Some(migrated));
+        }
+        Ok(Some(document.normalized()))
     }
 
     fn save(&self, document: &ButtonProfilesDocument) -> CoreResult<()> {
@@ -1858,15 +1922,21 @@ mod button_store_tests {
 
         let document = ButtonProfilesDocument::default();
         store.save(&document).expect("save");
-        // Saving normalizes, which materializes the global profile.
+        // Saving normalizes, which materializes the generic default profile.
         let expected = document.normalized();
+        let expected_file_name = profile_file_name(&expected.profiles[0]);
         assert_eq!(store.load().expect("load"), Some(expected));
 
-        // One file per profile, plus the index.
+        // One file per profile, plus the index. 文件名带型号段（型号未知时是「通用」）。
         assert!(store.path().is_file(), "index file");
+        let expected_file = store.profiles_dir().join(&expected_file_name);
         assert!(
-            store.profiles_dir().join("global.json").is_file(),
-            "global profile file"
+            expected_file.is_file(),
+            "default profile file: {expected_file:?}"
+        );
+        assert!(
+            expected_file_name.starts_with("通用-"),
+            "型号未知的默认方案文件名应带「通用」段，实际 {expected_file_name}"
         );
         let _ = fs::remove_dir_all(dir);
     }

@@ -125,9 +125,14 @@ mod tests {
             &fs::read_to_string(out.join("button-profiles.json")).expect("profiles"),
         )
         .expect("core profiles");
-        // Normalization always adds the global profile.
+        // 归一化恒补一份默认方案：旧数据为空时得到「通用」默认方案。
         assert_eq!(profiles.profiles.len(), 1);
-        assert_eq!(profiles.profiles[0].id, "global");
+        assert!(profiles.profiles[0].is_default);
+        assert_eq!(profiles.profiles[0].device_model, None);
+        assert_eq!(
+            profiles.profiles[0].id,
+            shengjian_contract::default_profile_id(None)
+        );
         let _ = fs::remove_dir_all(dir);
     }
 }

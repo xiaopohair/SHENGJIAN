@@ -231,6 +231,8 @@ fn engine_applies_auto_profile_after_foreground_sync() {
             hold_repeat: None,
             hold_repeat_by_button: std::collections::BTreeMap::new(),
             voice_input_tool: None,
+            device_model: None,
+            is_default: false,
             bindings: profile_bindings,
         }],
         ..shengjian_contract::ButtonProfilesDocument::default()

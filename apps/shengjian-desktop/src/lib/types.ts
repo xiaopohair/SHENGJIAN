@@ -160,6 +160,10 @@ export interface ButtonProfile {
   holdRepeat?: "single" | "long" | null;
   holdRepeatByButton?: Record<string, "single" | "long" | null>;
   voiceInputTool?: string | null;
+  /** 归属设备型号（大写，如 "RC003"）；null = 通用方案。 */
+  deviceModel?: string | null;
+  /** 是否为该型号的默认方案（不可删除、不可改名）。 */
+  isDefault?: boolean;
   bindings: Record<string, Record<string, LogicalAction>>;
 }
 

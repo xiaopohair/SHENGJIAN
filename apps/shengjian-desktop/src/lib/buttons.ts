@@ -15,15 +15,38 @@ export const PROFILE_BUTTONS: Array<{ id: LogicalButton; label: string }> = [
   { id: "volume-down", label: "音量-" },
 ];
 
-/** 全局方案的固定 id：恒存在、排首位、不可删除、不关联应用。 */
-export const GLOBAL_PROFILE_ID = "global";
+/** 默认方案的固定显示名（后端强制，不随用户改名变化）。 */
+export const DEFAULT_PROFILE_NAME = "默认";
 
-/** 全局方案的显示名（后端固定，不随用户改名变化）。 */
-export const GLOBAL_PROFILE_NAME = "全局";
+/** 是否为不可删除的默认方案：每个设备型号各一份，外加一份通用兜底。 */
+export function isDefaultProfile(profile: { isDefault?: boolean }): boolean {
+  return Boolean(profile.isDefault);
+}
 
-/** 是否为不可删除的全局方案。 */
-export function isGlobalProfile(profile: { id: string }): boolean {
-  return profile.id === GLOBAL_PROFILE_ID;
+/**
+ * 某型号的按键布局。
+ *
+ * 真机确认 ARN9（普通款）**没有 TV 键**，其余位置与 RC003 一致；
+ * 型号未知时给全量布局，保证所有位置都能编辑。
+ */
+export function profileButtonsForModel(
+  model: string | null | undefined,
+): Array<{ id: LogicalButton; label: string }> {
+  const normalized = (model ?? "").trim().toUpperCase();
+  if (normalized === "ARN9") {
+    return PROFILE_BUTTONS.filter((button) => button.id !== "tv");
+  }
+  return PROFILE_BUTTONS;
+}
+
+/** 方案是否对给定型号可见（通用方案对所有型号可见）。 */
+export function profileAppliesToModel(
+  profile: { deviceModel?: string | null },
+  model: string | null | undefined,
+): boolean {
+  const own = (profile.deviceModel ?? "").trim().toUpperCase();
+  if (!own) return true;
+  return own === (model ?? "").trim().toUpperCase();
 }
 
 export const PROFILE_TRIGGERS = ["single", "double", "long"] as const;
@@ -47,5 +70,9 @@ export interface ProfileDraft {
   holdRepeat: "" | "single" | "long";
   holdRepeatByButton?: Partial<Record<LogicalButton, "off" | "single" | "long">>;
   voiceInputTool: string;
+  /** 归属设备型号（大写，如 "RC003"）；null = 通用方案。 */
+  deviceModel?: string | null;
+  /** 是否为该型号的默认方案。 */
+  isDefault?: boolean;
   bindings: Record<string, Partial<Record<ProfileTrigger, LogicalAction>>>;
 }

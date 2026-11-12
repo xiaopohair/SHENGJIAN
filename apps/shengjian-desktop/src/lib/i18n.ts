@@ -222,10 +222,13 @@ const ENGLISH = {
   重置: "Reset",
   重置方案: "Reset profile",
   "重置方案“{name}”？": "Reset profile “{name}”?",
-  "将清空全局方案的所有动作，全部回到遥控器出厂默认。此操作不可恢复。":
-    "This clears every action in the global profile, returning all buttons to the factory defaults. This cannot be undone.",
-  "将清空本方案的所有动作，全部回到全局方案的默认值。此操作不可恢复。":
-    "This clears every action in this profile, returning all buttons to the global profile defaults. This cannot be undone.",
+  "将清空默认方案的所有动作，全部回到遥控器出厂默认。此操作不可恢复。":
+    "This clears every action in the default profile, returning all buttons to the factory defaults. This cannot be undone.",
+  "将清空本方案的所有动作，全部回到默认方案的默认值。此操作不可恢复。":
+    "This clears every action in this profile, returning all buttons to the default profile values. This cannot be undone.",
+  该型号的默认方案: "Default profile for this remote model",
+  默认方案: "Default profile",
+  "该型号的基线方案，始终生效": "Baseline for this remote model; always in effect",
   仅影响设置: "Settings only",
   "恢复默认设置会清除全局设置和设备覆盖，不影响 profile、宏和转写历史。":
     "Restoring defaults clears global settings and device overrides; profiles, macros, and transcripts are unaffected.",
@@ -234,6 +237,7 @@ const ENGLISH = {
     "Adjust appearance, audio, voice, startup, and device settings; all changes save immediately.",
   "小米蓝牙语音遥控器 2 Pro": "Xiaomi Bluetooth Voice Remote 2 Pro",
   "小米蓝牙语音遥控器 2": "Xiaomi Bluetooth Voice Remote 2",
+  小米蓝牙语音遥控器: "Xiaomi Bluetooth Voice Remote",
   "当前设备：{name}。查看型号、固件版本、电量与重连状态。":
     "Current device: {name}. View model, firmware, battery, and reconnect status.",
   "管理遥控器连接与设备状态。": "Manage the remote connection and device status.",
@@ -355,8 +359,8 @@ const ENGLISH = {
   "点击捕获后直接按组合键；Esc 退出。":
     "After clicking Capture, press the key combination directly; Esc cancels.",
   "使用当前平台可用的常用语。": "Uses the common phrases available on this platform.",
-  "删除该手势的覆盖，回到全局默认。":
-    "Remove this gesture override and fall back to the global default.",
+  "删除该手势的覆盖，回到默认方案。":
+    "Remove this gesture override and fall back to the default profile.",
   "该手势不会触发任何动作，也不会向下传递。":
     "This gesture will not trigger any action or pass through.",
   "该动作类型会被保留，但当前版本不提供编辑。":
@@ -367,6 +371,8 @@ const ENGLISH = {
   当前遥控器: "Current remote",
   "按 RC003 产品图对位；语音键为硬件键。":
     "Aligned to the RC003 product image; the voice key is hardware-only.",
+  "按 ARN9 产品图对位；语音键为硬件键。":
+    "Aligned to the ARN9 product image; the voice key is hardware-only.",
   "先选按键，再选手势，最后指定动作。当前选中键会显示金色描边。":
     "Choose a key, then a gesture, then an action. The selected key gets a gold outline.",
   点击按键查看绑定: "Click a key to view its bindings",

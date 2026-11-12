@@ -1,0 +1,72 @@
+{
+  "$schema": "./schema.json",
+  "schemaVersion": 1,
+  "id": "xiaomi-arn9",
+  "displayName": "Xiaomi Bluetooth Voice Remote / ARN9",
+  "vendor": "Xiaomi",
+  "model": "ARN9",
+  "support": {
+    "status": "implemented",
+    "notes": "2026-11-12 Windows 真机验证（MAC f4:22:7a:aa:a8:4a）：ATVV 语音链路 2.49 秒会话、36480 采样、peak -2.7 dBFS 无削波；导航键（上/下/左/右/Home/菜单）Raw Input HID 码与 RC003 一致；音量+/- 与返回键走增强捕获 0x0080 / 0x0081 / 0x00F1。与 RC003 是同一族硬件（同 VID/PID、同 9 个 GATT 服务、同 ATVV 服务），但型号号不同且没有 TV 键。"
+  },
+  "identity": {
+    "modelNumbers": ["ARN9"],
+    "hid": {
+      "vendorId": 10007,
+      "productId": 12984
+    }
+  },
+  "transports": [
+    {
+      "kind": "ble-gatt",
+      "role": "voice-input",
+      "status": "implemented",
+      "notes": "ATVV 服务 AB5E0001（0002 write / 0003 notify / 0004 notify），能力握手与 16 kHz IMA/DVI ADPCM 音频流均验证通过。"
+    },
+    {
+      "kind": "bluetooth-hid",
+      "role": "button-input",
+      "status": "implemented",
+      "notes": "Windows Raw Input/HID 接收导航键；音量键与返回键需增强捕获（0x0080/0x0081/0x00F1）。语音键走语音链路，不进入映射引擎。"
+    }
+  ],
+  "capabilities": [
+    "voice-capture",
+    "press-to-talk",
+    "button-input",
+    "host-key-mapping",
+    "gain-control",
+    "device-status",
+    "enhanced-key-capture"
+  ],
+  "protocols": [
+    {
+      "id": "android-tv-voice-over-ble",
+      "status": "implemented",
+      "notes": "ATVV 控制/音频特征与 RC003 完全相同，控制包序列一致（CAPS 请求 0A 01 00 00 03 03）。"
+    }
+  ],
+  "platforms": [
+    {
+      "platform": "windows",
+      "status": "implemented",
+      "notes": "本仓库真机验收：语音、导航键、音量/返回增强捕获、电量与固件读取全部通过。",
+      "features": ["enhanced-key-capture"]
+    },
+    {
+      "platform": "macos",
+      "status": "planned",
+      "notes": "upstream（nijez/open-voice-bridge）记录该型号在 macOS 已验收，但本 Windows 仓库未验证，不据此声明支持。"
+    },
+    {
+      "platform": "linux",
+      "status": "planned",
+      "notes": "本仓库没有 Linux 适配实现。"
+    }
+  ],
+  "sources": [
+    "https://github.com/nijez/open-voice-bridge",
+    "docs/device-identity.md（2026-11-12 真机 GATT 探测记录）"
+  ],
+  "notes": "identity.bluetoothNames 故意留空：该型号在 Windows 上的广播名是「小米蓝牙语音遥控器」，与 RC003 完全同名，用名字做身份判定必然错判。识别只能靠 GATT 型号号 0x2A24 = ARN9 或 HID 组合，不能从通用名称猜。另：电池服务没有 RC003 上那个 0x2BED 特征；Appearance = 0x03C1（HID 键盘）。"
+}

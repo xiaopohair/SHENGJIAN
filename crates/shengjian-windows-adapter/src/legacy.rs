@@ -70,15 +70,28 @@ pub fn migrate_button_profiles_document(legacy: &LegacyProfiles) -> ButtonProfil
 }
 
 fn migrate_profile(profile: &LegacyProfile) -> shengjian_contract::ButtonProfile {
+    // 旧格式没有「型号」概念：按既定决策全部归给 RC003，原来的 `global` 方案
+    // 升格为 RC003 的默认方案（见 docs/plan-device-model-profiles.md）。
+    let was_global = profile.id == "global";
     shengjian_contract::ButtonProfile {
-        id: profile.id.clone(),
-        name: profile.name.clone(),
+        id: if was_global {
+            shengjian_contract::default_profile_id(Some("RC003"))
+        } else {
+            profile.id.clone()
+        },
+        name: if was_global {
+            shengjian_contract::DEFAULT_PROFILE_NAME.to_owned()
+        } else {
+            profile.name.clone()
+        },
         created_at: profile.created_at,
         app_targets: profile.app_targets.clone(),
         auto_apply: profile.auto_apply,
         hold_repeat: None,
         hold_repeat_by_button: BTreeMap::new(),
         voice_input_tool: None,
+        device_model: Some("RC003".to_owned()),
+        is_default: was_global,
         bindings: profile
             .bindings
             .iter()
@@ -249,18 +262,55 @@ mod tests {
             active_manual_profile_id: Some("p1".to_owned()),
         };
         let migrated = migrate_button_profiles_document(&legacy);
-        // Normalization always adds the global profile at index 0.
-        assert_eq!(migrated.profiles.len(), 2);
-        assert_eq!(migrated.profiles[0].id, "global");
-        assert_eq!(migrated.profiles[1].id, "p1");
-        assert_eq!(migrated.profiles[1].auto_apply, true);
+        // 旧数据全部归给 RC003；归一化再补上 RC003 默认方案与通用兜底。
+        assert_eq!(migrated.profiles.len(), 3);
+        let rc003_default = migrated
+            .default_profile_for(Some("RC003"))
+            .expect("RC003 default");
+        assert_eq!(rc003_default.name, shengjian_contract::DEFAULT_PROFILE_NAME);
+        assert!(migrated.default_profile_for(None).is_some());
+        let music = migrated
+            .profiles
+            .iter()
+            .find(|profile| profile.id == "p1")
+            .expect("p1");
+        assert_eq!(music.device_model.as_deref(), Some("RC003"));
+        assert_eq!(music.auto_apply, true);
         assert_eq!(
-            migrated.profiles[1].bindings[&LogicalButton::Up][&ButtonTrigger::Single],
+            music.bindings[&LogicalButton::Up][&ButtonTrigger::Single],
             LogicalAction::Shortcut {
                 label: "j".to_owned(),
                 keys: vec!["j".to_owned()],
             }
         );
         assert_eq!(migrated.active_manual_profile_id.as_deref(), Some("p1"));
+    }
+
+    #[test]
+    fn legacy_global_profile_becomes_the_rc003_default() {
+        let legacy = LegacyProfiles {
+            schema_version: 1,
+            profiles: vec![LegacyProfile {
+                id: "global".to_owned(),
+                name: "全局".to_owned(),
+                created_at: 0,
+                app_targets: Vec::new(),
+                auto_apply: false,
+                bindings: BTreeMap::new(),
+            }],
+            active_manual_profile_id: None,
+        };
+        let migrated = migrate_button_profiles_document(&legacy);
+        // 不再有 `global` 这个 id，也不再叫「全局」。
+        assert!(!migrated
+            .profiles
+            .iter()
+            .any(|profile| profile.id == "global"));
+        let default = migrated
+            .default_profile_for(Some("RC003"))
+            .expect("RC003 default");
+        assert!(default.is_default);
+        assert_eq!(default.device_model.as_deref(), Some("RC003"));
+        assert_eq!(default.name, shengjian_contract::DEFAULT_PROFILE_NAME);
     }
 }

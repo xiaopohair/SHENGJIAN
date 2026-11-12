@@ -478,7 +478,7 @@ async function chooseApp() {
       {{ tr("使用当前平台可用的常用语。") }}
     </p>
     <p v-else-if="actionType === 'inherit'" class="binding-hint">
-      {{ tr("删除该手势的覆盖，回到全局默认。") }}
+      {{ tr("删除该手势的覆盖，回到默认方案。") }}
     </p>
     <p v-else-if="actionType === 'disabled'" class="binding-hint">
       {{ tr("该手势不会触发任何动作，也不会向下传递。") }}

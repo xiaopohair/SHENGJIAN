@@ -108,6 +108,8 @@ pub async fn connect_remote(
         .as_ref()
         .and_then(|remote| remote.device_id.as_ref())
         .map(|device| device.as_str().to_owned());
+    // 方案按设备型号隔离：连上就立刻切到该型号的方案，不等后台轮询。
+    state.engine.sync_device_model();
     apply_effective_audio_settings(
         &state.engine,
         device_id.as_deref(),
@@ -123,10 +125,13 @@ pub async fn disconnect_remote(
     state: State<'_, AppState>,
 ) -> Result<ConnectionSnapshot, CommandError> {
     let engine = state.engine.clone();
-    tauri::async_runtime::spawn_blocking(move || engine.disconnect())
+    let result = tauri::async_runtime::spawn_blocking(move || engine.disconnect())
         .await
         .map_err(|_| CommandError::new("command-join-failed", "disconnect task failed", true))?
-        .map_err(CommandError::from)
+        .map_err(CommandError::from)?;
+    // 断开后型号变回未知；让方案服务跟着回落，界面不会挂着上一台的方案。
+    state.engine.sync_device_model();
+    Ok(result)
 }
 
 #[tauri::command]
@@ -583,9 +588,10 @@ pub struct DevicePlatformView {
 
 #[tauri::command]
 pub fn device_support() -> Result<Vec<DeviceSupportView>, CommandError> {
-    const PROFILES: [&str; 2] = [
+    const PROFILES: [&str; 3] = [
         include_str!("../../../../profiles/xiaomi-rc003.json"),
         include_str!("../../../../profiles/xiaomi-rc001.json"),
+        include_str!("../../../../profiles/xiaomi-arn9.json"),
     ];
     PROFILES
         .iter()

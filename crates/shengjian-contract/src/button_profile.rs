@@ -8,16 +8,47 @@ use crate::model::{ButtonActions, ButtonMappingSet, ButtonTrigger, LogicalAction
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
-pub const BUTTON_PROFILES_SCHEMA_VERSION: u32 = 4;
+pub const BUTTON_PROFILES_SCHEMA_VERSION: u32 = 5;
 
-/// 全局方案的固定 id：恒存在、排首位、不可删除、不关联应用。
+/// 默认方案的显示名（固定，不随用户改名变化）。
 ///
-/// 它承载「遥控器默认状态」：其他方案未显式绑定的 `(按键, 触发)` 继承它的动作，
-/// 它自身未绑定的位置再继承基础映射（`button-mappings.json`）。
-pub const GLOBAL_PROFILE_ID: &str = "global";
+/// 「默认方案」是**每个设备型号各一份**的基线：同型号的其他方案未显式绑定的
+/// `(按键, 触发)` 继承它的动作，它自身未绑定的位置再继承基础映射
+/// （`button-mappings.json`）。`device_model == None` 的那一份是「通用」兜底，
+/// 对型号未知的情况生效。
+pub const DEFAULT_PROFILE_NAME: &str = "默认";
 
-/// 全局方案的显示名（固定，不随用户改名变化）。
-pub const GLOBAL_PROFILE_NAME: &str = "全局";
+/// 默认方案的稳定 id。型号未知时用 `generic` 段。
+///
+/// id 只用于持久化与前端定位，语义完全由 `is_default` 决定——不再有「固定全局 id」
+/// 这种双轨标记。
+pub fn default_profile_id(model: Option<&str>) -> String {
+    match normalized_model(model) {
+        Some(model) => format!("default-{}", model.to_lowercase()),
+        None => "default-generic".to_owned(),
+    }
+}
+
+/// 型号字符串统一为**大写去空白**；空串视作「通用」。
+pub fn normalized_model(model: Option<&str>) -> Option<String> {
+    let trimmed = model?.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    Some(trimmed.to_uppercase())
+}
+
+/// 某型号的按键布局。
+///
+/// RC003（小米蓝牙语音遥控器 2 Pro）有 TV 键；ARN9（普通款）真机确认**没有 TV 键**
+/// （见 `docs/device-identity.md` 与 2026-11-12 真机探测记录）。型号未知时给全量布局，
+/// 保证用户仍能编辑所有可能的位置。
+pub fn profile_buttons_for_model(model: Option<&str>) -> &'static [LogicalButton] {
+    match normalized_model(model).as_deref() {
+        Some("ARN9") => &ARN9_BUTTONS,
+        _ => &PROFILE_BUTTONS,
+    }
+}
 
 pub type TriggerBindings = BTreeMap<ButtonTrigger, LogicalAction>;
 
@@ -41,6 +72,21 @@ pub fn is_profile_button(button: LogicalButton) -> bool {
     PROFILE_BUTTONS.contains(&button)
 }
 
+/// ARN9（小米蓝牙语音遥控器普通款）的布局：与 RC003 相同，但**没有 TV 键**。
+pub const ARN9_BUTTONS: [LogicalButton; 11] = [
+    LogicalButton::Back,
+    LogicalButton::Ok,
+    LogicalButton::Home,
+    LogicalButton::Menu,
+    LogicalButton::Left,
+    LogicalButton::Right,
+    LogicalButton::Down,
+    LogicalButton::Up,
+    LogicalButton::Power,
+    LogicalButton::VolumeUp,
+    LogicalButton::VolumeDown,
+];
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ButtonProfile {
@@ -60,28 +106,45 @@ pub struct ButtonProfile {
     pub hold_repeat_by_button: BTreeMap<LogicalButton, Option<ButtonTrigger>>,
     #[serde(default)]
     pub voice_input_tool: Option<String>,
+    /// 归属设备型号（全大写，如 `RC003`）；`None` = 通用方案，对所有型号可见。
+    #[serde(default)]
+    pub device_model: Option<String>,
+    /// 是否为该型号的默认方案：不可删除、不可改名、不关联应用、不自动应用。
+    #[serde(default)]
+    pub is_default: bool,
     #[serde(default)]
     pub bindings: BTreeMap<LogicalButton, TriggerBindings>,
 }
 
 impl ButtonProfile {
-    /// 是否为不可删除的全局方案。
-    pub fn is_global(&self) -> bool {
-        self.id == GLOBAL_PROFILE_ID
+    /// 是否为不可删除的默认方案。
+    pub fn is_default_profile(&self) -> bool {
+        self.is_default
     }
 
-    /// 新建全局方案（恒存在，无应用绑定，不允许自动应用）。
-    pub fn global() -> Self {
+    /// 新建某型号的默认方案（恒存在、无应用绑定、不自动应用）。
+    pub fn default_for(model: Option<&str>) -> Self {
         Self {
-            id: GLOBAL_PROFILE_ID.to_owned(),
-            name: GLOBAL_PROFILE_NAME.to_owned(),
+            id: default_profile_id(model),
+            name: DEFAULT_PROFILE_NAME.to_owned(),
             created_at: 0,
             app_targets: Vec::new(),
             auto_apply: false,
             hold_repeat: None,
             hold_repeat_by_button: BTreeMap::new(),
             voice_input_tool: None,
+            device_model: normalized_model(model),
+            is_default: true,
             bindings: BTreeMap::new(),
+        }
+    }
+
+    /// 该方案是否对给定型号可见（通用方案对所有型号可见）。
+    pub fn applies_to_model(&self, model: Option<&str>) -> bool {
+        match (&self.device_model, normalized_model(model)) {
+            (None, _) => true,
+            (Some(own), Some(current)) => *own == current,
+            (Some(_), None) => false,
         }
     }
 
@@ -123,27 +186,8 @@ impl ButtonProfilesDocument {
         self.profiles
             .retain(|profile| seen_ids.insert(profile.id.clone()));
 
-        // 全局方案恒存在且排首位；名称固定、不关联应用、不自动应用。
-        match self
-            .profiles
-            .iter()
-            .position(|profile| profile.id == GLOBAL_PROFILE_ID)
-        {
-            Some(index) => {
-                {
-                    let global = &mut self.profiles[index];
-                    global.name = GLOBAL_PROFILE_NAME.to_owned();
-                    global.app_targets.clear();
-                    global.auto_apply = false;
-                }
-                if index != 0 {
-                    let global = self.profiles.remove(index);
-                    self.profiles.insert(0, global);
-                }
-            }
-            None => self.profiles.insert(0, ButtonProfile::global()),
-        }
         for profile in &mut self.profiles {
+            profile.device_model = normalized_model(profile.device_model.as_deref());
             profile.name = profile.name.trim().to_owned();
             let mut targets = Vec::new();
             for target in &profile.app_targets {
@@ -154,12 +198,82 @@ impl ButtonProfilesDocument {
             }
             profile.app_targets = targets;
         }
-        let mut claimed = BTreeSet::new();
-        for profile in &mut self.profiles {
-            profile
-                .app_targets
-                .retain(|target| claimed.insert(target.clone()));
+
+        // 型号首次出现顺序决定列表分组顺序。
+        let mut models: Vec<Option<String>> = Vec::new();
+        for profile in &self.profiles {
+            if !models.contains(&profile.device_model) {
+                models.push(profile.device_model.clone());
+            }
         }
+
+        // 每个型号有且仅有一个默认方案：多出来的降级成普通方案。
+        let mut seen_default: BTreeSet<Option<String>> = BTreeSet::new();
+        for profile in &mut self.profiles {
+            if profile.is_default && !seen_default.insert(profile.device_model.clone()) {
+                profile.is_default = false;
+            }
+        }
+        for model in &models {
+            if !seen_default.contains(model) {
+                self.profiles
+                    .push(ButtonProfile::default_for(model.as_deref()));
+                seen_default.insert(model.clone());
+            }
+        }
+        // 通用默认方案恒存在：型号完全未知时列表也不会空。
+        if !seen_default.contains(&None) {
+            self.profiles.push(ButtonProfile::default_for(None));
+            if !models.contains(&None) {
+                models.push(None);
+            }
+        }
+
+        // 默认方案的形状固定：名称「默认」、不关联应用、不自动应用。
+        for profile in &mut self.profiles {
+            if profile.is_default {
+                profile.name = DEFAULT_PROFILE_NAME.to_owned();
+                profile.app_targets.clear();
+                profile.auto_apply = false;
+            }
+        }
+
+        // 同一型号内 app_targets 不重复；跨型号允许（不同型号各自的同应用方案）。
+        for model in &models {
+            let mut claimed = BTreeSet::new();
+            for profile in &mut self.profiles {
+                if profile.is_default || &profile.device_model != model {
+                    continue;
+                }
+                profile
+                    .app_targets
+                    .retain(|target| claimed.insert(target.clone()));
+            }
+        }
+
+        // 分组排序：按型号首次出现顺序，每组的默认方案排最前。
+        let mut ordered = Vec::with_capacity(self.profiles.len());
+        for model in &models {
+            if let Some(index) = self
+                .profiles
+                .iter()
+                .position(|profile| &profile.device_model == model && profile.is_default)
+            {
+                ordered.push(self.profiles.remove(index));
+            }
+            let mut index = 0;
+            while index < self.profiles.len() {
+                if &self.profiles[index].device_model == model {
+                    ordered.push(self.profiles.remove(index));
+                } else {
+                    index += 1;
+                }
+            }
+        }
+        // 兜底：型号分组没覆盖到的方案原样追加，绝不静默丢数据。
+        ordered.extend(std::mem::take(&mut self.profiles));
+        self.profiles = ordered;
+
         if let Some(active) = &self.active_manual_profile_id {
             if !self.profiles.iter().any(|profile| &profile.id == active) {
                 self.active_manual_profile_id = None;
@@ -167,6 +281,34 @@ impl ButtonProfilesDocument {
         }
         self.schema_version = BUTTON_PROFILES_SCHEMA_VERSION;
         self
+    }
+
+    /// 某型号的默认方案（不存在时返回 None，调用方可用 `default_for` 补建）。
+    pub fn default_profile_for(&self, model: Option<&str>) -> Option<&ButtonProfile> {
+        let model = normalized_model(model);
+        self.profiles
+            .iter()
+            .find(|profile| profile.is_default && profile.device_model == model)
+    }
+
+    /// 该型号可见的方案（通用方案对所有型号可见）。
+    ///
+    /// 例外：型号已有自己的默认方案时**不再列出通用默认方案**——它只是型号未知时的
+    /// 兜底，列出来会让界面出现两个「默认」。
+    pub fn profiles_for_model(&self, model: Option<&str>) -> Vec<&ButtonProfile> {
+        let model = normalized_model(model);
+        let has_own_default =
+            model.is_some() && self.default_profile_for(model.as_deref()).is_some();
+        self.profiles
+            .iter()
+            .filter(|profile| {
+                let generic_default = profile.is_default && profile.device_model.is_none();
+                if has_own_default && generic_default {
+                    return false;
+                }
+                profile.applies_to_model(model.as_deref())
+            })
+            .collect()
     }
 
     pub fn profile(&self, id: &str) -> Option<&ButtonProfile> {
@@ -249,7 +391,16 @@ mod tests {
             hold_repeat: None,
             hold_repeat_by_button: BTreeMap::new(),
             voice_input_tool: None,
+            device_model: None,
+            is_default: false,
             bindings: BTreeMap::new(),
+        }
+    }
+
+    fn model_profile(id: &str, name: &str, model: &str) -> ButtonProfile {
+        ButtonProfile {
+            device_model: Some(model.to_owned()),
+            ..profile(id, name)
         }
     }
 
@@ -286,9 +437,10 @@ mod tests {
         }
         .normalized();
         assert_eq!(document.schema_version, BUTTON_PROFILES_SCHEMA_VERSION);
-        // The global profile is always present and first.
+        // The generic default profile is always present and first.
         assert_eq!(document.profiles.len(), 3);
-        assert_eq!(document.profiles[0].id, GLOBAL_PROFILE_ID);
+        assert_eq!(document.profiles[0].id, default_profile_id(None));
+        assert!(document.profiles[0].is_default);
         assert_eq!(document.profiles[1].name, "第一");
         assert_eq!(
             document.profiles[1].app_targets,
@@ -405,5 +557,120 @@ mod tests {
         let up = &effective.actions[&LogicalButton::Up];
         assert_eq!(up.hold_repeat, Some(ButtonTrigger::Long));
         assert!(up.ok_context_click);
+    }
+
+    #[test]
+    fn default_profile_created_per_model() {
+        let document = ButtonProfilesDocument {
+            schema_version: 4,
+            profiles: vec![
+                model_profile("rc003-a", "A", "RC003"),
+                model_profile("arn9-a", "B", "ARN9"),
+            ],
+            active_manual_profile_id: None,
+        }
+        .normalized();
+
+        // RC003 一份默认、ARN9 一份默认、外加通用兜底。
+        let defaults: Vec<_> = document
+            .profiles
+            .iter()
+            .filter(|profile| profile.is_default)
+            .collect();
+        assert_eq!(defaults.len(), 3);
+        assert_eq!(
+            document
+                .default_profile_for(Some("RC003"))
+                .map(|profile| profile.name.clone()),
+            Some(DEFAULT_PROFILE_NAME.to_owned())
+        );
+        assert_eq!(
+            document.default_profile_for(Some("arn9")),
+            document.default_profile_for(Some("ARN9")),
+            "型号比较必须大小写无关"
+        );
+        assert!(document.default_profile_for(None).is_some());
+    }
+
+    #[test]
+    fn normalized_enforces_default_shape() {
+        let mut broken = model_profile("default-rc003", "被改过的名字", "rc003");
+        broken.is_default = true;
+        broken.app_targets = vec!["cloudmusic.exe".to_owned()];
+        broken.auto_apply = true;
+        let document = ButtonProfilesDocument {
+            schema_version: 4,
+            profiles: vec![broken],
+            active_manual_profile_id: None,
+        }
+        .normalized();
+
+        let default = document
+            .default_profile_for(Some("RC003"))
+            .expect("RC003 default");
+        assert_eq!(default.name, DEFAULT_PROFILE_NAME);
+        assert_eq!(default.device_model.as_deref(), Some("RC003"));
+        assert!(default.app_targets.is_empty());
+        assert!(!default.auto_apply);
+    }
+
+    #[test]
+    fn duplicate_default_for_same_model_is_demoted() {
+        let mut first = model_profile("d1", "一", "RC003");
+        first.is_default = true;
+        let mut second = model_profile("d2", "二", "RC003");
+        second.is_default = true;
+        let document = ButtonProfilesDocument {
+            schema_version: 4,
+            profiles: vec![first, second],
+            active_manual_profile_id: None,
+        }
+        .normalized();
+        let count = document
+            .profiles
+            .iter()
+            .filter(|profile| {
+                profile.is_default && profile.device_model.as_deref() == Some("RC003")
+            })
+            .count();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn model_profiles_are_filtered_by_model_and_generic_is_shared() {
+        let document = ButtonProfilesDocument {
+            schema_version: 4,
+            profiles: vec![
+                model_profile("rc003-music", "音乐", "RC003"),
+                model_profile("arn9-music", "音乐", "ARN9"),
+                profile("generic-shared", "通用方案"),
+            ],
+            active_manual_profile_id: None,
+        }
+        .normalized();
+
+        let rc003 = document.profiles_for_model(Some("RC003"));
+        let ids: Vec<_> = rc003.iter().map(|profile| profile.id.as_str()).collect();
+        assert!(ids.contains(&"rc003-music"));
+        assert!(!ids.contains(&"arn9-music"), "ARN9 方案不能出现在 RC003 下");
+        assert!(ids.contains(&"generic-shared"), "通用方案对所有型号可见");
+        assert!(
+            !ids.contains(&default_profile_id(None).as_str()),
+            "型号有自己的默认方案时不再列通用默认，避免出现两个「默认」"
+        );
+
+        // 型号完全未知时：只有通用方案可见。
+        let unknown = document.profiles_for_model(None);
+        assert!(unknown.iter().all(|profile| profile.device_model.is_none()));
+    }
+
+    #[test]
+    fn arn9_layout_has_no_tv_key_but_rc003_does() {
+        assert!(profile_buttons_for_model(Some("RC003")).contains(&LogicalButton::Tv));
+        assert!(!profile_buttons_for_model(Some("ARN9")).contains(&LogicalButton::Tv));
+        // 型号未知时给全量布局，保证所有位置都可编辑。
+        assert!(profile_buttons_for_model(None).contains(&LogicalButton::Tv));
+        assert_eq!(profile_buttons_for_model(Some("ARN9")).len(), 11);
+        assert_eq!(profile_buttons_for_model(Some("RC003")).len(), 12);
     }
 }
