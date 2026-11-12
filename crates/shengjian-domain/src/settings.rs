@@ -110,11 +110,12 @@ pub struct AppSettings {
     /// 空列表或空字符串在 `normalized()` 中收敛为 `None`。
     pub voice_hotkey: Option<Vec<String>>,
     pub launch_at_login: bool,
-    /// 启动时是否自动打开主面板（设置页「启动行为」第二项，默认 **开启**）。
+    /// 启动时是否自动打开主面板，默认 **开启**。
     ///
-    /// 对齐 Mac `AppSettings.openMainWindowAtLaunch`：关闭后普通启动只驻留托盘，
-    /// 用户从托盘或再次双击快捷方式打开。未完成首次设置或本次启动前刚完成更新时
-    /// 仍会显示主面板（判定见 `shengjian_app` 的启动可见性）。
+    /// 设置页「启动与窗口 > 启动后隐藏到系统托盘」是这个值的**反向**开关（默认关闭），
+    /// 打开即写入 `false`：普通启动只驻留托盘，用户从托盘菜单（「显示主窗口」）
+    /// 或再次启动应用打开主面板。判定见 `splash::should_open_at_launch`（读取失败按开启处理）。
+    /// 语义对齐 Mac `AppSettings.openMainWindowAtLaunch`。
     pub open_window_at_launch: bool,
     /// 关闭主窗口时是否隐藏到托盘；`false` 表示关闭即退出应用。
     /// 老配置没有该字段时按默认 **开启**。

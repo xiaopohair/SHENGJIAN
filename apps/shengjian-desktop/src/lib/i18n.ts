@@ -529,6 +529,9 @@ const ENGLISH = {
   未选择: "Not selected",
   开机自动启动: "Start with Windows",
   "关闭窗口时隐藏到托盘（关闭则直接退出）": "Hide to tray on close (otherwise quit)",
+  启动后隐藏到系统托盘: "Hide to system tray on startup",
+  "启动时不弹出主窗口，只驻留系统托盘；需要时从托盘打开。":
+    "Start without opening the main window and stay in the system tray; open it from the tray when needed.",
   "启用 RC003 增强捕获": "Enable RC003 enhanced capture",
   "保存语音记录（只存文字，不存音频）": "Save voice recordings (text only, no audio)",
   "安装/更新 helper": "Install/update helper",

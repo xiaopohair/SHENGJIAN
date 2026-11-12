@@ -118,6 +118,8 @@ const gain = shallowRef(0);
 const endpointId = shallowRef("");
 const autostart = shallowRef(false);
 const closeToTray = shallowRef(true);
+/** 设置页的「启动后隐藏到系统托盘」，持久化时取反写入 `open_window_at_launch`。 */
+const startHiddenToTray = shallowRef(false);
 const theme = ref("system");
 const language = ref("system");
 const accent = ref(localStorage.getItem(ACCENT_KEY) ?? "default");
@@ -183,6 +185,7 @@ async function load() {
     endpointId.value = settings.global.audio_endpoint_id ?? "";
     autostart.value = await getAutostartEnabled();
     closeToTray.value = settings.global.close_to_tray ?? true;
+    startHiddenToTray.value = settings.global.open_window_at_launch === false;
     theme.value = String(settings.global.theme_preference ?? "system");
     language.value = String(settings.global.application_language ?? "system");
     setLanguagePreference(language.value);
@@ -225,6 +228,7 @@ async function save(auto = false) {
         voice_hotkey: voiceHotkey.value,
         local_transcript_history_enabled: transcriptHistory.value,
         close_to_tray: closeToTray.value,
+        open_window_at_launch: !startHiddenToTray.value,
         theme_preference: theme.value,
         application_language: language.value,
       },
@@ -258,6 +262,7 @@ watch(
     language,
     autostart,
     closeToTray,
+    startHiddenToTray,
     voiceInputTool,
     transcriptHistory,
     voiceHotkey,
@@ -620,6 +625,13 @@ onMounted(async () => {
             <div class="settings-rows">
               <SettingRow label="开机自动启动" hint="登录 Windows 后自动启动声键">
                 <Switch v-model="autostart" :label="trDynamic('开机自动启动')" />
+              </SettingRow>
+
+              <SettingRow
+                label="启动后隐藏到系统托盘"
+                hint="启动时不弹出主窗口，只驻留系统托盘；需要时从托盘打开"
+              >
+                <Switch v-model="startHiddenToTray" :label="trDynamic('启动后隐藏到系统托盘')" />
               </SettingRow>
 
               <SettingRow label="关闭窗口时隐藏到托盘" hint="关闭后点窗口关闭按钮将直接退出应用">

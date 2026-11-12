@@ -72,7 +72,9 @@ fn main() {
             }));
             host.set_macro_library(macro_library);
             let mut tray_language = "zh-Hans";
+            let mut open_window_at_launch = true;
             if let Ok(settings) = engine.settings().load() {
+                open_window_at_launch = settings.open_window_at_launch;
                 if settings.application_language.is_english() {
                     tray_language = "en";
                 }
@@ -80,6 +82,11 @@ fn main() {
                 host.set_voice_input_tool(settings.voice_input_tool);
                 host.set_voice_hotkey(settings.voice_hotkey.clone());
                 host.set_transcript_capture_enabled(settings.local_transcript_history_enabled);
+            }
+            if !open_window_at_launch {
+                // 「设置 > 启动与窗口 > 启动后隐藏到系统托盘」：收起启动画面，
+                // 主窗口保持隐藏，应用只驻留托盘；托盘菜单或再次启动仍可打开。
+                splash::dismiss_splash(app.handle());
             }
             let engine = Arc::new(engine);
             commands::apply_startup_audio_settings(&engine, host.platform_id());
