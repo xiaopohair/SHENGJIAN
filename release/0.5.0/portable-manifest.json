@@ -3,9 +3,9 @@
     "arch":  "x64",
     "kind":  "portable-zip",
     "file":  "apps/shengjian-desktop/src-tauri/target/release/portable/shengjian_0.5.0_x64-portable.zip",
-    "sizeBytes":  14835669,
-    "sha256":  "CAB145940E9E017D2907772A2EDDBA7C65E6B9071C60B78023A559D145A178F1",
-    "builtAtUtc":  "2026-11-11T16:47:05.5492332Z",
+    "sizeBytes":  14836651,
+    "sha256":  "46B1061C297CB0868F490F5EE5A9862667A537DF2587B2267C1D0334317D28A5",
+    "builtAtUtc":  "2026-11-12T01:34:19.0016782Z",
     "webview2":  "system-evergreen",
     "signed":  false
 }
