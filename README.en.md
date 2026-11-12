@@ -232,7 +232,7 @@ Route: **public repository, x64, manual download, no auto-update**; free open-so
 - Security: [SECURITY.md](SECURITY.md)
 - Release process: [docs/release-process.md](docs/release-process.md)
 
-The repository has been pushed to <https://github.com/xiaopohair/SHENGJIAN>; releases: <https://github.com/xiaopohair/SHENGJIAN/releases> (`v0.4.1` and `v0.5.0` are published; `0.5.1` is pending).
+The repository has been pushed to <https://github.com/xiaopohair/SHENGJIAN>; releases: <https://github.com/xiaopohair/SHENGJIAN/releases> (`v0.4.1`, `v0.5.0`, and `v0.5.1` are published).
 
 ## Known limitations
 

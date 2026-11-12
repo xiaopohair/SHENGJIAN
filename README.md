@@ -232,7 +232,7 @@ signed=false
 - 安全说明：[SECURITY.md](SECURITY.md)
 - 发布流程：[docs/release-process.md](docs/release-process.md)
 
-仓库已推送至 <https://github.com/xiaopohair/SHENGJIAN>；Release 列表：<https://github.com/xiaopohair/SHENGJIAN/releases>（已发布 `v0.4.1`、`v0.5.0`；`0.5.1` 待发布）。
+仓库已推送至 <https://github.com/xiaopohair/SHENGJIAN>；Release 列表：<https://github.com/xiaopohair/SHENGJIAN/releases>（已发布 `v0.4.1`、`v0.5.0`、`v0.5.1`）。
 
 ## 已知限制
 
