@@ -33,10 +33,17 @@ interface ModelInfo {
   hotspots: ButtonHotspot[];
 }
 
+/**
+ * 三个型号的正式名称。
+ *
+ * `nameKey` 是产品名（型号标签/标题用），`bluetoothName` 是「在 Windows 蓝牙列表里
+ * 按什么名字找」——两者都用厂商正式名，不再写英文代号：中文 Windows 的列表里显示的
+ * 就是中文名，写 "Xiaomi Bluetooth Remote 2" 会让用户找不到。
+ */
 const MODELS: Record<PairingModel, ModelInfo> = {
   RC003: {
     nameKey: "小米蓝牙语音遥控器 2 Pro",
-    bluetoothName: "Xiaomi Bluetooth Remote 2 Pro",
+    bluetoothName: "小米蓝牙语音遥控器 2 Pro",
     image: rc003Photo,
     width: 335,
     height: 1081,
@@ -49,7 +56,7 @@ const MODELS: Record<PairingModel, ModelInfo> = {
   },
   RC001: {
     nameKey: "小米蓝牙语音遥控器 2",
-    bluetoothName: "Xiaomi Bluetooth Remote 2",
+    bluetoothName: "小米蓝牙语音遥控器 2",
     image: rc001Photo,
     width: 341,
     height: 1103,
