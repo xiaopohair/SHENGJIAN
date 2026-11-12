@@ -99,29 +99,6 @@ const RC003_HOTSPOTS: RemoteHotspot[] = [
 ];
 
 /**
- * RC001（小米蓝牙语音遥控器 2）：335 x 1081 产品图。
- *
- * 该图已按 RC003 的画布与机身尺寸规范化（机身 bbox 同为 (35,30)-(297,1059)、
- * 263x1030），所以热区是把原 341x1103 版本整体平移 (-3, -9) 得到的，无需重标。
- * 布局：电源+麦克风双键在顶，D-pad 居中，左侧 back/home/menu 竖列，
- * 右侧音量摇杆 + TV。
- */
-const RC001_HOTSPOTS: RemoteHotspot[] = [
-  { id: "power", x: 30.95, y: 9.59, w: 19.7, h: 6.1, shape: "circle" },
-  { id: "up", x: 49.61, y: 17.73, w: 15.52, h: 4.81, shape: "circle" },
-  { id: "down", x: 49.61, y: 32.52, w: 15.52, h: 4.81, shape: "circle" },
-  { id: "left", x: 25.73, y: 25.13, w: 15.52, h: 4.81, shape: "circle" },
-  { id: "right", x: 73.49, y: 25.13, w: 15.52, h: 4.81, shape: "circle" },
-  { id: "ok", x: 49.61, y: 25.13, w: 31.65, h: 9.81, shape: "circle" },
-  { id: "back", x: 33.38, y: 40.23, w: 24.48, h: 7.59, shape: "circle" },
-  { id: "home", x: 33.38, y: 49.06, w: 24.48, h: 7.59, shape: "circle" },
-  { id: "menu", x: 33.38, y: 57.9, w: 24.48, h: 7.59, shape: "circle" },
-  { id: "volume-up", x: 65.49, y: 40.23, w: 24.48, h: 7.59, shape: "circle" },
-  { id: "volume-down", x: 65.52, y: 49.07, w: 24.48, h: 7.59, shape: "circle" },
-  { id: "tv", x: 65.58, y: 57.9, w: 24.48, h: 7.59, shape: "circle" },
-];
-
-/**
  * ARN9 普通款：514 x 1640 产品图。
  *
  * 坐标与直径都来自实测，不是目测：
@@ -156,11 +133,16 @@ const remoteImage = computed(() => {
   if (modelKey.value === "RC001") return rc001Image;
   return rc003Image;
 });
-const REMOTE_HOTSPOTS = computed(() => {
-  if (modelKey.value === "ARN9") return ARN9_HOTSPOTS;
-  if (modelKey.value === "RC001") return RC001_HOTSPOTS;
-  return RC003_HOTSPOTS;
-});
+/**
+ * RC001 与 RC003 共用同一套热区。
+ *
+ * 两张产品图已统一到同一画布与机身尺寸（335x1081，机身 bbox 同为
+ * (35,30)-(297,1059)），实测按键位置偏差 <=2px（home/menu/back/tv/ok 均为 0.1~0.2px），
+ * 所以不单独维护一份，避免两边坐标悄悄漂移。
+ */
+const REMOTE_HOTSPOTS = computed(() =>
+  modelKey.value === "ARN9" ? ARN9_HOTSPOTS : RC003_HOTSPOTS,
+);
 const remoteAlt = computed(() => {
   if (modelKey.value === "ARN9") return tr("小米蓝牙语音遥控器");
   if (modelKey.value === "RC001") return tr("小米蓝牙语音遥控器 2");

@@ -49,6 +49,18 @@ interface ModelInfo {
  * 按什么名字找」——两者都用厂商正式名，不再写英文代号：中文 Windows 的列表里显示的
  * 就是中文名，写 "Xiaomi Bluetooth Remote 2" 会让用户找不到。
  */
+/**
+ * RC003 / RC001 共用同一组标注。
+ *
+ * 两张产品图已统一到同一画布与机身尺寸（335x1081，机身 bbox 同为
+ * (35,30)-(297,1059)），实测按键位置偏差 <=2px，所以不分别维护。
+ */
+const HOME_MENU_TV_HOTSPOTS: ButtonHotspot[] = [
+  { label: "主页键", x: 0.334, y: 0.483, side: "left" },
+  { label: "菜单键", x: 0.334, y: 0.574, side: "left" },
+  { label: "TV", x: 0.657, y: 0.574, side: "right" },
+];
+
 const MODELS: Record<PairingModel, ModelInfo> = {
   RC003: {
     nameKey: "小米蓝牙语音遥控器 2 Pro",
@@ -58,11 +70,7 @@ const MODELS: Record<PairingModel, ModelInfo> = {
     height: 1081,
     bodyScale: 1,
     hasTvKey: true,
-    hotspots: [
-      { label: "主页键", x: 0.334, y: 0.483, side: "left" },
-      { label: "菜单键", x: 0.334, y: 0.574, side: "left" },
-      { label: "TV", x: 0.657, y: 0.574, side: "right" },
-    ],
+    hotspots: HOME_MENU_TV_HOTSPOTS,
   },
   RC001: {
     nameKey: "小米蓝牙语音遥控器 2",
@@ -72,11 +80,7 @@ const MODELS: Record<PairingModel, ModelInfo> = {
     height: 1081,
     bodyScale: 1,
     hasTvKey: true,
-    hotspots: [
-      { label: "主页键", x: 0.3331, y: 0.4906, side: "left" },
-      { label: "菜单键", x: 0.3331, y: 0.5794, side: "left" },
-      { label: "TV", x: 0.6547, y: 0.5794, side: "right" },
-    ],
+    hotspots: HOME_MENU_TV_HOTSPOTS,
   },
   // ARN9 普通款：514 x 1640 实拍图；没有 TV 键，Home / 返回 / 菜单 是同一行的三颗独立键。
   ARN9: {
