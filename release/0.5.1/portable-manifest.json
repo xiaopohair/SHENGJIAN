@@ -1,0 +1,11 @@
+{
+    "version":  "0.5.1",
+    "arch":  "x64",
+    "kind":  "portable-zip",
+    "file":  "apps/shengjian-desktop/src-tauri/target/release/portable/shengjian_0.5.1_x64-portable.zip",
+    "sizeBytes":  14832373,
+    "sha256":  "12C7E223F7A31D1E32FFF66350318BED94B64433CBF6C09D16767E054B70CB4C",
+    "builtAtUtc":  "2026-11-12T09:38:51.1969814Z",
+    "webview2":  "system-evergreen",
+    "signed":  false
+}
