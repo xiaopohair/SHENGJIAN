@@ -69,8 +69,8 @@ const MODELS: Record<PairingModel, ModelInfo> = {
     height: 1640,
     hasTvKey: false,
     hotspots: [
-      { label: "主页键", x: 0.27, y: 0.447, side: "left" },
-      { label: "菜单键", x: 0.755, y: 0.447, side: "right" },
+      { label: "主页键", x: 0.268, y: 0.447, side: "left" },
+      { label: "菜单键", x: 0.743, y: 0.447, side: "right" },
     ],
   },
 };
