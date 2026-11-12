@@ -2,6 +2,7 @@
 import { computed, ref, shallowRef } from "vue";
 import { Search } from "lucide-vue-next";
 import rc003Image from "../assets/devices/xiaomi-rc003.png";
+import rc001Image from "../assets/devices/xiaomi-rc001.png";
 import arn9Image from "../assets/devices/xiaomi-arn9.png";
 import {
   PROFILE_BUTTONS,
@@ -94,6 +95,32 @@ const RC003_HOTSPOTS: RemoteHotspot[] = [
 ];
 
 /**
+ * RC001（小米蓝牙语音遥控器 2）：341 x 1103 产品图。
+ *
+ * 这张图机身浅银、按键纯黑，对比度高，所以直接用**暗块连通域**测每个按键的圆心与
+ * 直径（比径向梯度稳）：电源 66px，主页/返回/菜单/音量/TV 均 82px；
+ * D-pad 整盘 214px（r=107），径向剖面在 r=53 找到内盘（OK）边缘；
+ * 音量是 82x178 的摇杆，+/− 取杆内亮字形质心（y=443.9 / 539.5）。
+ * 交叉验证：back/home/menu 与 音量+/音量−/TV 三行 y 完全对齐。
+ *
+ * 布局：电源+麦克风双键在顶，左侧 back/home/menu 竖列，右侧音量摇杆 + TV。
+ */
+const RC001_HOTSPOTS: RemoteHotspot[] = [
+  { id: "power", x: 31.29, y: 10.21, w: 19.35, h: 5.98, shape: "circle" },
+  { id: "up", x: 49.62, y: 18.19, w: 15.25, h: 4.71, shape: "circle" },
+  { id: "down", x: 49.62, y: 32.69, w: 15.25, h: 4.71, shape: "circle" },
+  { id: "left", x: 26.16, y: 25.44, w: 15.25, h: 4.71, shape: "circle" },
+  { id: "right", x: 73.08, y: 25.44, w: 15.25, h: 4.71, shape: "circle" },
+  { id: "ok", x: 49.62, y: 25.44, w: 31.09, h: 9.61, shape: "circle" },
+  { id: "back", x: 33.67, y: 40.24, w: 24.05, h: 7.43, shape: "circle" },
+  { id: "home", x: 33.67, y: 48.9, w: 24.05, h: 7.43, shape: "circle" },
+  { id: "menu", x: 33.67, y: 57.56, w: 24.05, h: 7.43, shape: "circle" },
+  { id: "volume-up", x: 65.22, y: 40.24, w: 24.05, h: 7.43, shape: "circle" },
+  { id: "volume-down", x: 65.25, y: 48.91, w: 24.05, h: 7.43, shape: "circle" },
+  { id: "tv", x: 65.31, y: 57.56, w: 24.05, h: 7.43, shape: "circle" },
+];
+
+/**
  * ARN9 普通款：514 x 1640 产品图。
  *
  * 坐标与直径都来自实测，不是目测：
@@ -122,18 +149,28 @@ const ARN9_HOTSPOTS: RemoteHotspot[] = [
   { id: "volume-down", x: 50.4, y: 60.27, w: 15.56, h: 4.88, shape: "circle" },
 ];
 
-const isArn9 = computed(() => (props.remoteModel ?? "").trim().toUpperCase() === "ARN9");
-const remoteImage = computed(() => (isArn9.value ? arn9Image : rc003Image));
-const REMOTE_HOTSPOTS = computed(() => (isArn9.value ? ARN9_HOTSPOTS : RC003_HOTSPOTS));
-const remoteAlt = computed(() =>
-  isArn9.value ? tr("小米蓝牙语音遥控器") : tr("小米蓝牙语音遥控器 2 Pro"),
-);
-/** 产品图说明：两张图各自对位，不要写成同一句。 */
-const productNote = computed(() =>
-  isArn9.value
-    ? tr("按 ARN9 产品图对位；语音键为硬件键。")
-    : tr("按 RC003 产品图对位；语音键为硬件键。"),
-);
+const modelKey = computed(() => (props.remoteModel ?? "").trim().toUpperCase());
+const remoteImage = computed(() => {
+  if (modelKey.value === "ARN9") return arn9Image;
+  if (modelKey.value === "RC001") return rc001Image;
+  return rc003Image;
+});
+const REMOTE_HOTSPOTS = computed(() => {
+  if (modelKey.value === "ARN9") return ARN9_HOTSPOTS;
+  if (modelKey.value === "RC001") return RC001_HOTSPOTS;
+  return RC003_HOTSPOTS;
+});
+const remoteAlt = computed(() => {
+  if (modelKey.value === "ARN9") return tr("小米蓝牙语音遥控器");
+  if (modelKey.value === "RC001") return tr("小米蓝牙语音遥控器 2");
+  return tr("小米蓝牙语音遥控器 2 Pro");
+});
+/** 产品图说明：每张图各自对位，不要写成同一句。 */
+const productNote = computed(() => {
+  if (modelKey.value === "ARN9") return tr("按 ARN9 产品图对位；语音键为硬件键。");
+  if (modelKey.value === "RC001") return tr("按 RC001 产品图对位；语音键为硬件键。");
+  return tr("按 RC003 产品图对位；语音键为硬件键。");
+});
 
 function hotspotStyle(hotspot: RemoteHotspot) {
   return {

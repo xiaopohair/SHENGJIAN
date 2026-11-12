@@ -373,6 +373,8 @@ const ENGLISH = {
     "Aligned to the RC003 product image; the voice key is hardware-only.",
   "按 ARN9 产品图对位；语音键为硬件键。":
     "Aligned to the ARN9 product image; the voice key is hardware-only.",
+  "按 RC001 产品图对位；语音键为硬件键。":
+    "Aligned to the RC001 product image; the voice key is hardware-only.",
   "先选按键，再选手势，最后指定动作。当前选中键会显示金色描边。":
     "Choose a key, then a gesture, then an action. The selected key gets a gold outline.",
   点击按键查看绑定: "Click a key to view its bindings",
