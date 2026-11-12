@@ -1,6 +1,17 @@
 # 开发计划：方案按设备型号配置（第一步）
 
-状态：**待实施（2026-11-12 制定）**
+状态：**已实施（2026-11-12）**，含原计划的第二步内容「ARN9 独立方案」。
+
+## 实施结果与计划差异
+
+| 项 | 计划 | 实际 | 原因 |
+| --- | --- | --- | --- |
+| ARN9 | 留到第二步 | **本次已做**：`RemoteModel::Arn9` + 独立方案 + 11 键布局 | 2026-11-12 真机证据已到（见 `device-identity.md`） |
+| 设备档案 | 新增 `profiles/xiaomi-arn9.json` | **未新增**，`device_id` 仍为 `xiaomi-rc003` | 真机确认同 VID/PID、同 ATTV 服务、同导航键 HID 码，属同族硬件；只需隔离**方案** |
+| 通用默认方案可见性 | 「对所有型号可见」 | 型号已有自己的默认方案时**不列出通用默认** | 否则界面出现两个「默认」 |
+| 默认方案激活 | — | 默认方案不显示「激活」开关 | 默认方案是基线，不存在激活语义 |
+| 产品图 | 第一步不改 | **已按型号切换**：`xiaomi-arn9.png` + 独立热区标定；连接页用 `xiaomi-arn9-line.png`；配对帮助新增 ARN9 标签（无 TV 键，故不显示「先按 TV 初始化」） | 用户提供 ARN9 实拍图后接上 |
+| 产品正式名称 | — | `deviceProductNameKey("ARN9")` = 「小米蓝牙语音遥控器」 | 厂商正式名，按型号写死，不用广播名 |
 
 ## 背景
 
@@ -175,14 +186,12 @@ pub fn current_device_model(&self) -> Option<String>;
 | 默认方案被误删 | 后端 `normalized()` 强制重建 + 前端隐藏按钮 |
 | RC001/ARN9 型号误判 | 本步不启用它们的方案；`device-identity.md` 解冻后再做第二步 |
 
-## 不在本次范围（第二步）
+## 不在本次范围（下一步）
 
-以下需要真机证据与额外资源，留到第二步：
-
-- ARN9 / RC001 的按键布局（ARN9 无 TV 键）
-- `PROFILE_BUTTONS` 改为按型号返回（`buttons_for_model`）
-- RC001 / ARN9 / 通用三套产品图与热区坐标标定
-- 型号识别修复（见 `device-identity.md`，需采集 GATT Model Number、HID product string、是否存在 TV 键）
+- RC001 的按键布局与方案（型号识别仍为 `research`，未验证）。
+- `profiles/xiaomi-arn9.json` 独立设备档案（当前与 RC003 共用）。
+- RC001 / ARN9 / 通用三套产品图与热区坐标标定（当前仍是 RC003 图）。
+- HID product string / report descriptor 层面的身份校验。
 
 ## 参考
 
