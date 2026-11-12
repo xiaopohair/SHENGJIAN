@@ -1,7 +1,7 @@
 # Device profiles
 
 - `schema.json`：Profile v1 schema。
-- `xiaomi-rc003.json`：小米蓝牙语音遥控器 2 Pro（RC003）；Windows/macOS 均为 implemented。
+- `xiaomi-rc003.json`：小米蓝牙语音遥控器 2 Pro（RC003）；Windows implemented，macOS planned。
 - `xiaomi-arn9.json`：小米蓝牙语音遥控器 普通款（ARN9）；Windows 真机验收 implemented（2026-11-12）。
 - `xiaomi-rc001.json`：草案，`support.status = research`，不得用于运行时匹配。
 

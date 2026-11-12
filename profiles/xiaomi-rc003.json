@@ -54,8 +54,8 @@
   "platforms": [
     {
       "platform": "macos",
-      "status": "implemented",
-      "notes": "Implemented and real-device accepted in the upstream macOS products. Not this Windows repository."
+      "status": "planned",
+      "notes": "upstream（nijez/open-voice-bridge）在 macOS 产品里已实现并真机验收，但本仓库是纯 Windows 实现、没有 macOS 适配，因此本仓库视角下按 planned 展示。"
     },
     {
       "platform": "windows",
