@@ -28,6 +28,15 @@ interface ModelInfo {
   image: string;
   width: number;
   height: number;
+  /**
+   * 产品主体归一化系数。
+   *
+   * 三张产品图里，产品主体占画布高度的比例不同（RC003 95.4%、RC001 93.6%、
+   * ARN9 95.6%），而这里图片高度固定 260px，于是切型号时主体大小会跳：
+   * 实测 RC001 比 RC003 矮 4.71px（-1.9%），从 2 Pro 切到 2 会有明显的缩小感。
+   * 以 RC003 为基准统一放大/缩小，让三款的主体显示高度一致（247.97px）。
+   */
+  bodyScale: number;
   /** 该型号是否有 TV 键：决定「先按 TV 完成初始化」这条提示是否显示。 */
   hasTvKey: boolean;
   hotspots: ButtonHotspot[];
@@ -47,6 +56,7 @@ const MODELS: Record<PairingModel, ModelInfo> = {
     image: rc003Photo,
     width: 335,
     height: 1081,
+    bodyScale: 1,
     hasTvKey: true,
     hotspots: [
       { label: "主页键", x: 0.334, y: 0.483, side: "left" },
@@ -60,6 +70,7 @@ const MODELS: Record<PairingModel, ModelInfo> = {
     image: rc001Photo,
     width: 341,
     height: 1103,
+    bodyScale: 1.0194,
     hasTvKey: true,
     hotspots: [
       { label: "主页键", x: 0.336, y: 0.489, side: "left" },
@@ -74,6 +85,7 @@ const MODELS: Record<PairingModel, ModelInfo> = {
     image: arn9Photo,
     width: 514,
     height: 1640,
+    bodyScale: 0.9975,
     hasTvKey: false,
     hotspots: [
       { label: "主页键", x: 0.268, y: 0.447, side: "left" },
@@ -209,17 +221,21 @@ onUnmounted(() => {
                 class="remote-figure"
                 :style="{ aspectRatio: `${model.width} / ${model.height}` }"
               >
-                <img :src="model.image" :alt="trDynamic(model.nameKey)" class="remote-photo" />
-                <span
-                  v-for="spot in model.hotspots"
-                  :key="spot.label"
-                  class="button-hotspot"
-                  :class="`side-${spot.side}`"
-                  :style="{ left: `${spot.x * 100}%`, top: `${spot.y * 100}%` }"
-                >
-                  <span class="hotspot-ring" aria-hidden="true" />
-                  <span class="hotspot-label">{{ trDynamic(spot.label) }}</span>
-                </span>
+                <!-- 图片与热区同处一层并一起缩放：热区坐标是相对这层算的，
+                     所以整体 scale 不会让圈和按键错位。 -->
+                <div class="remote-inner" :style="{ transform: `scale(${model.bodyScale})` }">
+                  <img :src="model.image" :alt="trDynamic(model.nameKey)" class="remote-photo" />
+                  <span
+                    v-for="spot in model.hotspots"
+                    :key="spot.label"
+                    class="button-hotspot"
+                    :class="`side-${spot.side}`"
+                    :style="{ left: `${spot.x * 100}%`, top: `${spot.y * 100}%` }"
+                  >
+                    <span class="hotspot-ring" aria-hidden="true" />
+                    <span class="hotspot-label">{{ trDynamic(spot.label) }}</span>
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -463,6 +479,12 @@ onUnmounted(() => {
   flex: 0 0 auto;
   height: 260px;
   margin-top: var(--space-2);
+}
+
+.remote-inner {
+  position: absolute;
+  inset: 0;
+  transform-origin: center center;
 }
 
 .remote-photo {
