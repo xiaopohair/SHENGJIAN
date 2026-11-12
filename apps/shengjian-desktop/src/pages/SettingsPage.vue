@@ -449,7 +449,7 @@ async function importBackup() {
     }
     await load();
     backupMessage.value = tr(
-      "恢复完成：{profiles} 个 profile，{macros} 个宏定义，{transcripts} 条转写。",
+      "恢复完成：{profiles} 个 profile，{macros} 个宏定义，{transcripts} 条语音记录。",
       {
         profiles: result.profiles,
         macros: result.macros,
@@ -635,7 +635,7 @@ onMounted(async () => {
             <div class="settings-rows">
               <SettingRow
                 label="导出备份"
-                hint="导出为单个 JSON，含设置、方案、宏库、转写历史与上次设备"
+                hint="导出为单个 JSON，含设置、方案、宏库、语音记录与上次设备"
               >
                 <Button size="sm" :disabled="backupBusy" @click="exportBackup">
                   <Download :size="14" />
@@ -735,7 +735,7 @@ onMounted(async () => {
             <div class="settings-rows">
               <SettingRow
                 label="恢复默认设置"
-                hint="清除全局设置与设备覆盖，不影响方案、宏和转写历史。此操作不可恢复"
+                hint="清除全局设置与设备覆盖，不影响方案、宏和语音记录。此操作不可恢复"
               >
                 <Button size="sm" variant="danger" :disabled="busy" @click="resetAllSettings">
                   {{ tr("恢复默认") }}

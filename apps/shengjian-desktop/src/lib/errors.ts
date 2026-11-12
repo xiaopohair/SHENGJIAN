@@ -31,7 +31,7 @@ const ERROR_ZH: Record<string, string> = {
   "configuration-export": "配置导出失败",
   "configuration-import": "配置导入失败",
   "macro-history": "宏历史读写失败",
-  "transcript-history": "转写历史读写失败",
+  "transcript-history": "语音记录读写失败",
   "tray-language": "托盘语言切换失败",
   "device-profile": "设备 profile 读取失败",
   "unsupported-remote": "不支持的遥控器",

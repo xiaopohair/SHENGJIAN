@@ -42,7 +42,7 @@ const tabs = computed(() => [
   { id: "voice", label: "语音", count: store.voiceHistory.length },
   { id: "buttons", label: "按键", count: store.buttonHistory.length },
   { id: "macros", label: "宏运行", count: macroHistory.value.length },
-  { id: "transcripts", label: "转写", count: transcripts.value.length },
+  { id: "transcripts", label: "语音记录", count: transcripts.value.length },
 ]);
 
 function formatTime(unixSeconds: number): string {
@@ -150,7 +150,7 @@ watch(activeTab, (tab) => {
     <PageHeader
       eyebrow="History"
       title="历史"
-      description="集中查看最近的语音、按键、宏运行和转写记录。"
+      description="集中查看最近的语音、按键、宏运行和语音记录。"
     />
 
     <Notice v-if="error" kind="error">{{ error }}</Notice>
@@ -287,8 +287,8 @@ watch(activeTab, (tab) => {
         </SectionHeader>
         <EmptyState
           v-if="transcripts.length === 0"
-          title="暂无转写记录"
-          description="在语音页开启转写历史后，使用语音键。"
+          title="暂无语音记录"
+          description="在语音页开启语音记录后，使用语音键。"
         >
           <template #icon><FileText :size="20" /></template>
         </EmptyState>

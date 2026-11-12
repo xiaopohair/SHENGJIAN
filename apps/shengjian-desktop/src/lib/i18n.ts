@@ -155,8 +155,8 @@ const ENGLISH = {
   有未保存的修改: "Unsaved changes",
   没有未保存的修改: "No unsaved changes",
   已复制: "Copied",
-  "集中查看最近的语音、按键、宏运行和转写记录。":
-    "Review recent voice, button, macro-run, and transcript history.",
+  "集中查看最近的语音、按键、宏运行和语音记录。":
+    "Review recent voice, button, macro run, and voice recordings.",
   宏运行: "Macro runs",
   "清空全部宏运行历史？": "Clear all macro run history?",
   "只保存转写文字，不保存音频；默认关闭，可在设置中开启。":
@@ -170,13 +170,13 @@ const ENGLISH = {
   暂无语音事件: "No voice events",
   暂无按键事件: "No button events",
   暂无宏运行记录: "No macro runs",
-  暂无转写记录: "No transcripts",
+  暂无语音记录: "No voice recordings",
   "按住语音键说话，再松开。": "Hold the voice key, speak, then release.",
   "配置并激活 profile 后按 OK。": "Configure and activate a profile, then press OK.",
   "测试宏或通过按键触发后会记录在这里。":
     "Test a macro or trigger it from a button to record it here.",
-  "在语音页开启转写历史后，使用语音键。":
-    "Enable transcript history on the Voice page, then use the voice key.",
+  "在语音页开启语音记录后，使用语音键。":
+    "Enable voice recordings on the Voice page, then use the voice key.",
   设置: "Settings",
   刷新: "Refresh",
   导入: "Import",
@@ -778,8 +778,8 @@ const ENGLISH = {
   恢复配置备份: "Restore configuration backup",
   "恢复完成：{profiles} 个 profile，{macros} 个宏定义。":
     "Restored {profiles} profiles and {macros} macro definitions.",
-  "恢复完成：{profiles} 个 profile，{macros} 个宏定义，{transcripts} 条转写。":
-    "Restored {profiles} profiles, {macros} macro definitions, {transcripts} transcripts.",
+  "恢复完成：{profiles} 个 profile，{macros} 个宏定义，{transcripts} 条语音记录。":
+    "Restored {profiles} profiles and {macros} macro definitions, plus {transcripts} voice recordings.",
   语音记录: "Voice recordings",
   记录: "Records",
   条: "items",
