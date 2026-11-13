@@ -554,7 +554,7 @@ function setMouseAmount(value: string) {
       </p>
     </div>
 
-    <div v-else class="action-config action-config-note">
+    <div v-else class="action-config">
       <h4 class="config-head">{{ tr("动作参数") }}</h4>
       <p class="config-note">
         <CircleHelp :size="13" />
@@ -694,10 +694,7 @@ function setMouseAmount(value: string) {
   border-top: 1px solid var(--border);
   padding-top: var(--space-3);
 }
-.action-config-note {
-  margin-top: var(--space-3);
-  padding-top: var(--space-2);
-}
+
 .config-head {
   margin: 0 0 8px;
   font-size: 13px;
