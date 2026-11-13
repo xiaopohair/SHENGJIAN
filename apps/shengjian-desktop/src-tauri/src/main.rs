@@ -189,6 +189,7 @@ fn main() {
             commands::export_configuration,
             commands::import_configuration,
             commands::macro_library,
+            commands::recommended_macro_definitions,
             commands::save_macro_library,
             commands::test_macro,
             commands::test_macro_draft,

@@ -4,7 +4,12 @@ import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { createPinia } from "pinia";
 import { setLanguagePreference } from "../lib/i18n";
 import { RECOMMENDED_HIDDEN_KEY, RECOMMENDED_SEEN_VERSION_KEY } from "../lib/recommended";
-import type { ButtonProfile, ButtonProfilesDocument, RecommendedButtonProfile } from "../lib/types";
+import type {
+  ButtonProfile,
+  ButtonProfilesDocument,
+  MacroDefinition,
+  RecommendedButtonProfile,
+} from "../lib/types";
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({
   open: vi.fn(async () => null),
@@ -39,6 +44,7 @@ vi.mock("../lib/api", () => ({
   appIconDataUrls: vi.fn(async () => []),
   getRecommendedButtonProfiles: vi.fn(),
   copyRecommendedButtonProfile: vi.fn(),
+  getRecommendedMacros: vi.fn(),
   saveButtonProfiles: vi.fn(async () => undefined),
 }));
 
@@ -54,6 +60,12 @@ const saveButtonProfiles = vi.mocked(api.saveButtonProfiles);
 const activateButtonProfile = vi.mocked(api.activateButtonProfile);
 const getRecommendedButtonProfiles = vi.mocked(api.getRecommendedButtonProfiles);
 const copyRecommendedButtonProfile = vi.mocked(api.copyRecommendedButtonProfile);
+const getMacroLibrary = vi.mocked(api.getMacroLibrary);
+const getRecommendedMacros = vi.mocked(api.getRecommendedMacros);
+
+function macroDefinition(macroId: string, version: string, name: string): MacroDefinition {
+  return { schemaVersion: "0.1", macroId, version, name, steps: [] };
+}
 
 function emptyProfile(id: string, name: string): ButtonProfile {
   return { id, name, appTargets: [], autoApply: false, bindings: {} };
@@ -119,6 +131,7 @@ beforeEach(() => {
     profiles: [],
   });
   copyRecommendedButtonProfile.mockResolvedValue(copiedProfile());
+  getRecommendedMacros.mockResolvedValue([]);
 });
 
 async function mountPage() {
@@ -290,5 +303,48 @@ describe("ButtonsPage profile navigation and editor", () => {
 
     expect(wrapper.find(".profile-tools").text()).not.toContain("推荐方案");
     expect(getRecommendedButtonProfiles).not.toHaveBeenCalled();
+  });
+
+  it("shows recommended-only macros in the run-macro dropdown and prefers user versions", async () => {
+    currentDocument = {
+      schemaVersion: 1,
+      activeManualProfileId: null,
+      profiles: [
+        {
+          id: "profile-macros",
+          name: "宏测试方案",
+          appTargets: [],
+          autoApply: false,
+          bindings: {
+            home: {
+              single: { type: "run-macro", macro_id: "recommended-only" },
+            },
+          },
+        },
+      ],
+    };
+    getMacroLibrary.mockResolvedValueOnce({
+      formatVersion: 1,
+      definitions: [macroDefinition("shared", "1.0.0", "用户版本")],
+    });
+    getRecommendedMacros.mockResolvedValue([
+      macroDefinition("shared", "9.0.0", "推荐版本"),
+      macroDefinition("recommended-only", "1.0.0", "推荐宏"),
+    ]);
+    const wrapper = await mountPage();
+
+    const macroSelect = wrapper.find(".profile-workbench select");
+    expect(macroSelect.exists()).toBe(true);
+    const options = macroSelect.findAll("option").map((option) => ({
+      value: option.attributes("value"),
+      text: option.text(),
+    }));
+    expect(options).toContainEqual({ value: "recommended-only", text: "推荐宏" });
+    // User library wins for the same macro id, even against a newer version.
+    expect(options).toContainEqual({ value: "shared", text: "用户版本" });
+    expect(options.some((option) => option.text === "推荐版本")).toBe(false);
+    // The saved reference keeps its selection and is considered valid.
+    expect((macroSelect.element as HTMLSelectElement).value).toBe("recommended-only");
+    expect(wrapper.text()).not.toContain("还没有选择宏");
   });
 });

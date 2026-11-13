@@ -78,6 +78,23 @@ export function latestMacroDefinitions(definitions: MacroDefinition[]): MacroDef
     });
 }
 
+/**
+ * 合并推荐宏与用户宏库（供「运行其他宏」下拉使用）。
+ *
+ * 用户库里出现过的 macroId 一律以用户版本为准——即使推荐宏版本号更高；
+ * 推荐宏只补充用户库里没有的 id，且始终只读（只出现在本地下拉里）。
+ */
+export function mergeRecommendedMacros(
+  userDefinitions: MacroDefinition[],
+  recommendedDefinitions: MacroDefinition[],
+): MacroDefinition[] {
+  const userIds = new Set(userDefinitions.map((definition) => definition.macroId));
+  return [
+    ...userDefinitions,
+    ...recommendedDefinitions.filter((definition) => !userIds.has(definition.macroId)),
+  ];
+}
+
 export function nextMacroVersion(definitions: MacroDefinition[], macroId: string): string {
   const latest = latestMacroDefinitions(definitions).find(
     (definition) => definition.macroId === macroId,

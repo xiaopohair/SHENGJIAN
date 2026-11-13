@@ -3,6 +3,7 @@ import {
   bumpMacroVersion,
   compareMacroVersions,
   latestMacroDefinitions,
+  mergeRecommendedMacros,
   nextMacroVersion,
 } from "./macros";
 import type { MacroDefinition } from "./types";
@@ -51,5 +52,38 @@ describe("macro version helpers", () => {
     expect(bumpMacroVersion("1.0.1")).toBe("1.0.2");
     expect(bumpMacroVersion("2.3")).toBe("2.3.1");
     expect(bumpMacroVersion("1.0.9")).toBe("1.0.10");
+  });
+});
+
+describe("recommended macro merging", () => {
+  it("keeps user definitions for ids that also exist in the recommended bundle", () => {
+    const merged = mergeRecommendedMacros(
+      [definition("shared", "1.0.0", "用户版本")],
+      [
+        definition("shared", "9.0.0", "推荐版本"),
+        definition("recommended-only", "1.0.0", "推荐宏"),
+      ],
+    );
+
+    expect(merged.map((item) => item.macroId)).toEqual(["shared", "recommended-only"]);
+    const latest = latestMacroDefinitions(merged);
+    expect(latest.find((item) => item.macroId === "shared")?.name).toBe("用户版本");
+    expect(latest.some((item) => item.name === "推荐版本")).toBe(false);
+  });
+
+  it("includes recommended-only macros and leaves the inputs untouched", () => {
+    const user = [definition("user-macro", "1.0.0", "用户宏")];
+    const recommended = [definition("recommended-only", "1.0.0", "推荐宏")];
+    const merged = mergeRecommendedMacros(user, recommended);
+
+    expect(merged.map((item) => item.macroId)).toEqual(["user-macro", "recommended-only"]);
+    expect(user).toHaveLength(1);
+    expect(recommended).toHaveLength(1);
+  });
+
+  it("handles empty libraries", () => {
+    expect(mergeRecommendedMacros([], [])).toEqual([]);
+    expect(mergeRecommendedMacros([], [definition("recommended", "1.0.0")])).toHaveLength(1);
+    expect(mergeRecommendedMacros([definition("user", "1.0.0")], [])).toHaveLength(1);
   });
 });

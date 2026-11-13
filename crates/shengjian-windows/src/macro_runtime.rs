@@ -390,9 +390,19 @@ impl MacroStartError {
     }
 }
 
+/// 推荐宏来源：默认读 `shengjian_domain::recommended_macros`（安装包配置目录，
+/// 进程内只读）；可注入，便于单测/宿主替换，不影响持久化用户库。
+pub type RecommendedMacroSource = Arc<dyn Fn() -> Vec<MacroDefinition> + Send + Sync>;
+
+fn default_recommended_macros() -> Vec<MacroDefinition> {
+    shengjian_domain::recommended_macros::macros()
+}
+
 /// 组合动作运行时：持有宏库快照、执行互斥与最近报告。
 pub struct MacroRuntime {
     library: Arc<RwLock<MacroLibraryDocument>>,
+    /// 推荐宏来源（每次启动快照时读取：配置在进程内更新后自动生效）。
+    recommended: RecommendedMacroSource,
     running: Arc<Mutex<BTreeMap<String, Arc<AtomicBool>>>>,
     reports: Arc<Mutex<BTreeMap<String, MacroRunReport>>>,
     stepper_source: Arc<dyn MacroStepperSource>,
@@ -401,8 +411,20 @@ pub struct MacroRuntime {
 
 impl MacroRuntime {
     pub fn new(stepper_source: Arc<dyn MacroStepperSource>) -> Self {
+        Self::with_recommended(stepper_source, Arc::new(default_recommended_macros))
+    }
+
+    /// 注入推荐宏来源（测试/宿主用；生产默认读 domain 推荐宏目录）。
+    ///
+    /// 推荐宏只参与执行期的有效宏库合并（用户宏同 id 优先），
+    /// **不会**写回持久化用户库，也不会出现在 [`Self::library`]。
+    pub fn with_recommended(
+        stepper_source: Arc<dyn MacroStepperSource>,
+        recommended: RecommendedMacroSource,
+    ) -> Self {
         Self {
             library: Arc::new(RwLock::new(MacroLibraryDocument::default())),
+            recommended,
             running: Arc::new(Mutex::new(BTreeMap::new())),
             reports: Arc::new(Mutex::new(BTreeMap::new())),
             stepper_source,
@@ -418,11 +440,29 @@ impl MacroRuntime {
             .unwrap_or_else(|poisoned| poisoned.into_inner()) = document;
     }
 
+    /// 仅**用户**宏库快照（宏页/持久化口径；不含推荐宏）。
     pub fn library(&self) -> MacroLibraryDocument {
         self.library
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .clone()
+    }
+
+    /// 执行期有效宏库 = 用户宏库 + 推荐宏中用户没有的 `macro_id`（用户优先）。
+    ///
+    /// 只在启动快照边界合并：用户宏同 id 时保留用户版本；推荐宏之间的依赖
+    /// （嵌套 `run_macro`）因此可以被解析，而用户库与 `get_macro_library` 不变。
+    fn effective_definitions(&self) -> Vec<MacroDefinition> {
+        let mut definitions = self.library().definitions;
+        for recommended in (self.recommended)() {
+            if !definitions
+                .iter()
+                .any(|existing| existing.macro_id == recommended.macro_id)
+            {
+                definitions.push(recommended);
+            }
+        }
+        definitions
     }
 
     pub fn is_running(&self, macro_id: &str) -> bool {
@@ -449,9 +489,11 @@ impl MacroRuntime {
     }
 
     /// 按库里**最新已保存版本**执行（对齐 Mac：编辑后引用自动生效）。
+    ///
+    /// 查找范围是执行期有效宏库（用户宏 + 推荐宏，用户同 id 优先）。
     pub fn start(&self, macro_id: &str) -> Result<(), MacroStartError> {
-        let library = self.library();
-        let Some(definition) = latest_definition(&library.definitions, macro_id) else {
+        let definitions = self.effective_definitions();
+        let Some(definition) = latest_definition(&definitions, macro_id) else {
             return Err(MacroStartError::NotFound);
         };
         let definition = definition.clone();
@@ -478,8 +520,8 @@ impl MacroRuntime {
             }
             running.insert(macro_id.clone(), Arc::clone(&cancel));
         }
-        // 启动时快照：嵌套解析只用它。
-        let library_snapshot = self.library().definitions;
+        // 启动时快照：嵌套解析只用它（含推荐宏，用户同 id 优先）。
+        let library_snapshot = self.effective_definitions();
         let stepper_source = Arc::clone(&self.stepper_source);
         let running = Arc::clone(&self.running);
         let reports = Arc::clone(&self.reports);
@@ -1893,5 +1935,102 @@ mod tests {
     fn open_application_timeout_reports_unknown_when_process_is_running() {
         assert_eq!(open_application_timeout_outcome(true), StepOutcome::Unknown);
         assert_eq!(open_application_timeout_outcome(false), StepOutcome::Failed);
+    }
+
+    // ===== 推荐宏接入运行时（task-10）=====
+
+    fn recommended_runtime(recommended: Vec<MacroDefinition>) -> MacroRuntime {
+        MacroRuntime::with_recommended(
+            Arc::new(InstantSource),
+            Arc::new(move || recommended.clone()),
+        )
+    }
+
+    fn empty_user_library() -> MacroLibraryDocument {
+        MacroLibraryDocument {
+            format_version: shengjian_domain::MACRO_LIBRARY_FORMAT_VERSION,
+            definitions: Vec::new(),
+        }
+    }
+
+    fn wait_for_macro_report(runtime: &MacroRuntime, macro_id: &str) -> MacroRunReport {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        loop {
+            if let Some(report) = runtime.last_report(macro_id) {
+                return report;
+            }
+            assert!(std::time::Instant::now() < deadline, "执行线程未结束");
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+    }
+
+    /// 推荐宏可按 id 启动，且推荐宏之间的嵌套 `run_macro` 能解析。
+    #[test]
+    fn recommended_macros_resolve_and_nest_when_absent_from_user_library() {
+        let runtime = recommended_runtime(vec![
+            nested_definition("macro.recchild"),
+            make_definition("macro.recchild", vec![open_app_step()]),
+        ]);
+        runtime.set_library(empty_user_library());
+        runtime.start("macro.parent1").expect("推荐宏可启动");
+        let report = wait_for_macro_report(&runtime, "macro.parent1");
+        assert_eq!(
+            report.result,
+            MacroTerminalResult::Completed,
+            "推荐父动作 + 推荐子动作应完成"
+        );
+    }
+
+    /// 用户宏同 `macro_id` 优先：执行期有效库只保留用户版本。
+    #[test]
+    fn user_macro_wins_over_recommended_with_same_id() {
+        let runtime = recommended_runtime(vec![
+            make_definition("macro.shared1", vec![open_app_step(), open_app_step()]),
+            make_definition("macro.onlyrec1", vec![open_app_step()]),
+        ]);
+        runtime.set_library(MacroLibraryDocument {
+            format_version: shengjian_domain::MACRO_LIBRARY_FORMAT_VERSION,
+            definitions: vec![make_definition("macro.shared1", vec![open_app_step()])],
+        });
+        let effective = runtime.effective_definitions();
+        let shared: Vec<_> = effective
+            .iter()
+            .filter(|definition| definition.macro_id == "macro.shared1")
+            .collect();
+        assert_eq!(shared.len(), 1, "同 id 只能保留一份");
+        assert_eq!(shared[0].steps.len(), 1, "保留的是用户版本");
+        assert!(
+            effective
+                .iter()
+                .any(|definition| definition.macro_id == "macro.onlyrec1"),
+            "用户没有的推荐宏要并入执行期有效库"
+        );
+        // 用户库/宏页面口径不被推荐宏污染。
+        assert_eq!(runtime.library().definitions.len(), 1);
+    }
+
+    /// 推荐宏引用不存在的嵌套宏 → MissingDependency（与用户宏同一套缺失语义）。
+    #[test]
+    fn recommended_macro_missing_nested_dependency_reports_missing_dependency() {
+        let runtime = recommended_runtime(vec![nested_definition("macro.missing")]);
+        runtime.set_library(empty_user_library());
+        runtime.start("macro.parent1").expect("受理");
+        let report = wait_for_macro_report(&runtime, "macro.parent1");
+        assert_eq!(report.result, MacroTerminalResult::MissingDependency);
+    }
+
+    /// `start_definition`（测试动作/测试这步）的快照同样包含推荐宏。
+    #[test]
+    fn test_definition_path_resolves_recommended_nested_macro() {
+        let runtime = recommended_runtime(vec![make_definition(
+            "macro.recchild",
+            vec![open_app_step()],
+        )]);
+        runtime.set_library(empty_user_library());
+        runtime
+            .start_definition(nested_definition("macro.recchild"))
+            .expect("测试动作受理");
+        let report = wait_for_macro_report(&runtime, "macro.parent1");
+        assert_eq!(report.result, MacroTerminalResult::Completed);
     }
 }

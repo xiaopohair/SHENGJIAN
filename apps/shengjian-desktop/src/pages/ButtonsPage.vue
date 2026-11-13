@@ -14,7 +14,7 @@ import {
   Table2,
   Trash2,
 } from "lucide-vue-next";
-import { latestMacroDefinitions } from "../lib/macros";
+import { latestMacroDefinitions, mergeRecommendedMacros } from "../lib/macros";
 import {
   PROFILE_BUTTONS,
   PROFILE_TRIGGERS,
@@ -55,6 +55,7 @@ import {
   getHostCapabilities,
   getMacroLibrary,
   getRecommendedButtonProfiles,
+  getRecommendedMacros,
   importProfiles,
   saveButtonProfiles,
 } from "../lib/api";
@@ -158,9 +159,15 @@ watch(effectiveModel, async (model) => {
 });
 
 const macroDefinitions = ref<MacroDefinition[]>([]);
+/** 配置目录下发的只读推荐宏；只用于「运行其他宏」下拉，不进入宏页。 */
+const recommendedMacroDefinitions = ref<MacroDefinition[]>([]);
 const commonPhrasesAvailable = shallowRef(false);
 const foregroundApp = shallowRef("");
-const latestMacros = computed(() => latestMacroDefinitions(macroDefinitions.value));
+const latestMacros = computed(() =>
+  latestMacroDefinitions(
+    mergeRecommendedMacros(macroDefinitions.value, recommendedMacroDefinitions.value),
+  ),
+);
 
 const autoProfileConflicts = computed(() => {
   const byTarget = new Map<string, string[]>();
@@ -314,6 +321,13 @@ async function loadMacros() {
     macroDefinitions.value = (await getMacroLibrary()).definitions;
   } catch (cause) {
     error.value = errorMessage(cause);
+  }
+  try {
+    const macros = await getRecommendedMacros();
+    recommendedMacroDefinitions.value = Array.isArray(macros) ? macros : [];
+  } catch {
+    // 推荐宏只是补充：命令缺失/加载失败时下拉仍显示用户宏库，不影响编辑。
+    recommendedMacroDefinitions.value = [];
   }
 }
 

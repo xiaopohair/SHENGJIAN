@@ -211,6 +211,14 @@ export async function getMacroLibrary(): Promise<MacroLibraryDocument> {
   return invoke<MacroLibraryDocument>("macro_library");
 }
 
+/**
+ * 配置目录下发的只读推荐宏（与用户宏库同构）。
+ * 只用于按键方案动作里的「运行其他宏」下拉；宏页不展示，也不写入用户宏库。
+ */
+export async function getRecommendedMacros(): Promise<MacroDefinition[]> {
+  return invoke<MacroDefinition[]>("recommended_macro_definitions");
+}
+
 export async function saveMacroLibrary(
   document: MacroLibraryDocument,
 ): Promise<MacroLibraryDocument> {

@@ -588,6 +588,40 @@ mod recommended_profiles_tests {
         assert_eq!(arn9.profiles.len(), 1);
         assert_eq!(arn9.profiles[0].id, "preset.desktop.shortcuts");
     }
+
+    /// 推荐宏只读命令：返回 `MacroDefinition[]`（与 `get_macro_library` 的
+    /// `definitions` 同构、camelCase），且与用户宏库相互独立。
+    #[test]
+    fn recommended_macro_definitions_returns_macro_definition_contract() {
+        let json = r#"{
+            "schemaVersion": 1,
+            "bundleVersion": "contract-test",
+            "macros": [{
+                "schemaVersion": "0.1",
+                "macroId": "macro.abcdef",
+                "version": "1.0.0",
+                "name": "推荐动作",
+                "steps": [{
+                    "stepId": "step.1",
+                    "action": "open_application",
+                    "parameters": { "target": "notepad" }
+                }]
+            }]
+        }"#;
+        shengjian_domain::recommended_macros::install_from_json(json)
+            .expect("install recommended macro fixture");
+
+        let definitions = recommended_macro_definitions();
+        assert_eq!(definitions.len(), 1);
+        assert_eq!(definitions[0].macro_id, "macro.abcdef");
+        let value = serde_json::to_value(&definitions).expect("serialize recommended macros");
+        assert_eq!(value[0]["macroId"], "macro.abcdef");
+        assert_eq!(value[0]["schemaVersion"], "0.1");
+        assert_eq!(value[0]["version"], "1.0.0");
+        assert_eq!(value[0]["name"], "推荐动作");
+        assert_eq!(value[0]["steps"][0]["action"], "open_application");
+        assert_eq!(value[0]["steps"][0]["parameters"]["target"], "notepad");
+    }
 }
 
 #[tauri::command]
@@ -614,6 +648,15 @@ pub fn import_profiles(
 #[tauri::command]
 pub fn macro_library(state: State<'_, AppState>) -> Result<MacroLibraryDocument, CommandError> {
     macros::load(&state.macro_path).map_err(CommandError::from)
+}
+
+/// 只读推荐宏目录（按键方案“运行其他宏”下拉用）。
+///
+/// 供前端把推荐宏与用户宏合并展示（同 id 用户优先）；不写入用户宏库，
+/// 也不混进 `get_macro_library`——宏页（MacrosPage）只列用户动作。
+#[tauri::command]
+pub fn recommended_macro_definitions() -> Vec<shengjian_domain::MacroDefinition> {
+    shengjian_domain::recommended_macros::macros()
 }
 
 #[tauri::command]
