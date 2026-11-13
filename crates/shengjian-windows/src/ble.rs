@@ -4777,6 +4777,7 @@ mod tests {
         for tool in [
             Some(VoiceToolKind::Doubao),
             Some(VoiceToolKind::Vokie),
+            Some(VoiceToolKind::Chatterfly),
             Some(VoiceToolKind::Custom),
             None,
         ] {

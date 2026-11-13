@@ -7,6 +7,8 @@
 //! * `wechat` → 会话级切进微信输入法（`ime` 的 WeType 配方）、微信开麦观测与
 //!   休眠重放（`spawn_wetype_check`）；
 //! * `doubao` → 会话级切进豆包输入法、豆包开麦观测、报告层右 Alt 松手保险；
+//! * `chatterfly` → 会话级切进 Chatterfly 输入法（TSF 配置）、Chatterfly 开麦
+//!   观测与通用 IME 救回；
 //! * `vokie` → 桌面程序：不切输入法，只做 `Vokie.exe` 开麦观测；
 //! * `custom` → 其他工具：只有用户自定义热键，**不做任何输入法切换/观测/救回**
 //!   （不借用微信或豆包的行为）。
@@ -26,6 +28,8 @@ pub enum VoiceToolKind {
     Doubao,
     /// Vokie 桌面版（不是输入法）。
     Vokie,
+    /// Chatterfly 输入法（TSF：切输入法 + 开麦/IME 观测）。
+    Chatterfly,
     /// 其他工具：只有自定义热键，不做输入法修复。
     #[default]
     Custom,
@@ -42,6 +46,7 @@ impl VoiceToolKind {
             "wechat" => Self::Wechat,
             "doubao" => Self::Doubao,
             "vokie" => Self::Vokie,
+            "chatterfly" => Self::Chatterfly,
             _ => Self::Custom,
         }
     }
@@ -52,6 +57,7 @@ impl VoiceToolKind {
             Self::Wechat => "wechat",
             Self::Doubao => "doubao",
             Self::Vokie => "vokie",
+            Self::Chatterfly => "chatterfly",
             Self::Custom => "custom",
         }
     }
@@ -67,6 +73,7 @@ mod tests {
             VoiceToolKind::Wechat,
             VoiceToolKind::Doubao,
             VoiceToolKind::Vokie,
+            VoiceToolKind::Chatterfly,
             VoiceToolKind::Custom,
         ] {
             assert_eq!(VoiceToolKind::from_kind(kind.as_str()), kind);

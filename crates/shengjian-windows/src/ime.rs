@@ -60,6 +60,11 @@ const WETYPE_PROFILE: GUID = GUID::from_u128(0x607fdf85_fcc8_4dbd_a365_41296f980
 /// Enable=1；激活后 GetActiveProfile 读回即为该组合，非仅 S_OK）。
 const DOUBAO_CLSID: GUID = GUID::from_u128(0x9d2b2e2b_3c93_4d2f_9d35_6eeb85f0d2b0);
 const DOUBAO_PROFILE: GUID = GUID::from_u128(0x2b4d4b3a_4d4f_4c0a_8e66_7f771a2b9c10);
+/// Chatterfly 的 TSF CLSID 与 Profile GUID（2026-11-13 本机注册表实测：
+/// `HKLM\SOFTWARE\Microsoft\CTF\TIP\{604A99E3-…}\LanguageProfile\0x00000804\
+/// {C16C250B-…}`，Description=Chatterfly、Enable=1、Icon=ChatterflyTSF.ime）。
+const CHATTERFLY_CLSID: GUID = GUID::from_u128(0x604a99e3_6d90_4571_824d_2639bd572f6c);
+const CHATTERFLY_PROFILE: GUID = GUID::from_u128(0xc16c250b_cf1c_4c58_b068_12aedbed610f);
 const LANGID_ZH_CN: u16 = 0x0804;
 
 /// 一个语音工具对应的 TSF 会话级目标输入法配置。
@@ -81,6 +86,11 @@ const DOUBAO_IME: ImeProfile = ImeProfile {
     guid_profile: DOUBAO_PROFILE,
     label: "doubao",
 };
+const CHATTERFLY_IME: ImeProfile = ImeProfile {
+    clsid: CHATTERFLY_CLSID,
+    guid_profile: CHATTERFLY_PROFILE,
+    label: "chatterfly",
+};
 
 /// 工具行为类别 → 需要确保为当前会话活动输入法的目标。
 ///
@@ -91,6 +101,7 @@ pub fn ime_target_for(tool: VoiceToolKind) -> Option<ImeProfile> {
     match tool {
         VoiceToolKind::Wechat => Some(WETYPE_IME),
         VoiceToolKind::Doubao => Some(DOUBAO_IME),
+        VoiceToolKind::Chatterfly => Some(CHATTERFLY_IME),
         VoiceToolKind::Vokie | VoiceToolKind::Custom => None,
     }
 }
@@ -670,6 +681,7 @@ pub(crate) fn tool_label(tool: Option<VoiceToolKind>) -> &'static str {
     match tool {
         Some(VoiceToolKind::Wechat) => "wechat",
         Some(VoiceToolKind::Doubao) => "doubao",
+        Some(VoiceToolKind::Chatterfly) => "chatterfly",
         Some(VoiceToolKind::Vokie) => "vokie",
         Some(VoiceToolKind::Custom) => "custom",
         None => "none",
@@ -682,6 +694,8 @@ pub(crate) fn tool_label(tool: Option<VoiceToolKind>) -> &'static str {
 ///   其 LastUsedTimeStart/Stop（与微信同一公开观测通道）；
 /// - 微信：沿用既有 `wetype` 片段（`wetype_check` 阶梯已用同一观测做恢复裁决，
 ///   这里只复用观测本身，不改其恢复逻辑）；
+/// - Chatterfly：本机实测麦克风授权条目路径含 `Chatterfly`（`FyGuide.exe` 与
+///   `voiceinput.exe`），录音启停会更新其 LastUsedTimeStart/Stop；
 /// - Vokie：`Vokie.exe`；
 /// - custom（自定义工具）/ 未选：没有可依赖的条目，返回 None（判据按 `unknown`
 ///   处理，不推断）。
@@ -689,6 +703,7 @@ pub(crate) fn mic_marker_for(tool: Option<VoiceToolKind>) -> Option<&'static str
     match tool {
         Some(VoiceToolKind::Doubao) => Some("doubao"),
         Some(VoiceToolKind::Wechat) => Some("wetype"),
+        Some(VoiceToolKind::Chatterfly) => Some("chatterfly"),
         Some(VoiceToolKind::Vokie) => Some("vokie"),
         _ => None,
     }
@@ -709,6 +724,10 @@ mod press_context_tests {
     fn mic_markers_cover_shipped_tools_only() {
         assert_eq!(mic_marker_for(Some(VoiceToolKind::Doubao)), Some("doubao"));
         assert_eq!(mic_marker_for(Some(VoiceToolKind::Wechat)), Some("wetype"));
+        assert_eq!(
+            mic_marker_for(Some(VoiceToolKind::Chatterfly)),
+            Some("chatterfly")
+        );
         assert_eq!(mic_marker_for(Some(VoiceToolKind::Vokie)), Some("vokie"));
         assert_eq!(mic_marker_for(Some(VoiceToolKind::Custom)), None);
         assert_eq!(mic_marker_for(None), None);
@@ -815,6 +834,7 @@ mod press_context_tests {
     fn tool_labels_are_stable_log_tokens() {
         assert_eq!(tool_label(Some(VoiceToolKind::Wechat)), "wechat");
         assert_eq!(tool_label(Some(VoiceToolKind::Doubao)), "doubao");
+        assert_eq!(tool_label(Some(VoiceToolKind::Chatterfly)), "chatterfly");
         assert_eq!(tool_label(Some(VoiceToolKind::Vokie)), "vokie");
         assert_eq!(tool_label(Some(VoiceToolKind::Custom)), "custom");
         assert_eq!(tool_label(None), "none");
@@ -1505,7 +1525,10 @@ mod yield_plan_tests {
 
 #[cfg(test)]
 mod ime_target_tests {
-    use super::{ime_target_for, DOUBAO_CLSID, DOUBAO_PROFILE, WETYPE_CLSID, WETYPE_PROFILE};
+    use super::{
+        ime_target_for, CHATTERFLY_CLSID, CHATTERFLY_PROFILE, DOUBAO_CLSID, DOUBAO_PROFILE,
+        WETYPE_CLSID, WETYPE_PROFILE,
+    };
     use crate::voice_tool::VoiceToolKind;
 
     /// 工具 → 目标输入法映射：输入法类 kind 要有目标，桌面程序 / 自定义工具必须
@@ -1516,10 +1539,16 @@ mod ime_target_tests {
         assert_eq!(wechat.label, "wechat");
         let doubao = ime_target_for(VoiceToolKind::Doubao).expect("doubao target");
         assert_eq!(doubao.label, "doubao");
+        let chatterfly = ime_target_for(VoiceToolKind::Chatterfly).expect("chatterfly target");
+        assert_eq!(chatterfly.label, "chatterfly");
         assert!(ime_target_for(VoiceToolKind::Vokie).is_none());
         assert!(ime_target_for(VoiceToolKind::Custom).is_none());
-        // 身份必须是两套不同的 GUID（复制粘贴写错会在这里失败）。
+        // 身份必须是三套不同的 GUID（复制粘贴写错会在这里失败）。
         assert_ne!(WETYPE_CLSID, DOUBAO_CLSID);
+        assert_ne!(CHATTERFLY_CLSID, WETYPE_CLSID);
+        assert_ne!(CHATTERFLY_CLSID, DOUBAO_CLSID);
+        assert_ne!(CHATTERFLY_PROFILE, WETYPE_PROFILE);
+        assert_ne!(CHATTERFLY_PROFILE, DOUBAO_PROFILE);
         assert_ne!(WETYPE_PROFILE, DOUBAO_PROFILE);
         assert_ne!(
             ime_target_for(VoiceToolKind::Wechat),
@@ -1537,6 +1566,42 @@ mod ime_target_tests {
                 Ok(super::ImeActivation::NotRequired)
             );
         }
+    }
+
+    /// 真机探针（2026-11-13）：Chatterfly 的 TSF GUID 能解析出显示名，且
+    /// `ensure_session_ime` 后读回活动输入法即为它——验证"切换 + 观测"闭环。
+    /// 需要本机安装 Chatterfly；会切换当前前台窗口的会话输入法（控制台里跑无副作用）。
+    #[test]
+    #[ignore = "switches the foreground window's IME to Chatterfly on this machine"]
+    fn chatterfly_ime_switches_and_is_observed() {
+        let target = ime_target_for(VoiceToolKind::Chatterfly).expect("chatterfly target");
+        assert_eq!(target.label, "chatterfly");
+        let expected = super::ime_status_for(Some(VoiceToolKind::Chatterfly))
+            .expected
+            .expect("Chatterfly 应能从 TSF 读回显示名");
+        assert_eq!(expected, "Chatterfly");
+
+        let activation = super::ensure_session_ime(
+            VoiceToolKind::Chatterfly,
+            super::ImeSwitchScope::VoicePress,
+        )
+        .expect("会话级切换不应报错");
+        println!("ime_activation={activation:?}");
+
+        let mut matched = false;
+        for _ in 0..10 {
+            let status = super::ime_status_for(Some(VoiceToolKind::Chatterfly));
+            println!(
+                "ime_state active={:?} expected={:?} matches={:?}",
+                status.active, status.expected, status.matches_expected
+            );
+            if status.matches_expected == Some(true) {
+                matched = true;
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        assert!(matched, "Chatterfly 应成为当前会话活动输入法");
     }
 
     /// 切换场景标签稳定（日志消费方按它归因；改动会引起日志口径变化）。

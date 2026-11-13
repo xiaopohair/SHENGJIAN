@@ -22,7 +22,7 @@
     {
       "id": "chatterfly",
       "label": "Chatterfly",
-      "kind": "custom",
+      "kind": "chatterfly",
       "defaultHotkey": ["ControlLeft", "MetaLeft"]
     },
     {

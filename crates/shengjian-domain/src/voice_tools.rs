@@ -29,7 +29,7 @@ pub struct VoiceToolCatalog {
 pub struct VoiceToolConfig {
     pub id: String,
     pub label: String,
-    /// `wechat` | `doubao` | `vokie` | `custom` (behavior adapter).
+    /// `wechat` | `doubao` | `vokie` | `chatterfly` | `custom` (behavior adapter).
     pub kind: String,
     /// `KeyboardEvent.code` sequence used as the default push-to-talk hotkey.
     #[serde(default)]
@@ -38,7 +38,7 @@ pub struct VoiceToolConfig {
 
 static CATALOG: OnceLock<RwLock<Vec<VoiceToolConfig>>> = OnceLock::new();
 
-const TOOL_KINDS: [&str; 4] = ["wechat", "doubao", "vokie", "custom"];
+const TOOL_KINDS: [&str; 5] = ["wechat", "doubao", "vokie", "chatterfly", "custom"];
 
 fn catalog_slot() -> &'static RwLock<Vec<VoiceToolConfig>> {
     CATALOG.get_or_init(|| {
@@ -121,10 +121,15 @@ mod tests {
     fn embedded_catalog_keeps_the_four_published_tools_and_hotkeys() {
         let tools = parse_catalog(DEFAULT_VOICE_TOOLS_JSON).expect("embedded catalog parses");
         let ids: Vec<&str> = tools.iter().map(|tool| tool.id.as_str()).collect();
-        assert_eq!(ids, vec!["wechat", "doubao", "vokie", "other"]);
+        assert_eq!(
+            ids,
+            vec!["wechat", "doubao", "vokie", "chatterfly", "other"]
+        );
         assert_eq!(tools[0].default_hotkey, vec!["ControlLeft", "MetaLeft"]);
         assert_eq!(tools[1].default_hotkey, vec!["AltRight"]);
-        assert_eq!(tools[3].kind, "custom");
+        assert_eq!(tools[3].kind, "chatterfly");
+        assert_eq!(tools[3].default_hotkey, vec!["ControlLeft", "MetaLeft"]);
+        assert_eq!(tools[4].kind, "custom");
     }
 
     #[test]

@@ -74,6 +74,7 @@
 - `kind` 决定 Windows 专属行为，代码里只有这四种适配器：
   - `wechat`：切换/观测微信输入法（WeType）
   - `doubao`：切换豆包输入法 + 右 Alt 松手保险
+  - `chatterfly`：切换/观测 Chatterfly 输入法（TSF），走通用 IME 救回
   - `vokie`：只观测，不切换输入法
   - `custom`：只有自定义热键，无 IME 切换/观测/救回
 - 新增一个输入法：加一条 JSON，`kind` 选 `custom`（或复用已有行为），填 `defaultHotkey`。
