@@ -45,7 +45,7 @@ import {
   audioDependencyDetailKey,
   audioDependencyTitleKey,
   audioDependencyTone,
-  cableEndpointNames,
+  suggestedCableEndpointName,
   isAudioDependencyReady,
   mergeAudioEndpoints,
   VB_CABLE_INSTALL_URL,
@@ -207,10 +207,8 @@ const dependencyHint = computed(() => {
   if (audioDependencyError.value) return audioDependencyError.value;
   const state = audioDependency.value?.state;
   if (state === "ready") {
-    const names = cableEndpointNames(audioDependency.value);
-    return names
-      ? tr("远程语音输出设备：{names}", { names })
-      : tr("已找到可用的远程语音输出设备。");
+    const name = suggestedCableEndpointName(audioDependency.value);
+    return name ? tr("远程语音输出设备：{name}", { name }) : tr("已找到可用的远程语音输出设备。");
   }
   const detailKey = audioDependencyDetailKey(state);
   return detailKey ? tr(detailKey) : "";
@@ -258,8 +256,8 @@ async function downloadVbCable() {
 
 function dependencyHealthDetail(status: AudioDependencyStatus): string {
   const label = tr(audioDependencyTitleKey(status.state));
-  const names = status.state === "ready" ? cableEndpointNames(status) : "";
-  return names ? `${label} · ${names}` : label;
+  const name = status.state === "ready" ? suggestedCableEndpointName(status) : "";
+  return name ? `${label} · ${name}` : label;
 }
 
 async function load() {
@@ -1203,7 +1201,7 @@ onMounted(async () => {
 
 .health-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 180px);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 220px) auto;
   align-items: center;
   gap: var(--space-3);
   border-bottom: 1px solid var(--border);
@@ -1216,9 +1214,11 @@ onMounted(async () => {
 }
 
 .health-detail {
+  min-width: 0;
   justify-self: end;
   text-align: right;
   overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .danger-card {

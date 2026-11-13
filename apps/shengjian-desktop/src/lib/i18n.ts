@@ -966,6 +966,7 @@ const ENGLISH = {
     "Install VB-CABLE and pass the check before continuing.",
   远程语音输出设备: "Remote voice output device",
   "远程语音输出设备：{names}": "Remote voice output device: {names}",
+  "远程语音输出设备：{name}": "Remote voice output device: {name}",
   "VB-CABLE 虚拟音频": "VB-CABLE virtual audio",
   未检测到: "Not found",
   设备未启用: "Device disabled",

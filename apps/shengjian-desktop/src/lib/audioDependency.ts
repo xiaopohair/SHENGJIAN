@@ -92,6 +92,16 @@ export function mergeAudioEndpoints(
 }
 
 /** 设置页/健康检查展示用：ready 时优先列出 CABLE 设备名。 */
+/** 建议端点（标准 CABLE Input 优先）的显示名；没有则退回第一个候选。 */
+export function suggestedCableEndpointName(
+  status: AudioDependencyStatus | null | undefined,
+): string {
+  const endpoints = status?.cableEndpoints ?? [];
+  const suggested =
+    endpoints.find((endpoint) => endpoint.id === status?.suggestedEndpointId) ?? endpoints[0];
+  return suggested?.name?.trim() ?? "";
+}
+
 export function cableEndpointNames(status: AudioDependencyStatus | null | undefined): string {
   return (status?.cableEndpoints ?? [])
     .map((endpoint) => endpoint.name?.trim())

@@ -7,6 +7,7 @@ import {
   cableEndpointNames,
   isAudioDependencyReady,
   mergeAudioEndpoints,
+  suggestedCableEndpointName,
   suggestedEndpointId,
   VB_CABLE_INSTALL_URL,
 } from "./audioDependency";
@@ -83,6 +84,22 @@ describe("audio dependency helpers", () => {
     expect(audioDependencyTone(undefined)).toBe("neutral");
     expect(cableEndpointNames(status())).toBe("CABLE Input");
     expect(cableEndpointNames(status({ cableEndpoints: [] }))).toBe("");
+  });
+
+  it("picks the suggested cable endpoint name for compact details", () => {
+    const endpoints = [
+      endpoint("cable-16", "CABLE In 16ch (VB-Audio Virtual Cable)"),
+      endpoint("cable-in", "CABLE Input (VB-Audio Virtual Cable)"),
+    ];
+    expect(
+      suggestedCableEndpointName(
+        status({ cableEndpoints: endpoints, suggestedEndpointId: "cable-in" }),
+      ),
+    ).toBe("CABLE Input (VB-Audio Virtual Cable)");
+    expect(
+      suggestedCableEndpointName(status({ cableEndpoints: endpoints, suggestedEndpointId: null })),
+    ).toBe("CABLE In 16ch (VB-Audio Virtual Cable)");
+    expect(suggestedCableEndpointName(null)).toBe("");
   });
 
   it("has a fallback install url for old backends", () => {
