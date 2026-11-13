@@ -57,6 +57,9 @@ jobs:
       - name: Prepare helper resources
         working-directory: apps/shengjian-desktop
         run: pnpm prepare:helper
+      - name: Prepare config resources
+        working-directory: apps/shengjian-desktop
+        run: pnpm prepare:config
       - name: Desktop Rust format
         working-directory: apps/shengjian-desktop/src-tauri
         run: cargo fmt -- --check
