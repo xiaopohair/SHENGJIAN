@@ -784,6 +784,24 @@ onUnmounted(() => {
           <StatusPill v-if="dirty" :label="trDynamic('未保存')" tone="warning" dot />
         </div>
         <div class="editor-toolbar-actions">
+          <Button size="sm" :disabled="busy" @click="cancelEdit">{{ tr("取消") }}</Button>
+          <Button
+            size="sm"
+            variant="primary"
+            :disabled="busy || (!dirty && !editingNew)"
+            @click="saveEditor"
+          >
+            {{ tr("保存") }}
+          </Button>
+          <IconButton
+            v-if="!editingNew && currentProfileRecord"
+            size="sm"
+            :label="trDynamic('重置方案')"
+            :disabled="busy"
+            @click="resetCurrentProfile"
+          >
+            <RotateCcw :size="14" />
+          </IconButton>
           <IconButton size="sm" :label="trDynamic('属性')" @click="openSettings">
             <SlidersHorizontal :size="15" />
           </IconButton>
@@ -797,15 +815,6 @@ onUnmounted(() => {
             <Copy :size="14" />
           </IconButton>
           <IconButton
-            v-if="!editingNew && currentProfileRecord"
-            size="sm"
-            :label="trDynamic('重置方案')"
-            :disabled="busy"
-            @click="resetCurrentProfile"
-          >
-            <RotateCcw :size="14" />
-          </IconButton>
-          <IconButton
             v-if="!editingNew && currentProfileRecord && !isDefaultProfile(currentProfileRecord)"
             size="sm"
             variant="danger"
@@ -815,15 +824,6 @@ onUnmounted(() => {
           >
             <Trash2 :size="14" />
           </IconButton>
-          <Button size="sm" :disabled="busy" @click="cancelEdit">{{ tr("取消") }}</Button>
-          <Button
-            size="sm"
-            variant="primary"
-            :disabled="busy || (!dirty && !editingNew)"
-            @click="saveEditor"
-          >
-            {{ tr("保存") }}
-          </Button>
         </div>
       </div>
 

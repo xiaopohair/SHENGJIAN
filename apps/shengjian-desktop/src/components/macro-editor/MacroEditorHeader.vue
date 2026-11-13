@@ -57,9 +57,7 @@ function startOrCancelRun() {
     </div>
     <div class="editor-actions-wrap">
       <div class="editor-actions">
-        <Button size="sm" variant="ghost" :disabled="busy" @click="emit('cancel')">{{
-          tr("取消")
-        }}</Button>
+        <Button size="sm" :disabled="busy" @click="emit('cancel')">{{ tr("取消") }}</Button>
         <Button
           v-if="runStatus?.running"
           size="sm"
