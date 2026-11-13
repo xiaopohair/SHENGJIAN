@@ -273,7 +273,7 @@ describe("AppPickerDialog", () => {
     const wrapper = mountDialog();
     await flushPromises();
 
-    buttonByText("手动填写 target（高级）").click();
+    buttonByText("手动填写（高级）").click();
     await flushPromises();
 
     const input = query<HTMLInputElement>(".app-picker-manual input");
@@ -300,7 +300,7 @@ describe("AppPickerDialog", () => {
     mountDialog();
     await flushPromises();
 
-    buttonByText("手动填写 target（高级）").click();
+    buttonByText("手动填写（高级）").click();
     await flushPromises();
     const input = query<HTMLInputElement>(".app-picker-manual input");
     input.value = "ghost.exe";

@@ -872,8 +872,10 @@ const ENGLISH = {
   当前前台应用: "Foreground app",
   最近使用: "Recently used",
   "浏览文件…": "Browse files…",
-  "手动填写 target（高级）": "Enter a target manually (advanced)",
-  "输入应用路径、AUMID 或预设 id": "Enter an app path, AUMID, or preset id",
+  "手动填写（高级）": "Enter manually (advanced)",
+  输入程序完整路径: "Enter the app's full path",
+  "一般不用手填。可粘贴程序完整路径（.exe 或 .lnk）。":
+    "Usually no need to type here. Paste the app's full path (.exe or .lnk).",
   "校验中…": "Checking…",
   输入后会自动校验: "The target is validated as you type.",
   "目标有效，可以保存": "Valid target; ready to save.",

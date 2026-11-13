@@ -588,40 +588,42 @@ onUnmounted(() => {
         >
           <template v-for="section in sections" :key="section.id">
             <p class="app-picker-group" role="presentation">{{ section.title }}</p>
-            <button
-              v-for="option in section.items"
-              :id="option.id"
-              :key="option.id"
-              :ref="
-                (element) => {
-                  if (element) optionRefs[option.flatIndex] = element as HTMLElement;
-                }
-              "
-              type="button"
-              role="option"
-              tabindex="-1"
-              class="app-picker-option"
-              :class="{ active: option.flatIndex === activeIndex, disabled: option.disabled }"
-              :aria-selected="option.flatIndex === activeIndex"
-              :aria-disabled="option.disabled || undefined"
-              :title="option.description"
-              @mouseenter="activeIndex = option.flatIndex"
-              @click="choose(option)"
-            >
-              <span class="app-picker-option-copy">
-                <strong>{{ option.displayName }}</strong>
-                <small v-if="option.subtitle">{{ option.subtitle }}</small>
-              </span>
-              <span
-                v-for="badge in option.badges"
-                :key="badge.label"
-                class="app-picker-flag"
-                :class="`tone-${badge.tone}`"
-                :title="badge.title"
+            <div class="app-picker-group-list">
+              <button
+                v-for="option in section.items"
+                :id="option.id"
+                :key="option.id"
+                :ref="
+                  (element) => {
+                    if (element) optionRefs[option.flatIndex] = element as HTMLElement;
+                  }
+                "
+                type="button"
+                role="option"
+                tabindex="-1"
+                class="app-picker-option"
+                :class="{ active: option.flatIndex === activeIndex, disabled: option.disabled }"
+                :aria-selected="option.flatIndex === activeIndex"
+                :aria-disabled="option.disabled || undefined"
+                :title="option.description"
+                @mouseenter="activeIndex = option.flatIndex"
+                @click="choose(option)"
               >
-                {{ badge.label }}
-              </span>
-            </button>
+                <span class="app-picker-option-copy">
+                  <strong>{{ option.displayName }}</strong>
+                  <small v-if="option.subtitle">{{ option.subtitle }}</small>
+                </span>
+                <span
+                  v-for="badge in option.badges"
+                  :key="badge.label"
+                  class="app-picker-flag"
+                  :class="`tone-${badge.tone}`"
+                  :title="badge.title"
+                >
+                  {{ badge.label }}
+                </span>
+              </button>
+            </div>
           </template>
           <p
             v-if="sections.length === 0 && !(picker.appsLoading.value && !picker.appsLoaded.value)"
@@ -635,15 +637,18 @@ onUnmounted(() => {
           <div class="app-picker-foot-actions">
             <Button size="sm" @click="browse">{{ tr("浏览文件…") }}</Button>
             <Button size="sm" variant="ghost" :aria-expanded="manualOpen" @click="toggleManual">
-              {{ tr("手动填写 target（高级）") }}
+              {{ tr("手动填写（高级）") }}
             </Button>
           </div>
           <div v-if="manualOpen" class="app-picker-manual">
             <TextInput
               v-model="manualValue"
-              :placeholder="tr('输入应用路径、AUMID 或预设 id')"
-              :aria-label="tr('手动填写 target（高级）')"
+              :placeholder="tr('输入程序完整路径')"
+              :aria-label="tr('手动填写（高级）')"
             />
+            <p class="app-picker-manual-hint">
+              {{ tr("一般不用手填。可粘贴程序完整路径（.exe 或 .lnk）。") }}
+            </p>
             <div class="app-picker-manual-foot">
               <span
                 class="app-picker-manual-state"
@@ -802,12 +807,19 @@ onUnmounted(() => {
 }
 
 .app-picker-group {
-  margin: var(--space-2) 0 2px;
-  padding: 2px 8px;
+  margin: var(--space-3) 0 4px;
+  padding: 0 2px;
   color: var(--text-muted);
   font-size: var(--text-2xs);
   font-weight: 650;
   letter-spacing: 0.06em;
+}
+
+.app-picker-group-list {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
 }
 
 .app-picker-option {
@@ -816,17 +828,22 @@ onUnmounted(() => {
   align-items: center;
   gap: 6px;
   width: 100%;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
   background: transparent;
-  padding: 7px 9px;
+  padding: 9px 10px;
   text-align: left;
   cursor: pointer;
 }
 
+.app-picker-option:first-child {
+  border-top: 0;
+}
+
 .app-picker-option.active {
-  border-color: var(--accent);
   background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .app-picker-option.disabled {
@@ -836,7 +853,7 @@ onUnmounted(() => {
 
 .app-picker-option:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline-offset: -2px;
 }
 
 .app-picker-option-copy {
@@ -913,6 +930,13 @@ onUnmounted(() => {
 
 .app-picker-manual {
   margin-top: var(--space-3);
+}
+
+.app-picker-manual-hint {
+  margin: var(--space-2) 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-2xs);
+  line-height: 1.45;
 }
 
 .app-picker-manual-foot {
