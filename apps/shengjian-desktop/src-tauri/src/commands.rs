@@ -347,6 +347,17 @@ pub fn canonicalize_app_target(raw: String) -> shengjian_windows::app_launcher::
     shengjian_windows::app_launcher::canonical_app_target(&raw)
 }
 
+/// 批量提取应用图标（`data:image/png;base64,` data URL；顺序与输入一致，失败为 null）。
+#[tauri::command]
+pub async fn app_icon_data_urls(targets: Vec<String>) -> Vec<Option<String>> {
+    let count = targets.len();
+    tauri::async_runtime::spawn_blocking(move || {
+        shengjian_windows::app_icons::app_icon_data_urls(&targets)
+    })
+    .await
+    .unwrap_or_else(|_| vec![None; count])
+}
+
 #[tauri::command]
 pub fn device_status(state: State<'_, AppState>) -> Option<DeviceStatus> {
     state.host.device_status()

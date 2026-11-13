@@ -283,7 +283,7 @@ struct PresetLaunchTarget {
 /// 开始菜单快捷方式索引：文件名去 `.lnk` 后小写 → 完整路径。
 /// 覆盖自定义安装目录（App Paths/System32 探测不到的应用）。
 #[cfg(windows)]
-fn start_menu_shortcuts() -> Vec<(String, std::path::PathBuf)> {
+pub(crate) fn start_menu_shortcuts() -> Vec<(String, std::path::PathBuf)> {
     let mut out = Vec::new();
     for root in [
         std::env::var_os("APPDATA").map(|value| {
@@ -390,6 +390,25 @@ fn preset_launch_target(
 #[cfg(windows)]
 fn resolve_preset_launch_target(app: &PresetApp) -> Option<PresetLaunchTarget> {
     preset_launch_target(app, &start_menu_shortcuts())
+}
+
+/// 预设应用的可执行文件路径（图标提取等只读场景复用同一解析口径）。
+///
+/// 顺序与启动链路一致：候选安装路径 → 开始菜单快捷方式 → App Paths/System32/PATH。
+/// 只读、不启动任何进程。
+#[cfg(windows)]
+pub(crate) fn preset_executable_path(
+    app: &PresetApp,
+    shortcuts: &[(String, std::path::PathBuf)],
+) -> Option<String> {
+    preset_launch_target(app, shortcuts)
+        .map(|target| target.exe_path)
+        .or_else(|| {
+            app.exe_names
+                .iter()
+                .find_map(|exe| resolve_bare_executable(exe))
+                .map(|path| path.to_string_lossy().into_owned())
+        })
 }
 
 /// 预设应用安装判定（探测与「应用身份」描述共用同一份口径）。
@@ -621,7 +640,7 @@ fn is_custom_path_target(target: &str) -> bool {
 }
 
 /// 裸可执行文件名（不含路径分隔符），例如 `notepad.exe`。
-fn is_bare_executable_name(target: &str) -> bool {
+pub(crate) fn is_bare_executable_name(target: &str) -> bool {
     let lower = target.to_ascii_lowercase();
     !lower.contains('\\')
         && !lower.contains('/')
@@ -636,7 +655,7 @@ fn is_bare_executable_name(target: &str) -> bool {
 /// 宏里的「打开应用」允许直接写可执行文件名（用户从文件选择器拿到的是名字），
 /// 只对这个名字做 ShellExecuteW 会因为不在 PATH 而失败，所以先尽力定位真实路径。
 #[cfg(windows)]
-fn resolve_bare_executable(name: &str) -> Option<std::path::PathBuf> {
+pub(crate) fn resolve_bare_executable(name: &str) -> Option<std::path::PathBuf> {
     if let Some(path) = app_paths_exe_path(name) {
         return Some(path);
     }
@@ -1165,6 +1184,14 @@ fn resolve_lnk(lnk_path: &str) -> Option<ResolvedShortcut> {
         })
         .ok()?;
     handle.join().ok().flatten()
+}
+
+/// 解析 `.lnk` 得到目标 exe 绝对路径（图标提取等只读场景；失败返回 None）。
+#[cfg(windows)]
+pub(crate) fn shortcut_executable_path(lnk_path: &str) -> Option<String> {
+    resolve_lnk(lnk_path)
+        .map(|shortcut| shortcut.exe_path)
+        .filter(|path| !path.trim().is_empty())
 }
 
 #[cfg(not(windows))]

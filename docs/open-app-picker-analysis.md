@@ -459,6 +459,7 @@ issue:           未安装 / 路径不存在 / 无法解析 / 不支持自动匹
 
 - 新增 `components/app-picker/AppPickerDialog.vue`（居中模态；搜索 + 分组 + 状态徽标 + 浏览文件 + 手动填写校验；键盘 ↑↓/Enter/Esc、焦点圈定与归还、aria combobox/listbox）、`AppTargetBadge.vue`（友好名 + 副标题 + 问题徽标 + 「修复」）、`composables/useAppPicker.ts`（列表加载/刷新、describe 批量缓存与 in-flight 去重、错误 toast）、`lib/appTargets.ts`（merge/去重/状态分类纯函数）。
 - 接线：`ProfileBindingEditor`（launch 模式 + 旧值修复）、`ProfileSettingsDrawer`（match 模式写入 exe 名、`mergeAppTarget`、「用当前前台」同源、Esc 让位）、`macro-editor/MacroActionPanel`（launch 模式写 `parameters.target`，不再静默吞错）；`ProfileWorkbench` 摘要与搜索优先使用友好名。
+- 选择器视觉：分类切换（全部/推荐/已安装应用）与列表合并为同一个边框面板（宽度与搜索框对齐、无分组标题），列表每行显示 32×32 应用图标（后端 `app_icon_data_urls`，预设/exe/.lnk/AUMID 均可提取，失败回退通用图标）。
 - 清理：删除死代码 `ProfileEditor.vue` 与其测试；扩展名常量统一到 `lib/runnable.ts`；`i18n.ts` 新增 44 条中英词条；`resolveAppTarget` 仅保留 deprecated 导出（无新调用方）。
 - 旧数据处理：`legacy` 标记 + `issue` 徽标 + 「修复」入口，重新选择即写入规范值，不做批量改写。
 
@@ -474,7 +475,7 @@ issue:           未安装 / 路径不存在 / 无法解析 / 不支持自动匹
 
 ### 遗留（P2，未做）
 
-- 图标、AUMID/窗口类匹配扩展（需把 `ForegroundPort` 从 exe basename 扩展为身份）、聚焦档案统一、旧数据批量修复向导（见 §6.5/§6.6）。
+- AUMID/窗口类匹配扩展（需把 `ForegroundPort` 从 exe basename 扩展为身份）、聚焦档案统一、旧数据批量修复向导（见 §6.5/§6.6）。
 - 真机人工验收需补：便携应用启动与前置、预设默认聚焦、UWP 列表去重、旧值「修复」交互。
 
 ---

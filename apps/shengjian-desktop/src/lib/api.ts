@@ -78,6 +78,11 @@ export async function canonicalizeAppTarget(target: string): Promise<AppTargetIn
   return invoke<AppTargetInfo>("canonicalize_app_target", { raw: target });
 }
 
+/** 批量取应用图标 data URL（顺序与输入一致；取不到为 null）。 */
+export async function appIconDataUrls(targets: string[]): Promise<Array<string | null>> {
+  return invoke<Array<string | null>>("app_icon_data_urls", { targets });
+}
+
 export async function readDiagnosticLog(maxBytes?: number): Promise<string> {
   return invoke<string>("diagnostic_log", { maxBytes });
 }

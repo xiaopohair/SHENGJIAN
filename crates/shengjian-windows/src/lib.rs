@@ -12,6 +12,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 
+pub mod app_icons;
 pub mod app_launcher;
 #[cfg(windows)]
 mod audio;

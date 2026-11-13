@@ -203,6 +203,7 @@ fn main() {
             commands::list_launchable_apps,
             commands::describe_app_targets,
             commands::canonicalize_app_target,
+            commands::app_icon_data_urls,
             commands::resolve_app_target,
             commands::device_status,
             commands::device_support,

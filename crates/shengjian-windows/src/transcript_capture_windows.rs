@@ -5,7 +5,6 @@
 //! 每次 UIA 调用都有有界等待；目标 provider 卡住时本次捕获放弃，不阻塞语音线程。
 
 use std::collections::HashMap;
-use std::ffi::c_void;
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
@@ -13,10 +12,6 @@ use std::time::Duration;
 use shengjian_domain::transcripts::application_key;
 use windows::core::{Interface, BSTR, PCWSTR, PWSTR};
 use windows::Win32::Foundation::CloseHandle;
-use windows::Win32::Graphics::Gdi::{
-    CreateCompatibleDC, DeleteDC, DeleteObject, GetDIBits, GetObjectW, BITMAP, BITMAPINFO,
-    BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS,
-};
 use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
 };
@@ -29,9 +24,7 @@ use windows::Win32::UI::Accessibility::{
     UIA_ValuePatternId,
 };
 use windows::Win32::UI::Shell::{SHGetFileInfoW, SHFILEINFOW, SHGFI_DISPLAYNAME};
-use windows::Win32::UI::WindowsAndMessaging::{
-    DestroyIcon, GetForegroundWindow, GetIconInfo, PrivateExtractIconsW, HICON, ICONINFO,
-};
+use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
 
 use crate::focus_windows::with_automation_timeout;
 use crate::transcript_capture::{CaptureSnapshot, CaptureText, SnapshotError, SnapshotProvider};
@@ -336,6 +329,7 @@ fn localized_application_name(raw: &str) -> String {
 /// 从可执行文件提取 64×64 图标并编码为 PNG。失败只返回 `None`，由前端使用通用图标。
 ///
 /// 捕获轮询会反复读同一应用，按可执行路径缓存，避免每轮都做 Shell 提取与 PNG 编码。
+/// 提取实现已迁到 `app_icons`（32×32 的「打开应用」选择器共用同一份代码）。
 fn application_icon_png(path: &str) -> Option<Vec<u8>> {
     static CACHE: OnceLock<Mutex<HashMap<String, Option<Vec<u8>>>>> = OnceLock::new();
     let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
@@ -344,7 +338,7 @@ fn application_icon_png(path: &str) -> Option<Vec<u8>> {
             return cached.clone();
         }
     }
-    let icon = extract_icon_png(path);
+    let icon = crate::app_icons::icon_png_from_executable(path, 64);
     if let Ok(mut guard) = cache.lock() {
         guard.insert(path.to_owned(), icon.clone());
     }
@@ -412,114 +406,6 @@ pub fn application_icon_for_display_name(name: &str) -> Option<Vec<u8>> {
         }
     }
     found
-}
-
-fn extract_icon_png(path: &str) -> Option<Vec<u8>> {
-    if path.encode_utf16().count() >= 259 {
-        return None;
-    }
-    let mut file = [0u16; 260];
-    for (index, value) in path.encode_utf16().enumerate() {
-        file[index] = value;
-    }
-    let mut icons = [HICON::default()];
-    let count = unsafe { PrivateExtractIconsW(&file, 0, 64, 64, Some(&mut icons), None, 1) };
-    if count == 0 || icons[0].is_invalid() {
-        return None;
-    }
-    let encoded = icon_to_png(icons[0]);
-    unsafe {
-        let _ = DestroyIcon(icons[0]);
-    }
-    encoded
-}
-
-fn icon_to_png(icon: HICON) -> Option<Vec<u8>> {
-    let mut info: ICONINFO = unsafe { std::mem::zeroed() };
-    if unsafe { GetIconInfo(icon, &mut info) }.is_err() {
-        return None;
-    }
-    let color = info.hbmColor;
-    let mask = info.hbmMask;
-    let encoded = (|| {
-        let mut bitmap: BITMAP = unsafe { std::mem::zeroed() };
-        let copied = unsafe {
-            GetObjectW(
-                color.into(),
-                std::mem::size_of::<BITMAP>() as i32,
-                Some(&mut bitmap as *mut BITMAP as *mut c_void),
-            )
-        };
-        if copied == 0 {
-            return None;
-        }
-        let width = bitmap.bmWidth;
-        let height = bitmap.bmHeight;
-        if !(1..=256).contains(&width) || !(1..=256).contains(&height) {
-            return None;
-        }
-        let mut info_header: BITMAPINFO = unsafe { std::mem::zeroed() };
-        info_header.bmiHeader = BITMAPINFOHEADER {
-            biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
-            biWidth: width,
-            biHeight: -height,
-            biPlanes: 1,
-            biBitCount: 32,
-            biCompression: BI_RGB.0,
-            ..Default::default()
-        };
-        let mut pixels = vec![0u8; (width as usize) * (height as usize) * 4];
-        let dc = unsafe { CreateCompatibleDC(None) };
-        if dc.is_invalid() {
-            return None;
-        }
-        let lines = unsafe {
-            GetDIBits(
-                dc,
-                color,
-                0,
-                height as u32,
-                Some(pixels.as_mut_ptr() as *mut c_void),
-                &mut info_header,
-                DIB_RGB_COLORS,
-            )
-        };
-        unsafe {
-            let _ = DeleteDC(dc);
-        }
-        if lines == 0 {
-            return None;
-        }
-        let mut rgba = Vec::with_capacity(pixels.len());
-        let mut any_alpha = false;
-        for pixel in pixels.chunks_exact(4) {
-            any_alpha |= pixel[3] != 0;
-            rgba.extend_from_slice(&[pixel[2], pixel[1], pixel[0], pixel[3]]);
-        }
-        if !any_alpha {
-            for pixel in rgba.chunks_exact_mut(4) {
-                pixel[3] = 255;
-            }
-        }
-        let mut png = Vec::new();
-        {
-            let mut encoder = png::Encoder::new(&mut png, width as u32, height as u32);
-            encoder.set_color(png::ColorType::Rgba);
-            encoder.set_depth(png::BitDepth::Eight);
-            let mut writer = encoder.write_header().ok()?;
-            writer.write_image_data(&rgba).ok()?;
-        }
-        Some(png)
-    })();
-    unsafe {
-        if !color.is_invalid() {
-            let _ = DeleteObject(color.into());
-        }
-        if !mask.is_invalid() {
-            let _ = DeleteObject(mask.into());
-        }
-    }
-    encoded
 }
 
 fn bstr(value: windows::core::Result<BSTR>) -> String {

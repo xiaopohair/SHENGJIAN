@@ -13,6 +13,7 @@ vi.mock("../lib/api", () => ({
   listLaunchableApps: vi.fn(async () => ({ apps: [], scanned: true, scanError: null })),
   describeAppTargets: vi.fn(async () => []),
   canonicalizeAppTarget: vi.fn(),
+  appIconDataUrls: vi.fn(async () => []),
   resolveAppTarget: vi.fn(async () => null),
   errorMessage: (cause: unknown) => String(cause),
 }));

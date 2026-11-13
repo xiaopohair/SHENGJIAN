@@ -8,7 +8,7 @@
  * - 失败统一走 toast，不再静默吞掉错误。
  */
 import { reactive, ref, shallowRef } from "vue";
-import { describeAppTargets, errorMessage, listLaunchableApps } from "../lib/api";
+import { appIconDataUrls, describeAppTargets, errorMessage, listLaunchableApps } from "../lib/api";
 import { tr } from "../lib/i18n";
 import { pushToast } from "../lib/toast";
 import type { AppTargetInfo, LaunchableApp } from "../lib/types";
@@ -103,6 +103,37 @@ export function appTargetFriendlyName(target: string, fallback?: string): string
   return fallback ?? target;
 }
 
+// ---- 应用图标（模块级缓存；取不到时列表用通用占位图标） ----
+
+const iconCache = reactive(new Map<string, string>());
+const iconInFlight = new Set<string>();
+
+/** 同步读取已缓存的图标 data URL。 */
+export function appIconFor(target: string | null | undefined): string | undefined {
+  const key = (target ?? "").trim();
+  return key ? iconCache.get(key) : undefined;
+}
+
+/** 批量拉取图标；图标只是装饰信息，失败静默、下次打开重试。 */
+export async function loadAppIcons(targets: readonly string[]): Promise<void> {
+  const missing = [...new Set(targets.map((target) => target.trim()).filter(Boolean))].filter(
+    (target) => !iconCache.has(target) && !iconInFlight.has(target),
+  );
+  if (missing.length === 0) return;
+  for (const target of missing) iconInFlight.add(target);
+  try {
+    const urls = await appIconDataUrls(missing);
+    missing.forEach((target, index) => {
+      const url = urls[index];
+      if (url) iconCache.set(target, url);
+    });
+  } catch {
+    // 图标失败不打扰用户，列表显示通用图标。
+  } finally {
+    for (const target of missing) iconInFlight.delete(target);
+  }
+}
+
 // ---- 可启动应用列表（模块级，打开过一次后即时展示） ----
 
 const apps = shallowRef<LaunchableApp[]>([]);
@@ -166,6 +197,8 @@ export function useAppPicker() {
 /** 测试辅助：清空模块级缓存，避免用例之间互相污染。 */
 export function resetAppPickerState() {
   targetCache.clear();
+  iconCache.clear();
+  iconInFlight.clear();
   inFlight.clear();
   pendingTargets = [];
   pendingResolvers = [];

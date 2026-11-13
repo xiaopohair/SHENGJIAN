@@ -14,6 +14,7 @@ vi.mock("../../lib/api", () => ({
   listLaunchableApps: vi.fn(),
   describeAppTargets: vi.fn(),
   canonicalizeAppTarget: vi.fn(),
+  appIconDataUrls: vi.fn(async (targets: string[]) => targets.map(() => null)),
   errorMessage: (cause: unknown) => String(cause),
 }));
 
@@ -25,6 +26,7 @@ enableAutoUnmount(afterEach);
 const listLaunchableApps = vi.mocked(api.listLaunchableApps);
 const describeAppTargets = vi.mocked(api.describeAppTargets);
 const canonicalizeAppTarget = vi.mocked(api.canonicalizeAppTarget);
+const appIconDataUrls = vi.mocked(api.appIconDataUrls);
 const openDialog = vi.mocked(openFileDialog);
 
 const APPS: LaunchableApp[] = [
@@ -159,16 +161,30 @@ afterEach(() => {
 });
 
 describe("AppPickerDialog", () => {
-  it("loads the app list once and groups it into suggested and installed apps", async () => {
+  it("loads the app list once into a single list with category tabs", async () => {
     mountDialog();
     await flushPromises();
 
     expect(listLaunchableApps).toHaveBeenCalledWith(false);
-    const groups = queryAll(".app-picker-group").map((element) => element.textContent?.trim());
-    expect(groups).toContain("推荐");
-    expect(groups).toContain("已安装应用");
+    expect(queryAll(".app-picker-group")).toHaveLength(0);
+    const tabs = queryAll<HTMLElement>(".app-picker-filters button");
+    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual(["全部", "推荐", "已安装应用"]);
     expect(optionByText("微信")).toBeTruthy();
     expect(optionByText("未安装").textContent).toContain("Chrome");
+    expect(optionByText("记事本")).toBeTruthy();
+  });
+
+  it("renders app icons once the icon batch resolves", async () => {
+    appIconDataUrls.mockResolvedValue(APPS.map(() => "data:image/png;base64,AAAA"));
+    mountDialog();
+    await flushPromises();
+    await flushPromises();
+
+    const icon = document.querySelector<HTMLImageElement>(
+      ".app-picker-option .app-picker-icon img",
+    );
+    expect(icon).toBeTruthy();
+    expect(icon?.getAttribute("src")).toContain("data:image/png");
   });
 
   it("switches between all, suggested and installed categories", async () => {
@@ -180,15 +196,15 @@ describe("AppPickerDialog", () => {
 
     tabs()[1].click();
     await flushPromises();
-    expect(queryAll(".app-picker-group").map((el) => el.textContent?.trim())).toEqual(["推荐"]);
-    expect(optionByText("微信")).toBeTruthy();
+    let names = queryAll(".app-picker-option").map((el) => el.textContent ?? "");
+    expect(names.some((text) => text.includes("微信"))).toBe(true);
+    expect(names.some((text) => text.includes("记事本"))).toBe(false);
 
     tabs()[2].click();
     await flushPromises();
-    expect(queryAll(".app-picker-group").map((el) => el.textContent?.trim())).toEqual([
-      "已安装应用",
-    ]);
-    expect(optionByText("记事本")).toBeTruthy();
+    names = queryAll(".app-picker-option").map((el) => el.textContent ?? "");
+    expect(names.some((text) => text.includes("记事本"))).toBe(true);
+    expect(names.some((text) => text.includes("微信"))).toBe(false);
   });
 
   it("filters the list from the search box", async () => {
@@ -242,13 +258,12 @@ describe("AppPickerDialog", () => {
     expect(wrapper.emitted("select")).toHaveLength(1);
   });
 
-  it("shows the foreground app as its own group", async () => {
+  it("puts the foreground app first in the unified list", async () => {
     mountDialog({ foregroundApp: "chrome.exe" });
     await flushPromises();
 
-    const groups = queryAll(".app-picker-group").map((element) => element.textContent?.trim());
-    expect(groups).toContain("当前前台应用");
-    expect(optionByText("chrome.exe")).toBeTruthy();
+    const first = query<HTMLElement>(".app-picker-option");
+    expect(first.getAttribute("title")).toBe("chrome.exe");
   });
 
   it("shows a retry action when loading fails and recovers on retry", async () => {

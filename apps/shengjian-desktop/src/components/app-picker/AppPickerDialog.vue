@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, shallowRef, useTemplateRef, watch } from "vue";
 import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
-import { RefreshCw, Search, X } from "lucide-vue-next";
+import { AppWindow, RefreshCw, Search, X } from "lucide-vue-next";
 import { canonicalizeAppTarget, errorMessage } from "../../lib/api";
 import {
   appTargetStatus,
@@ -15,8 +15,10 @@ import { RUNNABLE_EXTENSIONS } from "../../lib/runnable";
 import { pushToast } from "../../lib/toast";
 import type { AppTargetInfo, LaunchableApp } from "../../lib/types";
 import {
+  appIconFor,
   cachedAppTarget,
   describeAppTargetsCached,
+  loadAppIcons,
   useAppPicker,
 } from "../../composables/useAppPicker";
 import Button from "../ui/Button.vue";
@@ -61,6 +63,7 @@ interface PickerOptionSeed {
   subtitle: string;
   description: string;
   target: string;
+  iconTarget: string;
   matchTarget: string | null;
   disabled: boolean;
   badges: PickerBadge[];
@@ -70,12 +73,6 @@ interface PickerOptionSeed {
 interface PickerOption extends PickerOptionSeed {
   id: string;
   flatIndex: number;
-}
-
-interface PickerSection {
-  id: string;
-  title: string;
-  items: PickerOption[];
 }
 
 const picker = useAppPicker();
@@ -146,6 +143,7 @@ function appSeed(app: LaunchableApp): PickerOptionSeed {
     subtitle,
     description: app.target,
     target: app.target,
+    iconTarget: app.target,
     matchTarget,
     disabled: match ? !app.installed || !app.matchable || !matchTarget : !app.installed,
     badges,
@@ -180,6 +178,7 @@ function targetSeed(raw: string): PickerOptionSeed {
     subtitle,
     description: info?.target?.trim() || target,
     target: info?.target?.trim() || target,
+    iconTarget: info?.target?.trim() || target,
     matchTarget,
     disabled,
     badges,
@@ -187,65 +186,53 @@ function targetSeed(raw: string): PickerOptionSeed {
   };
 }
 
-const sections = computed<PickerSection[]>(() => {
+/** 当前分类 + 搜索过滤后的统一列表：分类切换就是分组，不再单独渲染标题。 */
+const flatItems = computed<PickerOption[]>(() => {
   const needle = query.value.trim().toLowerCase();
   const used = new Set<string>();
-  const result: PickerSection[] = [];
+  const collected: PickerOptionSeed[] = [];
 
-  function addSection(id: string, title: string, seeds: PickerOptionSeed[], dedupe = true) {
-    // 分类只决定展示哪些分组；组内仍保留搜索与去重。
-    if (category.value !== "all" && category.value !== id) return;
-    const items: PickerOption[] = [];
+  function add(seeds: PickerOptionSeed[], dedupe = true) {
     for (const seed of seeds) {
       if (dedupe && used.has(seed.key)) continue;
       if (needle && !seed.search.includes(needle)) continue;
       used.add(seed.key);
-      items.push({ ...seed, id: "", flatIndex: -1 });
-    }
-    if (items.length > 0) result.push({ id, title, items });
-  }
-
-  addSection(
-    "suggested",
-    tr("推荐"),
-    picker.apps.value.filter((app) => app.source === "preset").map(appSeed),
-  );
-
-  // The foreground entry stays even when the same app is already recommended:
-  // it is the one users most often want, and it carries the "current" context.
-  const foreground = props.foregroundApp.trim();
-  if (foreground) {
-    addSection("foreground", tr("当前前台应用"), [targetSeed(foreground)], false);
-  }
-
-  addSection(
-    "installed",
-    tr("已安装应用"),
-    picker.apps.value.filter((app) => app.source !== "preset" && app.installed).map(appSeed),
-  );
-
-  const recentSeeds: PickerOptionSeed[] = [];
-  const recentSeen = new Set<string>();
-  for (const target of props.recentTargets) {
-    const seed = targetSeed(target);
-    if (recentSeen.has(seed.key)) continue;
-    recentSeen.add(seed.key);
-    recentSeeds.push(seed);
-  }
-  addSection("recent", tr("最近使用"), recentSeeds);
-
-  let flatIndex = 0;
-  for (const section of result) {
-    for (const item of section.items) {
-      item.flatIndex = flatIndex;
-      item.id = `app-picker-option-${flatIndex}`;
-      flatIndex += 1;
+      collected.push(seed);
     }
   }
-  return result;
+
+  const presets = picker.apps.value.filter((app) => app.source === "preset").map(appSeed);
+  const installed = picker.apps.value
+    .filter((app) => app.source !== "preset" && app.installed)
+    .map(appSeed);
+
+  if (category.value === "suggested") {
+    add(presets);
+  } else if (category.value === "installed") {
+    add(installed);
+  } else {
+    // 全部：当前前台 → 推荐（预设）→ 已安装 → 最近使用，去重后合成一个列表。
+    const foreground = props.foregroundApp.trim();
+    if (foreground) add([targetSeed(foreground)], false);
+    add(presets);
+    add(installed);
+    const recentSeeds: PickerOptionSeed[] = [];
+    const recentSeen = new Set<string>();
+    for (const target of props.recentTargets) {
+      const seed = targetSeed(target);
+      if (recentSeen.has(seed.key)) continue;
+      recentSeen.add(seed.key);
+      recentSeeds.push(seed);
+    }
+    add(recentSeeds);
+  }
+
+  return collected.map((seed, index) => ({
+    ...seed,
+    id: `app-picker-option-${index}`,
+    flatIndex: index,
+  }));
 });
-
-const flatItems = computed(() => sections.value.flatMap((section) => section.items));
 const activeItem = computed(() => flatItems.value[activeIndex.value]);
 const activeDescendant = computed(() => activeItem.value?.id);
 
@@ -282,6 +269,14 @@ watch(flatItems, () => {
   const firstEnabled = items.findIndex((item) => !item.disabled);
   activeIndex.value = firstEnabled >= 0 ? firstEnabled : 0;
 });
+
+watch(
+  flatItems,
+  (items) => {
+    void loadAppIcons(items.map((item) => item.iconTarget).filter(Boolean));
+  },
+  { immediate: true },
+);
 
 watch(query, () => {
   activeIndex.value = 0;
@@ -579,10 +574,6 @@ onUnmounted(() => {
           <kbd>Esc</kbd>
         </div>
 
-        <div class="app-picker-filters">
-          <ToggleGroup v-model="category" :items="CATEGORY_ITEMS" aria-label="应用分类" />
-        </div>
-
         <div v-if="picker.appsLoading.value && !picker.appsLoaded.value" class="app-picker-status">
           {{ tr("加载应用列表…") }}
         </div>
@@ -599,57 +590,67 @@ onUnmounted(() => {
           <Button size="sm" @click="refreshApps">{{ tr("重试") }}</Button>
         </div>
 
-        <div
-          id="app-picker-listbox"
-          class="app-picker-list"
-          role="listbox"
-          :aria-label="tr('应用列表')"
-        >
-          <template v-for="section in sections" :key="section.id">
-            <p class="app-picker-group" role="presentation">{{ section.title }}</p>
-            <div class="app-picker-group-list">
-              <button
-                v-for="option in section.items"
-                :id="option.id"
-                :key="option.id"
-                :ref="
-                  (element) => {
-                    if (element) optionRefs[option.flatIndex] = element as HTMLElement;
-                  }
-                "
-                type="button"
-                role="option"
-                tabindex="-1"
-                class="app-picker-option"
-                :class="{ active: option.flatIndex === activeIndex, disabled: option.disabled }"
-                :aria-selected="option.flatIndex === activeIndex"
-                :aria-disabled="option.disabled || undefined"
-                :title="option.description"
-                @mouseenter="activeIndex = option.flatIndex"
-                @click="choose(option)"
-              >
-                <span class="app-picker-option-copy">
-                  <strong>{{ option.displayName }}</strong>
-                  <small v-if="option.subtitle">{{ option.subtitle }}</small>
-                </span>
-                <span
-                  v-for="badge in option.badges"
-                  :key="badge.label"
-                  class="app-picker-flag"
-                  :class="`tone-${badge.tone}`"
-                  :title="badge.title"
-                >
-                  {{ badge.label }}
-                </span>
-              </button>
-            </div>
-          </template>
-          <p
-            v-if="sections.length === 0 && !(picker.appsLoading.value && !picker.appsLoaded.value)"
-            class="app-picker-empty"
+        <div class="app-picker-panel">
+          <div class="app-picker-filters">
+            <ToggleGroup v-model="category" :items="CATEGORY_ITEMS" aria-label="应用分类" />
+          </div>
+          <div
+            id="app-picker-listbox"
+            class="app-picker-list"
+            role="listbox"
+            :aria-label="tr('应用列表')"
           >
-            {{ query.trim() ? tr("没有匹配的应用") : tr("没有可用的应用") }}
-          </p>
+            <button
+              v-for="option in flatItems"
+              :id="option.id"
+              :key="option.id"
+              :ref="
+                (element) => {
+                  if (element) optionRefs[option.flatIndex] = element as HTMLElement;
+                }
+              "
+              type="button"
+              role="option"
+              tabindex="-1"
+              class="app-picker-option"
+              :class="{ active: option.flatIndex === activeIndex, disabled: option.disabled }"
+              :aria-selected="option.flatIndex === activeIndex"
+              :aria-disabled="option.disabled || undefined"
+              :title="option.description"
+              @mouseenter="activeIndex = option.flatIndex"
+              @click="choose(option)"
+            >
+              <span class="app-picker-icon" aria-hidden="true">
+                <img
+                  v-if="appIconFor(option.iconTarget)"
+                  :src="appIconFor(option.iconTarget)"
+                  alt=""
+                />
+                <AppWindow v-else :size="16" />
+              </span>
+              <span class="app-picker-option-copy">
+                <strong>{{ option.displayName }}</strong>
+                <small v-if="option.subtitle">{{ option.subtitle }}</small>
+              </span>
+              <span
+                v-for="badge in option.badges"
+                :key="badge.label"
+                class="app-picker-flag"
+                :class="`tone-${badge.tone}`"
+                :title="badge.title"
+              >
+                {{ badge.label }}
+              </span>
+            </button>
+            <p
+              v-if="
+                flatItems.length === 0 && !(picker.appsLoading.value && !picker.appsLoaded.value)
+              "
+              class="app-picker-empty"
+            >
+              {{ query.trim() ? tr("没有匹配的应用") : tr("没有可用的应用") }}
+            </p>
+          </div>
         </div>
 
         <footer class="app-picker-foot">
@@ -711,7 +712,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   width: min(560px, calc(100vw - 48px));
-  max-height: min(640px, calc(100vh - 48px));
+  height: min(640px, calc(100vh - 48px));
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-xl);
   background: var(--bg-raised);
@@ -815,32 +816,28 @@ onUnmounted(() => {
   color: var(--warning-text);
 }
 
-.app-picker-filters {
+.app-picker-panel {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-height: 150px;
+  overflow: hidden;
   margin: var(--space-3) var(--space-5) 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.app-picker-filters {
+  flex: 0 0 auto;
   overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+  padding: var(--space-2) var(--space-3);
 }
 
 .app-picker-list {
-  flex: 1;
-  min-height: 120px;
+  flex: 1 1 0;
+  min-height: 0;
   overflow-y: auto;
-  margin-top: var(--space-2);
-  padding: 0 var(--space-3) var(--space-2);
-}
-
-.app-picker-group {
-  margin: var(--space-3) 0 4px;
-  padding: 0 2px;
-  color: var(--text-muted);
-  font-size: var(--text-2xs);
-  font-weight: 650;
-  letter-spacing: 0.06em;
-}
-
-.app-picker-group-list {
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
 }
 
 .app-picker-option {
@@ -875,6 +872,22 @@ onUnmounted(() => {
 .app-picker-option:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
+}
+
+.app-picker-icon {
+  display: grid;
+  flex: 0 0 20px;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  color: var(--text-muted);
+}
+
+.app-picker-icon img {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  object-fit: contain;
 }
 
 .app-picker-option-copy {
@@ -938,8 +951,8 @@ onUnmounted(() => {
 }
 
 .app-picker-foot {
-  border-top: 1px solid var(--border);
-  padding: var(--space-3) var(--space-5);
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-5) var(--space-3);
 }
 
 .app-picker-foot-actions {
