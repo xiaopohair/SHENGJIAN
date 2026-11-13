@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, shallowRef } from "vue";
 import { getVersion } from "@tauri-apps/api/app";
-import { Boxes, RefreshCw, ShieldCheck } from "lucide-vue-next";
+import { ArrowUpCircle, Boxes, RefreshCw, ShieldCheck } from "lucide-vue-next";
 import { getDeviceSupport, getHostCapabilities, openExternalUrl, errorMessage } from "../lib/api";
 import { deviceProductNameKey } from "../lib/deviceProduct";
 import { statusLabel, tr, trDynamic } from "../lib/i18n";
@@ -100,6 +100,11 @@ async function openReleasePage() {
   }
 }
 
+/** 用户主动忽略这个版本：横幅、Toast 与托盘提示一起收起。 */
+function dismissUpdate() {
+  updateStore.dismiss();
+}
+
 onMounted(async () => {
   const [version, caps, devices] = await Promise.all([
     getVersion().catch(() => ""),
@@ -125,6 +130,30 @@ onMounted(async () => {
 
     <Notice v-if="error" kind="error">{{ error }}</Notice>
 
+    <!-- 发现新版本：置顶横幅。比 hero 里的小胶囊更抓眼，直接给「查看更新」入口。
+         用 hasUpdate 而不是 status === 'available'：用户点过「忽略此版本」后
+         status 仍是 available，但横幅必须跟着一起收起。 -->
+    <div v-if="updateStore.hasUpdate && latestRelease" class="update-banner" role="status">
+      <span class="update-banner-icon" aria-hidden="true">
+        <ArrowUpCircle :size="22" />
+      </span>
+      <div class="update-banner-copy">
+        <p class="update-banner-title">
+          {{ tr("发现新版本") }}
+          <strong class="update-banner-version">{{ latestRelease.tagName }}</strong>
+        </p>
+        <p class="update-banner-sub">
+          {{ tr("当前版本") }} {{ appVersion ? `v${appVersion}` : "—" }}
+          <span class="update-banner-arrow" aria-hidden="true">→</span>
+          {{ tr("最新版本") }} {{ latestRelease.tagName }}
+        </p>
+      </div>
+      <div class="update-banner-actions">
+        <Button size="sm" @click="openReleasePage">{{ tr("查看更新") }}</Button>
+        <Button variant="ghost" size="sm" @click="dismissUpdate">{{ tr("忽略此版本") }}</Button>
+      </div>
+    </div>
+
     <Card data-about-hero>
       <div class="about-hero">
         <div class="about-brand">
@@ -141,21 +170,8 @@ onMounted(async () => {
               <StatusPill :label="platformNameFor(platformName)" tone="info" />
               <StatusPill :label="trDynamic('本地构建')" tone="neutral" />
               <StatusPill :label="trDynamic('未签名')" tone="warning" dot />
-              <button
-                v-if="updateState === 'available' && latestRelease"
-                type="button"
-                class="update-link"
-                :title="tr('查看发布')"
-                @click="openReleasePage"
-              >
-                <StatusPill
-                  :label="`${tr('发现新版本')} ${latestRelease.tagName}`"
-                  tone="accent"
-                  dot
-                />
-              </button>
               <StatusPill
-                v-else-if="updateState === 'checking'"
+                v-if="updateState === 'checking'"
                 :label="trDynamic('检查中')"
                 tone="neutral"
                 dot
@@ -383,23 +399,82 @@ onMounted(async () => {
   flex: 0 0 auto;
 }
 
-.update-link {
-  display: inline-flex;
-  padding: 0;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  cursor: pointer;
+/* 「发现新版本」置顶横幅：品牌色描边 + 渐变浅底 + 左侧粗条，全页最醒目的元素。 */
+.update-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--accent) 60%, var(--border));
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(
+      100deg,
+      color-mix(in srgb, var(--accent-soft-strong) 90%, transparent),
+      color-mix(in srgb, var(--accent-soft) 55%, transparent)
+    ),
+    var(--bg-elevated);
+  padding: var(--space-3) var(--space-4);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent);
+  animation: update-banner-in var(--duration-base) var(--ease-out);
 }
 
-.update-link:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
+.update-banner-icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
 }
 
-.update-link:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+.update-banner-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.update-banner-title {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+
+.update-banner-version {
+  margin-left: 4px;
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+
+.update-banner-sub {
+  margin: 2px 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.update-banner-arrow {
+  margin: 0 4px;
+  color: var(--accent);
+}
+
+.update-banner-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+@keyframes update-banner-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .about-actions {

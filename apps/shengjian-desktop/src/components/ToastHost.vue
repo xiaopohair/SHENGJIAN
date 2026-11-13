@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CheckCircle2, Info, TriangleAlert, X, XCircle } from "lucide-vue-next";
+import { ArrowUpCircle, CheckCircle2, Info, TriangleAlert, X, XCircle } from "lucide-vue-next";
 import { dismissToast, toasts } from "../lib/toast";
 import { trDynamic } from "../lib/i18n";
 
@@ -8,6 +8,7 @@ const ICONS = {
   success: CheckCircle2,
   error: XCircle,
   warning: TriangleAlert,
+  accent: ArrowUpCircle,
 } as const;
 </script>
 
@@ -84,6 +85,28 @@ const ICONS = {
 
 .toast.warning {
   border-color: var(--warning);
+}
+
+/* 「发现新版本」一类：品牌色描边 + 浅底 + 外发光，比普通提示更抓眼。 */
+.toast.accent {
+  border-color: color-mix(in srgb, var(--accent) 70%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 65%, var(--bg-elevated));
+  box-shadow:
+    var(--shadow-md),
+    0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.toast.accent .toast-icon {
+  color: var(--accent);
+}
+
+.toast.accent .toast-action {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.toast.accent .toast-action:hover {
+  background: var(--accent-hover);
 }
 
 .toast-icon {

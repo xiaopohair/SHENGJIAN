@@ -177,6 +177,10 @@ export const useUpdateStore = defineStore("update", {
           : result.updateAvailable
             ? "available"
             : "current";
+        // 手动检查是用户的明确意图：清掉「忽略此版本」，让结果重新可见。
+        if (manual && result.updateAvailable) {
+          this.dismissedVersion = null;
+        }
         this.saveCache();
         await this.syncTray();
         if (!manual && this.hasUpdate) {
@@ -211,9 +215,11 @@ export const useUpdateStore = defineStore("update", {
       if (this.notifiedVersion === this.latest.tagName) return;
       this.notifiedVersion = this.latest.tagName;
       const version = this.latest.tagName;
-      pushToast(`${tr("发现新版本")} ${version}`, "info", {
+      // accent 而非 info：发现新版本需要主动吸引注意，但不是错误；停留 20 秒，
+      // 让用户来得及看到并点「查看」。
+      pushToast(`${tr("发现新版本")} ${version}`, "accent", {
         actionLabel: tr("查看"),
-        durationMs: 12000,
+        durationMs: 20000,
         onAction: () => {
           this.dismiss();
           window.dispatchEvent(new Event(SHOW_UPDATE_EVENT));

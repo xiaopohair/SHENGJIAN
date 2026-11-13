@@ -668,13 +668,24 @@ onUnmounted(() => {
 }
 
 .nav-update-dot {
-  flex: 0 0 7px;
-  width: 7px;
-  height: 7px;
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
   margin-left: auto;
   border-radius: 50%;
   background: var(--warning);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 20%, transparent);
+  /* 脉动：让「关于」页有新版本这件事在侧栏里也能被注意到 */
+  animation: nav-update-dot-pulse 2s ease-in-out infinite;
+}
+
+@keyframes nav-update-dot-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 22%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--warning) 34%, transparent);
+  }
 }
 
 .sidebar.collapsed .nav-update-dot {
