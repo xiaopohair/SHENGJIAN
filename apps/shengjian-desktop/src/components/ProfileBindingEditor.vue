@@ -16,10 +16,10 @@ import {
 import { type ProfileActionType, type ProfileDraft, type ProfileTrigger } from "../lib/buttons";
 import { tr, trDynamic } from "../lib/i18n";
 import type { LogicalAction, LogicalButton, MacroChord, MacroDefinition } from "../lib/types";
-import { useAppPicker } from "../composables/useAppPicker";
+import { cachedAppTarget, useAppPicker } from "../composables/useAppPicker";
+import { issueReasonKey } from "../lib/appTargets";
 import AppPickerDialog from "./app-picker/AppPickerDialog.vue";
-import AppTargetBadge from "./app-picker/AppTargetBadge.vue";
-import Button from "./ui/Button.vue";
+import AppTargetField from "./app-picker/AppTargetField.vue";
 import Checkbox from "./ui/Checkbox.vue";
 import SelectInput from "./ui/SelectInput.vue";
 import TextInput from "./ui/TextInput.vue";
@@ -257,8 +257,14 @@ const paramIssue = computed(() => {
   switch (actionType.value) {
     case "shortcut":
       return shortcutChord.value.key ? "" : tr("还没有录制快捷键。");
-    case "open-app":
-      return appValue.value.trim() ? "" : tr("还没有选择应用。");
+    case "open-app": {
+      if (!appValue.value.trim()) return tr("还没有选择应用。");
+      const info = cachedAppTarget(appValue.value);
+      if (info && !info.launchable) {
+        return tr("应用不可用：{reason}", { reason: tr(issueReasonKey(info.issue)) });
+      }
+      return info?.legacy ? tr("旧式目标，建议重新选择") : "";
+    }
     case "run-macro": {
       if (!macroId.value.trim()) return tr("还没有选择宏。");
       return props.latestMacros.some((macro) => macro.macroId === macroId.value)
@@ -276,7 +282,7 @@ const paramNote = computed(() => {
     case "shortcut":
       return tr("点击捕获后直接按组合键；Esc 退出。");
     case "open-app":
-      return tr("点「选择应用」可更换；旧式目标可点「修复」。");
+      return tr("点「选择应用」更换应用。");
     case "run-macro":
       return tr("执行该宏的最新保存版本。");
     case "mouse":
@@ -476,18 +482,7 @@ function setMouseAmount(value: string) {
 
       <div v-else-if="actionType === 'open-app'" class="config-field">
         <label>{{ tr("应用") }}</label>
-        <div class="app-pick-row">
-          <AppTargetBadge
-            v-if="appValue"
-            :target="appValue"
-            mode="launch"
-            @repair="openAppPicker"
-          />
-          <span v-else class="app-pick-empty">{{ tr("未设置应用目标") }}</span>
-          <Button size="sm" :disabled="busy" @click="openAppPicker">
-            {{ tr("选择应用") }}
-          </Button>
-        </div>
+        <AppTargetField :target="appValue" :disabled="busy" @choose="openAppPicker" />
       </div>
 
       <div v-else-if="actionType === 'run-macro'" class="config-field">
@@ -560,6 +555,7 @@ function setMouseAmount(value: string) {
     </div>
 
     <div v-else class="action-config action-config-note">
+      <h4 class="config-head">{{ tr("动作参数") }}</h4>
       <p class="config-note">
         <CircleHelp :size="13" />
         {{ actionNote }}
@@ -733,23 +729,7 @@ function setMouseAmount(value: string) {
 .mouse-amount {
   flex: 0 0 130px;
 }
-.app-pick-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  min-width: 0;
-}
-.app-pick-row > :first-child {
-  flex: 1 1 140px;
-  min-width: 0;
-}
-.app-pick-empty {
-  flex: 1 1 auto;
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-}
+
 .mouse-amount-row {
   display: flex;
   align-items: center;

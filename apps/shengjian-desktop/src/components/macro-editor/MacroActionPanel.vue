@@ -15,7 +15,7 @@ import {
 import type { MacroChord, MacroDefinition, MacroParameters, MacroStep } from "../../lib/types";
 import { useAppPicker } from "../../composables/useAppPicker";
 import AppPickerDialog from "../app-picker/AppPickerDialog.vue";
-import Button from "../ui/Button.vue";
+import AppTargetField from "../app-picker/AppTargetField.vue";
 import IconButton from "../ui/IconButton.vue";
 import SelectInput from "../ui/SelectInput.vue";
 import TextInput from "../ui/TextInput.vue";
@@ -49,20 +49,6 @@ const showTimeoutField = computed(
   () => props.step !== null && actionUsesTimeout(props.step.action),
 );
 const maxTimeout = computed(() => (props.step?.action === "run_macro" ? 60000 : 10000));
-/** Actions such as focus_frontmost take no parameters at all. */
-const hasParameters = computed(
-  () =>
-    showTargetField.value ||
-    showUrlField.value ||
-    showChordField.value ||
-    showSystemField.value ||
-    showNestedField.value ||
-    showTimeoutField.value,
-);
-/** Launching or focusing an app benefits from picking the executable. */
-const showProgramPicker = computed(
-  () => props.step?.action === "open_application" || props.step?.action === "focus_input",
-);
 
 const {
   open: appPickerOpen,
@@ -167,23 +153,18 @@ function setNestedMacro(macroId: string) {
         </button>
       </div>
 
-      <div v-if="hasParameters" class="action-config">
+      <div v-if="step" class="action-config">
         <h4 class="config-head">{{ tr("动作参数") }}</h4>
 
         <div v-if="showTargetField" class="config-row">
           <div class="config-field">
             <label for="macro-step-target">{{ tr("应用目标") }}</label>
-            <div class="target-row">
-              <TextInput
-                id="macro-step-target"
-                :model-value="step.parameters.target ?? ''"
-                :placeholder="trDynamic('选择或填写应用')"
-                @update:model-value="patchParameters({ target: $event })"
-              />
-              <Button v-if="showProgramPicker" size="sm" @click="openProgramPicker">
-                {{ tr("选择应用") }}
-              </Button>
-            </div>
+            <AppTargetField
+              input-id="macro-step-target"
+              :target="step.parameters.target ?? ''"
+              :aria-label="tr('应用目标')"
+              @choose="openProgramPicker"
+            />
           </div>
           <div v-if="showWaitField" class="config-field config-wait">
             <label>{{ tr("启动成功标志") }}</label>
@@ -433,12 +414,7 @@ function setNestedMacro(macroId: string) {
 .config-wait {
   flex: 0 0 150px;
 }
-.target-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
+
 .config-field {
   display: flex;
   flex-direction: column;

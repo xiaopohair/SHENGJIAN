@@ -879,6 +879,7 @@ const ENGLISH = {
   "校验中…": "Checking…",
   输入后会自动校验: "The target is validated as you type.",
   "目标有效，可以保存": "Valid target; ready to save.",
+  "点「选择应用」更换应用。": "Use Choose app to change it.",
   应用列表: "App list",
   没有匹配的应用: "No matching apps",
   没有可用的应用: "No apps available",

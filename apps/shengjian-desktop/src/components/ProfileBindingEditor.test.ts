@@ -57,6 +57,7 @@ describe("ProfileBindingEditor action parameters", () => {
     expect(config.find(".config-field label").text()).toBe("应用");
     expect(config.find(".config-issue").text()).toContain("还没有选择应用");
     expect(config.find(".config-note").exists()).toBe(false);
+    expect(config.find(".app-target-field-input").attributes("readonly")).toBeDefined();
     wrapper.unmount();
   });
 
@@ -65,7 +66,7 @@ describe("ProfileBindingEditor action parameters", () => {
     await flushPromises();
 
     expect(wrapper.find(".config-issue").exists()).toBe(false);
-    expect(wrapper.find(".config-note").text()).toContain("点「选择应用」可更换");
+    expect(wrapper.find(".config-note").text()).toContain("点「选择应用」更换应用");
     wrapper.unmount();
   });
 
@@ -74,7 +75,7 @@ describe("ProfileBindingEditor action parameters", () => {
     await flushPromises();
 
     expect(wrapper.find(".action-config").exists()).toBe(true);
-    expect(wrapper.find(".config-head").exists()).toBe(false);
+    expect(wrapper.find(".config-head").text()).toBe("动作参数");
     expect(wrapper.find(".config-note").text()).toContain("该手势不会触发任何动作");
     wrapper.unmount();
   });
