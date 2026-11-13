@@ -248,12 +248,13 @@ onBeforeUnmount(() => stopDrag(false));
   gap: 8px;
   align-items: center;
   min-height: 48px;
-  border: 1px solid transparent;
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 8px;
   cursor: pointer;
 }
 .step-row:hover {
+  border-color: var(--border-strong);
   background: var(--bg-subtle);
 }
 .step-row:focus-visible {
