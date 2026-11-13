@@ -453,7 +453,7 @@ const ENGLISH = {
   "播放 / 暂停": "Play / pause",
   上一曲: "Previous track",
   下一曲: "Next track",
-  返回桌面: "Show desktop",
+  显示桌面: "Show desktop",
   切换任务: "Switch task",
   退出: "Escape",
   前台匹配时自动应用: "Auto-apply when foreground matches",

@@ -146,7 +146,7 @@ const currentActionAllowsRepeat = computed(() => {
       !["control", "ctrl", "alt", "shift", "win", "meta"].includes(keys[0])
     );
   }
-  // 单键系统动作（音量/媒体/Esc）支持按住连发；返回桌面/切换任务不连发。
+  // 单键系统动作（音量/媒体/Esc）支持按住连发；显示桌面/切换任务不连发。
   if (action?.type === "system-action" && typeof action.key === "string") {
     return systemActionAllowsRepeat(action.key);
   }

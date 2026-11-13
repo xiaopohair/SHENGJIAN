@@ -180,8 +180,8 @@ describe("Macro editor panels", () => {
     expect(wrapper.emitted("update-step")?.[0]?.[0]).toMatchObject({
       parameters: { chord: { modifiers: [], key: "volume_up" } },
     });
-    // 返回桌面是组合键：宏里存真实 chord，而不是伪 key。
-    const desktop = radios.find((radio) => radio.text().includes("返回桌面"));
+    // 显示桌面是组合键：宏里存真实 chord，而不是伪 key。
+    const desktop = radios.find((radio) => radio.text().includes("显示桌面"));
     expect(desktop).toBeDefined();
     await desktop!.trigger("click");
     expect(wrapper.emitted("update-step")?.[1]?.[0]).toMatchObject({

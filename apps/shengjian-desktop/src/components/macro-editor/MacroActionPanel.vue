@@ -86,7 +86,7 @@ function applyPickedProgram(target: string) {
 const chordValue = computed<MacroChord>(() =>
   props.step ? chord(props.step) : { modifiers: [], key: "" },
 );
-/** 宏里存的是真实组合键（返回桌面=Win+D 等），选中态需映射回系统动作 id。 */
+/** 宏里存的是真实组合键（显示桌面=Win+D 等），选中态需映射回系统动作 id。 */
 const systemActionId = computed(() => systemActionIdForChord(chordValue.value));
 
 function patch(next: Partial<MacroStep>) {

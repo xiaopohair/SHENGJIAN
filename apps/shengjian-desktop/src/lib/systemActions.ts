@@ -2,7 +2,7 @@
  * 系统动作（媒体/音量/窗口键）目录：宏编辑器与按键方案共用同一套 key 与展示文案。
  *
  * `key` 是两处持久化的稳定 id：
- * - 宏：`parameters.chord` 存条目里的 `chord`（返回桌面/切换任务是组合键）；
+ * - 宏：`parameters.chord` 存条目里的 `chord`（显示桌面/切换任务是组合键）；
  * - 按键方案：`LogicalAction.key` 存 id（后端把 `show_desktop` / `task_switch`
  *   展开成对应组合键，其余单键 id 原样注入）。
  */
@@ -44,7 +44,7 @@ export const SYSTEM_KEYS: readonly SystemActionDefinition[] = [
   { key: "media_next", label: "下一曲", icon: SkipForward, chord: single("media_next") },
   {
     key: "show_desktop",
-    label: "返回桌面",
+    label: "显示桌面",
     icon: Monitor,
     chord: { modifiers: ["win"], key: "d" },
   },

@@ -38,7 +38,7 @@ describe("system action catalog", () => {
     }
     expect(systemKeyLabel("volume_up")).toBe("音量 +");
     expect(systemKeyLabel("media_next")).toBe("下一曲");
-    expect(systemKeyLabel("show_desktop")).toBe("返回桌面");
+    expect(systemKeyLabel("show_desktop")).toBe("显示桌面");
     expect(systemKeyLabel("task_switch")).toBe("切换任务");
     expect(systemKeyLabel("escape")).toBe("退出");
   });

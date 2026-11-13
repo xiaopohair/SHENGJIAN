@@ -116,8 +116,8 @@ describe("ProfileBindingEditor action parameters", () => {
     // A single system key repeats like a shortcut, matching the backend rule.
     expect(wrapper.find(".hold-repeat-section").exists()).toBe(true);
 
-    // 返回桌面是组合类系统动作：存 id，且不出现按住连发。
-    const desktop = radios.find((radio) => radio.text().includes("返回桌面"));
+    // 显示桌面是组合类系统动作：存 id，且不出现按住连发。
+    const desktop = radios.find((radio) => radio.text().includes("显示桌面"));
     expect(desktop).toBeDefined();
     await desktop!.trigger("click");
     expect(draft.bindings.ok?.single).toEqual({ type: "system-action", key: "show_desktop" });
