@@ -584,7 +584,9 @@ onUnmounted(() => {
               </div>
             </div>
             <p class="muted capture-hint">
-              {{ tr("返回键、音量键需要安装按键增强服务并启用后才能检测到。") }}
+              {{
+                tr("返回键和音量键需要安装按键增强服务并开启才能使用；首次安装会请求管理员授权。")
+              }}
             </p>
             <Notice v-if="helperMessage" :kind="rc003HelperInstalled ? 'success' : 'info'">
               {{ helperMessage }}

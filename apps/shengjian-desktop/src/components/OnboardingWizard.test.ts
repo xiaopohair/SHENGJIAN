@@ -145,7 +145,9 @@ describe("OnboardingWizard step test gates", () => {
     // step 4: 必须检测到全部按键；增强捕获文案使用“按键增强服务”
     expect(primaryButton(wrapper).attributes("disabled")).toBeDefined();
     expect(wrapper.text()).toContain("启用按键增强服务");
-    expect(wrapper.text()).toContain("返回键、音量键需要安装按键增强服务并启用后才能检测到。");
+    expect(wrapper.text()).toContain(
+      "返回键和音量键需要安装按键增强服务并开启才能使用；首次安装会请求管理员授权。",
+    );
     expect(wrapper.find(".wizard-block-reason").text()).toContain("请先检测全部按键");
     const store = useEngineStore();
     store.buttonHistory = PROFILE_BUTTONS.map((button, index) => ({
