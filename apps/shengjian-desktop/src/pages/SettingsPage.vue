@@ -20,6 +20,7 @@ import {
   errorMessage,
   exportConfiguration,
   exportDiagnosticBundle,
+  getAudioDependencyStatus,
   getAutostartEnabled,
   getForegroundExecutable,
   getHostCapabilities,
@@ -29,6 +30,7 @@ import {
   importConfiguration,
   listAudioEndpoints,
   openDiagnosticLogFolder,
+  openExternalUrl,
   readDiagnosticLog,
   resetSettings,
   saveSettings,
@@ -39,6 +41,15 @@ import { ONBOARDING_KEY, ACCENT_KEY, applyAccent, applyTheme } from "../lib/pref
 import { confirmAction } from "../lib/confirm";
 import { setLanguagePreference, statusLabel, tr, trDynamic, uiLocale } from "../lib/i18n";
 import { defaultHotkeyFor, voiceToolLabel, voiceToolOptions } from "../lib/voiceTools";
+import {
+  audioDependencyDetailKey,
+  audioDependencyTitleKey,
+  audioDependencyTone,
+  cableEndpointNames,
+  isAudioDependencyReady,
+  mergeAudioEndpoints,
+  VB_CABLE_INSTALL_URL,
+} from "../lib/audioDependency";
 
 import { useVoiceToolCatalog } from "../composables/useVoiceToolCatalog";
 import PageHeader from "../components/PageHeader.vue";
@@ -55,7 +66,7 @@ import SelectInput from "../components/ui/SelectInput.vue";
 import StatusPill from "../components/ui/StatusPill.vue";
 import Switch from "../components/ui/Switch.vue";
 import { pushToast } from "../lib/toast";
-import type { AudioEndpoint, SettingsDocument } from "../lib/types";
+import type { AudioDependencyStatus, AudioEndpoint, SettingsDocument } from "../lib/types";
 import { useEngineStore } from "../stores/engine";
 import { useStatusStore } from "../stores/status";
 
@@ -170,6 +181,86 @@ const languageModel = computed({
   get: () => language.value,
   set: (value: string) => changeLanguage(value),
 });
+
+/** VB-CABLE 依赖状态（设置页状态行 + 设备下拉内联提示 + 健康检查共用）。 */
+const audioDependency = shallowRef<AudioDependencyStatus | null>(null);
+const audioDependencyLoading = shallowRef(false);
+const audioDependencyError = shallowRef<string | null>(null);
+const audioDependencyReady = computed(() => isAudioDependencyReady(audioDependency.value));
+const dependencyTone = computed(() => audioDependencyTone(audioDependency.value?.state));
+const dependencyStateLabel = computed(() => {
+  if (audioDependencyLoading.value) return tr("检测中…");
+  if (audioDependencyError.value) return tr("无法检测 VB-CABLE");
+  switch (audioDependency.value?.state) {
+    case "ready":
+      return tr("已安装");
+    case "missing":
+      return tr("未检测到");
+    case "disabled":
+      return tr("设备未启用");
+    default:
+      return tr("检测中…");
+  }
+});
+const dependencyHint = computed(() => {
+  if (audioDependencyLoading.value) return tr("正在检测 VB-CABLE…");
+  if (audioDependencyError.value) return audioDependencyError.value;
+  const state = audioDependency.value?.state;
+  if (state === "ready") {
+    const names = cableEndpointNames(audioDependency.value);
+    return names
+      ? tr("远程语音输出设备：{names}", { names })
+      : tr("已找到可用的远程语音输出设备。");
+  }
+  const detailKey = audioDependencyDetailKey(state);
+  return detailKey ? tr(detailKey) : "";
+});
+const showVbCableDownload = computed(
+  () => audioDependency.value?.state === "missing" || Boolean(audioDependencyError.value),
+);
+const cableMissingInline = computed(
+  () => !audioDependencyReady.value && !audioDependencyLoading.value,
+);
+/** 已保存的端点不在当前设备列表（含 CABLE 合并结果）里 → 提示重新选择。 */
+const endpointMissing = computed(
+  () =>
+    Boolean(endpointId.value) &&
+    !endpoints.value.some((endpoint) => endpoint.id === endpointId.value) &&
+    !audioDependencyLoading.value,
+);
+
+function applyAudioDependency(status: AudioDependencyStatus) {
+  audioDependency.value = status;
+  endpoints.value = mergeAudioEndpoints(endpoints.value, status.cableEndpoints ?? []);
+}
+
+async function loadAudioDependency() {
+  audioDependencyLoading.value = true;
+  audioDependencyError.value = null;
+  try {
+    applyAudioDependency(await getAudioDependencyStatus());
+  } catch (cause) {
+    audioDependency.value = null;
+    audioDependencyError.value = errorMessage(cause);
+  } finally {
+    audioDependencyLoading.value = false;
+  }
+}
+
+async function downloadVbCable() {
+  const url = audioDependency.value?.installUrl?.trim() || VB_CABLE_INSTALL_URL;
+  try {
+    await openExternalUrl(url);
+  } catch (cause) {
+    error.value = errorMessage(cause);
+  }
+}
+
+function dependencyHealthDetail(status: AudioDependencyStatus): string {
+  const label = tr(audioDependencyTitleKey(status.state));
+  const names = status.state === "ready" ? cableEndpointNames(status) : "";
+  return names ? `${label} · ${names}` : label;
+}
 
 async function load() {
   loadingSettings = true;
@@ -351,14 +442,16 @@ async function runHealthCheck() {
     // The catalog is cached; awaiting it here makes sure the check shows the
     // configured display name even if the settings page loads first.
     await loadVoiceToolCatalog();
-    const [caps, helper, endpoints, battery, foreground, currentSettings] = await Promise.all([
-      getHostCapabilities(),
-      getRc003HelperInstalled(),
-      listAudioEndpoints(),
-      getRemoteBattery(),
-      getForegroundExecutable(),
-      getSettings(),
-    ]);
+    const [caps, helper, endpoints, battery, foreground, currentSettings, audioDependencyStatus] =
+      await Promise.all([
+        getHostCapabilities(),
+        getRc003HelperInstalled(),
+        listAudioEndpoints(),
+        getRemoteBattery(),
+        getForegroundExecutable(),
+        getSettings(),
+        getAudioDependencyStatus(),
+      ]);
     const log = await readDiagnosticLog(256 * 1024);
     const lines = log.split("\n");
     const resourceLine = [...lines].reverse().find((line) => line.includes("resource_probe"));
@@ -374,7 +467,12 @@ async function runHealthCheck() {
         detail: caps.macroRuntime ? tr("可用") : tr("不可用"),
       },
       { label: tr("RC003 helper"), ok: helper, detail: helper ? tr("已安装") : tr("未安装") },
-      { label: tr("音频输入设备"), ok: endpoints.length > 0, detail: `${endpoints.length}` },
+      {
+        label: tr("VB-CABLE 虚拟音频"),
+        ok: audioDependencyStatus.state === "ready",
+        detail: dependencyHealthDetail(audioDependencyStatus),
+      },
+      { label: tr("音频输出设备"), ok: endpoints.length > 0, detail: `${endpoints.length}` },
       { label: tr("遥控器连接"), ok: store.phase === "ready", detail: statusLabel(store.phase) },
       {
         label: tr("遥控器电量"),
@@ -476,7 +574,7 @@ async function importBackup() {
 }
 
 onMounted(async () => {
-  await Promise.all([load(), loadVoiceToolCatalog()]);
+  await Promise.all([load(), loadVoiceToolCatalog(), loadAudioDependency()]);
 });
 </script>
 
@@ -570,20 +668,56 @@ onMounted(async () => {
           <p class="settings-group-label">{{ tr("音频") }}</p>
           <Card v-if="settingsDocument">
             <div class="settings-rows">
-              <SettingRow label="增益" hint="语音播放的音量增益">
-                <div class="range-control">
-                  <RangeInput v-model="gain" :min="0" :max="24" :step="1" />
-                  <span class="range-value mono">{{ gain }} dB</span>
+              <SettingRow label="VB-CABLE 虚拟音频" :hint="dependencyHint">
+                <div class="audio-dependency-control">
+                  <StatusPill
+                    :label="dependencyStateLabel"
+                    :tone="dependencyTone"
+                    :title="dependencyHint"
+                    dot
+                  />
+                  <Button v-if="showVbCableDownload" size="sm" @click="downloadVbCable">
+                    {{ tr("下载 VB-CABLE") }}
+                  </Button>
+                  <Button size="sm" :disabled="audioDependencyLoading" @click="loadAudioDependency">
+                    {{ audioDependencyLoading ? tr("检测中…") : tr("重新检测") }}
+                  </Button>
                 </div>
               </SettingRow>
 
-              <SettingRow label="音频输出设备" hint="语音播放到的设备；未设置时连接后自动选 CABLE">
+              <SettingRow
+                label="远程语音输出设备"
+                hint="遥控器语音输出到的设备；未设置时连接后自动选 CABLE"
+              >
                 <SelectInput v-model="endpointId">
                   <option value="">{{ tr("未设置（连接时自动选 CABLE）") }}</option>
                   <option v-for="endpoint in endpoints" :key="endpoint.id" :value="endpoint.id">
                     {{ endpoint.name }}{{ endpoint.recommended ? tr("（推荐）") : "" }}
                   </option>
                 </SelectInput>
+              </SettingRow>
+              <div v-if="cableMissingInline" class="settings-inline-warning" role="status">
+                <span>
+                  {{ tr("未检测到 VB-CABLE：遥控器语音将没有声音输出。仍可选择其他输出设备。") }}
+                </span>
+                <Button
+                  v-if="showVbCableDownload"
+                  variant="ghost"
+                  size="sm"
+                  @click="downloadVbCable"
+                >
+                  {{ tr("下载 VB-CABLE") }}
+                </Button>
+              </div>
+              <p v-if="endpointMissing" class="settings-inline-note warning" role="alert">
+                {{ tr("已保存的远程语音输出设备当前不可用，请重新选择。") }}
+              </p>
+
+              <SettingRow label="增益" hint="语音播放的音量增益">
+                <div class="range-control">
+                  <RangeInput v-model="gain" :min="0" :max="24" :step="1" />
+                  <span class="range-value mono">{{ gain }} dB</span>
+                </div>
               </SettingRow>
             </div>
           </Card>
@@ -894,6 +1028,33 @@ onMounted(async () => {
   margin: var(--space-2) 0 0;
   color: var(--text-muted);
   font-size: var(--text-xs);
+}
+
+.settings-inline-note.warning {
+  color: var(--warning-text);
+}
+
+.settings-inline-warning {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-md);
+  background: var(--warning-soft);
+  padding: var(--space-2) var(--space-3);
+  color: var(--warning-text);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+.audio-dependency-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .settings-rows {

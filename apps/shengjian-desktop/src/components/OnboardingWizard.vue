@@ -12,18 +12,31 @@ import {
 import { Check, CheckCircle2, Keyboard, Mic, Radio, ShieldCheck } from "lucide-vue-next";
 import {
   errorMessage,
+  getAudioDependencyStatus,
   getRc003HelperInstalled,
   getSettings,
   installRc003Helper,
   listAudioEndpoints,
+  openExternalUrl,
   saveSettings,
 } from "../lib/api";
+import {
+  audioDependencyDetailKey,
+  audioDependencyTitleKey,
+  audioDependencyTone,
+  blocksOnboardingProgress,
+  cableEndpointNames,
+  isAudioDependencyReady,
+  mergeAudioEndpoints,
+  suggestedEndpointId,
+  VB_CABLE_INSTALL_URL,
+} from "../lib/audioDependency";
 import { PROFILE_BUTTONS } from "../lib/buttons";
 import { deviceProductNameKey } from "../lib/deviceProduct";
 import { statusLabel, tr, trDynamic } from "../lib/i18n";
 import { voiceToolOptions } from "../lib/voiceTools";
 import { useVoiceToolCatalog } from "../composables/useVoiceToolCatalog";
-import type { AudioEndpoint, SettingsDocument } from "../lib/types";
+import type { AudioDependencyStatus, AudioEndpoint, SettingsDocument } from "../lib/types";
 import { useEngineStore } from "../stores/engine";
 import { usePairingStore } from "../stores/pairing";
 import { useStatusStore } from "../stores/status";
@@ -47,6 +60,10 @@ const voiceInputTool = shallowRef("");
 const { catalog: voiceToolCatalog, load: loadVoiceToolCatalog } = useVoiceToolCatalog();
 const audioEndpointId = shallowRef("");
 const endpoints = ref<AudioEndpoint[]>([]);
+/** VB-CABLE 依赖：step 3 的依赖卡片与「下一步」硬阻断都由它决定。 */
+const audioDependency = shallowRef<AudioDependencyStatus | null>(null);
+const audioDependencyLoading = shallowRef(false);
+const audioDependencyError = shallowRef<string | null>(null);
 const rc003Capture = shallowRef(false);
 const rc003HelperInstalled = shallowRef(false);
 const helperBusy = shallowRef(false);
@@ -90,6 +107,29 @@ const voiceResult = computed<"success" | "failure" | null>(() => {
   return null;
 });
 const voiceListening = computed(() => step.value === 3 && store.voiceState === "streaming");
+
+const audioDependencyReady = computed(() => isAudioDependencyReady(audioDependency.value));
+const audioDependencyTitle = computed(() => {
+  if (audioDependencyError.value) return tr("无法检测 VB-CABLE");
+  return tr(audioDependencyTitleKey(audioDependency.value?.state));
+});
+const audioDependencyDetail = computed(() => {
+  const key = audioDependencyDetailKey(audioDependency.value?.state);
+  if (!key) return "";
+  const names = audioDependencyReady.value ? cableEndpointNames(audioDependency.value) : "";
+  return names ? tr("远程语音输出设备：{names}", { names }) : tr(key);
+});
+const audioDependencyToneValue = computed(() => audioDependencyTone(audioDependency.value?.state));
+const showVbCableDownload = computed(
+  () => audioDependency.value?.state === "missing" || Boolean(audioDependencyError.value),
+);
+const stepBlocked = computed(() => blocksOnboardingProgress(step.value, audioDependency.value));
+const blockReason = computed(() => {
+  if (!stepBlocked.value) return "";
+  if (audioDependencyLoading.value) return tr("正在检测 VB-CABLE，请稍候。");
+  if (audioDependencyError.value) return tr("无法确认 VB-CABLE 状态，请重试。");
+  return tr("请先安装并检测通过 VB-CABLE，才能继续。");
+});
 
 const primaryLabel = computed(() => {
   if (step.value === 1) return "开始配置";
@@ -203,6 +243,40 @@ watch(audioEndpointId, (value) => {
   void saveGlobalSettings({ audio_endpoint_id: value || null });
 });
 
+function applyAudioDependency(status: AudioDependencyStatus) {
+  audioDependency.value = status;
+  // CABLE 设备可能比 list_audio_endpoints 更新；合并后下拉才选得中建议项。
+  endpoints.value = mergeAudioEndpoints(endpoints.value, status.cableEndpoints ?? []);
+  const suggested = suggestedEndpointId(status);
+  if (suggested && !audioEndpointId.value.trim()) {
+    audioEndpointId.value = suggested;
+  }
+}
+
+async function loadAudioDependency() {
+  audioDependencyLoading.value = true;
+  audioDependencyError.value = null;
+  try {
+    applyAudioDependency(await getAudioDependencyStatus());
+  } catch (cause) {
+    audioDependency.value = null;
+    audioDependencyError.value = errorMessage(cause);
+  } finally {
+    audioDependencyLoading.value = false;
+  }
+}
+
+async function downloadVbCable() {
+  const url = audioDependency.value?.installUrl?.trim() || VB_CABLE_INSTALL_URL;
+  try {
+    await openExternalUrl(url);
+  } catch (cause) {
+    // Download failure is not a detection failure: keep the card state and
+    // surface the error through the wizard's normal error notice.
+    error.value = errorMessage(cause);
+  }
+}
+
 async function installHelper() {
   if (helperBusy.value) return;
   helperBusy.value = true;
@@ -239,6 +313,7 @@ async function connect(remoteId: string) {
 }
 
 function next() {
+  if (stepBlocked.value) return;
   if (step.value < 5) step.value += 1;
 }
 
@@ -288,6 +363,8 @@ onMounted(async () => {
   } catch (cause) {
     error.value = errorMessage(cause);
   }
+  // 依赖检测独立于设置加载：失败只影响向导第 3 步的卡片与继续按钮。
+  await loadAudioDependency();
 });
 
 onUnmounted(() => {
@@ -382,6 +459,29 @@ onUnmounted(() => {
         <h2>{{ tr("测试语音键") }}</h2>
         <p class="step-lead">{{ tr("按住遥控器语音键说一句话，再松开。") }}</p>
 
+        <div
+          class="audio-dependency"
+          :class="`tone-${audioDependencyToneValue}`"
+          role="status"
+          aria-live="polite"
+        >
+          <div class="audio-dependency-copy">
+            <strong>{{ audioDependencyTitle }}</strong>
+            <p v-if="audioDependencyDetail">{{ audioDependencyDetail }}</p>
+            <p v-if="audioDependencyError" class="audio-dependency-error">
+              {{ audioDependencyError }}
+            </p>
+          </div>
+          <div class="audio-dependency-actions">
+            <Button v-if="showVbCableDownload" size="sm" @click="downloadVbCable">
+              {{ tr("下载 VB-CABLE") }}
+            </Button>
+            <Button size="sm" :disabled="audioDependencyLoading" @click="loadAudioDependency">
+              {{ audioDependencyLoading ? tr("检测中…") : tr("重新检测") }}
+            </Button>
+          </div>
+        </div>
+
         <div class="voice-options">
           <Field :label="tr('语音输入工具')">
             <SelectInput v-model="voiceInputTool">
@@ -395,13 +495,16 @@ onUnmounted(() => {
               </option>
             </SelectInput>
           </Field>
-          <Field :label="tr('音频输入设备')">
+          <Field :label="tr('远程语音输出设备')">
             <SelectInput v-model="audioEndpointId">
               <option value="">{{ tr("未设置（连接时自动选 CABLE）") }}</option>
               <option v-for="endpoint in endpoints" :key="endpoint.id" :value="endpoint.id">
                 {{ endpoint.name }}{{ endpoint.recommended ? tr("（推荐）") : "" }}
               </option>
             </SelectInput>
+            <p v-if="!audioDependencyReady && !audioDependencyLoading" class="audio-endpoint-hint">
+              {{ tr("未检测到 VB-CABLE：遥控器语音将没有声音输出。仍可选择其他输出设备。") }}
+            </p>
           </Field>
         </div>
 
@@ -482,8 +585,9 @@ onUnmounted(() => {
 
       <footer class="wizard-footer">
         <Button v-if="step > 1" variant="ghost" @click="previous">{{ tr("上一步") }}</Button>
+        <p v-if="stepBlocked" class="wizard-block-reason" role="alert">{{ blockReason }}</p>
         <span class="footer-spacer" />
-        <Button v-if="step < 5" variant="primary" @click="next">
+        <Button v-if="step < 5" variant="primary" :disabled="stepBlocked" @click="next">
           {{ trDynamic(primaryLabel) }}
         </Button>
         <Button v-else variant="primary" :disabled="saving" @click="finish">
@@ -663,6 +767,71 @@ onUnmounted(() => {
   max-width: 520px;
   margin-top: var(--space-1);
   text-align: left;
+}
+
+.audio-dependency {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 520px;
+  margin-top: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+}
+
+.audio-dependency.tone-success {
+  border-color: var(--success);
+  background: var(--success-soft);
+}
+
+.audio-dependency.tone-warning {
+  border-color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.audio-dependency-copy {
+  display: flex;
+  flex: 1 1 260px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.audio-dependency-copy strong {
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.audio-dependency-copy p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+.audio-dependency-copy .audio-dependency-error {
+  color: var(--danger-text);
+}
+
+.audio-dependency-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.audio-endpoint-hint {
+  margin: 4px 0 0;
+  color: var(--warning-text);
+  font-size: var(--text-2xs);
+  line-height: 1.5;
 }
 
 .voice-result {
@@ -870,6 +1039,13 @@ onUnmounted(() => {
   gap: var(--space-2);
   border-top: 1px solid var(--border);
   padding-top: var(--space-4);
+}
+
+.wizard-block-reason {
+  margin: 0;
+  color: var(--warning-text);
+  font-size: var(--text-xs);
+  line-height: 1.45;
 }
 
 .footer-spacer {

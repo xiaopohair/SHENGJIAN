@@ -528,7 +528,6 @@ const ENGLISH = {
   紫色: "Purple",
   橙色: "Orange",
   语音输入工具: "Voice input tool",
-  音频输入设备: "Audio input device",
   取消录制: "Cancel recording",
   录制热键: "Record hotkey",
   恢复默认: "Restore default",
@@ -946,6 +945,34 @@ const ENGLISH = {
   "点选后按下该键会发送对应的系统媒体键。":
     "Pressing that key afterwards sends the matching system media key.",
   "{position} 缺少系统动作": "{position} has no system action",
+  // VB-CABLE 远程语音输出依赖
+  "已检测到 VB-CABLE": "VB-CABLE detected",
+  "未检测到 VB-CABLE，远程语音将没有声音": "VB-CABLE not found; remote voice will have no sound",
+  "已安装 VB-CABLE，但未找到可用的远程语音输出设备":
+    "VB-CABLE is installed, but no usable remote voice output device was found",
+  "正在检测 VB-CABLE…": "Checking VB-CABLE…",
+  "已找到可用的远程语音输出设备。": "A usable remote voice output device was found.",
+  "安装 VB-CABLE 后，遥控器语音会通过虚拟声卡进入转写。":
+    "After installing VB-CABLE, remote voice goes through the virtual audio device.",
+  "请在 Windows 声音设置中启用 VB-CABLE 的播放/录制设备，或重启系统后重新检测。":
+    "Enable the VB-CABLE playback/recording device in Windows sound settings, or restart and check again.",
+  "下载 VB-CABLE": "Download VB-CABLE",
+  重新检测: "Check again",
+  "检测中…": "Checking…",
+  "无法检测 VB-CABLE": "Couldn't check VB-CABLE",
+  "正在检测 VB-CABLE，请稍候。": "Checking VB-CABLE; please wait.",
+  "无法确认 VB-CABLE 状态，请重试。": "Couldn't confirm the VB-CABLE status; retry.",
+  "请先安装并检测通过 VB-CABLE，才能继续。":
+    "Install VB-CABLE and pass the check before continuing.",
+  远程语音输出设备: "Remote voice output device",
+  "远程语音输出设备：{names}": "Remote voice output device: {names}",
+  "VB-CABLE 虚拟音频": "VB-CABLE virtual audio",
+  未检测到: "Not found",
+  设备未启用: "Device disabled",
+  "未检测到 VB-CABLE：遥控器语音将没有声音输出。仍可选择其他输出设备。":
+    "VB-CABLE not found: remote voice will have no audio output. You can still choose another output device.",
+  "已保存的远程语音输出设备当前不可用，请重新选择。":
+    "The saved remote voice output device is unavailable; choose another one.",
 } as const satisfies Record<string, string>;
 
 export type TranslationKey = keyof typeof ENGLISH;

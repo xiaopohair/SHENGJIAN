@@ -3,6 +3,7 @@ import { uiLocale } from "./i18n";
 import { localizeError } from "./errors";
 import type {
   AppTargetInfo,
+  AudioDependencyStatus,
   AudioEndpoint,
   AudioSnapshot,
   ButtonProfile,
@@ -156,6 +157,14 @@ export async function installRc003Helper(): Promise<void> {
 
 export async function listAudioEndpoints(): Promise<AudioEndpoint[]> {
   return invoke<AudioEndpoint[]>("list_audio_endpoints");
+}
+
+/**
+ * 检测远程语音输出依赖（目前只认 VB-CABLE）。
+ * ready = 已安装且可用；disabled = 已安装但没有可用设备；missing = 未安装。
+ */
+export async function getAudioDependencyStatus(): Promise<AudioDependencyStatus> {
+  return invoke<AudioDependencyStatus>("audio_dependency_status");
 }
 
 export async function selectAudioEndpoint(endpointId: string): Promise<AudioSnapshot> {

@@ -239,6 +239,199 @@ pub struct AudioEndpoint {
     pub is_virtual_cable_candidate: bool,
 }
 
+/// VB-CABLE 官方下载页（唯一放开的非 GitHub 外部 URL；安装入口用）。
+pub const VB_CABLE_INSTALL_URL: &str = "https://vb-audio.com/Cable/";
+
+/// VB-CABLE 依赖状态（前端按 ready/disabled/missing 硬阻断）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AudioDependencyState {
+    /// 有可用的 CABLE 播放端点，可以选择并推流。
+    Ready,
+    /// 注册表显示驱动已安装，但当前没有可用端点（设备被禁用/未插入/未枚举）。
+    Disabled,
+    /// 既没有端点也没有安装记录：需要引导用户安装 VB-CABLE。
+    Missing,
+}
+
+/// 分类器输入/输出里的 CABLE 端点视图（与 contract `AudioEndpoint` 的
+/// `id/name/recommended` 同形；contract 的 `recommended` 即虚拟线候选标记）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioDependencyEndpoint {
+    pub id: String,
+    pub name: String,
+    pub recommended: bool,
+}
+
+/// VB-CABLE 依赖状态视图。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioDependencyStatus {
+    pub state: AudioDependencyState,
+    pub cable_endpoints: Vec<AudioDependencyEndpoint>,
+    pub suggested_endpoint_id: Option<String>,
+    pub install_url: String,
+}
+
+fn is_cable_candidate(endpoint: &AudioDependencyEndpoint) -> bool {
+    endpoint.recommended || is_virtual_cable_output_name(&endpoint.name)
+}
+
+/// 标准 2 声道 `CABLE Input`（优先选中）；`CABLE In 16 Ch` 等 16 通道变体不算。
+fn is_standard_cable_input(name: &str) -> bool {
+    let normalized = name.trim().to_lowercase();
+    normalized.contains("cable input") && !normalized.contains("16")
+}
+
+fn preferred_cable_endpoint<'a>(
+    candidates: &'a [&'a AudioDependencyEndpoint],
+) -> Option<&'a AudioDependencyEndpoint> {
+    candidates
+        .iter()
+        .find(|endpoint| is_standard_cable_input(&endpoint.name))
+        .copied()
+        .or_else(|| {
+            // 没有标准 2ch 端点时，优先任何非 16ch 候选（更稳），最后才退 16ch。
+            candidates
+                .iter()
+                .find(|endpoint| !endpoint.name.to_lowercase().contains("16"))
+                .copied()
+        })
+        .or_else(|| candidates.first().copied())
+}
+
+/// 纯分类器：端点列表 + 注册表安装标记 → 依赖状态视图（可单测，不触碰系统）。
+///
+/// - 有 CABLE 候选端点 → `ready`，`suggestedEndpointId` 优先标准 `CABLE Input`
+///   （非 16ch），否则非 16ch 候选，最后退第一个；
+/// - 无候选但注册表检测到已安装 → `disabled`（已装但设备未启用/未插入）；
+/// - 都没有 → `missing`。
+pub fn classify_audio_dependency(
+    endpoints: &[AudioDependencyEndpoint],
+    registry_installed: bool,
+) -> AudioDependencyStatus {
+    let candidates: Vec<&AudioDependencyEndpoint> = endpoints
+        .iter()
+        .filter(|endpoint| is_cable_candidate(endpoint))
+        .collect();
+    let suggested_endpoint_id =
+        preferred_cable_endpoint(&candidates).map(|endpoint| endpoint.id.clone());
+    let state = if suggested_endpoint_id.is_some() {
+        AudioDependencyState::Ready
+    } else if registry_installed {
+        AudioDependencyState::Disabled
+    } else {
+        AudioDependencyState::Missing
+    };
+    AudioDependencyStatus {
+        state,
+        cable_endpoints: candidates.into_iter().cloned().collect(),
+        suggested_endpoint_id,
+        install_url: VB_CABLE_INSTALL_URL.to_owned(),
+    }
+}
+
+/// 注册表检测 VB-CABLE 驱动是否已安装（安装但设备被禁用时端点列表为空，靠它区分
+/// `disabled` 与 `missing`）。
+///
+/// 64/32 位视图都查：`VB-Audio\Cable` 驱动键，以及 Uninstall 里以 `VB:VBCABLE`
+/// 开头的项（安装器会带 GUID 后缀，例如 `VB:VBCABLE {8745…}`，所以枚举前缀而不是
+/// 精确匹配）。任一命中即视为已安装。
+#[cfg(windows)]
+pub fn vb_cable_registry_installed() -> bool {
+    use windows::core::{PCWSTR, PWSTR};
+    use windows::Win32::Foundation::FILETIME;
+    use windows::Win32::System::Registry::{
+        RegCloseKey, RegEnumKeyExW, RegOpenKeyExW, HKEY, HKEY_LOCAL_MACHINE, KEY_READ,
+    };
+
+    const DRIVER_KEYS: &[&str] = &[
+        r"SOFTWARE\VB-Audio\Cable",
+        r"SOFTWARE\WOW6432Node\VB-Audio\Cable",
+    ];
+    const UNINSTALL_ROOTS: &[&str] = &[
+        r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+        r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+    ];
+    const UNINSTALL_PREFIX: &str = "VB:VBCABLE";
+
+    fn open_key(path: &str) -> Option<HKEY> {
+        let wide: Vec<u16> = path.encode_utf16().chain(Some(0)).collect();
+        let mut handle = HKEY::default();
+        let opened = unsafe {
+            RegOpenKeyExW(
+                HKEY_LOCAL_MACHINE,
+                PCWSTR(wide.as_ptr()),
+                None,
+                KEY_READ,
+                &mut handle,
+            )
+        };
+        if opened.is_err() {
+            return None;
+        }
+        Some(handle)
+    }
+
+    fn key_exists(path: &str) -> bool {
+        let Some(handle) = open_key(path) else {
+            return false;
+        };
+        unsafe {
+            let _ = RegCloseKey(handle);
+        }
+        true
+    }
+
+    fn uninstall_prefix_exists(root: &str) -> bool {
+        let Some(handle) = open_key(root) else {
+            return false;
+        };
+        let mut found = false;
+        let mut index = 0u32;
+        loop {
+            let mut name = [0u16; 256];
+            let mut length = name.len() as u32;
+            let status = unsafe {
+                RegEnumKeyExW(
+                    handle,
+                    index,
+                    Some(PWSTR(name.as_mut_ptr())),
+                    &mut length,
+                    None,
+                    None,
+                    None,
+                    None::<*mut FILETIME>,
+                )
+            };
+            if status.is_err() {
+                break;
+            }
+            let subkey = String::from_utf16_lossy(&name[..length as usize]).to_ascii_uppercase();
+            if subkey.starts_with(UNINSTALL_PREFIX) {
+                found = true;
+                break;
+            }
+            index += 1;
+        }
+        unsafe {
+            let _ = RegCloseKey(handle);
+        }
+        found
+    }
+
+    DRIVER_KEYS.iter().any(|key| key_exists(key))
+        || UNINSTALL_ROOTS
+            .iter()
+            .any(|root| uninstall_prefix_exists(root))
+}
+
+#[cfg(not(windows))]
+pub fn vb_cable_registry_installed() -> bool {
+    false
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AudioPhase {
@@ -2151,5 +2344,162 @@ mod tests {
             Err(PlatformError::UnsupportedPlatform)
         );
         assert_eq!(platform.audio_snapshot().phase, AudioPhase::Unsupported);
+    }
+}
+
+/// VB-CABLE 依赖状态纯分类器测试（不依赖真机设备/注册表）。
+#[cfg(test)]
+mod audio_dependency_tests {
+    use super::*;
+
+    fn endpoint(id: &str, name: &str, recommended: bool) -> AudioDependencyEndpoint {
+        AudioDependencyEndpoint {
+            id: id.to_owned(),
+            name: name.to_owned(),
+            recommended,
+        }
+    }
+
+    /// 有标准 2ch `CABLE Input` 时优先选它（即使 16ch 排在前面）。
+    #[test]
+    fn prefers_standard_cable_input_over_16ch() {
+        let endpoints = vec![
+            endpoint("16ch", "CABLE In 16 Ch (2- VB-Audio Virtual Cable)", true),
+            endpoint("standard", "CABLE Input (VB-Audio Virtual Cable)", true),
+        ];
+        let status = classify_audio_dependency(&endpoints, false);
+        assert_eq!(status.state, AudioDependencyState::Ready);
+        assert_eq!(status.suggested_endpoint_id.as_deref(), Some("standard"));
+        assert_eq!(status.cable_endpoints.len(), 2);
+        assert_eq!(status.install_url, VB_CABLE_INSTALL_URL);
+    }
+
+    /// 只有 16ch 端点：仍算 ready，回退建议第一个候选（16ch）。
+    #[test]
+    fn only_16ch_endpoint_is_ready_and_suggested() {
+        let endpoints = vec![endpoint(
+            "16ch",
+            "CABLE In 16 Ch (2- VB-Audio Virtual Cable)",
+            true,
+        )];
+        let status = classify_audio_dependency(&endpoints, false);
+        assert_eq!(status.state, AudioDependencyState::Ready);
+        assert_eq!(status.suggested_endpoint_id.as_deref(), Some("16ch"));
+    }
+
+    /// 非候选端点（普通扬声器/麦克风）不能误判为 ready。
+    #[test]
+    fn ignores_non_cable_endpoints() {
+        let endpoints = vec![
+            endpoint("speaker", "扬声器 (Realtek(R) Audio)", false),
+            endpoint("mic", "麦克风 (USB Audio)", false),
+        ];
+        assert_eq!(
+            classify_audio_dependency(&endpoints, false).state,
+            AudioDependencyState::Missing
+        );
+    }
+
+    /// 注册表显示已安装但无端点 → disabled（引导用户启用设备/重新插拔，而非重装）。
+    #[test]
+    fn installed_but_no_endpoint_is_disabled() {
+        let status = classify_audio_dependency(&[], true);
+        assert_eq!(status.state, AudioDependencyState::Disabled);
+        assert!(status.cable_endpoints.is_empty());
+        assert_eq!(status.suggested_endpoint_id, None);
+        assert_eq!(status.install_url, VB_CABLE_INSTALL_URL);
+    }
+
+    /// 既无端点也无安装记录 → missing（前端走安装入口）。
+    #[test]
+    fn absent_driver_and_endpoints_is_missing() {
+        let status = classify_audio_dependency(&[], false);
+        assert_eq!(status.state, AudioDependencyState::Missing);
+        assert!(status.cable_endpoints.is_empty());
+        assert_eq!(status.suggested_endpoint_id, None);
+    }
+
+    /// 候选标记缺失但名称命中 VB-Audio 虚拟线的端点也应按候选处理（防御旧驱动命名）。
+    #[test]
+    fn falls_back_to_endpoint_name_when_candidate_flag_missing() {
+        let endpoints = vec![endpoint("named", "VB-Audio Virtual Cable", false)];
+        let status = classify_audio_dependency(&endpoints, false);
+        assert_eq!(status.state, AudioDependencyState::Ready);
+        assert_eq!(status.suggested_endpoint_id.as_deref(), Some("named"));
+        assert_eq!(status.cable_endpoints.len(), 1);
+    }
+
+    /// 视图 JSON 与前端契约一致：state snake_case、camelCase 字段、installUrl 常量。
+    #[test]
+    fn status_view_serializes_frontend_contract() {
+        let status = classify_audio_dependency(
+            &[endpoint(
+                "standard",
+                "CABLE Input (VB-Audio Virtual Cable)",
+                true,
+            )],
+            false,
+        );
+        let value = serde_json::to_value(&status).expect("serialize audio dependency");
+        assert_eq!(value["state"], "ready");
+        assert_eq!(value["cableEndpoints"][0]["id"], "standard");
+        assert_eq!(
+            value["cableEndpoints"][0]["name"],
+            "CABLE Input (VB-Audio Virtual Cable)"
+        );
+        assert_eq!(value["cableEndpoints"][0]["recommended"], true);
+        assert_eq!(value["suggestedEndpointId"], "standard");
+        assert_eq!(value["installUrl"], "https://vb-audio.com/Cable/");
+    }
+
+    /// 真机诊断（默认 ignore）：打印本机注册表检测结果，便于现场核对
+    /// disabled/missing 判定；不做断言（不同机器安装状态不同）。
+    #[cfg(windows)]
+    #[test]
+    #[ignore = "real machine VB-CABLE registry probe"]
+    fn reports_registry_detection_on_this_machine() {
+        println!(
+            "VB_CABLE_REGISTRY_INSTALLED={}",
+            vb_cable_registry_installed()
+        );
+    }
+
+    /// 真机诊断（默认 ignore）：用真实端点列表跑分类器，只打印计数/状态
+    /// （不打印设备名），核对 ready/disabled 的现场判定。
+    #[cfg(windows)]
+    #[test]
+    #[ignore = "real machine audio endpoint classification probe"]
+    fn reports_classification_on_this_machine() {
+        let endpoints: Vec<AudioDependencyEndpoint> = WindowsPlatform::default()
+            .list_audio_endpoints()
+            .unwrap_or_default()
+            .into_iter()
+            .map(|endpoint| AudioDependencyEndpoint {
+                id: endpoint.id,
+                name: endpoint.name,
+                recommended: endpoint.is_virtual_cable_candidate,
+            })
+            .collect();
+        let candidates = endpoints
+            .iter()
+            .filter(|endpoint| endpoint.recommended)
+            .count();
+        let status = classify_audio_dependency(&endpoints, vb_cable_registry_installed());
+        let suggested_name = status
+            .suggested_endpoint_id
+            .as_ref()
+            .and_then(|id| endpoints.iter().find(|endpoint| &endpoint.id == id))
+            .map(|endpoint| endpoint.name.to_lowercase());
+        let suggested_standard = suggested_name
+            .as_deref()
+            .is_some_and(|name| name.contains("cable input") && !name.contains("16"));
+        println!(
+            "AUDIO_DEP total_endpoints={} cable_candidates={} state={:?} suggested_present={} suggested_standard_2ch={}",
+            endpoints.len(),
+            candidates,
+            status.state,
+            status.suggested_endpoint_id.is_some(),
+            suggested_standard
+        );
     }
 }

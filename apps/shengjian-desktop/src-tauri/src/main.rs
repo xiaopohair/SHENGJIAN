@@ -176,6 +176,7 @@ fn main() {
             commands::open_diagnostic_log_folder,
             commands::open_external_url,
             commands::list_audio_endpoints,
+            commands::audio_dependency_status,
             commands::select_audio_endpoint,
             commands::set_gain_db,
             commands::button_profile_state,

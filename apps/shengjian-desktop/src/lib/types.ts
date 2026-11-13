@@ -29,6 +29,21 @@ export interface AudioEndpoint {
   recommended: boolean;
 }
 
+/** VB-CABLE 虚拟声卡依赖的三种状态。 */
+export type AudioDependencyState = "ready" | "disabled" | "missing";
+
+/**
+ * 远程语音输出依赖（VB-CABLE）的检测结果。
+ * `cableEndpoints` 是检测到的 CABLE 设备，`suggestedEndpointId` 是推荐默认项，
+ * `installUrl` 是官网下载页（仅 missing 时使用）。
+ */
+export interface AudioDependencyStatus {
+  state: AudioDependencyState;
+  cableEndpoints: AudioEndpoint[];
+  suggestedEndpointId: string | null;
+  installUrl: string;
+}
+
 export interface AudioSnapshot {
   state: string;
   endpoint: AudioEndpoint | null;

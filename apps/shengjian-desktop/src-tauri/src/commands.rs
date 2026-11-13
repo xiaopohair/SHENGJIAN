@@ -208,10 +208,13 @@ pub fn open_diagnostic_log_folder(state: State<'_, AppState>) -> Result<(), Comm
 #[tauri::command]
 pub fn open_external_url(url: String) -> Result<(), CommandError> {
     const RELEASE_PREFIX: &str = "https://github.com/xiaopohair/SHENGJIAN/";
-    if !url.starts_with(RELEASE_PREFIX) || url.chars().any(char::is_whitespace) {
+    // 只放开「GitHub release 前缀」与 VB-CABLE 官网下载页这一个固定 URL；
+    // 不引入任意 URL 打开能力。
+    let allowed = url.starts_with(RELEASE_PREFIX) || url == shengjian_windows::VB_CABLE_INSTALL_URL;
+    if !allowed || url.chars().any(char::is_whitespace) {
         return Err(CommandError::new(
             "invalid_url",
-            "invalid release URL",
+            "invalid external URL",
             false,
         ));
     }
@@ -395,6 +398,65 @@ pub async fn list_audio_endpoints(
         .await
         .map_err(|_| CommandError::new("command-join-failed", "list endpoints failed", true))?
         .map_err(CommandError::from)
+}
+
+/// VB-CABLE 依赖状态（前端硬阻断提示用）。
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioDependencyStatusView {
+    pub state: shengjian_windows::AudioDependencyState,
+    pub cable_endpoints: Vec<AudioEndpoint>,
+    pub suggested_endpoint_id: Option<String>,
+    pub install_url: String,
+}
+
+/// 读取 VB-CABLE 依赖状态：`ready`（有可用端点）/ `disabled`（注册表已安装但
+/// 设备未启用或未插入）/ `missing`（未安装，前端引导安装后重新检测）。
+#[tauri::command]
+pub async fn audio_dependency_status(
+    state: State<'_, AppState>,
+) -> Result<AudioDependencyStatusView, CommandError> {
+    let engine = state.engine.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let endpoints = engine
+            .audio()
+            .list_endpoints()
+            .map_err(CommandError::from)?;
+        let classification_input: Vec<shengjian_windows::AudioDependencyEndpoint> = endpoints
+            .into_iter()
+            .map(|endpoint| shengjian_windows::AudioDependencyEndpoint {
+                id: endpoint.id,
+                name: endpoint.name,
+                recommended: endpoint.recommended,
+            })
+            .collect();
+        let status = shengjian_windows::classify_audio_dependency(
+            &classification_input,
+            shengjian_windows::vb_cable_registry_installed(),
+        );
+        Ok(AudioDependencyStatusView {
+            state: status.state,
+            cable_endpoints: status
+                .cable_endpoints
+                .into_iter()
+                .map(|endpoint| AudioEndpoint {
+                    id: endpoint.id,
+                    name: endpoint.name,
+                    recommended: endpoint.recommended,
+                })
+                .collect(),
+            suggested_endpoint_id: status.suggested_endpoint_id,
+            install_url: status.install_url,
+        })
+    })
+    .await
+    .map_err(|_| {
+        CommandError::new(
+            "command-join-failed",
+            "audio dependency status failed",
+            true,
+        )
+    })?
 }
 
 #[tauri::command]
@@ -1037,5 +1099,80 @@ pub fn apply_startup_audio_settings(engine: &shengjian_app::CoreEngine, platform
     let _ = engine.audio().set_gain_db(gain);
     if let Some(endpoint_id) = settings.audio_endpoint_id.as_deref() {
         let _ = engine.audio().select_endpoint(endpoint_id);
+    }
+}
+
+#[cfg(test)]
+mod audio_dependency_command_tests {
+    use super::*;
+
+    /// 前端契约：`state` snake_case、`cableEndpoints` 用 contract `AudioEndpoint`
+    /// （id/name/recommended）、`suggestedEndpointId` 可空、`installUrl` 固定官网。
+    #[test]
+    fn audio_dependency_view_serializes_frontend_contract() {
+        let view = AudioDependencyStatusView {
+            state: shengjian_windows::AudioDependencyState::Ready,
+            cable_endpoints: vec![AudioEndpoint {
+                id: "cable-standard".to_owned(),
+                name: "CABLE Input (VB-Audio Virtual Cable)".to_owned(),
+                recommended: true,
+            }],
+            suggested_endpoint_id: Some("cable-standard".to_owned()),
+            install_url: shengjian_windows::VB_CABLE_INSTALL_URL.to_owned(),
+        };
+        let value = serde_json::to_value(&view).expect("serialize audio dependency view");
+        assert_eq!(value["state"], "ready");
+        assert_eq!(value["cableEndpoints"][0]["id"], "cable-standard");
+        assert_eq!(
+            value["cableEndpoints"][0]["name"],
+            "CABLE Input (VB-Audio Virtual Cable)"
+        );
+        assert_eq!(value["cableEndpoints"][0]["recommended"], true);
+        assert_eq!(value["suggestedEndpointId"], "cable-standard");
+        assert_eq!(value["installUrl"], "https://vb-audio.com/Cable/");
+
+        // disabled / missing 的 payload 形状一致（空端点、null 建议）。
+        for state in [
+            shengjian_windows::AudioDependencyState::Disabled,
+            shengjian_windows::AudioDependencyState::Missing,
+        ] {
+            let view = AudioDependencyStatusView {
+                state,
+                cable_endpoints: Vec::new(),
+                suggested_endpoint_id: None,
+                install_url: shengjian_windows::VB_CABLE_INSTALL_URL.to_owned(),
+            };
+            let value = serde_json::to_value(&view).expect("serialize");
+            assert!(value["cableEndpoints"]
+                .as_array()
+                .is_some_and(Vec::is_empty));
+            assert_eq!(value["suggestedEndpointId"], serde_json::Value::Null);
+        }
+        assert_eq!(
+            serde_json::to_value(shengjian_windows::AudioDependencyState::Disabled).unwrap(),
+            "disabled"
+        );
+        assert_eq!(
+            serde_json::to_value(shengjian_windows::AudioDependencyState::Missing).unwrap(),
+            "missing"
+        );
+    }
+
+    /// 外部 URL 白名单只额外放行 VB-CABLE 官网**精确**地址；其它域/变体一律拒绝
+    /// （不实际打开浏览器，只测拒绝分支）。
+    #[test]
+    fn external_url_whitelist_rejects_other_urls() {
+        for url in [
+            "https://vb-audio.com/Cable/extra".to_owned(),
+            "https://vb-audio.com/cable/".to_owned(),
+            "https://example.com/".to_owned(),
+            "javascript:alert(1)".to_owned(),
+            "https://github.com/other-org/repo/".to_owned(),
+        ] {
+            assert!(
+                open_external_url(url.clone()).is_err(),
+                "应拒绝非白名单 URL：{url}"
+            );
+        }
     }
 }

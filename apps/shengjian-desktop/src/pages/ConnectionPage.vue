@@ -558,7 +558,7 @@ onUnmounted(() => {
             <span class="gain-value mono muted">{{ deviceGain }} dB</span>
           </div>
         </Field>
-        <Field label="音频输入设备">
+        <Field label="远程语音输出设备">
           <SelectInput v-model="deviceEndpointId">
             <option value="">{{ tr("继承全局端点") }}</option>
             <option v-for="endpoint in endpoints" :key="endpoint.id" :value="endpoint.id">
