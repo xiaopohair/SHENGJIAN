@@ -68,8 +68,9 @@ mod ime;
 /// 模块本体私有，只导出这几个入口（见 `ime` 模块头与 `ImeStatus` 的语义约定）。
 #[cfg(windows)]
 pub use ime::{
-    describe_active_ime_name, ime_status_for, ime_status_log_line, list_installed_ime_names,
-    ImeStatus, MAX_INSTALLED_IME_NAMES,
+    describe_active_ime_name, ime_status_for, ime_status_log_line,
+    install_ime_profiles_from_catalog, list_installed_ime_names, ImeStatus,
+    MAX_INSTALLED_IME_NAMES,
 };
 
 pub use transcript_capture::{

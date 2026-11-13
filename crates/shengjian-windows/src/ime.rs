@@ -36,7 +36,7 @@
 //! `TF_IPPMF_FORSESSION` + 冷路径重绑等待），GUID 由 `examples/doubao_ime_probe.rs`
 //! 真机取得并读回验证。Vokie / custom（自定义工具）不切输入法（`NotRequired`）。
 
-use std::sync::mpsc;
+use std::sync::{mpsc, OnceLock, RwLock};
 use std::time::Duration;
 
 use crate::voice_tool::VoiceToolKind;
@@ -92,18 +92,240 @@ const CHATTERFLY_IME: ImeProfile = ImeProfile {
     label: "chatterfly",
 };
 
-/// 工具行为类别 → 需要确保为当前会话活动输入法的目标。
-///
-/// 只有"自身是输入法"的 kind 才需要切：Vokie 是桌面程序（不受输入法影响），
-/// `custom`（自定义工具）由用户自备输入法，两者都返回 `None`——**绝不**替它们切
-/// 输入法（2026-09-29 真机实证：误切会让豆包路径被切成微信输入法）。
-pub fn ime_target_for(tool: VoiceToolKind) -> Option<ImeProfile> {
+/// 由 `config/voice-tools.json` 解析出的输入法身份覆盖（启动时安装）。
+static IME_PROFILE_OVERRIDES: OnceLock<RwLock<Vec<(VoiceToolKind, ImeProfile)>>> = OnceLock::new();
+
+fn profile_overrides() -> &'static RwLock<Vec<(VoiceToolKind, ImeProfile)>> {
+    IME_PROFILE_OVERRIDES.get_or_init(|| RwLock::new(Vec::new()))
+}
+
+fn configured_profile(tool: VoiceToolKind) -> Option<ImeProfile> {
+    profile_overrides()
+        .read()
+        .ok()?
+        .iter()
+        .find(|(kind, _)| *kind == tool)
+        .map(|(_, profile)| *profile)
+}
+
+/// 内置身份（配置缺失/未提供时的回退；GUID 为真机实测值）。
+fn builtin_ime_target(tool: VoiceToolKind) -> Option<ImeProfile> {
     match tool {
         VoiceToolKind::Wechat => Some(WETYPE_IME),
         VoiceToolKind::Doubao => Some(DOUBAO_IME),
         VoiceToolKind::Chatterfly => Some(CHATTERFLY_IME),
         VoiceToolKind::Vokie | VoiceToolKind::Custom => None,
     }
+}
+
+/// 工具行为类别 → 需要确保为当前会话活动输入法的目标。
+///
+/// 配置目录里给了 `ime` 身份的工具优先用配置（这样换输入法版本只改 JSON）；
+/// 没给时回退到内置常量。只有"自身是输入法"的 kind 才需要切：Vokie 是桌面程序
+/// （不受输入法影响），`custom`（自定义工具）由用户自备输入法，两者都返回
+/// `None`——**绝不**替它们切输入法（2026-09-29 真机实证：误切会让豆包路径被
+/// 切成微信输入法）。
+pub fn ime_target_for(tool: VoiceToolKind) -> Option<ImeProfile> {
+    configured_profile(tool).or_else(|| builtin_ime_target(tool))
+}
+
+/// 解析配置里的 GUID 文本（接受带 `{}`、连字符、大小写混写）。
+fn guid_from_config(value: &str) -> Option<GUID> {
+    let hex: String = value.chars().filter(|ch| ch.is_ascii_hexdigit()).collect();
+    if hex.len() != 32 {
+        return None;
+    }
+    u128::from_str_radix(&hex, 16).ok().map(GUID::from_u128)
+}
+
+/// 在临时 STA 线程上执行一次带 TSF 接口的查询（创建/释放都在同一线程）。
+fn with_sta_profiles<T>(
+    thread_name: &'static str,
+    query: impl FnOnce(&ITfInputProcessorProfiles, &ITfInputProcessorProfileMgr) -> Result<T, String>
+        + Send
+        + 'static,
+) -> Result<T, String>
+where
+    T: Send + 'static,
+{
+    crate::ime::run_sta_ime_query(thread_name, move || unsafe {
+        use windows::Win32::System::Com::{
+            CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER,
+            COINIT_APARTMENTTHREADED,
+        };
+        let hr = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        if hr.is_err() && hr != windows::core::HRESULT(1) {
+            return Err(format!("CoInitializeEx(STA) 失败：{hr:?}"));
+        }
+        let result = (|| {
+            let manager: ITfInputProcessorProfileMgr = CoCreateInstance(
+                &CLSID_TF_INPUT_PROCESSOR_PROFILES,
+                None,
+                CLSCTX_INPROC_SERVER,
+            )
+            .map_err(|error| format!("创建 TSF 配置管理器失败：{error}"))?;
+            let profiles: ITfInputProcessorProfiles = CoCreateInstance(
+                &CLSID_TF_INPUT_PROCESSOR_PROFILES,
+                None,
+                CLSCTX_INPROC_SERVER,
+            )
+            .map_err(|error| format!("创建 TSF 配置列表接口失败：{error}"))?;
+            query(&profiles, &manager)
+        })();
+        CoUninitialize();
+        result
+    })
+}
+
+/// 固定 GUID 是否在当前系统里注册（显示名能读出来即视为已安装）。
+fn profile_is_installed(clsid: GUID, guid_profile: GUID) -> bool {
+    with_sta_profiles("shengjian-ime-describe", move |profiles, _| {
+        Ok(unsafe { profile_description(profiles, LANGID_ZH_CN, &clsid, &guid_profile) }.is_some())
+    })
+    .ok()
+    .unwrap_or(false)
+}
+
+/// 按显示名在已安装的简体中文输入法里自动发现 TSF 身份。
+fn discover_profile_guids(names: &[String]) -> Option<(GUID, GUID)> {
+    let wanted: Vec<String> = names
+        .iter()
+        .map(|name| normalize_ime_name(name))
+        .filter(|name| !name.is_empty())
+        .collect();
+    if wanted.is_empty() {
+        return None;
+    }
+    with_sta_profiles("shengjian-ime-discover", move |profiles, manager| {
+        let enumerated = unsafe { manager.EnumProfiles(LANGID_ZH_CN) }
+            .map_err(|error| format!("枚举已安装输入法失败：{error}"))?;
+        let mut batch = [TF_INPUTPROCESSORPROFILE::default(); 16];
+        loop {
+            let mut fetched: u32 = 0;
+            if unsafe { enumerated.Next(&mut batch, &mut fetched) }.is_err() || fetched == 0 {
+                break;
+            }
+            for profile in &batch[..fetched as usize] {
+                if profile.dwProfileType != TF_PROFILETYPE_INPUTPROCESSOR
+                    || profile.langid != LANGID_ZH_CN
+                {
+                    continue;
+                }
+                let Some(description) = (unsafe {
+                    profile_description(
+                        profiles,
+                        profile.langid,
+                        &profile.clsid,
+                        &profile.guidProfile,
+                    )
+                }) else {
+                    continue;
+                };
+                let normalized = normalize_ime_name(&description);
+                if wanted
+                    .iter()
+                    .any(|name| normalized == *name || normalized.contains(name.as_str()))
+                {
+                    return Ok(Some((profile.clsid, profile.guidProfile)));
+                }
+            }
+        }
+        Ok(None)
+    })
+    .ok()
+    .flatten()
+}
+
+/// 配置身份 → 实际 TSF 配置。返回值第二项是来源（`config` / `discovered`）。
+fn resolve_ime_profile(
+    ime: &shengjian_domain::voice_tools::VoiceToolImeConfig,
+    label: &'static str,
+    fixed_installed: impl Fn(GUID, GUID) -> bool,
+    discover: impl Fn(&[String]) -> Option<(GUID, GUID)>,
+) -> Result<(ImeProfile, &'static str), String> {
+    let names = ime.discovery_names();
+    if let Some((clsid_text, profile_text)) = ime.fixed_profile() {
+        let clsid = guid_from_config(clsid_text).ok_or_else(|| "clsid 不是合法 GUID".to_owned())?;
+        let guid_profile =
+            guid_from_config(profile_text).ok_or_else(|| "profile 不是合法 GUID".to_owned())?;
+        if fixed_installed(clsid, guid_profile) {
+            return Ok((
+                ImeProfile {
+                    clsid,
+                    guid_profile,
+                    label,
+                },
+                "config",
+            ));
+        }
+        if !names.is_empty() {
+            if let Some((discovered_clsid, discovered_profile)) = discover(&names) {
+                return Ok((
+                    ImeProfile {
+                        clsid: discovered_clsid,
+                        guid_profile: discovered_profile,
+                        label,
+                    },
+                    "discovered",
+                ));
+            }
+        }
+        return Err("配置的输入法未安装，按显示名也未找到".to_owned());
+    }
+    if names.is_empty() {
+        return Err("既没有固定 GUID 对，也没有可用于发现的显示名".to_owned());
+    }
+    match discover(&names) {
+        Some((clsid, guid_profile)) => Ok((
+            ImeProfile {
+                clsid,
+                guid_profile,
+                label,
+            },
+            "discovered",
+        )),
+        None => Err("按显示名没有找到已安装输入法".to_owned()),
+    }
+}
+
+/// 启动时把 `config/voice-tools.json` 里的 TSF 身份装进覆盖表。
+///
+/// 返回可写入诊断日志的摘要行（不含 GUID / 个人路径）。失败或配置缺失时
+/// 保持内置常量，不影响原有行为。
+pub fn install_ime_profiles_from_catalog() -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut resolved: Vec<(VoiceToolKind, ImeProfile)> = Vec::new();
+    for tool in shengjian_domain::voice_tools::tools() {
+        let Some(ime) = tool.ime.clone() else {
+            continue;
+        };
+        let kind = VoiceToolKind::from_kind(&tool.kind);
+        if builtin_ime_target(kind).is_none() {
+            lines.push(format!(
+                "ime_profile tool_id={} kind={} outcome=skipped reason=not_ime_capable",
+                tool.id, tool.kind
+            ));
+            continue;
+        }
+        let label = kind.as_str();
+        match resolve_ime_profile(&ime, label, profile_is_installed, discover_profile_guids) {
+            Ok((profile, source)) => {
+                lines.push(format!(
+                    "ime_profile tool_id={} kind={} source={source} outcome=resolved",
+                    tool.id, tool.kind
+                ));
+                resolved.push((kind, profile));
+            }
+            Err(error) => lines.push(format!(
+                "ime_profile tool_id={} kind={} outcome=failed reason={error}",
+                tool.id, tool.kind
+            )),
+        }
+    }
+    if let Ok(mut slot) = profile_overrides().write() {
+        *slot = resolved;
+    }
+    lines
 }
 /// STA 激活线程的有界等待：正常 <10ms，500ms 只是防卡上限。
 const ACTIVATION_JOIN_TIMEOUT: Duration = Duration::from_millis(500);
@@ -1581,11 +1803,9 @@ mod ime_target_tests {
             .expect("Chatterfly 应能从 TSF 读回显示名");
         assert_eq!(expected, "Chatterfly");
 
-        let activation = super::ensure_session_ime(
-            VoiceToolKind::Chatterfly,
-            super::ImeSwitchScope::VoicePress,
-        )
-        .expect("会话级切换不应报错");
+        let activation =
+            super::ensure_session_ime(VoiceToolKind::Chatterfly, super::ImeSwitchScope::VoicePress)
+                .expect("会话级切换不应报错");
         println!("ime_activation={activation:?}");
 
         let mut matched = false;
@@ -1602,6 +1822,99 @@ mod ime_target_tests {
             std::thread::sleep(std::time::Duration::from_millis(100));
         }
         assert!(matched, "Chatterfly 应成为当前会话活动输入法");
+    }
+
+    /// 配置里的 GUID 文本解析：接受大小写、`{}`、连字符；长度不对一律拒绝。
+    #[test]
+    fn ime_guid_config_parses_common_forms() {
+        for text in [
+            "604A99E3-6D90-4571-824D-2639BD572F6C",
+            "{604a99e3-6d90-4571-824d-2639bd572f6c}",
+        ] {
+            assert_eq!(
+                super::guid_from_config(text),
+                Some(CHATTERFLY_CLSID),
+                "{text}"
+            );
+        }
+        assert_eq!(super::guid_from_config("not-a-guid"), None);
+        assert_eq!(super::guid_from_config("604A99E3"), None);
+        assert_eq!(super::guid_from_config(""), None);
+    }
+
+    /// 身份解析顺序：固定 GUID 已安装 → 用配置；失效 → 按显示名发现；
+    /// 只有名字 → 发现；两者都没有 → 失败。
+    #[test]
+    fn config_identity_prefers_fixed_then_discovery() {
+        use shengjian_domain::voice_tools::VoiceToolImeConfig;
+
+        let fixed = VoiceToolImeConfig {
+            clsid: Some("604A99E3-6D90-4571-824D-2639BD572F6C".to_owned()),
+            profile: Some("{C16C250B-CF1C-4C58-B068-12AEDBED610F}".to_owned()),
+            names: vec!["Chatterfly".to_owned()],
+        };
+        let (resolved, source) = super::resolve_ime_profile(
+            &fixed,
+            "chatterfly",
+            |_, _| true,
+            |_| panic!("固定 GUID 命中时不应触发发现"),
+        )
+        .expect("fixed profile");
+        assert_eq!(source, "config");
+        assert_eq!(resolved.label, "chatterfly");
+
+        let (resolved, source) = super::resolve_ime_profile(
+            &fixed,
+            "chatterfly",
+            |_, _| false,
+            |names| {
+                assert_eq!(names, vec!["Chatterfly"]);
+                Some((CHATTERFLY_CLSID, CHATTERFLY_PROFILE))
+            },
+        )
+        .expect("discovered profile");
+        assert_eq!(source, "discovered");
+        assert_eq!(resolved.label, "chatterfly");
+
+        let names_only = VoiceToolImeConfig {
+            clsid: None,
+            profile: None,
+            names: vec!["Chatterfly".to_owned()],
+        };
+        let (_, source) = super::resolve_ime_profile(
+            &names_only,
+            "chatterfly",
+            |_, _| false,
+            |_| Some((CHATTERFLY_CLSID, CHATTERFLY_PROFILE)),
+        )
+        .expect("names discovery");
+        assert_eq!(source, "discovered");
+
+        assert!(super::resolve_ime_profile(
+            &VoiceToolImeConfig::default(),
+            "chatterfly",
+            |_, _| false,
+            |_| None
+        )
+        .is_err());
+    }
+
+    /// 真机探针（2026-11-13）：内置配置目录能解析出 Chatterfly 身份，且
+    /// 名字发现路径与固定 GUID 一致。需要本机安装 Chatterfly。
+    #[test]
+    #[ignore = "needs Chatterfly installed; installs catalog overrides globally"]
+    fn catalog_ime_identity_resolves_on_this_machine() {
+        let lines = super::install_ime_profiles_from_catalog();
+        println!("{lines:#?}");
+        assert!(lines
+            .iter()
+            .any(|line| line.contains("tool_id=chatterfly") && line.contains("outcome=resolved")));
+        let target = ime_target_for(VoiceToolKind::Chatterfly).expect("chatterfly target");
+        assert_eq!(target.label, "chatterfly");
+
+        let discovered = super::discover_profile_guids(&["Chatterfly".to_owned()])
+            .expect("discover chatterfly by name");
+        assert_eq!(discovered, (CHATTERFLY_CLSID, CHATTERFLY_PROFILE));
     }
 
     /// 切换场景标签稳定（日志消费方按它归因；改动会引起日志口径变化）。

@@ -23,7 +23,12 @@
       "id": "chatterfly",
       "label": "Chatterfly",
       "kind": "chatterfly",
-      "defaultHotkey": ["ControlLeft", "MetaLeft"]
+      "defaultHotkey": ["ControlLeft", "MetaLeft"],
+      "ime": {
+        "clsid": "604A99E3-6D90-4571-824D-2639BD572F6C",
+        "profile": "C16C250B-CF1C-4C58-B068-12AEDBED610F",
+        "names": ["Chatterfly"]
+      }
     },
     {
       "id": "other",

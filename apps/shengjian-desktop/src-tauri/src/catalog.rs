@@ -24,6 +24,11 @@ pub fn initialize(app: &tauri::AppHandle) {
         shengjian_domain::voice_tools::install_from_json,
         shengjian_domain::voice_tools::install_defaults,
     );
+    // 输入法的 TSF 身份（固定 GUID / 显示名发现）来自配置目录；解析失败时
+    // 保持内置常量，不阻断启动。
+    for line in shengjian_windows::install_ime_profiles_from_catalog() {
+        crate::platform::note(format!("catalog {line}"));
+    }
 }
 
 fn install_catalog(
