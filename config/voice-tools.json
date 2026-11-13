@@ -20,6 +20,12 @@
       "defaultHotkey": []
     },
     {
+      "id": "chatterfly",
+      "label": "Chatterfly",
+      "kind": "custom",
+      "defaultHotkey": ["ControlLeft", "MetaLeft"]
+    },
+    {
       "id": "other",
       "label": "其他工具",
       "kind": "custom",
