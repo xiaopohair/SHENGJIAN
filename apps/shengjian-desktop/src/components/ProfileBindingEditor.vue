@@ -16,6 +16,7 @@ import {
 } from "lucide-vue-next";
 import { type ProfileActionType, type ProfileDraft, type ProfileTrigger } from "../lib/buttons";
 import { tr, trDynamic } from "../lib/i18n";
+import { systemActionAllowsRepeat } from "../lib/systemActions";
 import type { LogicalAction, LogicalButton, MacroChord, MacroDefinition } from "../lib/types";
 import { cachedAppTarget, useAppPicker } from "../composables/useAppPicker";
 import { issueReasonKey } from "../lib/appTargets";
@@ -145,15 +146,9 @@ const currentActionAllowsRepeat = computed(() => {
       !["control", "ctrl", "alt", "shift", "win", "meta"].includes(keys[0])
     );
   }
-  // 系统动作等价于单键快捷键（后端 action_allows_repeat 同一规则），
-  // 因此音量/媒体键也支持按住连发。
+  // 单键系统动作（音量/媒体/Esc）支持按住连发；返回桌面/切换任务不连发。
   if (action?.type === "system-action" && typeof action.key === "string") {
-    const key = action.key.trim().toLowerCase();
-    return (
-      key.length > 0 &&
-      !key.includes("+") &&
-      !["control", "ctrl", "alt", "shift", "win", "meta"].includes(key)
-    );
+    return systemActionAllowsRepeat(action.key);
   }
   if (action?.type === "mouse") {
     return action.kind === "scroll" || action.kind === "move";

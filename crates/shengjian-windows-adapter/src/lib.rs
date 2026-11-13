@@ -561,6 +561,15 @@ pub struct WindowsActionSink<P: PlatformActions = WindowsPlatformActions> {
     backend: Arc<P>,
 }
 
+/// 系统动作 id → 注入键名序列（单键动作保持原 id）。
+fn system_action_key_names(key: &str) -> Vec<String> {
+    match key {
+        "show_desktop" => vec!["left_windows".to_owned(), "d".to_owned()],
+        "task_switch" => vec!["left_alt".to_owned(), "tab".to_owned()],
+        _ => vec![key.to_owned()],
+    }
+}
+
 impl<P: PlatformActions> WindowsActionSink<P> {
     pub fn new(backend: Arc<P>) -> Self {
         Self { backend }
@@ -584,7 +593,12 @@ impl<P: PlatformActions> ActionSinkPort for WindowsActionSink<P> {
             LogicalAction::CommonPhrase => self.backend.open_common_phrases(),
             // 系统动作 = 单键快捷键：复用现有 KeyChord 解析/注入（未知键名由底层
             // `parse_key` 报 `unsupported-key`，契约层不预判）。
-            LogicalAction::SystemAction { key } => self.backend.shortcut(std::slice::from_ref(key)),
+            LogicalAction::SystemAction { key } => {
+                // 组合类系统动作（返回桌面/切换任务）展开成真实组合键；
+                // 其它单键 id 原样交给底层解析。
+                let keys = system_action_key_names(key);
+                self.backend.shortcut(&keys)
+            }
             LogicalAction::Mouse {
                 kind,
                 direction,
@@ -1876,6 +1890,16 @@ mod action_tests {
             .expect("media key");
         actions
             .execute(&LogicalAction::SystemAction {
+                key: "show_desktop".to_owned(),
+            })
+            .expect("show desktop chord");
+        actions
+            .execute(&LogicalAction::SystemAction {
+                key: "task_switch".to_owned(),
+            })
+            .expect("task switch chord");
+        actions
+            .execute(&LogicalAction::SystemAction {
                 key: "definitely-not-a-key".to_owned(),
             })
             .expect("adapter forwards unknown keys");
@@ -1884,6 +1908,8 @@ mod action_tests {
             vec![
                 "shortcut:volume_up",
                 "shortcut:media_play_pause",
+                "shortcut:left_windows+d",
+                "shortcut:left_alt+tab",
                 "shortcut:definitely-not-a-key",
             ]
         );

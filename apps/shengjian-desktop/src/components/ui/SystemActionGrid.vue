@@ -32,7 +32,7 @@ const emit = defineEmits<{
         <component :is="item.icon" v-if="item.icon" :size="16" />
         <kbd v-else class="system-action-keycap">{{ item.keycap ?? item.key }}</kbd>
       </span>
-      <span v-if="item.icon" class="system-action-label">{{ trDynamic(item.label) }}</span>
+      <span class="system-action-label">{{ trDynamic(item.label) }}</span>
     </button>
   </div>
 </template>
@@ -40,7 +40,7 @@ const emit = defineEmits<{
 <style scoped>
 .system-action-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: var(--space-2);
 }
 

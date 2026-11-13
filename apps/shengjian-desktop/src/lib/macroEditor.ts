@@ -11,7 +11,7 @@ import {
 } from "lucide-vue-next";
 import { MACRO_ACTIONS, MACRO_MODIFIERS } from "./macros";
 import { tr, trDynamic } from "./i18n";
-import { systemKeyLabel } from "./systemActions";
+import { systemActionLabelForChord, systemKeyLabel } from "./systemActions";
 import type { MacroChord, MacroStep } from "./types";
 
 /** 系统动作 key/label/图标已抽到 lib/systemActions.ts（宏与按键方案共用）。 */
@@ -104,7 +104,9 @@ export function stepSummary(step: MacroStep): string {
     case "send_shortcut":
       return chordLabel(chord(step)) || tr("未设置快捷键");
     case "system_action":
-      return chord(step).key.trim() ? systemKeyLabel(chord(step).key) : tr("未选择系统动作");
+      return chord(step).key.trim()
+        ? (systemActionLabelForChord(chord(step)) ?? systemKeyLabel(chord(step).key))
+        : tr("未选择系统动作");
     case "open_application":
     case "focus_input":
       return step.parameters.target || tr("未设置应用目标");

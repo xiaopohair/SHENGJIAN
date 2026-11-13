@@ -331,7 +331,12 @@ fn action_allows_repeat(action: &LogicalAction) -> bool {
         // 否则绑定「音量+/媒体键」长按不会连发（音量键的常见使用方式）；
         // 空 key 防御性拒绝（执行层会解析失败，不应进入连发）。
         LogicalAction::SystemAction { key } => {
-            !key.trim().is_empty() && !key.contains('+') && !is_modifier_key(key)
+            // 组合类系统动作（返回桌面/切换任务）与多键快捷键一样不连发。
+            let key = key.trim();
+            !key.is_empty()
+                && !key.contains('+')
+                && !is_modifier_key(key)
+                && !matches!(key, "show_desktop" | "task_switch")
         }
         LogicalAction::Mouse { kind, .. } => matches!(
             kind,
@@ -558,6 +563,12 @@ mod tests {
         }));
         assert!(!action_allows_repeat(&LogicalAction::SystemAction {
             key: "   ".to_owned()
+        }));
+        assert!(!action_allows_repeat(&LogicalAction::SystemAction {
+            key: "show_desktop".to_owned()
+        }));
+        assert!(!action_allows_repeat(&LogicalAction::SystemAction {
+            key: "task_switch".to_owned()
         }));
     }
 

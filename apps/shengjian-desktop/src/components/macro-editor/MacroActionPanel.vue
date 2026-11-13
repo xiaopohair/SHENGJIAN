@@ -4,6 +4,7 @@ import { CircleAlert, CircleCheck, Copy, Trash2 } from "lucide-vue-next";
 import { defaultMacroParameters } from "../../lib/macros";
 import { tr, trDynamic } from "../../lib/i18n";
 import { ACTIONS, actionIcon, actionLabel, actionUsesTimeout, chord } from "../../lib/macroEditor";
+import { systemActionById, systemActionIdForChord } from "../../lib/systemActions";
 import type { MacroChord, MacroDefinition, MacroParameters, MacroStep } from "../../lib/types";
 import { useAppPicker } from "../../composables/useAppPicker";
 import AppPickerDialog from "../app-picker/AppPickerDialog.vue";
@@ -85,6 +86,8 @@ function applyPickedProgram(target: string) {
 const chordValue = computed<MacroChord>(() =>
   props.step ? chord(props.step) : { modifiers: [], key: "" },
 );
+/** 宏里存的是真实组合键（返回桌面=Win+D 等），选中态需映射回系统动作 id。 */
+const systemActionId = computed(() => systemActionIdForChord(chordValue.value));
 
 function patch(next: Partial<MacroStep>) {
   if (!props.step) return;
@@ -116,9 +119,10 @@ function setChord(next: MacroChord) {
   patchParameters({ chord: next });
 }
 
-/** System actions never carry modifiers; the runtime maps the key name alone. */
-function setSystemKey(key: string) {
-  patchParameters({ chord: { modifiers: [], key } });
+/** 选中系统动作卡片：写入该动作的真实 chord（单键或组合键）。 */
+function setSystemAction(id: string) {
+  const definition = systemActionById(id);
+  if (definition) patchParameters({ chord: { ...definition.chord } });
 }
 
 function setNestedMacro(macroId: string) {
@@ -228,7 +232,7 @@ function setNestedMacro(macroId: string) {
         </div>
         <div v-if="showSystemField" class="config-field">
           <label>{{ tr("系统动作") }}</label>
-          <SystemActionGrid :model-value="chordValue.key" @update:model-value="setSystemKey" />
+          <SystemActionGrid :model-value="systemActionId" @update:model-value="setSystemAction" />
         </div>
         <div v-if="showNestedField" class="config-row">
           <div class="config-field">

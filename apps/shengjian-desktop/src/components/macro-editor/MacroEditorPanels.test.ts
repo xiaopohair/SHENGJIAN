@@ -171,7 +171,7 @@ describe("Macro editor panels", () => {
     expect(grid.attributes("role")).toBe("radiogroup");
 
     const radios = grid.findAll('[role="radio"]');
-    expect(radios).toHaveLength(7);
+    expect(radios).toHaveLength(9);
     expect(radios.map((radio) => radio.text())).toContain("音量 +");
     // The saved key keeps its radio selected.
     expect(radios[2].attributes("aria-checked")).toBe("true");
@@ -179,6 +179,13 @@ describe("Macro editor panels", () => {
     await radios[0].trigger("click");
     expect(wrapper.emitted("update-step")?.[0]?.[0]).toMatchObject({
       parameters: { chord: { modifiers: [], key: "volume_up" } },
+    });
+    // 返回桌面是组合键：宏里存真实 chord，而不是伪 key。
+    const desktop = radios.find((radio) => radio.text().includes("返回桌面"));
+    expect(desktop).toBeDefined();
+    await desktop!.trigger("click");
+    expect(wrapper.emitted("update-step")?.[1]?.[0]).toMatchObject({
+      parameters: { chord: { modifiers: ["win"], key: "d" } },
     });
     wrapper.unmount();
   });

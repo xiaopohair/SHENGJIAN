@@ -107,7 +107,7 @@ describe("ProfileBindingEditor action parameters", () => {
     expect(wrapper.find(".hold-repeat-section").exists()).toBe(false);
 
     const radios = wrapper.findAll('.system-action-grid [role="radio"]');
-    expect(radios).toHaveLength(7);
+    expect(radios).toHaveLength(9);
     await radios[2].trigger("click");
 
     expect(draft.bindings.ok?.single).toEqual({ type: "system-action", key: "volume_mute" });
@@ -115,6 +115,13 @@ describe("ProfileBindingEditor action parameters", () => {
     expect(wrapper.find(".config-note").text()).toContain("系统媒体键");
     // A single system key repeats like a shortcut, matching the backend rule.
     expect(wrapper.find(".hold-repeat-section").exists()).toBe(true);
+
+    // 返回桌面是组合类系统动作：存 id，且不出现按住连发。
+    const desktop = radios.find((radio) => radio.text().includes("返回桌面"));
+    expect(desktop).toBeDefined();
+    await desktop!.trigger("click");
+    expect(draft.bindings.ok?.single).toEqual({ type: "system-action", key: "show_desktop" });
+    expect(wrapper.find(".hold-repeat-section").exists()).toBe(false);
     wrapper.unmount();
   });
 
