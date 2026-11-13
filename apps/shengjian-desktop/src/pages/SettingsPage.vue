@@ -464,7 +464,7 @@ async function runHealthCheck() {
         ok: caps.macroRuntime,
         detail: caps.macroRuntime ? tr("可用") : tr("不可用"),
       },
-      { label: tr("RC003 helper"), ok: helper, detail: helper ? tr("已安装") : tr("未安装") },
+      { label: tr("按钮增强服务"), ok: helper, detail: helper ? tr("已安装") : tr("未安装") },
       {
         label: tr("虚拟音频设备"),
         ok: audioDependencyStatus.state === "ready",
