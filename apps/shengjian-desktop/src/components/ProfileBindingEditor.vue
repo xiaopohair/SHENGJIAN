@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef, watch } from "vue";
-import { open } from "@tauri-apps/plugin-dialog";
 import {
   Ban,
   CircleHelp,
@@ -12,12 +11,14 @@ import {
   Play,
   RotateCcw,
 } from "lucide-vue-next";
-import { errorMessage, resolveAppTarget } from "../lib/api";
 import { type ProfileActionType, type ProfileDraft, type ProfileTrigger } from "../lib/buttons";
 import { tr, trDynamic } from "../lib/i18n";
 import type { LogicalAction, LogicalButton, MacroChord, MacroDefinition } from "../lib/types";
+import { useAppPicker } from "../composables/useAppPicker";
+import AppPickerDialog from "./app-picker/AppPickerDialog.vue";
+import AppTargetBadge from "./app-picker/AppTargetBadge.vue";
+import Button from "./ui/Button.vue";
 import Checkbox from "./ui/Checkbox.vue";
-import IconButton from "./ui/IconButton.vue";
 import SelectInput from "./ui/SelectInput.vue";
 import TextInput from "./ui/TextInput.vue";
 import ChordInput from "./ui/ChordInput.vue";
@@ -33,7 +34,9 @@ const props = defineProps<{
   latestMacros: MacroDefinition[];
 }>();
 
-const emit = defineEmits<{
+// Kept for compatibility with ProfileWorkbench's error listener; the picker now
+// reports its own failures through the shared toast channel.
+defineEmits<{
   error: [message: string];
 }>();
 
@@ -41,19 +44,11 @@ const draft = defineModel<ProfileDraft>("draft", { required: true });
 
 type ActionType = ProfileActionType;
 
-const RUNNABLE_EXTENSIONS = [
-  "exe",
-  "lnk",
-  "bat",
-  "cmd",
-  "com",
-  "scr",
-  "msi",
-  "ps1",
-  "vbs",
-  "js",
-  "url",
-];
+const {
+  open: appPickerOpen,
+  openPicker: openAppPicker,
+  closePicker: closeAppPicker,
+} = useAppPicker();
 
 const ACTIONS = computed(() =>
   [
@@ -327,6 +322,31 @@ function setApp(value: string) {
   bindingsForButton()[props.trigger] = { type: "open-app", app: value.trim() };
 }
 
+/** 同一个方案里其它 open-app 目标，作为选择器的「最近使用」。 */
+const recentAppTargets = computed<string[]>(() => {
+  const current = appValue.value.trim();
+  const targets: string[] = [];
+  const seen = new Set<string>();
+  for (const triggers of Object.values(draft.value.bindings ?? {})) {
+    for (const action of Object.values(triggers ?? {})) {
+      if (action?.type !== "open-app" || typeof action.app !== "string") continue;
+      const target = action.app.trim();
+      if (!target || target === current) continue;
+      const key = target.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      targets.push(target);
+      if (targets.length >= 8) return targets;
+    }
+  }
+  return targets;
+});
+
+function applyPickedApp(target: string) {
+  setApp(target);
+  closeAppPicker();
+}
+
 function setMacro(value: string) {
   bindingsForButton()[props.trigger] = { type: "run-macro", macro_id: value };
 }
@@ -363,21 +383,6 @@ function setMouseAmount(value: string) {
     amount,
   };
 }
-
-async function chooseApp() {
-  try {
-    const selected = await open({
-      title: tr("选择程序"),
-      multiple: false,
-      filters: [{ name: tr("可运行文件"), extensions: RUNNABLE_EXTENSIONS }],
-    });
-    if (!selected || Array.isArray(selected)) return;
-    const resolved = await resolveAppTarget(selected).catch(() => null);
-    setApp(resolved || selected);
-  } catch (cause) {
-    emit("error", errorMessage(cause));
-  }
-}
 </script>
 
 <template>
@@ -410,16 +415,12 @@ async function chooseApp() {
     </div>
 
     <div v-else-if="actionType === 'open-app'" class="binding-params">
-      <div class="binding-param-row">
-        <TextInput
-          :model-value="appValue"
-          :placeholder="trDynamic('选择或填写应用')"
-          :aria-label="trDynamic('应用目标')"
-          @change="setApp(($event.target as HTMLInputElement).value)"
-        />
-        <IconButton size="sm" :label="trDynamic('选择程序…')" @click="chooseApp">
-          <FolderOpen :size="14" />
-        </IconButton>
+      <div class="binding-app-row">
+        <AppTargetBadge v-if="appValue" :target="appValue" mode="launch" @repair="openAppPicker" />
+        <span v-else class="binding-app-empty">{{ tr("未设置应用目标") }}</span>
+        <Button size="sm" :disabled="busy" @click="openAppPicker">
+          {{ tr("选择应用") }}
+        </Button>
       </div>
     </div>
 
@@ -508,6 +509,15 @@ async function chooseApp() {
         }}
       </p>
     </div>
+
+    <AppPickerDialog
+      :open="appPickerOpen"
+      mode="launch"
+      :current-target="appValue"
+      :recent-targets="recentAppTargets"
+      @select="applyPickedApp"
+      @close="closeAppPicker"
+    />
   </div>
 </template>
 
@@ -609,14 +619,22 @@ async function chooseApp() {
 .binding-params {
   margin-top: var(--space-3);
 }
-.binding-param-row {
+.binding-app-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
   gap: var(--space-2);
-}
-.binding-param-row > :first-child {
-  flex: 1;
   min-width: 0;
+}
+.binding-app-row > :first-child {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+.binding-app-empty {
+  flex: 1 1 auto;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
 }
 .mouse-grid {
   display: grid;

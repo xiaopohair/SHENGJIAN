@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { uiLocale } from "./i18n";
 import { localizeError } from "./errors";
 import type {
+  AppTargetInfo,
   AudioEndpoint,
   AudioSnapshot,
   ButtonProfilesDocument,
@@ -12,6 +13,7 @@ import type {
   DeviceSupport,
   EngineSnapshot,
   HostCapabilities,
+  LaunchableAppsResult,
   MacroDefinition,
   MacroLibraryDocument,
   MacroHistoryEntry,
@@ -49,8 +51,31 @@ export async function getForegroundExecutable(): Promise<string | null> {
   return invoke<string | null>("foreground_executable");
 }
 
+/**
+ * @deprecated 旧的选择器用它把任意路径降级成 exe 名；新的「打开应用」链路改用
+ * `canonicalizeAppTarget`（写入规范 target）与 `describeAppTargets`（展示友好名）。
+ * 保留它只是为了还没迁移的旧调用。
+ */
 export async function resolveAppTarget(path: string): Promise<string | null> {
   return invoke<string | null>("resolve_app_target", { path });
+}
+
+/**
+ * 列出可启动的应用（预设 + 开始菜单/AppsFolder 扫描 + 缓存）。
+ * `refresh=true` 时强制重新扫描；扫描失败时预设部分仍会返回，`scanError` 说明原因。
+ */
+export async function listLaunchableApps(refresh = false): Promise<LaunchableAppsResult> {
+  return invoke<LaunchableAppsResult>("list_launchable_apps", { refresh });
+}
+
+/** 批量描述已有 target：返回友好名、可启动性、自动匹配键与问题 token。 */
+export async function describeAppTargets(targets: string[]): Promise<AppTargetInfo[]> {
+  return invoke<AppTargetInfo[]>("describe_app_targets", { targets });
+}
+
+/** 把手填 target 规范化成可写入配置的身份（预设 id / 绝对路径 / AUMID）。 */
+export async function canonicalizeAppTarget(target: string): Promise<AppTargetInfo> {
+  return invoke<AppTargetInfo>("canonicalize_app_target", { raw: target });
 }
 
 export async function readDiagnosticLog(maxBytes?: number): Promise<string> {

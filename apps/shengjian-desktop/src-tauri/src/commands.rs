@@ -311,9 +311,40 @@ pub fn foreground_executable(state: State<'_, AppState>) -> Option<String> {
     state.host.foreground_executable()
 }
 
+/// 兼容保留：把 target 降级成可执行文件名（旧调用方用）。
+///
+/// 已弃用（deprecated）：新代码不要再用它把规范 target 降级成 exe 名——
+/// 读取目标状态/问题用 [`describe_app_targets`]，派生方案匹配键用
+/// [`shengjian_windows::app_launcher::app_match_key`]。
 #[tauri::command]
 pub fn resolve_app_target(path: String) -> Option<String> {
     shengjian_windows::app_launcher::target_executable_name(&path)
+}
+
+/// 已安装应用目录（预设 + 开始菜单/AppsFolder 已安装应用，后端 60s 缓存）。
+#[tauri::command]
+pub async fn list_launchable_apps(
+    refresh: Option<bool>,
+) -> Result<shengjian_windows::app_launcher::LaunchableAppsResult, CommandError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        shengjian_windows::app_launcher::list_launchable_apps(refresh.unwrap_or(false))
+    })
+    .await
+    .map_err(|_| CommandError::new("command-join-failed", "list launchable apps failed", true))
+}
+
+/// 批量描述应用目标：选择器加载旧值后一次问完（安装/可启动/可匹配/旧式/问题）。
+#[tauri::command]
+pub fn describe_app_targets(
+    targets: Vec<String>,
+) -> Vec<shengjian_windows::app_launcher::AppTargetInfo> {
+    shengjian_windows::app_launcher::describe_app_targets(&targets)
+}
+
+/// 规范化单条应用目标（手动填写/旧值修复时校验用）。
+#[tauri::command]
+pub fn canonicalize_app_target(raw: String) -> shengjian_windows::app_launcher::AppTargetInfo {
+    shengjian_windows::app_launcher::canonical_app_target(&raw)
 }
 
 #[tauri::command]

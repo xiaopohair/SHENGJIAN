@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { nextTick, onMounted, onUnmounted, useTemplateRef, watch } from "vue";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { computed, nextTick, onMounted, onUnmounted, useTemplateRef, watch } from "vue";
 import { FolderOpen, X } from "lucide-vue-next";
-import { errorMessage, resolveAppTarget } from "../lib/api";
+import { mergeAppTargetsText, splitAppTargets } from "../lib/appTargets";
 import type { ProfileDraft } from "../lib/buttons";
 import { tr, trDynamic } from "../lib/i18n";
+import { useAppPicker } from "../composables/useAppPicker";
+import AppPickerDialog from "./app-picker/AppPickerDialog.vue";
 import Button from "./ui/Button.vue";
 import Checkbox from "./ui/Checkbox.vue";
 import Field from "./ui/Field.vue";
@@ -24,61 +25,32 @@ const emit = defineEmits<{
 
 const draft = defineModel<ProfileDraft>("draft", { required: true });
 const drawerRef = useTemplateRef<HTMLElement>("drawerRef");
+const {
+  open: appPickerOpen,
+  openPicker: openAppPicker,
+  closePicker: closeAppPicker,
+} = useAppPicker();
+const recentMatchTargets = computed(() => splitAppTargets(draft.value.appTargets));
 let previousFocus: HTMLElement | null = null;
-
-const RUNNABLE_EXTENSIONS = [
-  "exe",
-  "lnk",
-  "bat",
-  "cmd",
-  "com",
-  "scr",
-  "msi",
-  "ps1",
-  "vbs",
-  "js",
-  "url",
-];
 
 function close() {
   emit("close");
 }
 
-async function chooseAppTarget() {
-  try {
-    const selected = await openDialog({
-      title: tr("选择程序"),
-      multiple: false,
-      filters: [{ name: tr("可运行文件"), extensions: RUNNABLE_EXTENSIONS }],
-    });
-    if (!selected || Array.isArray(selected)) return;
-    const resolved = await resolveAppTarget(selected).catch(() => null);
-    const name = resolved || selected.split(/[\\/]/).pop() || selected;
-    const targets = draft.value.appTargets
-      .split(",")
-      .map((target) => target.trim())
-      .filter(Boolean);
-    if (!targets.some((target) => target.toLowerCase() === name.toLowerCase())) {
-      targets.push(name);
-    }
-    draft.value.appTargets = targets.join(", ");
-  } catch (cause) {
-    emit("error", errorMessage(cause));
-  }
+function applyPickedTarget(target: string) {
+  draft.value.appTargets = mergeAppTargetsText(draft.value.appTargets, target);
+  closeAppPicker();
 }
 
 function useForegroundTarget() {
   if (!props.foregroundApp) return;
-  const targets = draft.value.appTargets
-    .split(",")
-    .map((target) => target.trim())
-    .filter(Boolean);
-  if (!targets.includes(props.foregroundApp)) targets.push(props.foregroundApp);
-  draft.value.appTargets = targets.join(", ");
+  draft.value.appTargets = mergeAppTargetsText(draft.value.appTargets, props.foregroundApp);
 }
 
 function onKeydown(event: KeyboardEvent) {
   if (!props.open) return;
+  // The centered app picker sits above the drawer and owns Escape while open.
+  if (appPickerOpen.value) return;
   if (event.key === "Escape") {
     event.preventDefault();
     close();
@@ -142,9 +114,9 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown, true));
           <div class="settings-action-row">
             <Checkbox v-model="draft.autoApply">{{ tr("前台匹配时自动应用") }}</Checkbox>
             <div class="settings-buttons">
-              <Button size="sm" :disabled="busy" @click="chooseAppTarget">
+              <Button size="sm" :disabled="busy" @click="openAppPicker">
                 <FolderOpen :size="14" />
-                {{ tr("选择程序…") }}
+                {{ tr("选择应用") }}
               </Button>
               <Button size="sm" :disabled="!foregroundApp" @click="useForegroundTarget">
                 {{ tr("使用当前程序") }}
@@ -171,6 +143,16 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown, true));
         </footer>
       </aside>
     </div>
+
+    <AppPickerDialog
+      :open="appPickerOpen"
+      mode="match"
+      :title="tr('选择用于自动匹配的应用')"
+      :foreground-app="foregroundApp"
+      :recent-targets="recentMatchTargets"
+      @select="applyPickedTarget"
+      @close="closeAppPicker"
+    />
   </Teleport>
 </template>
 

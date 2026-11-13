@@ -2,10 +2,66 @@
 use crate::app_launcher::CustomAppPick;
 pub const REGISTERED_PREFIX: &str = "shell:AppsFolder\\";
 
+/// AppsFolder 扫描出的已安装应用身份。
+///
+/// 比 `CustomAppPick` 多一个可执行文件解析结果：开始菜单注册的桌面程序能解析出
+/// exe 绝对路径（用于与预设 `exe_names` 归并、按路径去重、派生自动匹配键），
+/// UWP/Store 包通常解析不到（保持 `None`，只能按 AUMID 启动）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScannedRegisteredApp {
+    /// 系统显示名（开始菜单/应用列表里看到的名称）。
+    pub name: String,
+    /// AppsFolder 的项标识（即 `shell:AppsFolder\<AUMID>` 里的 AUMID）。
+    pub app_user_model_id: String,
+    /// 桌面程序解析出的 exe 绝对路径；UWP/Store 包通常为 `None`。
+    pub executable_path: Option<String>,
+}
+
+/// AppsFolder 扫描失败分类（映射成前端可识别的稳定 token，不把内部错误透出）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AppScanError {
+    /// 已有扫描在进行（进程内互斥保护）。
+    Busy,
+    /// 超过 15s 上限。
+    Timeout,
+    /// Shell 枚举/COM 初始化失败（带内部诊断信息，不落用户可见的路径）。
+    Failed(String),
+}
+
+impl AppScanError {
+    /// 前端 `scanError` 用的 token（与契约一一对应）。
+    pub fn token(&self) -> &'static str {
+        match self {
+            Self::Busy => "app_scan_busy",
+            Self::Timeout => "app_scan_timeout",
+            Self::Failed(_) => "app_scan_failed",
+        }
+    }
+
+    /// 日志/兼容字符串（`scan_registered_apps` 仍返回 `String`，保持旧调用方行为）。
+    pub fn message(&self) -> String {
+        match self {
+            Self::Busy => "应用扫描仍在进行，请稍后重试".to_owned(),
+            Self::Timeout => "应用扫描超时，请稍后重试".to_owned(),
+            Self::Failed(detail) => detail.clone(),
+        }
+    }
+}
+
+/// AppsFolder 单个目标的 Shell 解析结果（一次 STA 解析同时给出显示名与可执行路径）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RegisteredAppInfo {
+    /// 系统显示名；Shell 未给出时为空。
+    pub display_name: Option<String>,
+    /// 桌面程序解析出的 exe 绝对路径；UWP/Store 包为 `None`。
+    pub executable_path: Option<String>,
+}
+
 #[derive(Debug, Clone)]
 struct RegisteredIdentity {
     app_user_model_id: String,
     executable_path: Option<String>,
+    display_name: Option<String>,
 }
 
 pub fn is_registered_target(target: &str) -> bool {
@@ -85,8 +141,13 @@ pub fn normalize_library(apps: Vec<CustomAppPick>) -> Result<Vec<CustomAppPick>,
     Ok(apps)
 }
 
+/// 扫描 AppsFolder 并返回更丰富的应用身份（供「打开应用」选择器使用）。
+///
+/// 与 `scan_registered_apps` 同一条 Shell 枚举管线（同一 STA 线程内顺带解析
+/// 每项的 exe 路径，避免为每个开始菜单 `.lnk` 单独起线程）；沿用 15s / 2000 项
+/// 上限与进程内互斥。UWP/Store 包的 exe 解析通常为空，属正常情况。
 #[cfg(windows)]
-pub fn scan_registered_apps() -> Result<Vec<CustomAppPick>, String> {
+pub fn scan_registered_app_identities() -> Result<Vec<ScannedRegisteredApp>, AppScanError> {
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::time::{Duration, Instant};
     static SCANNING: AtomicBool = AtomicBool::new(false);
@@ -94,7 +155,7 @@ pub fn scan_registered_apps() -> Result<Vec<CustomAppPick>, String> {
         .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
         .is_err()
     {
-        return Err("应用扫描仍在进行，请稍后重试".into());
+        return Err(AppScanError::Busy);
     }
     let started = Instant::now();
     crate::gatt_note("registered_apps phase=requested source=windows_appsfolder".to_owned());
@@ -109,16 +170,15 @@ pub fn scan_registered_apps() -> Result<Vec<CustomAppPick>, String> {
                 }
             }
             let _reset = Reset;
-            let _ = tx.send(scan_sta(started));
+            let _ = tx.send(scan_sta_identities(started));
         });
     if let Err(error) = spawned {
         SCANNING.store(false, Ordering::Release);
-        return Err(format!("无法启动应用扫描：{error}"));
+        return Err(AppScanError::Failed(format!("无法启动应用扫描：{error}")));
     }
     let result = rx
         .recv_timeout(Duration::from_secs(15))
-        .map_err(|_| "应用扫描超时，请稍后重试".to_owned())
-        .and_then(|result| result);
+        .unwrap_or(Err(AppScanError::Timeout));
     crate::gatt_note(format!(
         "registered_apps phase=completed terminal_result={} count={} elapsed_ms={}",
         if result.is_ok() { "passed" } else { "failed" },
@@ -128,21 +188,28 @@ pub fn scan_registered_apps() -> Result<Vec<CustomAppPick>, String> {
     result
 }
 
+#[cfg(not(windows))]
+pub fn scan_registered_app_identities() -> Result<Vec<ScannedRegisteredApp>, AppScanError> {
+    Err(AppScanError::Failed("仅 Windows 支持应用扫描".into()))
+}
+
 #[cfg(windows)]
-fn scan_sta(started: std::time::Instant) -> Result<Vec<CustomAppPick>, String> {
-    use windows::core::{PCWSTR, PWSTR};
+fn scan_sta_identities(
+    started: std::time::Instant,
+) -> Result<Vec<ScannedRegisteredApp>, AppScanError> {
+    use windows::core::{Interface, PCWSTR, PWSTR};
     use windows::Win32::System::Com::{
         CoInitializeEx, CoTaskMemFree, CoUninitialize, COINIT_APARTMENTTHREADED,
     };
     use windows::Win32::UI::Shell::{
-        BHID_EnumItems, FOLDERID_AppsFolder, IEnumShellItems, IShellItem,
+        BHID_EnumItems, FOLDERID_AppsFolder, IEnumShellItems, IShellItem, IShellItem2,
         SHCreateItemInKnownFolder, KF_FLAG_DEFAULT, SIGDN_NORMALDISPLAY,
         SIGDN_PARENTRELATIVEPARSING,
     };
     unsafe {
         CoInitializeEx(None, COINIT_APARTMENTTHREADED)
             .ok()
-            .map_err(|e| e.to_string())?;
+            .map_err(|error| AppScanError::Failed(format!("初始化 Shell 失败：{error}")))?;
     }
     struct Com;
     impl Drop for Com {
@@ -160,12 +227,14 @@ fn scan_sta(started: std::time::Instant) -> Result<Vec<CustomAppPick>, String> {
         }
         result
     }
-    let result = (|| -> windows::core::Result<Vec<CustomAppPick>> {
+    let result = (|| -> windows::core::Result<Vec<ScannedRegisteredApp>> {
         unsafe {
             let folder: IShellItem =
                 SHCreateItemInKnownFolder(&FOLDERID_AppsFolder, KF_FLAG_DEFAULT, PCWSTR::null())?;
             let enumeration: IEnumShellItems = folder.BindToHandler(None, &BHID_EnumItems)?;
-            let mut apps = Vec::new();
+            let mut apps: Vec<ScannedRegisteredApp> = Vec::new();
+            let mut seen_ids: std::collections::BTreeSet<String> =
+                std::collections::BTreeSet::new();
             loop {
                 if started.elapsed().as_secs() >= 14 || apps.len() >= 2000 {
                     return Err(windows::core::Error::new(
@@ -190,15 +259,46 @@ fn scan_sta(started: std::time::Instant) -> Result<Vec<CustomAppPick>, String> {
                     Ok(value) => text(value),
                     Err(_) => continue,
                 };
-                let path = format!("{REGISTERED_PREFIX}{id}");
-                if !name.is_empty() && is_registered_target(&path) {
-                    apps.push(CustomAppPick { name, path });
+                let name = name.trim().to_owned();
+                let target = format!("{REGISTERED_PREFIX}{id}");
+                if name.is_empty()
+                    || name.len() > 1024
+                    || name.chars().any(char::is_control)
+                    || !is_registered_target(&target)
+                    || !seen_ids.insert(id.to_ascii_lowercase())
+                {
+                    continue;
                 }
+                // 同一次 STA 枚举内解析 exe 路径：开始菜单注册的桌面程序有值，
+                // UWP/Store 包通常为空——不再为每项单独起解析线程。
+                let executable_path = item
+                    .cast::<IShellItem2>()
+                    .ok()
+                    .and_then(|item| shell_item_executable_path(&item));
+                apps.push(ScannedRegisteredApp {
+                    name,
+                    app_user_model_id: id,
+                    executable_path,
+                });
             }
+            apps.sort_by_key(|app| (app.name.to_lowercase(), app.app_user_model_id.clone()));
             Ok(apps)
         }
     })();
-    normalize_library(result.map_err(|e| format!("读取 Windows 应用列表失败：{e}"))?)
+    result.map_err(|error| AppScanError::Failed(format!("读取 Windows 应用列表失败：{error}")))
+}
+
+#[cfg(windows)]
+pub fn scan_registered_apps() -> Result<Vec<CustomAppPick>, String> {
+    let identities = scan_registered_app_identities().map_err(|error| error.message())?;
+    let apps = identities
+        .into_iter()
+        .map(|app| CustomAppPick {
+            name: app.name,
+            path: format!("{REGISTERED_PREFIX}{}", app.app_user_model_id),
+        })
+        .collect();
+    normalize_library(apps)
 }
 
 #[cfg(not(windows))]
@@ -241,13 +341,85 @@ pub fn describe_registered_identity(target: &str) -> Option<Option<String>> {
     )
 }
 
+/// 读取 AppsFolder 目标的显示名与可执行路径（一次 STA Shell 解析）。
+///
+/// 外层 `None` = 目标非法或 Shell 无法创建该项（按未安装处理）；字段为 `None`
+/// 表示该项没有该属性（UWP/Store 包通常解析不出 exe 路径，显示名也可能缺失）。
+#[cfg(windows)]
+pub fn describe_registered_app(target: &str) -> Option<RegisteredAppInfo> {
+    if !is_registered_target(target) {
+        return None;
+    }
+    let target = target.to_owned();
+    std::thread::Builder::new()
+        .name("shengjian-appsfolder-describe".to_owned())
+        .spawn(move || {
+            resolve_registered_identity(&target)
+                .ok()
+                .map(|identity| RegisteredAppInfo {
+                    display_name: identity.display_name,
+                    executable_path: identity.executable_path,
+                })
+        })
+        .ok()?
+        .join()
+        .ok()?
+}
+
+/// `PKEY_Link_TargetParsingPath`：桌面程序注册项的 exe 目标路径（与旧解析同一口径）。
+#[cfg(windows)]
+const PKEY_LINK_TARGET_PARSING_PATH: windows::Win32::Foundation::PROPERTYKEY =
+    windows::Win32::Foundation::PROPERTYKEY {
+        fmtid: windows::core::GUID::from_u128(0xb9b4b3fc_2b51_4a42_b5d8_324146afcf25),
+        pid: 2,
+    };
+
+/// 校验 Shell 解析出的路径能否作为可执行文件目标（与旧身份解析同一口径）。
+#[cfg(windows)]
+fn valid_executable_path(text: &str) -> Option<String> {
+    let path = std::path::Path::new(text);
+    (text.len() <= 8192
+        && !text.chars().any(char::is_control)
+        && path.is_absolute()
+        && path
+            .extension()
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("exe")))
+    .then(|| text.to_owned())
+}
+
+/// 从 AppsFolder 项里读 `PKEY_Link_TargetParsingPath`（桌面程序才有）。
+#[cfg(windows)]
+fn shell_item_executable_path(item: &windows::Win32::UI::Shell::IShellItem2) -> Option<String> {
+    use windows::core::PWSTR;
+    use windows::Win32::System::Com::CoTaskMemFree;
+    let value: PWSTR = unsafe { item.GetString(&PKEY_LINK_TARGET_PARSING_PATH) }.ok()?;
+    let text = unsafe { value.to_string() }.unwrap_or_default();
+    unsafe {
+        CoTaskMemFree(Some(value.0.cast()));
+    }
+    valid_executable_path(&text)
+}
+
+/// 从 AppsFolder 项里读系统显示名（Shell 给不出时按无名称处理）。
+#[cfg(windows)]
+fn shell_item_display_name(item: &windows::Win32::UI::Shell::IShellItem2) -> Option<String> {
+    use windows::core::PWSTR;
+    use windows::Win32::System::Com::CoTaskMemFree;
+    use windows::Win32::UI::Shell::SIGDN_NORMALDISPLAY;
+    let value: PWSTR = unsafe { item.GetDisplayName(SIGDN_NORMALDISPLAY) }.ok()?;
+    let text = unsafe { value.to_string() }.unwrap_or_default();
+    unsafe {
+        CoTaskMemFree(Some(value.0.cast()));
+    }
+    let trimmed = text.trim();
+    (!trimmed.is_empty() && trimmed.len() <= 1024 && !trimmed.chars().any(char::is_control))
+        .then(|| trimmed.to_owned())
+}
+
 #[cfg(windows)]
 fn resolve_registered_identity(target: &str) -> Result<RegisteredIdentity, String> {
-    use windows::core::{PCWSTR, PWSTR};
-    use windows::Win32::Foundation::PROPERTYKEY;
-    use windows::Win32::System::Com::{
-        CoInitializeEx, CoTaskMemFree, CoUninitialize, COINIT_APARTMENTTHREADED,
-    };
+    use windows::core::PCWSTR;
+    use windows::Win32::System::Com::{CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED};
     use windows::Win32::UI::Shell::{IShellItem2, SHCreateItemFromParsingName};
 
     if !is_registered_target(target) {
@@ -258,40 +430,26 @@ fn resolve_registered_identity(target: &str) -> Result<RegisteredIdentity, Strin
             .ok()
             .map_err(|error| error.to_string())?;
     }
-    let result = (|| -> windows::core::Result<Option<String>> {
+    let result = (|| -> windows::core::Result<(Option<String>, Option<String>)> {
         let wide: Vec<_> = target.encode_utf16().chain(Some(0)).collect();
         let item: IShellItem2 =
             unsafe { SHCreateItemFromParsingName(PCWSTR(wide.as_ptr()), None) }?;
-        const PKEY_LINK_TARGET_PARSING_PATH: PROPERTYKEY = PROPERTYKEY {
-            fmtid: windows::core::GUID::from_u128(0xb9b4b3fc_2b51_4a42_b5d8_324146afcf25),
-            pid: 2,
-        };
-        let value: PWSTR = match unsafe { item.GetString(&PKEY_LINK_TARGET_PARSING_PATH) } {
-            Ok(value) => value,
-            Err(_) => return Ok(None),
-        };
-        let text = unsafe { value.to_string() }.unwrap_or_default();
-        unsafe {
-            CoTaskMemFree(Some(value.0.cast()));
-        }
-        let path = std::path::Path::new(&text);
-        Ok((text.len() <= 8192
-            && !text.chars().any(char::is_control)
-            && path.is_absolute()
-            && path
-                .extension()
-                .is_some_and(|extension| extension.eq_ignore_ascii_case("exe")))
-        .then_some(text))
+        Ok((
+            shell_item_display_name(&item),
+            shell_item_executable_path(&item),
+        ))
     })();
     unsafe {
         CoUninitialize();
     }
+    let (display_name, executable_path) = result.map_err(|error| error.to_string())?;
     Ok(RegisteredIdentity {
         app_user_model_id: target
             .strip_prefix(REGISTERED_PREFIX)
             .expect("registered target was validated")
             .to_owned(),
-        executable_path: result.map_err(|error| error.to_string())?,
+        executable_path,
+        display_name,
     })
 }
 
@@ -678,5 +836,18 @@ mod tests {
             }])
             .is_err());
         }
+    }
+
+    /// 扫描失败 token 是前端契约的一部分（与 `LaunchableAppsResult.scanError` 对齐）。
+    #[test]
+    fn scan_error_tokens_match_frontend_contract() {
+        assert_eq!(AppScanError::Busy.token(), "app_scan_busy");
+        assert_eq!(AppScanError::Timeout.token(), "app_scan_timeout");
+        assert_eq!(
+            AppScanError::Failed("内部诊断".into()).token(),
+            "app_scan_failed"
+        );
+        // 旧命令仍返回可读消息（不回退成 token，保持既有调用方行为）。
+        assert_eq!(AppScanError::Busy.message(), "应用扫描仍在进行，请稍后重试");
     }
 }

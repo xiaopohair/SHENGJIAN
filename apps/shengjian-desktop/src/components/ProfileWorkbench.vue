@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, shallowRef } from "vue";
+import { computed, ref, shallowRef, watch } from "vue";
 import { Search } from "lucide-vue-next";
 import rc003Image from "../assets/devices/xiaomi-rc003.png";
 import rc001Image from "../assets/devices/xiaomi-rc001.png";
@@ -14,6 +14,11 @@ import {
 import { statusLabel, tr, trDynamic } from "../lib/i18n";
 import { deviceProductNameKey } from "../lib/deviceProduct";
 import { formatShortcut } from "../lib/shortcuts";
+import {
+  appTargetFriendlyName,
+  cachedAppTarget,
+  describeAppTargetsCached,
+} from "../composables/useAppPicker";
 import type { LogicalAction, LogicalButton, MacroDefinition } from "../lib/types";
 import ProfileBindingEditor from "./ProfileBindingEditor.vue";
 import StatusPill from "./ui/StatusPill.vue";
@@ -171,6 +176,49 @@ function actionFor(button: LogicalButton, trigger: ProfileTrigger): LogicalActio
   return draft.value.bindings[button]?.[trigger];
 }
 
+/** 当前草稿里所有 open-app 目标（去重）：用于主动查询友好名，摘要优先显示中文名。 */
+const openAppTargets = computed<string[]>(() => {
+  const targets: string[] = [];
+  const seen = new Set<string>();
+  for (const triggers of Object.values(draft.value.bindings ?? {})) {
+    for (const action of Object.values(triggers ?? {})) {
+      if (action?.type !== "open-app" || typeof action.app !== "string") continue;
+      const target = action.app.trim();
+      if (!target) continue;
+      const key = target.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      targets.push(target);
+    }
+  }
+  return targets;
+});
+
+watch(
+  openAppTargets,
+  (targets) => {
+    if (targets.length > 0) void describeAppTargetsCached(targets);
+  },
+  { immediate: true },
+);
+
+/** 搜索索引：摘要之外再匹配原始 target 与解析出的 exe 名。 */
+function searchTextFor(button: LogicalButton, trigger: ProfileTrigger): string {
+  const action = actionFor(button, trigger);
+  if (!action) return "";
+  const parts = [summary(button, trigger)];
+  if (action.type === "open-app" && typeof action.app === "string") {
+    const target = action.app.trim();
+    if (target) {
+      parts.push(target);
+      const info = cachedAppTarget(target);
+      if (info?.displayName) parts.push(info.displayName);
+      if (info?.executableName) parts.push(info.executableName);
+    }
+  }
+  return parts.join(" ");
+}
+
 function summary(button: LogicalButton, trigger: ProfileTrigger): string {
   const action = actionFor(button, trigger);
   if (!action) return "";
@@ -179,8 +227,11 @@ function summary(button: LogicalButton, trigger: ProfileTrigger): string {
       return Array.isArray(action.keys) && action.keys.length
         ? formatShortcut(action.keys)
         : "快捷键";
-    case "open-app":
-      return String(action.app || "打开应用");
+    case "open-app": {
+      const target = typeof action.app === "string" ? action.app.trim() : "";
+      // 描述命中前先回退原串；缓存是响应式的，describe 回来后会重算。
+      return target ? appTargetFriendlyName(target, target) : trDynamic("打开应用");
+    }
     case "run-macro":
       return (
         props.latestMacros.find((macro) => macro.macroId === action.macro_id)?.name ?? "运行宏"
@@ -233,7 +284,9 @@ const visibleButtons = computed(() => {
       return false;
     }
     if (!value) return true;
-    const actionText = PROFILE_TRIGGERS.map((trigger) => summary(button.id, trigger)).join(" ");
+    const actionText = PROFILE_TRIGGERS.map((trigger) => searchTextFor(button.id, trigger)).join(
+      " ",
+    );
     return `${button.label} ${button.id} ${actionText}`.toLowerCase().includes(value);
   });
 });

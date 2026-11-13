@@ -231,6 +231,14 @@ const APP_BUNDLE_BY_PRESET: &[(&str, &str)] = &[
     ("shengjian", "com.hd838a.RemoteMic"),
 ];
 
+/// 预设 id 是否在便携导出白名单内（只读、跨平台）。
+///
+/// 「打开应用」选择器的 `portable` 字段用它判断该 target 是否能随组合动作
+/// 导出到 macOS（白名单表见上）；非预设 target 一律不可便携。
+pub fn preset_is_portable(id: &str) -> bool {
+    APP_BUNDLE_BY_PRESET.iter().any(|(preset, _)| *preset == id)
+}
+
 const BUILT_IN_KEYS: &[(&str, &str)] = &[
     ("escape", "escape"),
     ("playPause", "media_play_pause"),

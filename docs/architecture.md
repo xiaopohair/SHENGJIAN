@@ -47,6 +47,7 @@ helper/rc003
 - `shengjian-windows-adapter` 已接 `RemoteLinkPort`：scan/connect/disconnect/snapshot 会映射成 contract，包含型号、设备 profile id、稳定 token、generation 和结构化错误。
 - 同一 adapter 已接 `AudioSinkPort`：endpoint 列表、选择、增益、phase/generation/错误映射；音频数据本身仍由平台层/BLE 管道处理。
 - 同一 adapter 已接 `ActionSinkPort`：快捷键、打开应用、聚焦、宏、滚动/移动/点击、常用语；映射到现有 `test_shortcut`/`test_app_focus`/`test_focus_input`/`MacroRuntime`/`test_scroll`/`test_mouse_action`，不重写注入逻辑。
+- 桌面宿主新增应用目录/身份命令：`list_launchable_apps`（预设 + 开始菜单/AppsFolder 扫描，60s 缓存）、`describe_app_targets` / `canonicalize_app_target`（target 身份、可启动/可匹配、旧值问题）；「打开应用」选择器与宏 target 共用同一套解析与规范化规则。
 - `shengjian-app::CoreEngine` 已负责组装 ports、服务、Catalog 和统一事件流；测试使用 fake ports，真实组合可用 `live_core_engine(...)` 一次装配共享的 `WindowsPlatform`。
 - `WindowsButtonSource` 已把 Raw Input/HID 的平台语义边沿映射为 contract `ButtonEdge`，`CoreEngine::wire_button_source` 接到 `ButtonService`；`ButtonService` 内含完整手势识别和 deadline ticker（单击/双击/长按/连发/锁屏释放延迟/OK 上下文点击）。平台原有的手势/映射引擎仍保留，后续阶段再消除重复语义。
 - `WindowsVoiceSource` 轮询平台 `ConnectionSnapshot.voice_state`，`CoreEngine` ticker 将其 reconcile 到 `VoiceService`；真实语音键会出现在 core 事件流。

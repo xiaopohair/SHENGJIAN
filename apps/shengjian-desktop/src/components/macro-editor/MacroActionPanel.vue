@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { open } from "@tauri-apps/plugin-dialog";
 import { CircleAlert, CircleCheck, Copy, Trash2 } from "lucide-vue-next";
 import { defaultMacroParameters } from "../../lib/macros";
 import { tr, trDynamic } from "../../lib/i18n";
-import { RUNNABLE_EXTENSIONS } from "../../lib/runnable";
 import {
   ACTIONS,
   SYSTEM_KEYS,
@@ -15,6 +13,8 @@ import {
   chord,
 } from "../../lib/macroEditor";
 import type { MacroChord, MacroDefinition, MacroParameters, MacroStep } from "../../lib/types";
+import { useAppPicker } from "../../composables/useAppPicker";
+import AppPickerDialog from "../app-picker/AppPickerDialog.vue";
 import Button from "../ui/Button.vue";
 import IconButton from "../ui/IconButton.vue";
 import SelectInput from "../ui/SelectInput.vue";
@@ -64,20 +64,16 @@ const showProgramPicker = computed(
   () => props.step?.action === "open_application" || props.step?.action === "focus_input",
 );
 
-async function pickProgram() {
-  try {
-    const selected = await open({
-      title: tr("选择程序"),
-      multiple: false,
-      filters: [{ name: tr("可运行文件"), extensions: RUNNABLE_EXTENSIONS }],
-    });
-    if (!selected || Array.isArray(selected)) return;
-    // Store the full path: a bare executable name may not be on PATH, which is
-    // what made "open application" fail for programs outside the presets.
-    patchParameters({ target: selected });
-  } catch {
-    // A failed picker leaves the current target untouched.
-  }
+const {
+  open: appPickerOpen,
+  openPicker: openProgramPicker,
+  closePicker: closeProgramPicker,
+} = useAppPicker();
+
+/** The picker always returns a canonical target (preset id / absolute path / AUMID). */
+function applyPickedProgram(target: string) {
+  patchParameters({ target });
+  closeProgramPicker();
 }
 const chordValue = computed<MacroChord>(() =>
   props.step ? chord(props.step) : { modifiers: [], key: "" },
@@ -184,8 +180,8 @@ function setNestedMacro(macroId: string) {
                 :placeholder="trDynamic('选择或填写应用')"
                 @update:model-value="patchParameters({ target: $event })"
               />
-              <Button v-if="showProgramPicker" size="sm" @click="pickProgram">
-                {{ tr("选择程序") }}
+              <Button v-if="showProgramPicker" size="sm" @click="openProgramPicker">
+                {{ tr("选择应用") }}
               </Button>
             </div>
           </div>
@@ -281,6 +277,14 @@ function setNestedMacro(macroId: string) {
       <strong>{{ tr("还没有步骤") }}</strong>
       <span>{{ tr("先添加一个步骤，再选择动作。") }}</span>
     </div>
+
+    <AppPickerDialog
+      :open="appPickerOpen"
+      mode="launch"
+      :current-target="step?.parameters.target ?? ''"
+      @select="applyPickedProgram"
+      @close="closeProgramPicker"
+    />
   </section>
 </template>
 

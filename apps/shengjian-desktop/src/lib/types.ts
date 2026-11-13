@@ -265,3 +265,50 @@ export interface CommandError {
   message: string;
   retryable: boolean;
 }
+
+/** 应用目标形态：预设 id / 绝对路径 / shell:AppsFolder AUMID / 旧式裸名 / 无效。 */
+export type AppTargetKind = "preset" | "path" | "aumid" | "legacyName" | "invalid";
+
+/** 可列出的应用条目形态（旧式裸名不会由列表命令产生）。 */
+export type LaunchableAppKind = "preset" | "path" | "aumid";
+export type LaunchableAppSource = "preset" | "startMenu" | "appsFolder";
+
+/**
+ * 后端 `describe_app_targets` / `canonicalize_app_target` 的解析结果。
+ * `input` 是调用方传入的原串，其余字段是规范化后的身份描述。
+ */
+export interface AppTargetInfo {
+  input: string;
+  target: string;
+  kind: AppTargetKind;
+  displayName: string | null;
+  executableName: string | null;
+  installed: boolean;
+  launchable: boolean;
+  matchable: boolean;
+  portable: boolean;
+  legacy: boolean;
+  /** issue token：empty/preset_not_installed/path_missing/...，正常时为 null。 */
+  issue: string | null;
+}
+
+/** 可启动应用列表中的一项。 */
+export interface LaunchableApp {
+  appId: string;
+  displayName: string;
+  target: string;
+  executableName: string | null;
+  kind: LaunchableAppKind;
+  source: LaunchableAppSource;
+  installed: boolean;
+  portable: boolean;
+  matchable: boolean;
+}
+
+/** `list_launchable_apps` 的返回：应用列表 + 扫描是否完整。 */
+export interface LaunchableAppsResult {
+  apps: LaunchableApp[];
+  scanned: boolean;
+  /** scanError token：app_scan_failed/app_scan_busy/app_scan_timeout，正常时为 null。 */
+  scanError: string | null;
+}

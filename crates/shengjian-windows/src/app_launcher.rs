@@ -392,6 +392,18 @@ fn resolve_preset_launch_target(app: &PresetApp) -> Option<PresetLaunchTarget> {
     preset_launch_target(app, &start_menu_shortcuts())
 }
 
+/// 预设应用安装判定（探测与「应用身份」描述共用同一份口径）。
+///
+/// 任一命中即视为已安装：遥控器自身 / System32 或 App Paths 直存 / 候选安装
+/// 路径 / 开始菜单快捷方式 / 已登记的 AppsFolder AUMID。
+#[cfg(windows)]
+fn preset_installed(app: &PresetApp, shortcuts: &[(String, std::path::PathBuf)]) -> bool {
+    app.id == "shengjian"
+        || app.exe_names.iter().any(|exe| exe_resolvable(exe))
+        || preset_launch_target(app, shortcuts).is_some()
+        || preset_aumid(app.id).is_some_and(crate::registered_apps::registered_target_is_installed)
+}
+
 /// 探测预设应用安装状态（System32 直存 / App Paths 注册表 / `install_paths`
 /// 候选路径 / 开始菜单快捷方式，任一命中）。
 /// 遥控器自身恒为已安装（映射运行时它必然在运行）。
@@ -406,11 +418,7 @@ pub fn probe_preset_apps() -> Vec<PresetAppInfo> {
         .map(|app| PresetAppInfo {
             id: app.id.to_owned(),
             name: app.name.to_owned(),
-            installed: app.id == "shengjian"
-                || app.exe_names.iter().any(|exe| exe_resolvable(exe))
-                || preset_launch_target(app, &shortcuts).is_some()
-                || preset_aumid(app.id)
-                    .is_some_and(crate::registered_apps::registered_target_is_installed),
+            installed: preset_installed(app, &shortcuts),
         })
         .collect();
     crate::ble::gatt_note(format!(
@@ -596,7 +604,6 @@ pub fn foreground_window_has_descendant_class(_prefix: &str) -> bool {
 
 /// 可由 ShellExecuteW 启动的常见可执行/脚本扩展名。
 /// 与前端选择程序对话框的过滤列表保持一致（`apps/.../lib/runnable.ts`）。
-#[cfg(windows)]
 const RUNNABLE_EXTENSIONS: [&str; 11] = [
     "exe", "lnk", "bat", "cmd", "com", "scr", "msi", "ps1", "vbs", "js", "url",
 ];
@@ -604,7 +611,6 @@ const RUNNABLE_EXTENSIONS: [&str; 11] = [
 /// 判断 OpenApp 目标是否为自定义路径（非预设 id）。
 ///
 /// 除了 .exe / .lnk，也接受可由 ShellExecuteW 启动的常见可执行/脚本类型。
-#[cfg(windows)]
 fn is_custom_path_target(target: &str) -> bool {
     let lower = target.to_ascii_lowercase();
     (lower.contains('\\') || lower.contains('/'))
@@ -615,7 +621,6 @@ fn is_custom_path_target(target: &str) -> bool {
 }
 
 /// 裸可执行文件名（不含路径分隔符），例如 `notepad.exe`。
-#[cfg(windows)]
 fn is_bare_executable_name(target: &str) -> bool {
     let lower = target.to_ascii_lowercase();
     !lower.contains('\\')
@@ -3040,6 +3045,741 @@ pub fn application_readiness(_target: &str) -> ApplicationReadiness {
     }
 }
 
+// ---------------------------------------------------------------------------
+// 应用身份（「打开应用」选择器的后端）
+//
+// 一条 OpenApp target 在历史版本里可能是预设 id、绝对路径、.lnk、
+// `shell:AppsFolder\…`（AUMID）或裸可执行文件名。选择器需要三件事：
+//   ① 把选中结果规范成稳定形态（`canonical_app_target`：预设 id / exe 路径 / AUMID）；
+//   ② 描述旧数据的状态与问题（`describe_app_target`：安装/可启动/可匹配/旧式/问题）；
+//   ③ 提供已安装应用目录（`list_launchable_apps`：预设 + AppsFolder 一次扫描）。
+// 判定逻辑与 OS 探测分离（`classify_app_target` 只读可注入的 `AppTargetFacts`），
+// 单元测试不依赖真机安装状态。
+// ---------------------------------------------------------------------------
+
+/// 应用目标形态（serde camelCase：preset | path | aumid | legacyName | invalid）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AppTargetKind {
+    Preset,
+    Path,
+    Aumid,
+    LegacyName,
+    Invalid,
+}
+
+/// 应用目标问题（serde snake_case；与前端 `AppTargetIssue` 契约一一对应）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AppTargetIssue {
+    Empty,
+    UnknownTarget,
+    PresetNotInstalled,
+    PathMissing,
+    AumidNotInstalled,
+    BareNameUnresolved,
+    LnkUnresolved,
+    NoExecutableName,
+    NonExecutableTarget,
+}
+
+/// 应用目标描述（`describe_app_target` / `canonical_app_target` / `describe_app_targets` 返回）。
+///
+/// - `input`：调用方给的原始字符串（界面显示"旧值"用）；
+/// - `target`：规范化后的写入形态（预设 id / exe 绝对路径 / `shell:AppsFolder\…`，
+///   解析失败时保留原样）；
+/// - `legacy`：`input` 与规范 `target` 不同，旧数据可通过"重新选择/一键修复"幂等升级；
+/// - `matchable`：能否派生 exe 名用于方案 `appTargets` 自动匹配（AUMID 无 exe、
+///   非 exe 脚本为 false）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppTargetInfo {
+    pub input: String,
+    pub target: String,
+    pub kind: AppTargetKind,
+    pub display_name: Option<String>,
+    pub executable_name: Option<String>,
+    pub installed: bool,
+    pub launchable: bool,
+    pub matchable: bool,
+    pub portable: bool,
+    pub legacy: bool,
+    pub issue: Option<AppTargetIssue>,
+}
+
+/// 已安装应用目录条目的来源（serde camelCase）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum LaunchableAppSource {
+    /// 预设表（`DEFAULT_PRESET_IDS`）。
+    Preset,
+    /// 开始菜单注册的桌面程序（扫描时解析出了 exe 路径，target 存该路径）。
+    StartMenu,
+    /// AppsFolder 项（UWP/Store 或解析不出 exe 的注册项），target 按 AUMID 启动。
+    AppsFolder,
+}
+
+/// 已安装应用目录条目（`list_launchable_apps` 返回）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LaunchableApp {
+    /// 稳定标识：预设为预设 id，其余为 AppsFolder 项标识（AUMID）。
+    pub app_id: String,
+    pub display_name: String,
+    /// 保存到配置的规范 target：预设 id / exe 绝对路径 / `shell:AppsFolder\…`。
+    pub target: String,
+    pub executable_name: Option<String>,
+    pub kind: AppTargetKind,
+    pub source: LaunchableAppSource,
+    pub installed: bool,
+    pub portable: bool,
+    pub matchable: bool,
+}
+
+/// 已安装应用目录结果。
+///
+/// `scanned=false` + `scan_error` 表示扫描失败（降级为只返回已安装预设）：
+/// token 为 `app_scan_failed` / `app_scan_busy` / `app_scan_timeout` / `unsupported`。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LaunchableAppsResult {
+    pub apps: Vec<LaunchableApp>,
+    pub scanned: bool,
+    pub scan_error: Option<String>,
+}
+
+/// 描述/规范化应用目标所需的平台探测结果。
+///
+/// Windows 包装层把注册表、Shell、文件系统的探测结果填进这里；判定逻辑
+/// （`classify_app_target`）只读它——单测可注入合成事实，不依赖真机安装状态。
+#[derive(Debug, Clone, Default)]
+struct AppTargetFacts {
+    /// 命中预设时该预设是否已安装。
+    preset_installed: bool,
+    /// AUMID 项在 AppsFolder 中是否存在（已安装）。
+    aumid_installed: bool,
+    /// AUMID 解析出的 exe 路径（UWP/Store 包通常没有）。
+    aumid_executable: Option<String>,
+    /// AUMID 的系统显示名（Shell 给不出时为空）。
+    aumid_display_name: Option<String>,
+    /// `.lnk` 解析结果（exe/参数/工作目录）。
+    shortcut: Option<ResolvedShortcut>,
+    /// 裸可执行文件名解析出的真实路径。
+    bare_path: Option<String>,
+    /// 路径目标（或 lnk 解析出的 exe）是否存在。
+    path_exists: bool,
+}
+
+/// 从 target 里取最后一段文件名（同时接受 `\` 与 `/` 两种分隔符）。
+fn target_file_name(target: &str) -> Option<&str> {
+    target.rsplit(['\\', '/']).find(|part| !part.is_empty())
+}
+
+/// 派生 exe 可执行文件名：只有 `.exe` 目标才返回（脚本/文档类不参与自动匹配）。
+fn executable_name_for_path(path: &str) -> Option<String> {
+    let name = target_file_name(path)?;
+    let (_, extension) = name.rsplit_once('.')?;
+    extension
+        .eq_ignore_ascii_case("exe")
+        .then(|| name.to_owned())
+}
+
+/// 路径目标的界面显示名（文件名去扩展名）。
+fn display_name_for_path(path: &str) -> Option<String> {
+    let name = target_file_name(path)?;
+    Some(match name.rsplit_once('.') {
+        Some((stem, _)) if !stem.is_empty() => stem.to_owned(),
+        _ => name.to_owned(),
+    })
+}
+
+/// 是否为 `.lnk` 目标（扩展名不区分大小写）。
+fn is_lnk_target(target: &str) -> bool {
+    target.to_ascii_lowercase().ends_with(".lnk")
+}
+
+/// 按 exe 文件名反查预设（忽略大小写；`PRESET_APPS` 顺序即优先级）。
+fn preset_for_executable_name(exe_name: &str) -> Option<&'static PresetApp> {
+    PRESET_APPS.iter().find(|app| {
+        app.exe_names
+            .iter()
+            .any(|name| name.eq_ignore_ascii_case(exe_name))
+    })
+}
+
+/// 构造预设目标的描述（`installed` 由平台探测给出）。
+fn preset_target_info(raw: &str, app: &'static PresetApp, installed: bool) -> AppTargetInfo {
+    AppTargetInfo {
+        input: raw.to_owned(),
+        target: app.id.to_owned(),
+        kind: AppTargetKind::Preset,
+        display_name: Some(app.name.to_owned()),
+        executable_name: app.exe_names.first().map(|name| (*name).to_owned()),
+        installed,
+        launchable: installed,
+        matchable: app.exe_names.first().is_some(),
+        portable: shengjian_domain::portable_macros::preset_is_portable(app.id),
+        legacy: raw != app.id,
+        issue: (!installed).then_some(AppTargetIssue::PresetNotInstalled),
+    }
+}
+
+/// 纯函数：按平台事实把一条 OpenApp target 归类并规范化。
+///
+/// 规范化优先级：预设 id → exe 名命中预设 `exe_names` → AUMID 原样 →
+/// `.lnk` 解析成 exe 路径（失败保留 lnk 并报 `lnk_unresolved`）→
+/// 其它可运行路径原样 → 裸名解析成真实路径（`legacy=true`）→ 空/未知 invalid。
+fn classify_app_target(raw: &str, facts: &AppTargetFacts) -> AppTargetInfo {
+    let input = raw.to_owned();
+    let trimmed = raw.trim();
+
+    // 1) 预设 id 精确命中（后端匹配大小写敏感，输出保持表内精确大小写）。
+    if let Some(app) = preset_app(trimmed) {
+        return preset_target_info(raw, app, facts.preset_installed);
+    }
+    // 2) 可执行文件命中预设 `exe_names`（忽略大小写）→ 存预设 id。
+    //    选择器给的是完整路径/裸 exe 名时归并到预设，默认聚焦、AUMID 合并、
+    //    便携导出与就绪判据才能全部生效。
+    if let Some(app) = target_file_name(trimmed).and_then(preset_for_executable_name) {
+        if facts.preset_installed {
+            return preset_target_info(raw, app, true);
+        }
+        // 例外（2026-11-13）：预设探测不到、但用户给的路径/裸名确能解析成真实
+        // 文件（便携副本）时保留路径形态——存预设 id 会让启动链路按 exe_names
+        // 走 ShellExecuteW 而找不到该副本，用户"选了却打不开"。
+        let portable_copy = facts.path_exists || facts.bare_path.is_some();
+        if !portable_copy {
+            return preset_target_info(raw, app, false);
+        }
+    }
+    // 3) AppsFolder AUMID：原样保留；能否自动匹配取决于能否解析出 exe。
+    if crate::registered_apps::is_registered_target(trimmed) {
+        let executable_name = facts
+            .aumid_executable
+            .as_deref()
+            .and_then(executable_name_for_path);
+        let installed = facts.aumid_installed;
+        let matchable = executable_name.is_some();
+        let issue = if !installed {
+            Some(AppTargetIssue::AumidNotInstalled)
+        } else if !matchable {
+            Some(AppTargetIssue::NoExecutableName)
+        } else {
+            None
+        };
+        return AppTargetInfo {
+            input,
+            target: trimmed.to_owned(),
+            kind: AppTargetKind::Aumid,
+            display_name: facts.aumid_display_name.clone(),
+            executable_name,
+            installed,
+            launchable: installed,
+            matchable,
+            portable: false,
+            legacy: raw != trimmed,
+            issue,
+        };
+    }
+    // 4) 自定义路径：`.lnk` 优先解析成目标 exe（启动链路本来就绕开 shell 的
+    //    异步 .lnk 链路）；解析失败不静默降级，带 `lnk_unresolved` 提示重选。
+    if is_custom_path_target(trimmed) {
+        if is_lnk_target(trimmed) {
+            if let Some(resolved) = facts
+                .shortcut
+                .as_ref()
+                .filter(|shortcut| !shortcut.exe_path.is_empty())
+            {
+                let target = resolved.exe_path.trim().to_owned();
+                let executable_name = executable_name_for_path(&target);
+                let installed = facts.path_exists;
+                let matchable = executable_name.is_some();
+                let legacy = raw != target;
+                let issue = if !installed {
+                    Some(AppTargetIssue::PathMissing)
+                } else if !matchable {
+                    Some(AppTargetIssue::NonExecutableTarget)
+                } else {
+                    None
+                };
+                return AppTargetInfo {
+                    input,
+                    display_name: display_name_for_path(&target),
+                    target,
+                    kind: AppTargetKind::Path,
+                    executable_name,
+                    installed,
+                    launchable: installed,
+                    matchable,
+                    portable: false,
+                    legacy,
+                    issue,
+                };
+            }
+            return AppTargetInfo {
+                input,
+                target: trimmed.to_owned(),
+                kind: AppTargetKind::Path,
+                display_name: display_name_for_path(trimmed),
+                executable_name: None,
+                installed: false,
+                launchable: false,
+                matchable: false,
+                portable: false,
+                legacy: raw != trimmed,
+                issue: Some(AppTargetIssue::LnkUnresolved),
+            };
+        }
+        let executable_name = executable_name_for_path(trimmed);
+        let installed = facts.path_exists;
+        let matchable = executable_name.is_some();
+        let issue = if !installed {
+            Some(AppTargetIssue::PathMissing)
+        } else if !matchable {
+            Some(AppTargetIssue::NonExecutableTarget)
+        } else {
+            None
+        };
+        return AppTargetInfo {
+            input,
+            target: trimmed.to_owned(),
+            kind: AppTargetKind::Path,
+            display_name: display_name_for_path(trimmed),
+            executable_name,
+            installed,
+            launchable: installed,
+            matchable,
+            portable: false,
+            legacy: raw != trimmed,
+            issue,
+        };
+    }
+    // 5) 裸可执行文件名（旧式 target）：能解析出真实路径就写路径并标 legacy；
+    //    解析不到保留原样并给 issue，界面提示"旧式目标，建议重新选择"。
+    if is_bare_executable_name(trimmed) {
+        if let Some(path) = facts.bare_path.as_deref() {
+            let target = path.trim().to_owned();
+            let executable_name = executable_name_for_path(&target);
+            let matchable = executable_name.is_some();
+            let legacy = raw != target;
+            return AppTargetInfo {
+                input,
+                display_name: display_name_for_path(&target),
+                target,
+                kind: AppTargetKind::LegacyName,
+                executable_name,
+                installed: true,
+                launchable: true,
+                matchable,
+                portable: false,
+                legacy,
+                issue: (!matchable).then_some(AppTargetIssue::NonExecutableTarget),
+            };
+        }
+        let executable_name = executable_name_for_path(trimmed);
+        let matchable = executable_name.is_some();
+        let issue = if is_lnk_target(trimmed) {
+            AppTargetIssue::LnkUnresolved
+        } else {
+            AppTargetIssue::BareNameUnresolved
+        };
+        return AppTargetInfo {
+            input,
+            target: trimmed.to_owned(),
+            kind: AppTargetKind::LegacyName,
+            display_name: display_name_for_path(trimmed),
+            executable_name,
+            installed: false,
+            launchable: false,
+            matchable,
+            portable: false,
+            legacy: raw != trimmed,
+            issue: Some(issue),
+        };
+    }
+    // 6) 空串 / 未知形态：不可解析，界面按"无效目标"处理。
+    let issue = if trimmed.is_empty() {
+        AppTargetIssue::Empty
+    } else {
+        AppTargetIssue::UnknownTarget
+    };
+    AppTargetInfo {
+        input,
+        target: trimmed.to_owned(),
+        kind: AppTargetKind::Invalid,
+        display_name: None,
+        executable_name: None,
+        installed: false,
+        launchable: false,
+        matchable: false,
+        portable: false,
+        legacy: false,
+        issue: Some(issue),
+    }
+}
+
+/// Windows 平台探测：填充 `AppTargetFacts`（注册表 / Shell / 文件系统）。
+#[cfg(windows)]
+fn probe_app_target_facts(
+    raw: &str,
+    shortcuts: Option<&[(String, std::path::PathBuf)]>,
+) -> AppTargetFacts {
+    let trimmed = raw.trim();
+    let mut facts = AppTargetFacts::default();
+    if trimmed.is_empty() {
+        return facts;
+    }
+    let preset = preset_app(trimmed)
+        .or_else(|| target_file_name(trimmed).and_then(preset_for_executable_name));
+    if let Some(app) = preset {
+        facts.preset_installed = preset_installed_lazy(app, shortcuts);
+    }
+    if crate::registered_apps::is_registered_target(trimmed) {
+        if let Some(info) = crate::registered_apps::describe_registered_app(trimmed) {
+            facts.aumid_installed = true;
+            facts.aumid_executable = info.executable_path;
+            facts.aumid_display_name = info.display_name;
+        }
+    }
+    if is_custom_path_target(trimmed) && is_lnk_target(trimmed) {
+        facts.shortcut = resolve_lnk(trimmed);
+        facts.path_exists = facts
+            .shortcut
+            .as_ref()
+            .is_some_and(|shortcut| std::path::Path::new(&shortcut.exe_path).is_file());
+        return facts;
+    }
+    if is_custom_path_target(trimmed) {
+        facts.path_exists = std::path::Path::new(trimmed).is_file();
+        return facts;
+    }
+    if is_bare_executable_name(trimmed) {
+        facts.bare_path =
+            resolve_bare_executable(trimmed).map(|path| path.to_string_lossy().into_owned());
+    }
+    facts
+}
+
+/// 预设安装判定（批量描述时复用同一份开始菜单索引，避免每个 target 重扫）。
+#[cfg(windows)]
+fn preset_installed_lazy(
+    app: &PresetApp,
+    shortcuts: Option<&[(String, std::path::PathBuf)]>,
+) -> bool {
+    if app.id == "shengjian" || app.exe_names.iter().any(|exe| exe_resolvable(exe)) {
+        return true;
+    }
+    match shortcuts {
+        Some(shortcuts) => preset_installed(app, shortcuts),
+        // 没有现成索引时才扫一次开始菜单（单条 describe 的常见路径）。
+        None => preset_installed(app, &start_menu_shortcuts()),
+    }
+}
+
+/// 非 Windows 平台探测：无 Shell 集成，只按文件系统判断路径是否存在。
+#[cfg(not(windows))]
+fn probe_app_target_facts(
+    raw: &str,
+    _shortcuts: Option<&[(String, std::path::PathBuf)]>,
+) -> AppTargetFacts {
+    let trimmed = raw.trim();
+    let mut facts = AppTargetFacts::default();
+    if is_custom_path_target(trimmed) && !is_lnk_target(trimmed) {
+        facts.path_exists = std::path::Path::new(trimmed).is_file();
+    }
+    facts
+}
+
+/// 描述一条 OpenApp target：推断 kind、给出规范 target、安装/可启动/可匹配状态与问题。
+///
+/// 只读、不改配置：旧数据保持原样，界面据此显示徽标与"修复"入口。
+pub fn describe_app_target(target: &str) -> AppTargetInfo {
+    let facts = probe_app_target_facts(target, None);
+    classify_app_target(target, &facts)
+}
+
+/// 批量描述（选择器加载后一次性调用）：只扫一次开始菜单索引，避免逐条重复探测。
+pub fn describe_app_targets(targets: &[String]) -> Vec<AppTargetInfo> {
+    #[cfg(windows)]
+    let shortcuts = if targets.is_empty() {
+        Vec::new()
+    } else {
+        start_menu_shortcuts()
+    };
+    #[cfg(not(windows))]
+    let shortcuts: Vec<(String, std::path::PathBuf)> = Vec::new();
+    targets
+        .iter()
+        .map(|target| {
+            let facts = probe_app_target_facts(target, Some(&shortcuts));
+            classify_app_target(target, &facts)
+        })
+        .collect()
+}
+
+/// 规范化一条 OpenApp target（与 `describe_app_target` 共用同一实现）。
+///
+/// 选中结果据此写入配置：exe 命中预设 → 预设 id；AUMID 原样；`.lnk` →
+/// 解析后的 exe 绝对路径；裸名能解析 → 真实路径；其余保留原样并标 legacy/issue。
+pub fn canonical_app_target(target: &str) -> AppTargetInfo {
+    describe_app_target(target)
+}
+
+/// 从 target 派生方案 `appTargets` 用的 exe 名匹配键。
+///
+/// 不可派生（AUMID 无 exe、非 exe 脚本、无效目标）返回 `None`。
+pub fn app_match_key(target: &str) -> Option<String> {
+    let info = describe_app_target(target);
+    if info.matchable {
+        info.executable_name
+    } else {
+        None
+    }
+}
+
+/// 已安装应用目录缓存 TTL（60s；`refresh=true` 强制重扫）。
+const LAUNCHABLE_APPS_TTL: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// 进程内缓存（只缓存扫描成功的结果；失败不写缓存，便于界面点"重试"）。
+#[cfg(windows)]
+static LAUNCHABLE_APPS_CACHE: std::sync::Mutex<Option<(std::time::Instant, LaunchableAppsResult)>> =
+    std::sync::Mutex::new(None);
+
+/// 带 60s 进程内缓存的应用目录读取（注入时钟/扫描函数，便于单测覆盖缓存行为）。
+///
+/// 注意：`refresh=true` 只绕过读缓存，成功结果仍会写回缓存。
+#[cfg_attr(not(windows), allow(dead_code))]
+fn list_launchable_apps_with_cache<F>(
+    cache: &std::sync::Mutex<Option<(std::time::Instant, LaunchableAppsResult)>>,
+    refresh: bool,
+    now: std::time::Instant,
+    scan: F,
+) -> LaunchableAppsResult
+where
+    F: FnOnce() -> LaunchableAppsResult,
+{
+    if !refresh {
+        if let Ok(guard) = cache.lock() {
+            if let Some((cached_at, result)) = guard.as_ref() {
+                if now.saturating_duration_since(*cached_at) < LAUNCHABLE_APPS_TTL {
+                    return result.clone();
+                }
+            }
+        }
+    }
+    let scanned = scan();
+    if scanned.scan_error.is_none() {
+        if let Ok(mut guard) = cache.lock() {
+            *guard = Some((now, scanned.clone()));
+        }
+    }
+    scanned
+}
+
+/// 已安装应用目录（已安装预设 + 开始菜单/AppsFolder 已安装应用）。
+///
+/// 预设按 `DEFAULT_PRESET_IDS` 顺序在前；扫描结果与预设 `exe_names`/AUMID 命中的
+/// 条目归并到预设，同 exe 路径/AUMID 去重；扫描失败降级为只返回已安装预设 +
+/// `scanError` token，不 panic。
+pub fn list_launchable_apps(refresh: bool) -> LaunchableAppsResult {
+    #[cfg(windows)]
+    {
+        let started = std::time::Instant::now();
+        let result = list_launchable_apps_with_cache(
+            &LAUNCHABLE_APPS_CACHE,
+            refresh,
+            started,
+            windows_scan_launchable_apps,
+        );
+        crate::ble::gatt_note(format!(
+            "app_launcher action=list_launchable_apps phase=completed scanned={} apps={} scan_error={} elapsed_ms={}",
+            result.scanned,
+            result.apps.len(),
+            result.scan_error.as_deref().unwrap_or("none"),
+            started.elapsed().as_millis()
+        ));
+        result
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = refresh;
+        LaunchableAppsResult {
+            apps: Vec::new(),
+            scanned: false,
+            scan_error: Some("unsupported".to_owned()),
+        }
+    }
+}
+
+/// 扫描一次应用目录（预设安装态 + AppsFolder 一次枚举），失败时降级返回预设。
+#[cfg(windows)]
+fn windows_scan_launchable_apps() -> LaunchableAppsResult {
+    let started = std::time::Instant::now();
+    let presets = installed_preset_launchable_apps();
+    match crate::registered_apps::scan_registered_app_identities() {
+        Ok(scanned) => {
+            let preset_count = presets.len();
+            let scanned_count = scanned.len();
+            let apps = merge_launchable_apps(presets, scanned);
+            crate::ble::gatt_note(format!(
+                "app_launcher action=list_launchable_apps phase=scan_completed source=presets+appsfolder presets={preset_count} scanned={scanned_count} merged={} elapsed_ms={}",
+                apps.len(),
+                started.elapsed().as_millis()
+            ));
+            LaunchableAppsResult {
+                apps,
+                scanned: true,
+                scan_error: None,
+            }
+        }
+        Err(error) => {
+            crate::ble::gatt_note(format!(
+                "app_launcher action=list_launchable_apps phase=scan_failed error={} presets={} elapsed_ms={}",
+                error.token(),
+                presets.len(),
+                started.elapsed().as_millis()
+            ));
+            LaunchableAppsResult {
+                apps: presets,
+                scanned: false,
+                scan_error: Some(error.token().to_owned()),
+            }
+        }
+    }
+}
+
+/// 已安装预设（按 `DEFAULT_PRESET_IDS` 顺序；未安装项不出现在目录里）。
+#[cfg(windows)]
+fn installed_preset_launchable_apps() -> Vec<LaunchableApp> {
+    probe_preset_apps()
+        .into_iter()
+        .filter(|info| info.installed)
+        .filter_map(|info| preset_app(&info.id).map(preset_launchable_app))
+        .collect()
+}
+
+/// 预设项 → 目录条目（target 存预设 id，便携标记取导出白名单）。
+#[cfg_attr(not(windows), allow(dead_code))]
+fn preset_launchable_app(app: &'static PresetApp) -> LaunchableApp {
+    LaunchableApp {
+        app_id: app.id.to_owned(),
+        display_name: app.name.to_owned(),
+        target: app.id.to_owned(),
+        executable_name: app.exe_names.first().map(|name| (*name).to_owned()),
+        kind: AppTargetKind::Preset,
+        source: LaunchableAppSource::Preset,
+        installed: true,
+        portable: shengjian_domain::portable_macros::preset_is_portable(app.id),
+        matchable: app.exe_names.first().is_some(),
+    }
+}
+
+/// 合并预设与 AppsFolder 扫描结果（纯函数，便于单测去重/排序/归并）。
+///
+/// 规则：与已列出预设的 `exe_names` 命中的条目归并到预设（不再重复出现）；
+/// 与预设已登记的 AUMID 相同也归并；扫描结果之间按 exe 路径 / AUMID 去重；
+/// 解析出 exe 的桌面程序存 exe 绝对路径（source=StartMenu），否则存 AUMID
+/// （source=AppsFolder）；预设保持 `DEFAULT_PRESET_IDS` 顺序在前，其余按名称排序。
+#[cfg_attr(not(windows), allow(dead_code))]
+fn merge_launchable_apps(
+    preset_apps: Vec<LaunchableApp>,
+    scanned: Vec<crate::registered_apps::ScannedRegisteredApp>,
+) -> Vec<LaunchableApp> {
+    let mut reserved_exe_names: Vec<String> = Vec::new();
+    let mut reserved_aumids: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    for app in &preset_apps {
+        if let Some(preset) = preset_app(&app.app_id) {
+            reserved_exe_names.extend(
+                preset
+                    .exe_names
+                    .iter()
+                    .map(|name| name.to_ascii_lowercase()),
+            );
+        }
+        if let Some(aumid) = preset_aumid(&app.app_id) {
+            reserved_aumids.insert(
+                format!("{}{aumid}", crate::registered_apps::REGISTERED_PREFIX)
+                    .to_ascii_lowercase(),
+            );
+        }
+    }
+    let mut seen_paths: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    let mut seen_aumids: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    let mut extras: Vec<LaunchableApp> = Vec::new();
+    for entry in scanned {
+        let aumid_target = format!(
+            "{}{}",
+            crate::registered_apps::REGISTERED_PREFIX,
+            entry.app_user_model_id
+        );
+        let aumid_key = aumid_target.to_ascii_lowercase();
+        let executable_name = entry
+            .executable_path
+            .as_deref()
+            .and_then(executable_name_for_path);
+        // 与预设重复的条目归并到预设，避免列表里出现两个"微信"。
+        if let Some(name) = &executable_name {
+            if reserved_exe_names
+                .iter()
+                .any(|reserved| reserved.eq_ignore_ascii_case(name))
+            {
+                continue;
+            }
+        }
+        if reserved_aumids.contains(&aumid_key) {
+            continue;
+        }
+        let path_target = entry
+            .executable_path
+            .as_deref()
+            .filter(|_| executable_name.is_some());
+        let (target, kind, source, matchable) = match path_target {
+            Some(path) => {
+                if !seen_paths.insert(path.to_ascii_lowercase()) {
+                    continue;
+                }
+                (
+                    path.to_owned(),
+                    AppTargetKind::Path,
+                    LaunchableAppSource::StartMenu,
+                    true,
+                )
+            }
+            None => {
+                if !seen_aumids.insert(aumid_key) {
+                    continue;
+                }
+                (
+                    aumid_target,
+                    AppTargetKind::Aumid,
+                    LaunchableAppSource::AppsFolder,
+                    false,
+                )
+            }
+        };
+        extras.push(LaunchableApp {
+            app_id: entry.app_user_model_id,
+            display_name: entry.name,
+            target,
+            executable_name,
+            kind,
+            source,
+            installed: true,
+            portable: false,
+            matchable,
+        });
+    }
+    extras.sort_by(|left, right| {
+        (left.display_name.to_lowercase(), left.target.to_lowercase()).cmp(&(
+            right.display_name.to_lowercase(),
+            right.target.to_lowercase(),
+        ))
+    });
+    let mut apps = preset_apps;
+    apps.extend(extras);
+    apps
+}
+
 #[cfg(test)]
 mod application_readiness_tests {
     use super::*;
@@ -4191,5 +4931,645 @@ pub(crate) mod tests {
             ),
             None
         );
+    }
+}
+
+/// 应用身份/应用目录的纯函数测试。
+///
+/// 大部分用例注入 `AppTargetFacts` 合成事实，不依赖本机是否真的装了某个应用；
+/// 只有明确标注 `#[cfg(windows)]` 的用例才走真机探测（解析 PATH/文件系统）。
+#[cfg(test)]
+mod app_target_tests {
+    use super::*;
+    use crate::registered_apps::ScannedRegisteredApp;
+
+    fn preset_facts() -> AppTargetFacts {
+        AppTargetFacts {
+            preset_installed: true,
+            ..Default::default()
+        }
+    }
+
+    fn path_facts(path_exists: bool) -> AppTargetFacts {
+        AppTargetFacts {
+            path_exists,
+            ..Default::default()
+        }
+    }
+
+    fn shortcut_facts(exe_path: &str) -> AppTargetFacts {
+        AppTargetFacts {
+            shortcut: Some(ResolvedShortcut {
+                exe_path: exe_path.to_owned(),
+                arguments: String::new(),
+                working_dir: String::new(),
+            }),
+            path_exists: true,
+            ..Default::default()
+        }
+    }
+
+    fn aumid_facts() -> AppTargetFacts {
+        AppTargetFacts {
+            aumid_installed: true,
+            aumid_executable: Some(
+                r"C:\Program Files\WindowsApps\OpenAI.Codex_2p2nqsd0c76g0\app\ChatGPT.exe"
+                    .to_owned(),
+            ),
+            aumid_display_name: Some("ChatGPT".to_owned()),
+            ..Default::default()
+        }
+    }
+
+    /// 预设 id：规范 target 就是 id，显示中文名，便携标记取导出白名单。
+    #[test]
+    fn classifies_preset_id() {
+        let info = classify_app_target("wechat", &preset_facts());
+        assert_eq!(info.kind, AppTargetKind::Preset);
+        assert_eq!(info.target, "wechat");
+        assert_eq!(info.display_name.as_deref(), Some("微信"));
+        assert_eq!(info.executable_name.as_deref(), Some("WeChat.exe"));
+        assert!(info.installed && info.launchable && info.matchable && info.portable);
+        assert!(!info.legacy);
+        assert_eq!(info.issue, None);
+    }
+
+    /// 未安装预设：仍能派生命中键（exe 名在表内），但不可启动并给出 issue。
+    #[test]
+    fn uninstalled_preset_is_flagged() {
+        let info = classify_app_target("workbuddy", &AppTargetFacts::default());
+        assert_eq!(info.kind, AppTargetKind::Preset);
+        assert!(!info.installed && !info.launchable);
+        assert!(info.matchable);
+        assert!(!info.portable, "WorkBuddy 不在便携导出白名单");
+        assert_eq!(info.issue, Some(AppTargetIssue::PresetNotInstalled));
+    }
+
+    /// 完整路径/裸名命中预设 exe_names（忽略大小写、接受别名）→ 规范成预设 id；
+    /// 已规范的 id 再描写时不虚报 legacy（幂等）。
+    #[test]
+    fn canonical_target_maps_executable_names_to_preset_ids() {
+        for raw in [
+            r"C:\Program Files\Tencent\WeChat\WeChat.exe",
+            "WeChat.exe",
+            r"D:\Apps\wechat\WEIXIN.EXE",
+        ] {
+            let info = classify_app_target(raw, &preset_facts());
+            assert_eq!(info.kind, AppTargetKind::Preset, "raw={raw}");
+            assert_eq!(info.target, "wechat", "raw={raw}");
+            assert!(
+                info.legacy,
+                "旧值（路径/裸名）与规范 target 不同：raw={raw}"
+            );
+        }
+        let idempotent = classify_app_target("wechat", &preset_facts());
+        assert!(!idempotent.legacy);
+    }
+
+    /// 便携副本（预设探测不到、但路径真实存在）保留路径，避免存成启动不到的预设 id。
+    #[test]
+    fn portable_copy_of_preset_executable_keeps_path() {
+        let raw = r"D:\Portable\Chrome\chrome.exe";
+        let info = classify_app_target(raw, &path_facts(true));
+        assert_eq!(info.kind, AppTargetKind::Path);
+        assert_eq!(info.target, raw);
+        assert!(info.installed && info.launchable && info.matchable);
+        assert!(!info.legacy);
+
+        // 预设探测不到且没有任何真实文件线索时，仍按预设未安装报问题。
+        let unresolved = classify_app_target("chrome.exe", &AppTargetFacts::default());
+        assert_eq!(unresolved.kind, AppTargetKind::Preset);
+        assert_eq!(unresolved.issue, Some(AppTargetIssue::PresetNotInstalled));
+    }
+
+    /// 空串与未知形态：invalid + 对应 issue，不冒充任何可启动目标。
+    #[test]
+    fn empty_and_unknown_targets_are_invalid() {
+        let empty = classify_app_target("   ", &AppTargetFacts::default());
+        assert_eq!(empty.kind, AppTargetKind::Invalid);
+        assert_eq!(empty.target, "");
+        assert_eq!(empty.issue, Some(AppTargetIssue::Empty));
+        assert!(!empty.installed && !empty.launchable && !empty.legacy);
+
+        let unknown = classify_app_target("微信", &AppTargetFacts::default());
+        assert_eq!(unknown.kind, AppTargetKind::Invalid);
+        assert_eq!(unknown.issue, Some(AppTargetIssue::UnknownTarget));
+    }
+
+    /// AUMID：原样保留，能解析出 exe 时派生匹配键（不参与便携导出）。
+    #[test]
+    fn aumid_targets_keep_raw_and_derive_executable_name() {
+        let raw = r"shell:AppsFolder\OpenAI.Codex_2p2nqsd0c76g0!App";
+        let info = classify_app_target(raw, &aumid_facts());
+        assert_eq!(info.kind, AppTargetKind::Aumid);
+        assert_eq!(info.target, raw);
+        assert_eq!(info.display_name.as_deref(), Some("ChatGPT"));
+        assert_eq!(info.executable_name.as_deref(), Some("ChatGPT.exe"));
+        assert!(info.installed && info.launchable && info.matchable);
+        assert!(!info.portable && !info.legacy);
+        assert_eq!(info.issue, None);
+    }
+
+    /// UWP/Store 包解析不出 exe：可启动但不可自动匹配，界面据此提示。
+    #[test]
+    fn aumid_without_executable_is_not_matchable() {
+        let raw = r"shell:AppsFolder\Microsoft.WindowsCalculator_8wekyb3d8bbwe!App";
+        let info = classify_app_target(
+            raw,
+            &AppTargetFacts {
+                aumid_installed: true,
+                ..Default::default()
+            },
+        );
+        assert!(info.installed && info.launchable);
+        assert!(!info.matchable);
+        assert_eq!(info.executable_name, None);
+        assert_eq!(info.issue, Some(AppTargetIssue::NoExecutableName));
+    }
+
+    /// 不存在的 AUMID：未安装、不可启动，保留原串供用户修复。
+    #[test]
+    fn missing_aumid_is_not_installed() {
+        let raw = r"shell:AppsFolder\Shengjian.Missing_0000!App";
+        let info = classify_app_target(raw, &AppTargetFacts::default());
+        assert_eq!(info.kind, AppTargetKind::Aumid);
+        assert_eq!(info.target, raw);
+        assert!(!info.installed && !info.launchable);
+        assert_eq!(info.issue, Some(AppTargetIssue::AumidNotInstalled));
+    }
+
+    /// exe 路径：原样保留，可启动且可自动匹配。
+    #[test]
+    fn executable_paths_are_kept_and_matchable() {
+        let raw = r"D:\Apps\Tool\Tool.exe";
+        let info = classify_app_target(raw, &path_facts(true));
+        assert_eq!(info.kind, AppTargetKind::Path);
+        assert_eq!(info.target, raw);
+        assert_eq!(info.display_name.as_deref(), Some("Tool"));
+        assert_eq!(info.executable_name.as_deref(), Some("Tool.exe"));
+        assert!(info.installed && info.launchable && info.matchable);
+        assert!(!info.legacy);
+        assert_eq!(info.issue, None);
+    }
+
+    /// 路径不存在：标 path_missing（旧数据里的便携应用换机后常见）。
+    #[test]
+    fn missing_path_is_flagged() {
+        let info = classify_app_target(r"D:\Apps\Missing\Tool.exe", &path_facts(false));
+        assert_eq!(info.kind, AppTargetKind::Path);
+        assert!(!info.installed && !info.launchable);
+        assert_eq!(info.issue, Some(AppTargetIssue::PathMissing));
+    }
+
+    /// 非 exe 脚本（.bat 等）：允许启动但不可自动匹配。
+    #[test]
+    fn non_executable_path_is_launch_only() {
+        let raw = r"D:\Scripts\run.bat";
+        let info = classify_app_target(raw, &path_facts(true));
+        assert_eq!(info.kind, AppTargetKind::Path);
+        assert!(info.installed && info.launchable);
+        assert!(!info.matchable);
+        assert_eq!(info.executable_name, None);
+        assert_eq!(info.issue, Some(AppTargetIssue::NonExecutableTarget));
+        assert!(!info.legacy);
+    }
+
+    /// `.lnk` 解析成功：规范成解析出的 exe 绝对路径，旧值可一键修复。
+    #[test]
+    fn resolvable_lnk_canonicalizes_to_executable_path() {
+        let raw = r"D:\Apps\Tool.lnk";
+        let info = classify_app_target(raw, &shortcut_facts(r"D:\Apps\Tool\Tool.exe"));
+        assert_eq!(info.kind, AppTargetKind::Path);
+        assert_eq!(info.target, r"D:\Apps\Tool\Tool.exe");
+        assert_eq!(info.executable_name.as_deref(), Some("Tool.exe"));
+        assert!(info.installed && info.launchable && info.matchable);
+        assert!(info.legacy, "lnk 与规范 target 不同");
+        assert_eq!(info.issue, None);
+    }
+
+    /// `.lnk` 解析失败：保留 lnk 并报 lnk_unresolved，不静默当成可启动。
+    #[test]
+    fn unresolved_lnk_is_kept_with_issue() {
+        let raw = r"D:\Apps\Broken.lnk";
+        let info = classify_app_target(raw, &AppTargetFacts::default());
+        assert_eq!(info.kind, AppTargetKind::Path);
+        assert_eq!(info.target, raw);
+        assert!(!info.installed && !info.launchable && !info.matchable);
+        assert_eq!(info.issue, Some(AppTargetIssue::LnkUnresolved));
+    }
+
+    /// 裸名可解析：规范成真实路径并标 legacy（旧数据升级入口）。
+    #[test]
+    fn resolvable_bare_name_canonicalizes_to_real_path() {
+        let facts = AppTargetFacts {
+            bare_path: Some(r"C:\Windows\System32\cmd.exe".to_owned()),
+            ..Default::default()
+        };
+        let info = classify_app_target("cmd.exe", &facts);
+        assert_eq!(info.kind, AppTargetKind::LegacyName);
+        assert_eq!(info.target, r"C:\Windows\System32\cmd.exe");
+        assert!(info.legacy);
+        assert!(info.installed && info.launchable && info.matchable);
+        assert_eq!(info.executable_name.as_deref(), Some("cmd.exe"));
+        assert_eq!(info.issue, None);
+    }
+
+    /// 裸名解析不到：保留原样 + issue；exe 形态仍可作为匹配键（兼容旧数据）。
+    #[test]
+    fn unresolved_bare_name_stays_legacy_with_match_key() {
+        let info = classify_app_target("definitely-not-installed.exe", &AppTargetFacts::default());
+        assert_eq!(info.kind, AppTargetKind::LegacyName);
+        assert_eq!(info.target, "definitely-not-installed.exe");
+        assert!(!info.installed && !info.launchable);
+        assert!(info.matchable);
+        assert_eq!(
+            info.executable_name.as_deref(),
+            Some("definitely-not-installed.exe")
+        );
+        assert_eq!(info.issue, Some(AppTargetIssue::BareNameUnresolved));
+        assert!(!info.legacy, "没有更好的规范形态时不虚报旧值");
+    }
+
+    /// 非 exe 裸名：不可匹配，issue 仍优先报解析失败。
+    #[test]
+    fn unresolved_non_executable_bare_name_is_not_matchable() {
+        let info = classify_app_target("run.bat", &AppTargetFacts::default());
+        assert_eq!(info.kind, AppTargetKind::LegacyName);
+        assert!(!info.matchable);
+        assert_eq!(info.executable_name, None);
+        assert_eq!(info.issue, Some(AppTargetIssue::BareNameUnresolved));
+    }
+
+    /// 便携标记只认导出白名单（domain 提供的只读 helper）。
+    #[test]
+    fn preset_portable_flag_follows_export_whitelist() {
+        assert!(shengjian_domain::portable_macros::preset_is_portable(
+            "wechat"
+        ));
+        assert!(shengjian_domain::portable_macros::preset_is_portable(
+            "netease_music"
+        ));
+        assert!(!shengjian_domain::portable_macros::preset_is_portable(
+            "workbuddy"
+        ));
+        assert!(!shengjian_domain::portable_macros::preset_is_portable(
+            "chatgpt"
+        ));
+        assert!(classify_app_target("wechat", &preset_facts()).portable);
+        assert!(!classify_app_target("workbuddy", &preset_facts()).portable);
+    }
+
+    /// 前端契约：字段名与 token 必须与 TS 侧一一对应。
+    #[test]
+    fn app_target_info_serializes_with_frontend_contract() {
+        let info = classify_app_target("wechat", &preset_facts());
+        let value = serde_json::to_value(&info).expect("serialize app target");
+        assert_eq!(value["input"], "wechat");
+        assert_eq!(value["target"], "wechat");
+        assert_eq!(value["kind"], "preset");
+        assert_eq!(value["displayName"], "微信");
+        assert_eq!(value["executableName"], "WeChat.exe");
+        assert_eq!(value["installed"], true);
+        assert_eq!(value["portable"], true);
+        assert_eq!(value["legacy"], false);
+        assert_eq!(value["issue"], serde_json::Value::Null);
+
+        let invalid = classify_app_target("not-a-known-app-id", &AppTargetFacts::default());
+        let value = serde_json::to_value(&invalid).expect("serialize invalid target");
+        assert_eq!(value["kind"], "invalid");
+        assert_eq!(value["issue"], "unknown_target");
+
+        let legacy =
+            classify_app_target("definitely-not-installed.exe", &AppTargetFacts::default());
+        let value = serde_json::to_value(&legacy).expect("serialize legacy target");
+        assert_eq!(value["kind"], "legacyName");
+        assert_eq!(value["issue"], "bare_name_unresolved");
+    }
+
+    /// 匹配键：预设取 exe_names 首名，路径取 basename，非 exe/无效返回 None。
+    #[test]
+    fn app_match_key_derives_executable_name() {
+        assert_eq!(
+            app_match_key("netease_music").as_deref(),
+            Some("cloudmusic.exe")
+        );
+        assert_eq!(
+            app_match_key(r"D:\Apps\Tool\Tool.exe").as_deref(),
+            Some("Tool.exe")
+        );
+        assert_eq!(app_match_key(r"D:\Scripts\run.bat"), None);
+        assert_eq!(app_match_key(""), None);
+        assert_eq!(app_match_key("not-a-known-app-id"), None);
+    }
+
+    /// 公开入口：preset id 描述、空值规范化、批量描述保持输入顺序。
+    #[test]
+    fn describe_and_canonicalize_public_entry_points() {
+        let info = describe_app_target("wechat");
+        assert_eq!(info.kind, AppTargetKind::Preset);
+        assert_eq!(info.target, "wechat");
+        assert_eq!(info.display_name.as_deref(), Some("微信"));
+        assert_eq!(info.executable_name.as_deref(), Some("WeChat.exe"));
+        assert!(info.matchable && info.portable && !info.legacy);
+
+        let empty = canonical_app_target("   ");
+        assert_eq!(empty.kind, AppTargetKind::Invalid);
+        assert_eq!(empty.target, "");
+        assert_eq!(empty.issue, Some(AppTargetIssue::Empty));
+
+        let targets = vec![
+            "wechat".to_owned(),
+            String::new(),
+            "not-a-known-app-id".to_owned(),
+        ];
+        let infos = describe_app_targets(&targets);
+        assert_eq!(infos.len(), 3);
+        assert_eq!(infos[0].kind, AppTargetKind::Preset);
+        assert_eq!(infos[1].issue, Some(AppTargetIssue::Empty));
+        assert_eq!(infos[2].issue, Some(AppTargetIssue::UnknownTarget));
+    }
+
+    /// 真机口径：PATH 里的命令能解析成真实路径；不存在的路径报 path_missing。
+    #[cfg(windows)]
+    #[test]
+    fn windows_describe_resolves_path_command_and_missing_path() {
+        let cmd = describe_app_target("cmd.exe");
+        assert_eq!(cmd.kind, AppTargetKind::LegacyName);
+        assert!(cmd.legacy && cmd.installed && cmd.launchable && cmd.matchable);
+        assert!(
+            cmd.target.to_ascii_lowercase().ends_with("\\cmd.exe"),
+            "应解析成 System32 下的真实路径，实际：{}",
+            cmd.target
+        );
+
+        let missing = describe_app_target(r"C:\Shengjian\DefinitelyMissing\App.exe");
+        assert_eq!(missing.kind, AppTargetKind::Path);
+        assert!(!missing.installed);
+        assert_eq!(missing.issue, Some(AppTargetIssue::PathMissing));
+    }
+
+    fn scanned_entry(
+        name: &str,
+        app_user_model_id: &str,
+        executable_path: Option<&str>,
+    ) -> ScannedRegisteredApp {
+        ScannedRegisteredApp {
+            name: name.to_owned(),
+            app_user_model_id: app_user_model_id.to_owned(),
+            executable_path: executable_path.map(str::to_owned),
+        }
+    }
+
+    fn empty_result(scanned: bool, scan_error: Option<&str>) -> LaunchableAppsResult {
+        LaunchableAppsResult {
+            apps: Vec::new(),
+            scanned,
+            scan_error: scan_error.map(str::to_owned),
+        }
+    }
+
+    /// 合并：预设顺序在前；exe 名/AUMID 命中已列出预设的条目归并掉；
+    /// 未列入默认预设的应用（计算器）仍要出现；同 AUMID 去重。
+    #[test]
+    fn merge_keeps_presets_first_and_folds_covered_entries() {
+        let presets = vec![
+            preset_launchable_app(preset_app("wechat").expect("wechat")),
+            preset_launchable_app(preset_app("chatgpt").expect("chatgpt")),
+        ];
+        let scanned = vec![
+            // exe 名命中已列出的微信预设 → 归并掉。
+            scanned_entry(
+                "微信",
+                "Tencent.WeChat_123!App",
+                Some(r"C:\Tencent\WeChat\WeChat.exe"),
+            ),
+            // AUMID 命中已列出的 ChatGPT 预设 → 归并掉（即使解析不出 exe）。
+            scanned_entry("ChatGPT", "OpenAI.Codex_2p2nqsd0c76g0!App", None),
+            // 计算器不在 DEFAULT_PRESET_IDS 里 → 作为普通 AppsFolder 条目保留。
+            scanned_entry(
+                "计算器",
+                "Microsoft.WindowsCalculator_8wekyb3d8bbwe!App",
+                None,
+            ),
+            // 同 AUMID 的重复项 → 去重。
+            scanned_entry(
+                "计算器副本",
+                "Microsoft.WindowsCalculator_8wekyb3d8bbwe!App",
+                None,
+            ),
+            // 桌面程序解析出 exe → 存路径、来源 StartMenu。
+            scanned_entry(
+                "Vokie",
+                "Shengjian.Vokie_123!App",
+                Some(r"D:\Apps\Vokie\Vokie.exe"),
+            ),
+        ];
+        let apps = merge_launchable_apps(presets, scanned);
+        let ids: Vec<&str> = apps.iter().map(|app| app.app_id.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec![
+                "wechat",
+                "chatgpt",
+                "Shengjian.Vokie_123!App",
+                "Microsoft.WindowsCalculator_8wekyb3d8bbwe!App",
+            ]
+        );
+        assert_eq!(apps[0].source, LaunchableAppSource::Preset);
+        assert_eq!(apps[1].source, LaunchableAppSource::Preset);
+        // Vokie：解析出 exe → 路径目标、可自动匹配。
+        assert_eq!(apps[2].kind, AppTargetKind::Path);
+        assert_eq!(apps[2].source, LaunchableAppSource::StartMenu);
+        assert_eq!(apps[2].target, r"D:\Apps\Vokie\Vokie.exe");
+        assert_eq!(apps[2].executable_name.as_deref(), Some("Vokie.exe"));
+        assert!(apps[2].matchable);
+        // 计算器：无 exe 名 → AUMID 目标、不可自动匹配。
+        assert_eq!(apps[3].kind, AppTargetKind::Aumid);
+        assert_eq!(apps[3].source, LaunchableAppSource::AppsFolder);
+        assert_eq!(
+            apps[3].target,
+            r"shell:AppsFolder\Microsoft.WindowsCalculator_8wekyb3d8bbwe!App"
+        );
+        assert!(!apps[3].matchable);
+        assert_eq!(apps[3].executable_name, None);
+    }
+
+    /// 同 exe 路径（大小写不同）只保留第一条，避免重复条目。
+    #[test]
+    fn merge_dedupes_scanned_entries_by_executable_path() {
+        let scanned = vec![
+            scanned_entry(
+                "Alpha",
+                "Vendor.Alpha_111!App",
+                Some(r"C:\Apps\Shared\app.exe"),
+            ),
+            scanned_entry(
+                "Alpha Copy",
+                "Vendor.Alpha_222!App",
+                Some(r"C:\Apps\Shared\APP.EXE"),
+            ),
+        ];
+        let apps = merge_launchable_apps(Vec::new(), scanned);
+        assert_eq!(apps.len(), 1, "同 exe 路径只保留第一条");
+        assert_eq!(apps[0].display_name, "Alpha");
+    }
+
+    /// 预设未列出（未安装/不在默认列表）时，同名 exe 的扫描条目仍要出现。
+    #[test]
+    fn merge_does_not_fold_into_unlisted_presets() {
+        let scanned = vec![scanned_entry(
+            "Chrome",
+            "Google.Chrome_555!App",
+            Some(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+        )];
+        let apps = merge_launchable_apps(Vec::new(), scanned);
+        assert_eq!(apps.len(), 1);
+        assert_eq!(
+            apps[0].target,
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+        );
+    }
+
+    /// 扫描结果按显示名排序（预设之后的部分）。
+    #[test]
+    fn merge_sorts_scanned_entries_by_display_name() {
+        let scanned = vec![
+            scanned_entry(
+                "Zeta",
+                "Vendor.Zeta_333!App",
+                Some(r"C:\Apps\Zeta\zeta.exe"),
+            ),
+            scanned_entry(
+                "alpha",
+                "Vendor.Alpha_444!App",
+                Some(r"C:\Apps\Alpha\alpha.exe"),
+            ),
+        ];
+        let apps = merge_launchable_apps(Vec::new(), scanned);
+        let names: Vec<&str> = apps.iter().map(|app| app.display_name.as_str()).collect();
+        assert_eq!(names, vec!["alpha", "Zeta"]);
+    }
+
+    /// 目录条目与结果的序列化契约（字段名/token 与前端一致）。
+    #[test]
+    fn launchable_app_result_serializes_with_frontend_contract() {
+        let result = LaunchableAppsResult {
+            apps: vec![preset_launchable_app(preset_app("wechat").expect("wechat"))],
+            scanned: false,
+            scan_error: Some("app_scan_timeout".to_owned()),
+        };
+        let value = serde_json::to_value(&result).expect("serialize launchable apps");
+        assert_eq!(value["scanned"], false);
+        assert_eq!(value["scanError"], "app_scan_timeout");
+        assert_eq!(value["apps"][0]["appId"], "wechat");
+        assert_eq!(value["apps"][0]["displayName"], "微信");
+        assert_eq!(value["apps"][0]["target"], "wechat");
+        assert_eq!(value["apps"][0]["executableName"], "WeChat.exe");
+        assert_eq!(value["apps"][0]["kind"], "preset");
+        assert_eq!(value["apps"][0]["source"], "preset");
+        assert_eq!(value["apps"][0]["installed"], true);
+        assert_eq!(value["apps"][0]["portable"], true);
+        assert_eq!(value["apps"][0]["matchable"], true);
+    }
+
+    /// 预设目录顺序 = DEFAULT_PRESET_IDS（界面顺序定稿）。
+    #[test]
+    fn launchable_presets_keep_default_order_and_mark_portable() {
+        let apps: Vec<LaunchableApp> = DEFAULT_PRESET_IDS
+            .iter()
+            .filter_map(|id| preset_app(id).map(preset_launchable_app))
+            .collect();
+        let ids: Vec<&str> = apps.iter().map(|app| app.app_id.as_str()).collect();
+        assert_eq!(ids, DEFAULT_PRESET_IDS);
+        for app in &apps {
+            assert_eq!(app.source, LaunchableAppSource::Preset);
+            assert!(app.installed && app.matchable);
+        }
+        assert!(apps.iter().any(|app| app.portable));
+        assert!(apps.iter().any(|app| !app.portable));
+    }
+
+    /// 60s 缓存：TTL 内命中不重扫、refresh 强制重扫、过期后重扫。
+    #[test]
+    fn launchable_cache_hits_within_ttl_and_rescans_after_expiry() {
+        let cache = std::sync::Mutex::new(None);
+        let start = std::time::Instant::now();
+        let mut scans = 0;
+
+        let first = list_launchable_apps_with_cache(&cache, false, start, || {
+            scans += 1;
+            empty_result(true, None)
+        });
+        assert!(first.scanned);
+        assert_eq!(scans, 1);
+
+        let second = list_launchable_apps_with_cache(&cache, false, start, || {
+            scans += 1;
+            empty_result(true, None)
+        });
+        assert_eq!(second, first);
+        assert_eq!(scans, 1, "TTL 内命中缓存，不应重新扫描");
+
+        let refreshed = list_launchable_apps_with_cache(&cache, true, start, || {
+            scans += 1;
+            empty_result(true, None)
+        });
+        assert!(refreshed.scanned);
+        assert_eq!(scans, 2, "refresh=true 必须强制重扫");
+
+        let expired_at = start + LAUNCHABLE_APPS_TTL + std::time::Duration::from_secs(1);
+        let expired = list_launchable_apps_with_cache(&cache, false, expired_at, || {
+            scans += 1;
+            empty_result(true, None)
+        });
+        assert!(expired.scanned);
+        assert_eq!(scans, 3, "超过 TTL 必须自然过期重扫");
+    }
+
+    /// 扫描失败不写缓存：界面点"重试"要能真的重扫。
+    #[test]
+    fn launchable_cache_does_not_store_failed_scans() {
+        let cache = std::sync::Mutex::new(None);
+        let start = std::time::Instant::now();
+        let mut scans = 0;
+
+        let failed = list_launchable_apps_with_cache(&cache, false, start, || {
+            scans += 1;
+            empty_result(false, Some("app_scan_failed"))
+        });
+        assert!(!failed.scanned);
+        assert_eq!(failed.scan_error.as_deref(), Some("app_scan_failed"));
+        assert_eq!(scans, 1);
+
+        let retry = list_launchable_apps_with_cache(&cache, false, start, || {
+            scans += 1;
+            empty_result(true, None)
+        });
+        assert!(retry.scanned);
+        assert_eq!(scans, 2);
+    }
+
+    /// 真机口径：目录始终包含恒已安装的遥控器自身，扫描失败降级为预设 + 稳定 token。
+    #[cfg(windows)]
+    #[test]
+    fn list_launchable_apps_includes_installed_presets_and_caches() {
+        let result = list_launchable_apps(true);
+        assert_eq!(
+            result.apps.first().map(|app| app.app_id.as_str()),
+            Some("shengjian"),
+            "遥控器自身恒已安装且按定稿顺序排首位"
+        );
+        assert!(result.apps[0].installed);
+        assert!(result.apps[0].portable);
+        if !result.scanned {
+            assert!(matches!(
+                result.scan_error.as_deref(),
+                Some("app_scan_failed" | "app_scan_busy" | "app_scan_timeout" | "unsupported")
+            ));
+        }
+        // 60s 内第二次调用命中缓存，结果一致。
+        let cached = list_launchable_apps(false);
+        assert_eq!(cached.apps, result.apps);
+        assert_eq!(cached.scanned, result.scanned);
     }
 }

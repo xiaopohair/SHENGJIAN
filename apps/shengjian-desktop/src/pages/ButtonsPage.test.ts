@@ -28,6 +28,9 @@ vi.mock("../lib/api", () => ({
   getMacroLibrary: vi.fn(async () => ({ formatVersion: 1, definitions: [] })),
   importProfiles: vi.fn(),
   resolveAppTarget: vi.fn(async () => null),
+  listLaunchableApps: vi.fn(async () => ({ apps: [], scanned: true, scanError: null })),
+  describeAppTargets: vi.fn(async () => []),
+  canonicalizeAppTarget: vi.fn(),
   saveButtonProfiles: vi.fn(async () => undefined),
 }));
 
