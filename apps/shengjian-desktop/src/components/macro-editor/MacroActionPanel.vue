@@ -8,7 +8,6 @@ import {
   SYSTEM_KEYS,
   actionIcon,
   actionLabel,
-  actionTone,
   actionUsesTimeout,
   chord,
 } from "../../lib/macroEditor";
@@ -34,6 +33,34 @@ const emit = defineEmits<{
   duplicate: [];
   remove: [];
 }>();
+
+/** 动作卡片的补充说明：与按键方案的动作卡一致。 */
+const ACTION_DETAILS: Record<string, string> = {
+  send_shortcut: "键盘组合",
+  open_application: "启动或切换应用",
+  open_url: "用默认浏览器打开",
+  focus_input: "把光标送回输入框",
+  focus_frontmost: "聚焦当前前台输入框",
+  wait_for_application: "等待进程或窗口",
+  system_action: "音量与播放控制",
+  run_macro: "执行另一个宏",
+};
+
+/** 动作图标颜色：与按键方案同一套色板。 */
+const ACTION_TONES: Record<string, string> = {
+  send_shortcut: "teal",
+  open_application: "amber",
+  open_url: "teal",
+  focus_input: "teal",
+  focus_frontmost: "teal",
+  wait_for_application: "neutral",
+  system_action: "neutral",
+  run_macro: "violet",
+};
+
+function actionCardTone(actionId: string): string {
+  return ACTION_TONES[actionId] ?? "neutral";
+}
 
 const showTargetField = computed(
   () =>
@@ -142,14 +169,17 @@ function setNestedMacro(macroId: string) {
           :key="action.id"
           type="button"
           class="action-option"
-          :class="{ selected: step.action === action.id }"
+          :class="[`tone-${actionCardTone(action.id)}`, { selected: step.action === action.id }]"
           :aria-pressed="step.action === action.id"
           @click="changeAction(action.id)"
         >
-          <span class="action-ico" :class="`tone-${actionTone(action.id)}`" aria-hidden="true">
+          <span class="action-ico" aria-hidden="true">
             <component :is="actionIcon(action.id)" :size="16" />
           </span>
-          <strong>{{ trDynamic(action.label) }}</strong>
+          <span class="action-copy">
+            <strong>{{ trDynamic(action.label) }}</strong>
+            <small>{{ trDynamic(ACTION_DETAILS[action.id] ?? "") }}</small>
+          </span>
         </button>
       </div>
 
@@ -329,21 +359,23 @@ function setNestedMacro(macroId: string) {
 }
 .action-option {
   display: flex;
-  flex-direction: column;
   align-items: flex-start;
   gap: 8px;
   min-width: 0;
-  min-height: 72px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--bg-raised);
-  padding: 8px;
-  color: var(--text-muted);
+  padding: 8px 10px;
+  color: var(--text);
   text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) ease,
+    background var(--duration-fast) ease;
 }
 .action-option:hover {
-  border-color: var(--border-strong);
-  background: var(--bg-subtle);
+  border-color: var(--accent);
+  background: var(--bg-hover);
 }
 .action-option:focus-visible {
   outline: 2px solid var(--accent);
@@ -355,37 +387,49 @@ function setNestedMacro(macroId: string) {
 }
 .action-ico {
   display: grid;
+  flex: 0 0 26px;
   place-items: center;
-  width: 24px;
-  height: 24px;
-  color: var(--tile-ink, var(--text-muted));
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-xs);
+  background: var(--bg-subtle);
+  color: var(--text-muted);
 }
-.action-ico.tone-green {
-  --tile-ink: var(--success);
+.action-option.tone-violet .action-ico {
+  color: var(--violet-text, var(--accent));
 }
-.action-ico.tone-blue {
-  --tile-ink: var(--info);
+.action-option.tone-amber .action-ico {
+  color: var(--warning-text);
 }
-.action-ico.tone-amber {
-  --tile-ink: var(--warning);
-}
-.action-ico.tone-violet {
-  --tile-ink: #7c5cff;
-}
-.action-ico.tone-accent {
-  --tile-ink: var(--accent);
+.action-option.tone-danger .action-ico {
+  color: var(--danger-text);
 }
 .action-option.selected .action-ico {
+  background: var(--accent-soft-strong);
   color: var(--accent);
 }
-.action-option strong {
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 500;
+.action-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.action-copy strong {
+  color: var(--text);
+  font-size: var(--text-xs);
+  font-weight: 650;
   line-height: 1.35;
 }
-.action-option.selected strong {
+.action-option.selected .action-copy strong {
   color: var(--accent-ink);
+}
+.action-copy small {
+  overflow: hidden;
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: var(--text-2xs);
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .action-config {
   border-top: 1px solid var(--border);

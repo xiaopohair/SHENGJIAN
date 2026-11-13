@@ -44,6 +44,7 @@
   --warning-text: #f0cd8a;
   --info: #6aa9ff;
   --info-text: #a8caff;
+  --violet-text: #b7a3ff;
 
   /* Effects */
   --notice-bg: rgba(255, 255, 255, 0.025);
@@ -131,6 +132,7 @@
   --warning-text: #7d4f00;
   --info: #1f66c2;
   --info-text: #174e96;
+  --violet-text: #6d3ad6;
 
   --notice-bg: rgba(0, 0, 0, 0.025);
   --overlay: rgba(20, 30, 40, 0.45);

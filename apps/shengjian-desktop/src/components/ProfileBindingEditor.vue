@@ -797,9 +797,9 @@ function setMouseAmount(value: string) {
 }
 
 .hold-repeat-label {
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-  font-weight: 600;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 400;
 }
 
 .hold-repeat-options {

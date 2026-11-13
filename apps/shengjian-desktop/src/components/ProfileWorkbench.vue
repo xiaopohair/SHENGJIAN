@@ -291,8 +291,6 @@ const visibleButtons = computed(() => {
   });
 });
 
-const selectedSummary = computed(() => summary(selectedButton.value, selectedTrigger.value));
-
 function selectButton(button: LogicalButton) {
   selectedButton.value = button;
 }
@@ -388,11 +386,6 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
           :latest-macros="latestMacros"
           @error="emit('error', $event)"
         />
-
-        <footer class="binding-foot">
-          <span>{{ selectedSummary || tr("继承基线") }}</span>
-          <span class="mono">{{ selectedButton }} / {{ statusLabel(selectedTrigger) }}</span>
-        </footer>
       </section>
     </template>
 
@@ -785,21 +778,6 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
 }
 .trigger-tab i.long {
   background: var(--info);
-}
-
-.binding-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-top: var(--space-4);
-  border-top: 1px solid var(--border);
-  padding-top: var(--space-3);
-  color: var(--text-muted);
-  font-size: var(--text-2xs);
-}
-.binding-foot .mono {
-  font-family: var(--font-mono);
 }
 
 .matrix-panel {
