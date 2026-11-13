@@ -139,6 +139,10 @@ export async function openExternalUrl(url: string): Promise<void> {
   return invoke<void>("open_external_url", { url });
 }
 
+export async function getCurrentProcessId(): Promise<number> {
+  return invoke<number>("current_process_id");
+}
+
 export async function getAutostartEnabled(): Promise<boolean> {
   return invoke<boolean>("get_autostart_enabled");
 }

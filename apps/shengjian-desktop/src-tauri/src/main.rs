@@ -211,6 +211,7 @@ fn main() {
             commands::canonicalize_app_target,
             commands::app_icon_data_urls,
             commands::voice_tool_catalog,
+            commands::current_process_id,
             commands::resolve_app_target,
             commands::device_status,
             commands::device_support,

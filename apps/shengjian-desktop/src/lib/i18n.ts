@@ -655,7 +655,7 @@ const ENGLISH = {
   近期错误行: "Recent error lines",
   未识别: "Not detected",
   日志中暂无: "Not in log",
-  按钮增强服务: "Button enhancement service",
+  按键增强服务: "Key enhancement service",
   新方案: "New profile",
   新宏: "New macro",
   新建宏: "New macro",

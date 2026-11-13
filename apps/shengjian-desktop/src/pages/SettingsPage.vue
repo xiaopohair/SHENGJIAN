@@ -22,6 +22,7 @@ import {
   exportDiagnosticBundle,
   getAudioDependencyStatus,
   getAutostartEnabled,
+  getCurrentProcessId,
   getForegroundExecutable,
   getHostCapabilities,
   getRc003HelperInstalled,
@@ -440,23 +441,43 @@ async function runHealthCheck() {
     // The catalog is cached; awaiting it here makes sure the check shows the
     // configured display name even if the settings page loads first.
     await loadVoiceToolCatalog();
-    const [caps, helper, endpoints, battery, foreground, currentSettings, audioDependencyStatus] =
-      await Promise.all([
-        getHostCapabilities(),
-        getRc003HelperInstalled(),
-        listAudioEndpoints(),
-        getRemoteBattery(),
-        getForegroundExecutable(),
-        getSettings(),
-        getAudioDependencyStatus(),
-      ]);
+    const [
+      caps,
+      helper,
+      endpoints,
+      battery,
+      foreground,
+      currentSettings,
+      audioDependencyStatus,
+      currentPid,
+    ] = await Promise.all([
+      getHostCapabilities(),
+      getRc003HelperInstalled(),
+      listAudioEndpoints(),
+      getRemoteBattery(),
+      getForegroundExecutable(),
+      getSettings(),
+      getAudioDependencyStatus(),
+      getCurrentProcessId(),
+    ]);
     const log = await readDiagnosticLog(256 * 1024);
     const lines = log.split("\n");
-    const resourceLine = [...lines].reverse().find((line) => line.includes("resource_probe"));
+    // 只统计本次运行（pid 匹配）：历史会话/上一次安装的失败不应影响当前健康状态。
+    const currentRunLines = lines.filter((line) => line.includes(`pid=${currentPid} `));
+    const resourceLine = [...currentRunLines]
+      .reverse()
+      .find((line) => line.includes("resource_probe"));
     const workingSet = resourceLine?.match(/working_set_kb=(\d+)/)?.[1];
-    const recentErrors = lines.filter((line) =>
-      /result=(err|failed)|error=|terminal_result=failed/.test(line),
-    ).length;
+    // 同一次失败会写多行（stage / failure_detail / 顶层），按秒去重后计数。
+    const seenErrorSeconds = new Set<string>();
+    const recentErrors = currentRunLines
+      .filter((line) => /result=(err|failed)|error=|terminal_result=failed/.test(line))
+      .filter((line) => {
+        const key = line.slice(0, 19);
+        if (seenErrorSeconds.has(key)) return false;
+        seenErrorSeconds.add(key);
+        return true;
+      }).length;
     healthChecks.value = [
       { label: tr("Host 平台"), ok: caps.platform.length > 0, detail: caps.platform },
       {
@@ -464,7 +485,7 @@ async function runHealthCheck() {
         ok: caps.macroRuntime,
         detail: caps.macroRuntime ? tr("可用") : tr("不可用"),
       },
-      { label: tr("按钮增强服务"), ok: helper, detail: helper ? tr("已安装") : tr("未安装") },
+      { label: tr("按键增强服务"), ok: helper, detail: helper ? tr("已安装") : tr("未安装") },
       {
         label: tr("虚拟音频设备"),
         ok: audioDependencyStatus.state === "ready",

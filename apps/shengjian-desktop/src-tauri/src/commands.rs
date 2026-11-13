@@ -205,6 +205,12 @@ pub fn open_diagnostic_log_folder(state: State<'_, AppState>) -> Result<(), Comm
         .map_err(CommandError::from)
 }
 
+/// 当前进程号：健康检查只统计本次运行的错误行，避免历史会话噪音。
+#[tauri::command]
+pub fn current_process_id() -> u32 {
+    std::process::id()
+}
+
 #[tauri::command]
 pub fn open_external_url(url: String) -> Result<(), CommandError> {
     const RELEASE_PREFIX: &str = "https://github.com/xiaopohair/SHENGJIAN/";
