@@ -220,11 +220,14 @@ export const useUpdateStore = defineStore("update", {
       pushToast(`${tr("发现新版本")} ${version}`, "accent", {
         actionLabel: tr("查看"),
         durationMs: 20000,
+        // 「查看」是「带我去看」，不是「忽略」：不能在这里 dismiss，
+        // 否则跳到关于页时 dismissedVersion 已置上，升级横幅会立刻消失。
         onAction: () => {
-          this.dismiss();
           window.dispatchEvent(new Event(SHOW_UPDATE_EVENT));
         },
-        onClose: () => this.dismiss(),
+        // 关闭提示只是收起这条 Toast，同样不改变「有没有新版本」的判定；
+        // 要彻底不再提示，用横幅上的「忽略此版本」。
+        onClose: () => undefined,
       });
     },
 

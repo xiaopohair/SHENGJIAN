@@ -173,8 +173,23 @@ onMounted(async () => {
               <StatusPill :label="platformNameFor(platformName)" tone="info" />
               <StatusPill :label="trDynamic('本地构建')" tone="neutral" />
               <StatusPill :label="trDynamic('未签名')" tone="warning" dot />
+              <!-- 有新版本时，版本行里保留一枚可点的标签（与顶部横幅并存）：
+                  横幅是「提醒」，这枚标签是「状态」，滚过横幅后仍能看到。 -->
+              <button
+                v-if="updateStore.hasUpdate && latestRelease"
+                type="button"
+                class="update-link"
+                :title="tr('查看发布')"
+                @click="openReleasePage"
+              >
+                <StatusPill
+                  :label="`${tr('发现新版本')} ${latestRelease.tagName}`"
+                  tone="accent"
+                  dot
+                />
+              </button>
               <StatusPill
-                v-if="updateState === 'checking'"
+                v-else-if="updateState === 'checking'"
                 :label="trDynamic('检查中')"
                 tone="neutral"
                 dot
@@ -400,6 +415,26 @@ onMounted(async () => {
 
 .about-prerelease {
   flex: 0 0 auto;
+}
+
+/* 版本行里的「发现新版本」标签：包装成按钮以便点击打开 Release 页。 */
+.update-link {
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.update-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.update-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* 「发现新版本」置顶横幅：品牌色描边 + 渐变浅底 + 左侧粗条，全页最醒目的元素。 */
