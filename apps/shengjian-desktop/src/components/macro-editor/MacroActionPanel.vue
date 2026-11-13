@@ -441,14 +441,18 @@ function setNestedMacro(macroId: string) {
   font-size: 13px;
   font-weight: 500;
 }
+/* Rows and standalone fields must consume identical vertical space before the
+   hint row below; otherwise switching action types moves the hint up/down by 4px
+   (system_action is a single field, run_macro is a .config-row). */
 .config-row {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   gap: 12px;
+  margin-bottom: 8px;
 }
 .config-row .config-field {
-  margin-bottom: 8px;
+  margin-bottom: 0;
 }
 /* The first field takes the remaining width; the rest keep their own size. */
 .config-row > .config-field:first-child {

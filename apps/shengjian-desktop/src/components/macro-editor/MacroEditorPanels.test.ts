@@ -221,6 +221,9 @@ describe("Macro editor panels", () => {
     // The summary now lives in the properties drawer, not inline.
     expect(wrapper.find(".desc-input").exists()).toBe(false);
     expect(wrapper.text()).not.toContain("说明文字");
+    // Editing an existing macro: the title is display-only (rename via 属性).
+    expect(wrapper.find(".name-input").exists()).toBe(false);
+    expect(wrapper.find(".name-display").text()).toBe("测试宏");
     wrapper.unmount();
   });
 

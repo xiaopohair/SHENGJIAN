@@ -499,6 +499,7 @@ const ENGLISH = {
   属性: "Properties",
   "编辑方案：": "Editing profile: ",
   "编辑宏：": "Editing macro: ",
+  "在“属性”里修改名称": "Rename it in Properties.",
   "新建宏：": "New macro: ",
   宏属性: "Macro properties",
   名称与说明: "Name and description",

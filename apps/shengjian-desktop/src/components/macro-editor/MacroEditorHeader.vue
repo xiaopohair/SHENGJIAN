@@ -45,6 +45,7 @@ function startOrCancelRun() {
       <div class="name-row">
         <span class="eyebrow">{{ editingNew ? tr("新建宏：") : tr("编辑宏：") }}</span>
         <input
+          v-if="editingNew"
           class="name-input"
           maxlength="20"
           :value="name"
@@ -52,6 +53,7 @@ function startOrCancelRun() {
           :aria-label="tr('名称')"
           @input="emit('update:name', ($event.target as HTMLInputElement).value)"
         />
+        <span v-else class="name-display" :title="tr('在“属性”里修改名称')">{{ name }}</span>
         <StatusPill v-if="dirty" :label="trDynamic('未保存')" tone="warning" dot />
       </div>
     </div>
@@ -189,6 +191,18 @@ function startOrCancelRun() {
 }
 .name-input:focus {
   border-bottom: 1px solid var(--accent);
+}
+/* 编辑已有宏时标题只是展示；改名走“属性”抽屉，避免误点标题进入编辑。 */
+.name-display {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .name-row > .ui-status {
   flex: 0 0 auto;
