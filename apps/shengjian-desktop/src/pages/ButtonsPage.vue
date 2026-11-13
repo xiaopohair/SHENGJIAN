@@ -469,6 +469,9 @@ function validateProfileDraft(): string | null {
       if (action.type === "run-macro" && !String(action.macro_id ?? "").trim()) {
         return tr("{position} 未选择宏", { position });
       }
+      if (action.type === "system-action" && !String(action.key ?? "").trim()) {
+        return tr("{position} 缺少系统动作", { position });
+      }
     }
   }
   return null;

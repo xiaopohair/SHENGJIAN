@@ -14,6 +14,7 @@ import {
 import { statusLabel, tr, trDynamic } from "../lib/i18n";
 import { deviceProductNameKey } from "../lib/deviceProduct";
 import { formatShortcut } from "../lib/shortcuts";
+import { systemKeyLabel } from "../lib/systemActions";
 import {
   appTargetFriendlyName,
   cachedAppTarget,
@@ -236,6 +237,10 @@ function summary(button: LogicalButton, trigger: ProfileTrigger): string {
       return (
         props.latestMacros.find((macro) => macro.macroId === action.macro_id)?.name ?? "运行宏"
       );
+    case "system-action": {
+      const key = typeof action.key === "string" ? action.key.trim() : "";
+      return key ? systemKeyLabel(key) : trDynamic("系统动作");
+    }
     case "focus-input":
       return trDynamic("聚焦输入");
     case "disabled":

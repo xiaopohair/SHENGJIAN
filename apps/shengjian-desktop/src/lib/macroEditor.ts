@@ -11,7 +11,12 @@ import {
 } from "lucide-vue-next";
 import { MACRO_ACTIONS, MACRO_MODIFIERS } from "./macros";
 import { tr, trDynamic } from "./i18n";
+import { systemKeyLabel } from "./systemActions";
 import type { MacroChord, MacroStep } from "./types";
+
+/** 系统动作 key/label/图标已抽到 lib/systemActions.ts（宏与按键方案共用）。 */
+export { SYSTEM_KEYS, isSystemActionKey, systemKeyLabel } from "./systemActions";
+export type { SystemActionDefinition } from "./systemActions";
 
 export const ACTIONS = MACRO_ACTIONS;
 export const MODIFIERS = MACRO_MODIFIERS;
@@ -74,25 +79,6 @@ export function actionIcon(actionId: string): Component {
 
 export function actionTone(actionId: string): string {
   return ACTION_TONES[actionId] ?? "neutral";
-}
-
-/**
- * System actions are a fixed set of OS/media keys; the runtime only maps these
- * names, so the editor offers them directly instead of free chord capture.
- */
-export const SYSTEM_KEYS = [
-  { key: "volume_up", label: "音量 +" },
-  { key: "volume_down", label: "音量 −" },
-  { key: "volume_mute", label: "静音" },
-  { key: "media_play_pause", label: "播放 / 暂停" },
-  { key: "media_prev", label: "上一曲" },
-  { key: "media_next", label: "下一曲" },
-  { key: "escape", label: "Esc" },
-] as const;
-
-export function systemKeyLabel(key: string): string {
-  const match = SYSTEM_KEYS.find((item) => item.key === key);
-  return match ? trDynamic(match.label) : key;
 }
 
 export function chord(step: MacroStep): MacroChord {

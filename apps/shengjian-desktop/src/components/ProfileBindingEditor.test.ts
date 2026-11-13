@@ -79,4 +79,57 @@ describe("ProfileBindingEditor action parameters", () => {
     expect(wrapper.find(".config-note").text()).toContain("该手势不会触发任何动作");
     wrapper.unmount();
   });
+
+  it("adds a system action card whose grid saves the picked key", async () => {
+    const draft = draftWith({});
+    const wrapper = mount(ProfileBindingEditor, {
+      props: {
+        buttonId: "ok",
+        trigger: "single",
+        busy: false,
+        commonPhrasesAvailable: false,
+        latestMacros: [],
+        draft,
+      },
+    });
+    await flushPromises();
+
+    const card = wrapper
+      .findAll(".binding-option")
+      .find((button) => button.text().includes("系统动作"));
+    expect(card).toBeDefined();
+    await card!.trigger("click");
+
+    // Switching to the action starts without a key and shows the missing-key issue.
+    expect(draft.bindings.ok?.single).toEqual({ type: "system-action", key: "" });
+    expect(wrapper.find(".system-action-grid").exists()).toBe(true);
+    expect(wrapper.find(".config-issue").text()).toContain("请选择系统动作");
+    expect(wrapper.find(".hold-repeat-section").exists()).toBe(false);
+
+    const radios = wrapper.findAll('.system-action-grid [role="radio"]');
+    expect(radios).toHaveLength(7);
+    await radios[2].trigger("click");
+
+    expect(draft.bindings.ok?.single).toEqual({ type: "system-action", key: "volume_mute" });
+    expect(wrapper.find(".config-issue").exists()).toBe(false);
+    expect(wrapper.find(".config-note").text()).toContain("系统媒体键");
+    // A single system key repeats like a shortcut, matching the backend rule.
+    expect(wrapper.find(".hold-repeat-section").exists()).toBe(true);
+    wrapper.unmount();
+  });
+
+  it("restores the selected radio for an existing system action binding", async () => {
+    const wrapper = mountEditor({
+      ok: { single: { type: "system-action", key: "media_next" } },
+    });
+    await flushPromises();
+
+    const checked = wrapper
+      .findAll('.system-action-grid [role="radio"]')
+      .filter((radio) => radio.attributes("aria-checked") === "true");
+    expect(checked).toHaveLength(1);
+    expect(checked[0].text()).toContain("下一曲");
+    expect(wrapper.find(".config-issue").exists()).toBe(false);
+    wrapper.unmount();
+  });
 });

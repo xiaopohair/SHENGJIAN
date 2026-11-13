@@ -158,6 +158,7 @@ export type LogicalAction =
   | { type: "focus-input" }
   | { type: "shortcut"; label: string; keys: string[] }
   | { type: "open-app"; app: string; focus?: string }
+  | { type: "system-action"; key: string }
   | { type: "common-phrase" }
   | { type: "mouse"; kind: string; direction?: string | null; amount?: number }
   | { type: "run-macro"; macro_id: string }

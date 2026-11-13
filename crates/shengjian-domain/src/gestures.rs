@@ -327,6 +327,12 @@ fn action_allows_repeat(action: &LogicalAction) -> bool {
         LogicalAction::Shortcut { keys, .. } => {
             keys.len() == 1 && !keys[0].contains('+') && !is_modifier_key(&keys[0])
         }
+        // 系统动作 = 单键快捷键，连发语义必须与等价的 `Shortcut { keys: [key] }` 一致，
+        // 否则绑定「音量+/媒体键」长按不会连发（音量键的常见使用方式）；
+        // 空 key 防御性拒绝（执行层会解析失败，不应进入连发）。
+        LogicalAction::SystemAction { key } => {
+            !key.trim().is_empty() && !key.contains('+') && !is_modifier_key(key)
+        }
         LogicalAction::Mouse { kind, .. } => matches!(
             kind,
             shengjian_contract::MouseActionKind::Scroll | shengjian_contract::MouseActionKind::Move
@@ -516,6 +522,43 @@ mod tests {
             ButtonTrigger::Single
         );
         assert!(recognizer.advance(2000).is_empty());
+    }
+
+    /// 系统动作（音量/媒体/退出等单键）与等价单键 Shortcut 的连发语义一致；
+    /// 修饰键与多键写法仍不连发。
+    #[test]
+    fn system_action_repeats_like_single_key_shortcut() {
+        let mut recognizer = GestureRecognizer::new();
+        recognizer.configure(&mapping(
+            LogicalButton::Up,
+            LogicalAction::SystemAction {
+                key: "volume_up".to_owned(),
+            },
+            LogicalAction::Disabled,
+            LogicalAction::Disabled,
+            Some(ButtonTrigger::Single),
+        ));
+        assert_eq!(
+            recognizer.press(LogicalButton::Up, 0)[0].trigger,
+            ButtonTrigger::Single
+        );
+        assert_eq!(
+            recognizer.advance(350).len(),
+            1,
+            "系统动作单键应允许长按连发"
+        );
+        assert!(action_allows_repeat(&LogicalAction::SystemAction {
+            key: "media_play_pause".to_owned()
+        }));
+        assert!(!action_allows_repeat(&LogicalAction::SystemAction {
+            key: "left_control".to_owned()
+        }));
+        assert!(!action_allows_repeat(&LogicalAction::SystemAction {
+            key: "ctrl+up".to_owned()
+        }));
+        assert!(!action_allows_repeat(&LogicalAction::SystemAction {
+            key: "   ".to_owned()
+        }));
     }
 
     #[test]

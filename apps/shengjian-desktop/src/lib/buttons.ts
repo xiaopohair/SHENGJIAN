@@ -57,6 +57,7 @@ export type ProfileActionType =
   | "focus-input"
   | "shortcut"
   | "open-app"
+  | "system-action"
   | "common-phrase"
   | "mouse"
   | "run-macro"

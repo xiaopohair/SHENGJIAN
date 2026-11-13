@@ -339,4 +339,26 @@ describe("ButtonsPage profile navigation and editor", () => {
     expect((macroSelect.element as HTMLSelectElement).value).toBe("recommended-only");
     expect(wrapper.text()).not.toContain("还没有选择宏");
   });
+
+  it("blocks saving a profile whose system action has no key", async () => {
+    const wrapper = await mountPage();
+    await wrapper.get(".ui-empty-actions button").trigger("click");
+    await flushPromises();
+
+    const card = wrapper
+      .findAll(".binding-option")
+      .find((button) => button.text().includes("系统动作"));
+    expect(card).toBeDefined();
+    await card!.trigger("click");
+    await flushPromises();
+    expect(wrapper.find(".system-action-grid").exists()).toBe(true);
+
+    const saveButton = toolbarButton(wrapper, "保存");
+    expect(saveButton).toBeDefined();
+    await saveButton!.trigger("click");
+    await flushPromises();
+
+    expect(wrapper.find(".ui-notice").text()).toContain("缺少系统动作");
+    expect(saveButtonProfiles).not.toHaveBeenCalled();
+  });
 });

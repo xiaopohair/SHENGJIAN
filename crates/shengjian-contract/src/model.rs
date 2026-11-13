@@ -248,6 +248,15 @@ pub enum LogicalAction {
         amount: u16,
     },
     CommonPhrase,
+    /// 系统动作：音量/媒体/退出等**单键**动作。
+    ///
+    /// `key` 语义键名与宏系统动作一致（`volume_up` / `volume_down` /
+    /// `volume_mute` / `media_play_pause` / `media_prev` / `media_next` /
+    /// `escape`…）；执行层按单键快捷键注入（等价于 `Shortcut { keys: [key] }`），
+    /// 未知键名交给底层 KeyCode 解析失败。
+    SystemAction {
+        key: String,
+    },
 }
 
 impl LogicalAction {
@@ -420,6 +429,36 @@ mod tests {
         assert_eq!(json["seq"], 7);
         assert_eq!(json["event"]["type"], "connection.changed");
         assert_eq!(json["event"]["snapshot"]["phase"], "ready");
+    }
+
+    /// 系统动作契约：`{ "type": "system-action", "key": "volume_up" }`（kebab tag + key 字段）。
+    #[test]
+    fn system_action_uses_kebab_type_and_key_field() {
+        let action = LogicalAction::SystemAction {
+            key: "volume_up".to_owned(),
+        };
+        let json = serde_json::to_value(&action).expect("serialize");
+        assert_eq!(json["type"], "system-action");
+        assert_eq!(json["key"], "volume_up");
+        assert_eq!(
+            json.as_object().expect("object").len(),
+            2,
+            "只应有 type/key 两个字段"
+        );
+        let round_trip: LogicalAction = serde_json::from_value(json).expect("deserialize");
+        assert_eq!(round_trip, action);
+
+        // 未知 key 在契约层原样保留（执行层解析失败，不在 JSON 校验期拒绝）。
+        let unknown: LogicalAction = serde_json::from_value(
+            serde_json::json!({"type": "system-action", "key": "not_a_key"}),
+        )
+        .expect("unknown key parses");
+        assert_eq!(
+            unknown,
+            LogicalAction::SystemAction {
+                key: "not_a_key".to_owned()
+            }
+        );
     }
 
     #[test]

@@ -12,6 +12,7 @@ import {
   Mouse,
   Play,
   RotateCcw,
+  Volume2,
 } from "lucide-vue-next";
 import { type ProfileActionType, type ProfileDraft, type ProfileTrigger } from "../lib/buttons";
 import { tr, trDynamic } from "../lib/i18n";
@@ -22,6 +23,7 @@ import AppPickerDialog from "./app-picker/AppPickerDialog.vue";
 import AppTargetField from "./app-picker/AppTargetField.vue";
 import Checkbox from "./ui/Checkbox.vue";
 import SelectInput from "./ui/SelectInput.vue";
+import SystemActionGrid from "./ui/SystemActionGrid.vue";
 import TextInput from "./ui/TextInput.vue";
 import ChordInput from "./ui/ChordInput.vue";
 
@@ -83,6 +85,13 @@ const ACTIONS = computed(() =>
       tone: "amber",
     },
     {
+      type: "system-action" as const,
+      label: "系统动作",
+      detail: "音量与播放控制",
+      icon: Volume2,
+      tone: "amber",
+    },
+    {
       type: "mouse" as const,
       label: "鼠标",
       detail: "滚轮/移动/左右键",
@@ -134,6 +143,16 @@ const currentActionAllowsRepeat = computed(() => {
       keys.length === 1 &&
       !keys[0].includes("+") &&
       !["control", "ctrl", "alt", "shift", "win", "meta"].includes(keys[0])
+    );
+  }
+  // 系统动作等价于单键快捷键（后端 action_allows_repeat 同一规则），
+  // 因此音量/媒体键也支持按住连发。
+  if (action?.type === "system-action" && typeof action.key === "string") {
+    const key = action.key.trim().toLowerCase();
+    return (
+      key.length > 0 &&
+      !key.includes("+") &&
+      !["control", "ctrl", "alt", "shift", "win", "meta"].includes(key)
     );
   }
   if (action?.type === "mouse") {
@@ -191,6 +210,7 @@ const actionType = computed<ActionType>(() => {
     action.type === "focus-input" ||
     action.type === "shortcut" ||
     action.type === "open-app" ||
+    action.type === "system-action" ||
     action.type === "common-phrase" ||
     action.type === "mouse" ||
     action.type === "run-macro"
@@ -225,6 +245,11 @@ const macroId = computed(() => {
   return action?.type === "run-macro" && typeof action.macro_id === "string" ? action.macro_id : "";
 });
 
+const systemKey = computed(() => {
+  const action = currentAction.value;
+  return action?.type === "system-action" && typeof action.key === "string" ? action.key : "";
+});
+
 const mouseKind = computed(() => {
   const action = currentAction.value;
   return action?.type === "mouse" && typeof action.kind === "string" ? action.kind : "scroll";
@@ -249,7 +274,7 @@ const mouseAmount = computed(() => {
 
 /** 有参数的动作：横线 + 「动作参数」+ 字段 + 说明（与宏编辑器同款）。 */
 const hasParamFields = computed(() =>
-  ["shortcut", "open-app", "run-macro", "mouse"].includes(actionType.value),
+  ["shortcut", "open-app", "system-action", "run-macro", "mouse"].includes(actionType.value),
 );
 
 /** 缺必填内容时显示红色说明行。 */
@@ -271,6 +296,8 @@ const paramIssue = computed(() => {
         ? ""
         : tr("所选宏已不存在，请重新选择。");
     }
+    case "system-action":
+      return systemKey.value.trim() ? "" : tr("请选择系统动作");
     default:
       return "";
   }
@@ -287,6 +314,8 @@ const paramNote = computed(() => {
       return tr("执行该宏的最新保存版本。");
     case "mouse":
       return tr("滚轮与移动支持按住连发；点击只触发一次。");
+    case "system-action":
+      return tr("点选后按下该键会发送对应的系统媒体键。");
     default:
       return "";
   }
@@ -350,6 +379,8 @@ function setAction(type: string) {
     bindings[props.trigger] = { type: "shortcut", label: "", keys: [] };
   } else if (type === "open-app") {
     bindings[props.trigger] = { type: "open-app", app: "" };
+  } else if (type === "system-action") {
+    bindings[props.trigger] = { type: "system-action", key: "" };
   } else if (type === "common-phrase") {
     bindings[props.trigger] = { type: "common-phrase" };
   } else if (type === "mouse") {
@@ -414,6 +445,11 @@ function applyPickedApp(target: string) {
 
 function setMacro(value: string) {
   bindingsForButton()[props.trigger] = { type: "run-macro", macro_id: value };
+}
+
+function setSystemKey(key: string) {
+  if (!key) return;
+  bindingsForButton()[props.trigger] = { type: "system-action", key };
 }
 
 function setMouseKind(value: string) {
@@ -483,6 +519,15 @@ function setMouseAmount(value: string) {
       <div v-else-if="actionType === 'open-app'" class="config-field">
         <label>{{ tr("应用") }}</label>
         <AppTargetField :target="appValue" :disabled="busy" @choose="openAppPicker" />
+      </div>
+
+      <div v-else-if="actionType === 'system-action'" class="config-field">
+        <label>{{ tr("系统动作") }}</label>
+        <SystemActionGrid
+          :model-value="systemKey"
+          :disabled="busy"
+          @update:model-value="setSystemKey"
+        />
       </div>
 
       <div v-else-if="actionType === 'run-macro'" class="config-field">

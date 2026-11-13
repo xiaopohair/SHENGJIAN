@@ -151,10 +151,13 @@ describe("Macro editor panels", () => {
     wrapper.unmount();
   });
 
-  it("offers a fixed list for system actions instead of chord capture", async () => {
+  it("offers a system-action card grid instead of chord capture", async () => {
     const wrapper = mount(MacroActionPanel, {
       props: {
-        step: step({ action: "system_action", parameters: { chord: { modifiers: [], key: "" } } }),
+        step: step({
+          action: "system_action",
+          parameters: { chord: { modifiers: [], key: "volume_mute" } },
+        }),
         issue: "",
         index: 0,
         total: 1,
@@ -163,13 +166,19 @@ describe("Macro editor panels", () => {
     });
 
     expect(wrapper.find(".chord-input").exists()).toBe(false);
-    const select = wrapper.find("select");
-    const values = select.findAll("option").map((option) => option.attributes("value"));
-    expect(values).toContain("volume_up");
-    expect(values).toContain("media_play_pause");
-    await select.setValue("volume_mute");
+    const grid = wrapper.find(".system-action-grid");
+    expect(grid.exists()).toBe(true);
+    expect(grid.attributes("role")).toBe("radiogroup");
+
+    const radios = grid.findAll('[role="radio"]');
+    expect(radios).toHaveLength(7);
+    expect(radios.map((radio) => radio.text())).toContain("音量 +");
+    // The saved key keeps its radio selected.
+    expect(radios[2].attributes("aria-checked")).toBe("true");
+
+    await radios[0].trigger("click");
     expect(wrapper.emitted("update-step")?.[0]?.[0]).toMatchObject({
-      parameters: { chord: { modifiers: [], key: "volume_mute" } },
+      parameters: { chord: { modifiers: [], key: "volume_up" } },
     });
     wrapper.unmount();
   });

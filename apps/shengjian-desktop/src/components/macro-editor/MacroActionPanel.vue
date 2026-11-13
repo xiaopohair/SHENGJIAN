@@ -3,20 +3,14 @@ import { computed } from "vue";
 import { CircleAlert, CircleCheck, Copy, Trash2 } from "lucide-vue-next";
 import { defaultMacroParameters } from "../../lib/macros";
 import { tr, trDynamic } from "../../lib/i18n";
-import {
-  ACTIONS,
-  SYSTEM_KEYS,
-  actionIcon,
-  actionLabel,
-  actionUsesTimeout,
-  chord,
-} from "../../lib/macroEditor";
+import { ACTIONS, actionIcon, actionLabel, actionUsesTimeout, chord } from "../../lib/macroEditor";
 import type { MacroChord, MacroDefinition, MacroParameters, MacroStep } from "../../lib/types";
 import { useAppPicker } from "../../composables/useAppPicker";
 import AppPickerDialog from "../app-picker/AppPickerDialog.vue";
 import AppTargetField from "../app-picker/AppTargetField.vue";
 import IconButton from "../ui/IconButton.vue";
 import SelectInput from "../ui/SelectInput.vue";
+import SystemActionGrid from "../ui/SystemActionGrid.vue";
 import TextInput from "../ui/TextInput.vue";
 import MacroChordInput from "../ui/ChordInput.vue";
 
@@ -234,12 +228,7 @@ function setNestedMacro(macroId: string) {
         </div>
         <div v-if="showSystemField" class="config-field">
           <label>{{ tr("系统动作") }}</label>
-          <SelectInput :model-value="chordValue.key" @update:model-value="setSystemKey">
-            <option value="">{{ tr("选择系统动作") }}</option>
-            <option v-for="item in SYSTEM_KEYS" :key="item.key" :value="item.key">
-              {{ trDynamic(item.label) }}
-            </option>
-          </SelectInput>
+          <SystemActionGrid :model-value="chordValue.key" @update:model-value="setSystemKey" />
         </div>
         <div v-if="showNestedField" class="config-row">
           <div class="config-field">

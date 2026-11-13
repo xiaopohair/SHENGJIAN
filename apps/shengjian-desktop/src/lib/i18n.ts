@@ -938,6 +938,11 @@ const ENGLISH = {
 
   有更新: "Update",
   推荐方案有更新: "Recommended profiles updated",
+  // 系统动作（媒体/音量键）
+  Esc: "Esc",
+  "点选后按下该键会发送对应的系统媒体键。":
+    "Pressing that key afterwards sends the matching system media key.",
+  "{position} 缺少系统动作": "{position} has no system action",
 } as const satisfies Record<string, string>;
 
 export type TranslationKey = keyof typeof ENGLISH;

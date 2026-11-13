@@ -582,6 +582,9 @@ impl<P: PlatformActions> ActionSinkPort for WindowsActionSink<P> {
             LogicalAction::FocusInput => self.backend.focus_input(),
             LogicalAction::RunMacro { macro_id } => self.backend.run_macro(macro_id),
             LogicalAction::CommonPhrase => self.backend.open_common_phrases(),
+            // 系统动作 = 单键快捷键：复用现有 KeyChord 解析/注入（未知键名由底层
+            // `parse_key` 报 `unsupported-key`，契约层不预判）。
+            LogicalAction::SystemAction { key } => self.backend.shortcut(std::slice::from_ref(key)),
             LogicalAction::Mouse {
                 kind,
                 direction,
@@ -1805,6 +1808,11 @@ mod action_tests {
             .execute(&LogicalAction::CommonPhrase)
             .expect("phrases");
         actions
+            .execute(&LogicalAction::SystemAction {
+                key: "volume_up".to_owned(),
+            })
+            .expect("system action");
+        actions
             .execute(&LogicalAction::Mouse {
                 kind: MouseActionKind::Scroll,
                 direction: Some(Direction::Down),
@@ -1841,10 +1849,42 @@ mod action_tests {
                 "focus",
                 "macro:macro-1",
                 "phrases",
+                "shortcut:volume_up",
                 "scroll:Down:20",
                 "move:Left:30",
                 "click",
                 "right_click",
+            ]
+        );
+    }
+
+    /// 系统动作映射为**单键 shortcut**：键名原样交给后端（`volume_up` 等）；
+    /// 未知键名不在 adapter 预判，交给底层 `parse_key` 报 `unsupported-key`。
+    #[test]
+    fn system_action_forwards_single_key_shortcut_to_backend() {
+        let fake = Arc::new(FakeActions::default());
+        let actions = sink(&fake);
+        actions
+            .execute(&LogicalAction::SystemAction {
+                key: "volume_up".to_owned(),
+            })
+            .expect("volume up");
+        actions
+            .execute(&LogicalAction::SystemAction {
+                key: "media_play_pause".to_owned(),
+            })
+            .expect("media key");
+        actions
+            .execute(&LogicalAction::SystemAction {
+                key: "definitely-not-a-key".to_owned(),
+            })
+            .expect("adapter forwards unknown keys");
+        assert_eq!(
+            fake.calls(),
+            vec![
+                "shortcut:volume_up",
+                "shortcut:media_play_pause",
+                "shortcut:definitely-not-a-key",
             ]
         );
     }

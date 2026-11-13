@@ -1,0 +1,44 @@
+import { describe, expect, it } from "vitest";
+import { hasTranslation } from "./i18n";
+import { isSystemActionKey, SYSTEM_KEYS, systemKeyLabel } from "./systemActions";
+
+describe("system action catalog", () => {
+  it("matches the runtime contract key set exactly", () => {
+    expect(SYSTEM_KEYS.map((item) => item.key)).toEqual([
+      "volume_up",
+      "volume_down",
+      "volume_mute",
+      "media_play_pause",
+      "media_prev",
+      "media_next",
+      "escape",
+    ]);
+  });
+
+  it("recognises only catalogued keys", () => {
+    expect(isSystemActionKey("volume_mute")).toBe(true);
+    expect(isSystemActionKey("media_play_pause")).toBe(true);
+    expect(isSystemActionKey("escape")).toBe(true);
+    expect(isSystemActionKey("volume_")).toBe(false);
+    expect(isSystemActionKey("")).toBe(false);
+  });
+
+  it("has translations for every label", () => {
+    for (const item of SYSTEM_KEYS) {
+      expect(hasTranslation(item.label)).toBe(true);
+    }
+    expect(systemKeyLabel("volume_up")).toBe("音量 +");
+    expect(systemKeyLabel("media_next")).toBe("下一曲");
+  });
+
+  it("falls back to the raw key for unknown values", () => {
+    expect(systemKeyLabel("unknown_key")).toBe("unknown_key");
+  });
+
+  it("uses a keycap instead of an icon for Escape", () => {
+    const escape = SYSTEM_KEYS.find((item) => item.key === "escape");
+    expect(escape?.icon).toBeUndefined();
+    expect(escape?.keycap).toBe("Esc");
+    expect(SYSTEM_KEYS.filter((item) => !item.icon)).toHaveLength(1);
+  });
+});
