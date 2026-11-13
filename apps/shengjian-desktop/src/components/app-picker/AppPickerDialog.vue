@@ -22,6 +22,7 @@ import {
 import Button from "../ui/Button.vue";
 import IconButton from "../ui/IconButton.vue";
 import TextInput from "../ui/TextInput.vue";
+import ToggleGroup from "../ui/ToggleGroup.vue";
 
 const props = withDefaults(
   defineProps<{
@@ -85,6 +86,13 @@ const manualValue = ref("");
 const manualInfo = shallowRef<AppTargetInfo | null>(null);
 const manualError = shallowRef<string | null>(null);
 const manualChecking = ref(false);
+/** 列表分类：全部 / 推荐（预设）/ 已安装应用。 */
+const category = ref("all");
+const CATEGORY_ITEMS = [
+  { value: "all", label: "全部" },
+  { value: "suggested", label: "推荐" },
+  { value: "installed", label: "已安装应用" },
+] as const;
 
 const dialogRef = useTemplateRef<HTMLElement>("dialogRef");
 const searchRef = useTemplateRef<HTMLInputElement>("searchRef");
@@ -185,6 +193,8 @@ const sections = computed<PickerSection[]>(() => {
   const result: PickerSection[] = [];
 
   function addSection(id: string, title: string, seeds: PickerOptionSeed[], dedupe = true) {
+    // 分类只决定展示哪些分组；组内仍保留搜索与去重。
+    if (category.value !== "all" && category.value !== id) return;
     const items: PickerOption[] = [];
     for (const seed of seeds) {
       if (dedupe && used.has(seed.key)) continue;
@@ -277,6 +287,10 @@ watch(query, () => {
   activeIndex.value = 0;
 });
 
+watch(category, () => {
+  activeIndex.value = 0;
+});
+
 function ensureActiveVisible() {
   const item = activeItem.value;
   if (!item) return;
@@ -360,6 +374,7 @@ function primeDescriptions() {
 
 function resetForOpen() {
   query.value = "";
+  category.value = "all";
   activeIndex.value = 0;
   manualOpen.value = false;
   manualValue.value = "";
@@ -564,6 +579,10 @@ onUnmounted(() => {
           <kbd>Esc</kbd>
         </div>
 
+        <div class="app-picker-filters">
+          <ToggleGroup v-model="category" :items="CATEGORY_ITEMS" aria-label="应用分类" />
+        </div>
+
         <div v-if="picker.appsLoading.value && !picker.appsLoaded.value" class="app-picker-status">
           {{ tr("加载应用列表…") }}
         </div>
@@ -646,9 +665,7 @@ onUnmounted(() => {
               :placeholder="tr('输入程序完整路径')"
               :aria-label="tr('手动填写（高级）')"
             />
-            <p class="app-picker-manual-hint">
-              {{ tr("一般不用手填。可粘贴程序完整路径（.exe 或 .lnk）。") }}
-            </p>
+
             <div class="app-picker-manual-foot">
               <span
                 class="app-picker-manual-state"
@@ -798,6 +815,11 @@ onUnmounted(() => {
   color: var(--warning-text);
 }
 
+.app-picker-filters {
+  margin: var(--space-3) var(--space-5) 0;
+  overflow-x: auto;
+}
+
 .app-picker-list {
   flex: 1;
   min-height: 120px;
@@ -819,7 +841,6 @@ onUnmounted(() => {
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--bg-subtle);
 }
 
 .app-picker-option {
@@ -930,13 +951,6 @@ onUnmounted(() => {
 
 .app-picker-manual {
   margin-top: var(--space-3);
-}
-
-.app-picker-manual-hint {
-  margin: var(--space-2) 0 0;
-  color: var(--text-muted);
-  font-size: var(--text-2xs);
-  line-height: 1.45;
 }
 
 .app-picker-manual-foot {

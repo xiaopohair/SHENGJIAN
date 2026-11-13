@@ -171,6 +171,26 @@ describe("AppPickerDialog", () => {
     expect(optionByText("未安装").textContent).toContain("Chrome");
   });
 
+  it("switches between all, suggested and installed categories", async () => {
+    mountDialog();
+    await flushPromises();
+
+    const tabs = () => queryAll<HTMLElement>(".app-picker-filters button");
+    expect(tabs().map((tab) => tab.textContent?.trim())).toEqual(["全部", "推荐", "已安装应用"]);
+
+    tabs()[1].click();
+    await flushPromises();
+    expect(queryAll(".app-picker-group").map((el) => el.textContent?.trim())).toEqual(["推荐"]);
+    expect(optionByText("微信")).toBeTruthy();
+
+    tabs()[2].click();
+    await flushPromises();
+    expect(queryAll(".app-picker-group").map((el) => el.textContent?.trim())).toEqual([
+      "已安装应用",
+    ]);
+    expect(optionByText("记事本")).toBeTruthy();
+  });
+
   it("filters the list from the search box", async () => {
     mountDialog();
     await flushPromises();

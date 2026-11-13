@@ -874,8 +874,8 @@ const ENGLISH = {
   "浏览文件…": "Browse files…",
   "手动填写（高级）": "Enter manually (advanced)",
   输入程序完整路径: "Enter the app's full path",
-  "一般不用手填。可粘贴程序完整路径（.exe 或 .lnk）。":
-    "Usually no need to type here. Paste the app's full path (.exe or .lnk).",
+  全部: "All",
+  应用分类: "App categories",
   "校验中…": "Checking…",
   输入后会自动校验: "The target is validated as you type.",
   "目标有效，可以保存": "Valid target; ready to save.",
