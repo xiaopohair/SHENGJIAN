@@ -174,11 +174,14 @@ function startOrCancelRun() {
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
+/* 宽度跟随内容（Chromium `field-sizing: content`），这样“未保存”状态标签
+   会直接贴在宏名后面，而不是被输入框的空白宽度推到很远处。 */
 .name-input {
-  flex: 1 1 200px;
+  flex: 0 1 auto;
   width: auto;
   max-width: 520px;
-  min-width: 0;
+  min-width: 4ch;
+  field-sizing: content;
   border: 0;
   outline: 0;
   background: transparent;
@@ -206,6 +209,8 @@ function startOrCancelRun() {
 }
 .name-row > .ui-status {
   flex: 0 0 auto;
+  /* 名称与状态标签贴在一起（行内 gap 8，这里收 4）。 */
+  margin-left: -4px;
 }
 .editor-actions {
   display: flex;
