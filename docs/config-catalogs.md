@@ -95,6 +95,115 @@
   如果它本身是输入法并且要切输入法/观测，再补 `ime` 身份。
 - 改 `id` 同样会让旧设置里的 id 变成未知 id：配置不会丢，但默认热键与行为降为 custom。
 
+### 如何从注册表查 TSF 身份（CLSID / Profile GUID）
+
+TSF 输入法注册在 `CTF\TIP` 下，路径结构固定：
+
+```
+HKLM\SOFTWARE\Microsoft\CTF\TIP\{CLSID}\LanguageProfile\0x{LANGID}\{ProfileGUID}
+                                   └─ 第 1 个值 ─┘              └─ 第 2 个值 ─┘
+```
+
+- **CLSID**：`TIP\{…}` 这一层目录名（输入法 COM 组件）
+- **Profile GUID**：`LanguageProfile\0x…\{…}` 最里层目录名（具体输入配置）
+- **LANGID**：中间层，`0x00000804` = 简体中文
+- 同时要查 3 个位置：64 位视图、`WOW6432Node`（32 位输入法）、`HKCU`（每用户注册）
+
+#### 方法 A：`reg query` 一步搜索（最快）
+
+```bat
+reg query "HKLM\SOFTWARE\Microsoft\CTF\TIP" /s /f "Chatterfly"
+reg query "HKLM\SOFTWARE\WOW6432Node\Microsoft\CTF\TIP" /s /f "Chatterfly"
+reg query "HKCU\SOFTWARE\Microsoft\CTF\TIP" /s /f "Chatterfly"
+```
+
+本机 Chatterfly 的实际输出（64 位与 WOW6432Node 都有，各 2 处匹配）：
+
+```
+HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\CTF\TIP\{604A99E3-6D90-4571-824D-2639BD572F6C}\LanguageProfile\0x00000804\{C16C250B-CF1C-4C58-B068-12AEDBED610F}
+    Description    REG_SZ    Chatterfly
+    IconFile       REG_SZ    C:\WINDOWS\system32\ChatterflyTSF.ime
+```
+
+拆出来就是配置要的两个值：
+
+| 配置字段 | 取注册表路径的哪一段 | Chatterfly 实测值 |
+|---|---|---|
+| `ime.clsid` | `TIP\` 后的目录名 | `604A99E3-6D90-4571-824D-2639BD572F6C` |
+| `ime.profile` | `LanguageProfile\0x00000804\` 后的目录名 | `C16C250B-CF1C-4C58-B068-12AEDBED610F` |
+| `ime.names` | `Description` 值 | `Chatterfly` |
+
+#### 方法 B：PowerShell 列出全部输入法身份
+
+```powershell
+$roots = @(
+  'HKLM:\SOFTWARE\Microsoft\CTF\TIP',
+  'HKLM:\SOFTWARE\WOW6432Node\Microsoft\CTF\TIP',
+  'HKCU:\Software\Microsoft\CTF\TIP'
+)
+$profiles = foreach ($root in ($roots | Where-Object { Test-Path $_ })) {
+  Get-ChildItem $root | ForEach-Object {
+    $clsid = $_.PSChildName
+    $langRoot = Join-Path $_.PSPath 'LanguageProfile'
+    if (-not (Test-Path $langRoot)) { return }
+    Get-ChildItem $langRoot | ForEach-Object {
+      $langid = $_.PSChildName
+      Get-ChildItem $_.PSPath | ForEach-Object {
+        $props = Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue
+        [pscustomobject]@{
+          Description = $props.Description
+          CLSID       = $clsid
+          LangID      = $langid
+          ProfileGUID = $_.PSChildName
+          Enable      = $props.Enable
+        }
+      }
+    }
+  }
+}
+$profiles | Where-Object { $_.Description -like '*Chatterfly*' } | Format-List
+# 全部输入法：$profiles | Sort-Object Description | Format-Table -AutoSize
+```
+
+期望看到（`Enable = 1` 才表示已启用）：
+
+```
+Description : Chatterfly
+CLSID       : {604A99E3-6D90-4571-824D-2639BD572F6C}
+LangID      : 0x00000804
+ProfileGUID : {C16C250B-CF1C-4C58-B068-12AEDBED610F}
+Enable      : 1
+```
+
+> 同一输入法在 64 位视图和 `WOW6432Node` 各注册一次时，上面的脚本会输出两行、
+> 但 CLSID / Profile GUID 相同，属正常现象。
+
+#### 方法 C：系统语言列表（只能拿到 GUID，没有显示名）
+
+```powershell
+Get-WinUserLanguageList | Select-Object LanguageTag, InputMethodTips
+```
+
+`InputMethodTips` 的格式是 `langid:{CLSID}{ProfileGUID}`，例如：
+
+```
+0804:{86598FB9-66A2-463E-B9C2-AEB906D477AD}{607FDF85-FCC8-4DBD-A365-41296F980C9C}   # 微信输入法
+0804:{604A99E3-6D90-4571-824D-2639BD572F6C}{C16C250B-CF1C-4C58-B068-12AEDBED610F}   # Chatterfly
+```
+
+不含 Description，需与注册表结果对照（或按你已知的输入法名字排除）。
+
+#### 查不到时
+
+- 检查是否装了 32 位版：一定要查 `WOW6432Node`；本机 Chatterfly 在两个视图都注册
+- `Enable = 1` 才是启用状态；`Enable` 缺失/为 0 时 TSF 不会切过去
+- `Description` 可能随语言/版本变化，配置的 `names` 用包含匹配兜底
+- 配置里的 GUID 带不带 `{}`、大小写混写都可以（解析时会去掉非十六进制字符）
+- 改完配置重启程序，看诊断日志
+  `%LOCALAPPDATA%\Shengjian\Logs\shengjian-diagnostic.log` 里的
+  `catalog ime_profile … source=config|discovered outcome=resolved|failed`；
+  若显示 `failed`，先核对路径里的 CLSID/Profile 是否抄错、`Enable` 是否为 1
+
 ## 校验与回退
 
 两个文件在启动时都会做轻量校验：非空、id 唯一、focus strategy / tool kind 合法；
