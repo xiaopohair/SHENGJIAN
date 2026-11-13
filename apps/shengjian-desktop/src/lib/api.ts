@@ -5,6 +5,7 @@ import type {
   AppTargetInfo,
   AudioEndpoint,
   AudioSnapshot,
+  ButtonProfile,
   ButtonProfilesDocument,
   ButtonProfileState,
   CommandError,
@@ -18,6 +19,7 @@ import type {
   MacroLibraryDocument,
   MacroHistoryEntry,
   MacroRunStatus,
+  RecommendedButtonProfilesBundle,
   RemoteCandidate,
   SettingsDocument,
   TranscriptRecord,
@@ -185,6 +187,24 @@ export async function exportProfiles(
 
 export async function importProfiles(path: string): Promise<ButtonProfilesDocument> {
   return invoke<ButtonProfilesDocument>("import_profiles", { path });
+}
+
+/**
+ * 只读推荐方案（配置目录下发，按当前型号过滤；传入 null 表示型号未知）。
+ * 后端已按兼容型号过滤，`profiles` 为空表示当前型号暂无推荐。
+ */
+export async function getRecommendedButtonProfiles(
+  model: string | null,
+): Promise<RecommendedButtonProfilesBundle> {
+  return invoke<RecommendedButtonProfilesBundle>("recommended_button_profiles", { model });
+}
+
+/** 把推荐方案复制成用户方案：返回新 id、名称带「（我的）」的完整方案。 */
+export async function copyRecommendedButtonProfile(
+  id: string,
+  model: string | null,
+): Promise<ButtonProfile> {
+  return invoke<ButtonProfile>("copy_recommended_button_profile", { id, model });
 }
 
 export async function getMacroLibrary(): Promise<MacroLibraryDocument> {

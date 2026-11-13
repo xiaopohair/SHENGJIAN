@@ -6,8 +6,8 @@ use crate::state::AppState;
 use serde::{Deserialize, Serialize};
 use shengjian_app::{EngineSnapshot, SettingsDocument};
 use shengjian_contract::{
-    AudioEndpoint, AudioSnapshot, ButtonProfilesDocument, ConnectionSnapshot, EngineError,
-    RemoteCandidate, RemoteId,
+    AudioEndpoint, AudioSnapshot, ButtonProfile, ButtonProfilesDocument, ConnectionSnapshot,
+    EngineError, RemoteCandidate, RemoteId,
 };
 use shengjian_domain::{AppSettings, MacroLibraryDocument};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -470,6 +470,124 @@ pub fn save_button_profiles(
 ) -> Result<(), CommandError> {
     state.engine.set_button_profiles(document);
     Ok(())
+}
+
+/// 「推荐方案」列表里的一条只读视图（`profile` 内含完整内容供预览/复制）。
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecommendedButtonProfile {
+    pub id: String,
+    pub name: String,
+    pub device_model: Option<String>,
+    pub compatible_models: Vec<String>,
+    pub app_targets: Vec<String>,
+    pub auto_apply: bool,
+    pub bind_count: usize,
+    pub profile: ButtonProfile,
+}
+
+/// 内置推荐方案目录（只读；按当前型号过滤）。
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecommendedButtonProfilesView {
+    pub bundle_version: String,
+    pub profiles: Vec<RecommendedButtonProfile>,
+}
+
+/// 列出内置只读推荐方案（按 `compatibleModels` 过滤当前型号）。
+///
+/// 推荐方案不进入用户方案文档；要编辑请走 [`copy_recommended_button_profile`]。
+#[tauri::command]
+pub fn recommended_button_profiles(model: Option<String>) -> RecommendedButtonProfilesView {
+    let bundle_version = shengjian_domain::button_presets::bundle_version();
+    let profiles = shengjian_domain::button_presets::profiles_for_model(model.as_deref())
+        .into_iter()
+        .map(|preset| RecommendedButtonProfile {
+            id: preset.profile.id.clone(),
+            name: preset.profile.name.clone(),
+            device_model: preset.profile.device_model.clone(),
+            compatible_models: preset.compatible_models,
+            app_targets: preset.profile.app_targets.clone(),
+            auto_apply: preset.profile.auto_apply,
+            bind_count: preset.profile.bound_button_count(),
+            profile: preset.profile,
+        })
+        .collect();
+    RecommendedButtonProfilesView {
+        bundle_version,
+        profiles,
+    }
+}
+
+/// 把内置推荐方案复制成一份可编辑的普通方案（不落盘）。
+///
+/// 校验存在性与型号适配；生成与现有用户方案不冲突的 id、名称加「（我的）」、
+/// 盖 `createdAt`；`deviceModel/appTargets/bindings` 原样保留。前端把返回值插入
+/// 用户文档后走现有 `save_button_profiles` 流程。
+#[tauri::command]
+pub fn copy_recommended_button_profile(
+    state: State<'_, AppState>,
+    id: String,
+    model: Option<String>,
+) -> Result<ButtonProfile, CommandError> {
+    let preset = shengjian_domain::button_presets::profile(&id).ok_or_else(|| {
+        CommandError::new(
+            "preset-not-found",
+            "recommended button profile not found",
+            false,
+        )
+    })?;
+    if !preset.applies_to_model(model.as_deref()) {
+        return Err(CommandError::new(
+            "preset-model-mismatch",
+            "recommended button profile is not compatible with the current device model",
+            false,
+        ));
+    }
+    let existing_ids: Vec<String> = state
+        .engine
+        .button_profiles()
+        .profiles
+        .into_iter()
+        .map(|profile| profile.id)
+        .collect();
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default();
+    Ok(shengjian_domain::button_presets::copy_as_user_profile(
+        &preset,
+        &existing_ids,
+        now.as_millis() as u64,
+        now.as_secs(),
+    ))
+}
+
+#[cfg(test)]
+mod recommended_profiles_tests {
+    use super::*;
+
+    /// 前端契约：字段名/过滤/计数字段与 `recommended_button_profiles` 声明一致。
+    #[test]
+    fn recommended_profiles_view_serializes_frontend_contract() {
+        let view = recommended_button_profiles(Some("rc003".to_owned()));
+        let value = serde_json::to_value(&view).expect("serialize recommended profiles");
+        assert_eq!(value["bundleVersion"], "2026.11.1");
+        let profiles = value["profiles"].as_array().expect("profiles array");
+        assert_eq!(profiles.len(), 2, "RC003 应看到通用 + 仅 RC003 两条");
+        assert_eq!(profiles[0]["id"], "preset.desktop.shortcuts");
+        assert_eq!(profiles[0]["bindCount"], 2);
+        assert_eq!(profiles[0]["deviceModel"], serde_json::Value::Null);
+        assert_eq!(profiles[1]["compatibleModels"][0], "RC003");
+        assert_eq!(profiles[1]["appTargets"][0], "netease_music");
+        assert_eq!(profiles[1]["autoApply"], true);
+        assert_eq!(profiles[1]["profile"]["autoApply"], true);
+        assert_eq!(profiles[1]["profile"]["isDefault"], false);
+
+        // 仅 RC003 适配的方案不出现在 ARN9 下。
+        let arn9 = recommended_button_profiles(Some("ARN9".to_owned()));
+        assert_eq!(arn9.profiles.len(), 1);
+        assert_eq!(arn9.profiles[0].id, "preset.desktop.shortcuts");
+    }
 }
 
 #[tauri::command]

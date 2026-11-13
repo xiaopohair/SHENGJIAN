@@ -181,6 +181,8 @@ fn main() {
             commands::button_profile_state,
             commands::activate_button_profile,
             commands::save_button_profiles,
+            commands::recommended_button_profiles,
+            commands::copy_recommended_button_profile,
             commands::export_profiles,
             commands::import_profiles,
             commands::clear_button_profile_activation,

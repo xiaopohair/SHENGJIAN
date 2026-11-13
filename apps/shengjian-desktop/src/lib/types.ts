@@ -189,6 +189,27 @@ export interface ButtonProfileState {
   activeProfileId: string | null;
 }
 
+/**
+ * 配置目录（`config/button-profiles.json`）下发的只读推荐方案。
+ * `profile` 是完整的方案内容；复制时由后端生成新的用户方案。
+ */
+export interface RecommendedButtonProfile {
+  id: string;
+  name: string;
+  deviceModel: string | null;
+  /** 适用型号；空数组表示通用。 */
+  compatibleModels: string[];
+  appTargets: string[];
+  autoApply: boolean;
+  bindCount: number;
+  profile: ButtonProfile;
+}
+
+export interface RecommendedButtonProfilesBundle {
+  bundleVersion: string;
+  profiles: RecommendedButtonProfile[];
+}
+
 export interface ButtonEdge {
   button: string;
   pressed: boolean;

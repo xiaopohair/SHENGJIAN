@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { createPinia } from "pinia";
 import { setLanguagePreference } from "../lib/i18n";
-import type { ButtonProfilesDocument } from "../lib/types";
+import { RECOMMENDED_HIDDEN_KEY, RECOMMENDED_SEEN_VERSION_KEY } from "../lib/recommended";
+import type { ButtonProfile, ButtonProfilesDocument, RecommendedButtonProfile } from "../lib/types";
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({
   open: vi.fn(async () => null),
@@ -36,6 +37,8 @@ vi.mock("../lib/api", () => ({
   describeAppTargets: vi.fn(async () => []),
   canonicalizeAppTarget: vi.fn(),
   appIconDataUrls: vi.fn(async () => []),
+  getRecommendedButtonProfiles: vi.fn(),
+  copyRecommendedButtonProfile: vi.fn(),
   saveButtonProfiles: vi.fn(async () => undefined),
 }));
 
@@ -48,6 +51,34 @@ setLanguagePreference("zh-Hans");
 
 const getButtonProfileState = vi.mocked(api.getButtonProfileState);
 const saveButtonProfiles = vi.mocked(api.saveButtonProfiles);
+const activateButtonProfile = vi.mocked(api.activateButtonProfile);
+const getRecommendedButtonProfiles = vi.mocked(api.getRecommendedButtonProfiles);
+const copyRecommendedButtonProfile = vi.mocked(api.copyRecommendedButtonProfile);
+
+function emptyProfile(id: string, name: string): ButtonProfile {
+  return { id, name, appTargets: [], autoApply: false, bindings: {} };
+}
+
+function recommendedProfile(): RecommendedButtonProfile {
+  return {
+    id: "preset.desktop.shortcuts",
+    name: "桌面快捷键",
+    deviceModel: null,
+    compatibleModels: [],
+    appTargets: [],
+    autoApply: false,
+    bindCount: 2,
+    profile: emptyProfile("preset.desktop.shortcuts", "桌面快捷键"),
+  };
+}
+
+function copiedProfile(): ButtonProfile {
+  return {
+    ...emptyProfile("profile-copied", "桌面快捷键（我的）"),
+    deviceModel: null,
+    isDefault: false,
+  };
+}
 
 function emptyDocument(): ButtonProfilesDocument {
   return { schemaVersion: 1, profiles: [], activeManualProfileId: null };
@@ -73,6 +104,7 @@ let currentDocument: ButtonProfilesDocument;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  window.localStorage.clear();
   currentDocument = emptyDocument();
   getButtonProfileState.mockImplementation(async () => ({
     document: currentDocument,
@@ -81,6 +113,12 @@ beforeEach(() => {
   saveButtonProfiles.mockImplementation(async (document: ButtonProfilesDocument) => {
     currentDocument = document;
   });
+  activateButtonProfile.mockResolvedValue(true);
+  getRecommendedButtonProfiles.mockResolvedValue({
+    bundleVersion: "2026.11.1",
+    profiles: [],
+  });
+  copyRecommendedButtonProfile.mockResolvedValue(copiedProfile());
 });
 
 async function mountPage() {
@@ -197,5 +235,60 @@ describe("ButtonsPage profile navigation and editor", () => {
     expect(wrapper.find(".profile-chip.new-chip").exists()).toBe(false);
     expect(wrapper.findAll(".profile-chip")).toHaveLength(1);
     expect(wrapper.find(".profile-workbench").exists()).toBe(true);
+  });
+
+  it("shows the recommended profiles entry with an update badge and clears it after viewing", async () => {
+    window.localStorage.setItem(RECOMMENDED_SEEN_VERSION_KEY, "2026.10.1");
+    const wrapper = await mountPage();
+
+    const recommendedButton = wrapper
+      .findAll(".profile-tools button")
+      .find((button) => button.text().includes("推荐方案"));
+    expect(recommendedButton).toBeDefined();
+    expect(recommendedButton!.find(".recommended-update-badge").exists()).toBe(true);
+    expect(recommendedButton!.text()).toContain("有更新");
+
+    await recommendedButton!.trigger("click");
+    await flushPromises();
+
+    expect(document.querySelector(".recommended-dialog")).not.toBeNull();
+    expect(window.localStorage.getItem(RECOMMENDED_SEEN_VERSION_KEY)).toBe("2026.11.1");
+    expect(wrapper.find(".recommended-update-badge").exists()).toBe(false);
+  });
+
+  it("copies a recommended profile, activates it and opens it for editing", async () => {
+    getRecommendedButtonProfiles.mockResolvedValue({
+      bundleVersion: "2026.11.1",
+      profiles: [recommendedProfile()],
+    });
+    const wrapper = await mountPage();
+
+    const recommendedButton = wrapper
+      .findAll(".profile-tools button")
+      .find((button) => button.text().includes("推荐方案"));
+    await recommendedButton!.trigger("click");
+    await flushPromises();
+
+    const copyButton = document.querySelector<HTMLButtonElement>(".recommended-use");
+    expect(copyButton).not.toBeNull();
+    copyButton!.click();
+    await flushPromises();
+    await flushPromises();
+
+    expect(copyRecommendedButtonProfile).toHaveBeenCalledWith("preset.desktop.shortcuts", null);
+    expect(saveButtonProfiles).toHaveBeenCalledTimes(1);
+    const saved = saveButtonProfiles.mock.calls[0][0];
+    expect(saved.profiles.map((profile) => profile.id)).toContain("profile-copied");
+    expect(activateButtonProfile).toHaveBeenCalledWith("profile-copied");
+    expect(wrapper.find(".editor-name").text()).toContain("（我的）");
+    expect(document.querySelector(".recommended-dialog")).toBeNull();
+  });
+
+  it("hides the recommended profiles entry when the preference is set", async () => {
+    window.localStorage.setItem(RECOMMENDED_HIDDEN_KEY, "1");
+    const wrapper = await mountPage();
+
+    expect(wrapper.find(".profile-tools").text()).not.toContain("推荐方案");
+    expect(getRecommendedButtonProfiles).not.toHaveBeenCalled();
   });
 });

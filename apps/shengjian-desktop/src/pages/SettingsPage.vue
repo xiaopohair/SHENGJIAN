@@ -39,6 +39,7 @@ import { ONBOARDING_KEY, ACCENT_KEY, applyAccent, applyTheme } from "../lib/pref
 import { confirmAction } from "../lib/confirm";
 import { setLanguagePreference, statusLabel, tr, trDynamic, uiLocale } from "../lib/i18n";
 import { defaultHotkeyFor, voiceToolLabel, voiceToolOptions } from "../lib/voiceTools";
+import { isRecommendedProfilesHidden, setRecommendedProfilesHidden } from "../lib/recommended";
 import { useVoiceToolCatalog } from "../composables/useVoiceToolCatalog";
 import PageHeader from "../components/PageHeader.vue";
 import { useHotkeyRecorder } from "../composables/useHotkeyRecorder";
@@ -136,8 +137,14 @@ const activeSection = ref<SectionId>("appearance");
 const busy = shallowRef(false);
 const loading = shallowRef(true);
 const error = shallowRef<string | null>(null);
+/** 推荐方案入口的显示开关（只存 localStorage，不进 settings）。 */
+const showRecommendedProfiles = ref(!isRecommendedProfilesHidden());
 let saveTimer: number | undefined;
 let loadingSettings = false;
+
+watch(showRecommendedProfiles, (visible) => {
+  setRecommendedProfilesHidden(!visible);
+});
 
 function sectionVisible(id: SectionId): boolean {
   return activeSection.value === id;
@@ -746,6 +753,9 @@ onMounted(async () => {
                   <RotateCcw :size="14" />
                   {{ tr("运行") }}
                 </Button>
+              </SettingRow>
+              <SettingRow label="显示推荐方案" hint="关闭后按键页不再显示推荐方案入口">
+                <Switch v-model="showRecommendedProfiles" :label="trDynamic('显示推荐方案')" />
               </SettingRow>
             </div>
           </Card>

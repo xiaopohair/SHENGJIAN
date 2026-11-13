@@ -1,12 +1,14 @@
 pub mod adpcm;
 pub mod app_catalog;
 pub mod atvv;
+pub mod button_presets;
 pub mod frame;
 pub mod gestures;
 pub mod macros;
 pub mod pcm;
 pub mod pipeline;
 pub mod portable_macros;
+pub mod recommended_macros;
 pub mod settings;
 pub mod statistics;
 pub mod transcripts;

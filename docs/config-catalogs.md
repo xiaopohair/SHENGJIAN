@@ -9,6 +9,8 @@
 |---|---|
 | `config/app-presets.json` | 推荐应用（含安装探测、AUMID、默认聚焦、便携导出映射） |
 | `config/voice-tools.json` | 语音输入工具列表、名称、默认热键、行为类型 |
+| `config/button-profiles.json` | 推荐按键方案（只读；复制后成为用户方案） |
+| `config/recommended-macros.json` | 推荐宏（只读；供推荐/复制方案引用，用户宏优先） |
 
 构建时 `apps/shengjian-desktop/scripts/prepare-config.ps1` 会把它们复制到
 `apps/shengjian-desktop/src-tauri/resources/config/`，再由 Tauri 打进安装包。
@@ -204,6 +206,58 @@ Get-WinUserLanguageList | Select-Object LanguageTag, InputMethodTips
   `catalog ime_profile … source=config|discovered outcome=resolved|failed`；
   若显示 `failed`，先核对路径里的 CLSID/Profile 是否抄错、`Enable` 是否为 1
 
+## `button-profiles.json`（推荐按键方案）
+
+推荐方案是**只读**的：不会写进用户方案库，用户点「复制并使用」后才生成一份可编辑副本。
+同「推荐应用」一样随安装包下发、启动读取、非法时回退内嵌副本。
+
+```jsonc
+{
+  "schemaVersion": 1,
+  "bundleVersion": "2026.11.1",       // 版本变化时按键页显示「有更新」
+  "profiles": [
+    {
+      "id": "preset.desktop.shortcuts", // 稳定 id，必须 preset. 前缀
+      "name": "桌面快捷键",
+      "deviceModel": null,              // 复制后归属；null = 通用
+      "compatibleModels": ["RC003"],    // 适配型号；空 = 全部
+      "appTargets": [],                 // 前台应用匹配（预设 id / exe）
+      "autoApply": false,
+      "holdRepeat": "long",             // 可选
+      "bindings": {                     // 只允许可编辑按钮（is_profile_button）
+        "home": {
+          "single": { "type": "shortcut", "label": "资源管理器", "keys": ["left_windows", "e"] }
+        }
+      }
+    }
+  ]
+}
+```
+
+- `compatibleModels` 为空 = 所有型号；非空时只有当前设备型号匹配才会列出/允许复制
+- 未连接设备（型号未知）时只显示「通用」方案
+- 不支持 `isDefault`（默认方案只属于用户数据）；`run_macro` 引用的宏必须存在于
+  `recommended-macros.json`，否则该条预置被拒绝（目录级回退内嵌）
+- 复制：生成 `preset-copy-<源id>-<毫秒>` 的普通方案，名称加「（我的）」，
+  保留绑定/应用目标/重复设置；用户在前端保存后才会落盘并激活
+
+## `recommended-macros.json`（推荐宏）
+
+```jsonc
+{
+  "schemaVersion": 1,
+  "bundleVersion": "2026.11.1",
+  "macros": [
+    // 与 macros.json 的 MacroDefinition 同结构
+  ]
+}
+```
+
+- 只读，随包下发；目标：推荐方案里 `run_macro` 可以引用随包发布的宏
+- 同 `macro_id` 的用户宏优先；推荐宏不能被用户库删除/覆盖
+- 启动先加载推荐宏、再加载推荐方案；任一推荐方案引用的宏不存在时整份目录回退内嵌
+- 推荐宏目录为空是合法状态（当前默认）
+
 ## 校验与回退
 
 两个文件在启动时都会做轻量校验：非空、id 唯一、focus strategy / tool kind 合法；
@@ -220,3 +274,5 @@ Get-WinUserLanguageList | Select-Object LanguageTag, InputMethodTips
   推荐应用的启动、探测、默认聚焦、图标
 - `crates/shengjian-windows/src/voice_tool.rs` + `ble.rs` / `ime.rs`：输入法行为适配器；
   `ime.rs` 负责 TSF 身份解析（固定 GUID / 按显示名发现）与切换/观测
+- `crates/shengjian-domain/src/button_presets.rs` / `recommended_macros.rs`：推荐方案/推荐宏目录
+- `apps/shengjian-desktop/src/components/RecommendedProfilesDialog.vue`：推荐方案对话框与复制并使用

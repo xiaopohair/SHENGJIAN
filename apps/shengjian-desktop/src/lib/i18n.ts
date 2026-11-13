@@ -923,6 +923,24 @@ const ENGLISH = {
   "滚轮与移动支持按住连发；点击只触发一次。":
     "Scroll and move repeat while held; clicks fire once.",
   "把光标送回当前应用的输入框。": "Moves the caret back into the current app's input box.",
+  // 推荐按键方案
+  推荐方案: "Recommended profiles",
+  "由配置目录下发的只读方案；复制后成为你自己的方案，可自由修改。":
+    "Read-only profiles from the config bundle; copy one to make it your own and edit freely.",
+  "配置版本：{version}": "Bundle version: {version}",
+  "加载推荐方案…": "Loading recommended profiles…",
+  无法加载推荐方案: "Couldn't load recommended profiles",
+  "适用型号：{models}": "Models: {models}",
+  通用: "Universal",
+  "{count} 个应用目标": "{count} app targets",
+  复制并使用: "Copy & use",
+  当前型号暂无推荐方案: "No recommended profiles for this model",
+  不再显示推荐方案: "Don't show recommended profiles again",
+  显示推荐方案: "Show recommended profiles",
+  关闭后按键页不再显示推荐方案入口:
+    "When off, the Buttons page hides the recommended profiles entry.",
+  有更新: "Update",
+  推荐方案有更新: "Recommended profiles updated",
 } as const satisfies Record<string, string>;
 
 export type TranslationKey = keyof typeof ENGLISH;

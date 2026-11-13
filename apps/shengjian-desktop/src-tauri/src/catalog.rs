@@ -24,6 +24,22 @@ pub fn initialize(app: &tauri::AppHandle) {
         shengjian_domain::voice_tools::install_from_json,
         shengjian_domain::voice_tools::install_defaults,
     );
+    // 推荐宏必须先于推荐方案加载：推荐方案的 bindings 可能引用 `run_macro`，
+    // 方案校验要用推荐宏目录判断引用是否存在。
+    install_catalog(
+        resource_dir.as_deref(),
+        "recommended-macros.json",
+        "catalog recommended_macros",
+        shengjian_domain::recommended_macros::install_from_json,
+        shengjian_domain::recommended_macros::install_defaults,
+    );
+    install_catalog(
+        resource_dir.as_deref(),
+        "button-profiles.json",
+        "catalog button_presets",
+        shengjian_domain::button_presets::install_from_json,
+        shengjian_domain::button_presets::install_defaults,
+    );
     // 输入法的 TSF 身份（固定 GUID / 显示名发现）来自配置目录；解析失败时
     // 保持内置常量，不阻断启动。
     for line in shengjian_windows::install_ime_profiles_from_catalog() {

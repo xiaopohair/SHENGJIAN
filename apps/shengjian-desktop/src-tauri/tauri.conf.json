@@ -66,6 +66,8 @@
     "resources": [
       "resources/config/app-presets.json",
       "resources/config/voice-tools.json",
+      "resources/config/button-profiles.json",
+      "resources/config/recommended-macros.json",
       "resources/rc003/shengjian-helper.exe",
       "resources/rc003/frida-gadget.dll",
       "resources/licenses/LICENSE",

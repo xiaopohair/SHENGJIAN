@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "bundleVersion": "2026.11.1",
+  "profiles": [
+    {
+      "id": "preset.desktop.shortcuts",
+      "name": "桌面快捷键",
+      "deviceModel": null,
+      "compatibleModels": [],
+      "appTargets": [],
+      "autoApply": false,
+      "bindings": {
+        "home": {
+          "single": {
+            "type": "shortcut",
+            "label": "资源管理器",
+            "keys": ["left_windows", "e"]
+          }
+        },
+        "menu": {
+          "single": {
+            "type": "shortcut",
+            "label": "任务视图",
+            "keys": ["left_windows", "tab"]
+          }
+        }
+      }
+    },
+    {
+      "id": "preset.netease.controls",
+      "name": "网易云音乐按键",
+      "deviceModel": null,
+      "compatibleModels": ["RC003"],
+      "appTargets": ["netease_music"],
+      "autoApply": true,
+      "holdRepeat": "long",
+      "bindings": {
+        "up": {
+          "single": {
+            "type": "shortcut",
+            "label": "音量 +",
+            "keys": ["volume_up"]
+          }
+        },
+        "down": {
+          "single": {
+            "type": "shortcut",
+            "label": "音量 -",
+            "keys": ["volume_down"]
+          }
+        },
+        "ok": {
+          "single": {
+            "type": "mouse",
+            "kind": "click",
+            "direction": null,
+            "amount": 1
+          }
+        }
+      }
+    }
+  ]
+}

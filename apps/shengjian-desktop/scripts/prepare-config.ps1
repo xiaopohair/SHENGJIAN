@@ -5,7 +5,7 @@ $source = Join-Path $repoRoot "config"
 $dest = Join-Path $appRoot "src-tauri\resources\config"
 
 New-Item -ItemType Directory -Force -Path $dest | Out-Null
-foreach ($name in @("app-presets.json", "voice-tools.json")) {
+foreach ($name in @("app-presets.json", "voice-tools.json", "button-profiles.json", "recommended-macros.json")) {
     $file = Join-Path $source $name
     if (-not (Test-Path -LiteralPath $file)) {
         throw "config source missing: $file"

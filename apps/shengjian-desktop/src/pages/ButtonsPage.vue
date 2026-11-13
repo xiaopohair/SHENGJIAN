@@ -10,6 +10,7 @@ import {
   Plus,
   RotateCcw,
   SlidersHorizontal,
+  Sparkles,
   Table2,
   Trash2,
 } from "lucide-vue-next";
@@ -24,6 +25,12 @@ import {
 } from "../lib/buttons";
 import { statusLabel, tr, trDynamic } from "../lib/i18n";
 import { confirmAction } from "../lib/confirm";
+import {
+  hasRecommendedUpdate,
+  isRecommendedProfilesHidden,
+  recommendedSeenVersion,
+  rememberRecommendedVersion,
+} from "../lib/recommended";
 import { useDraftGuard } from "../composables/useDraftGuard";
 import { useEngineStore } from "../stores/engine";
 import PageHeader from "../components/PageHeader.vue";
@@ -36,15 +43,18 @@ import StatusPill from "../components/ui/StatusPill.vue";
 import Switch from "../components/ui/Switch.vue";
 import ProfileWorkbench from "../components/ProfileWorkbench.vue";
 import ProfileSettingsDrawer from "../components/ProfileSettingsDrawer.vue";
+import RecommendedProfilesDialog from "../components/RecommendedProfilesDialog.vue";
 import {
   activateButtonProfile,
   clearButtonProfileActivation,
+  copyRecommendedButtonProfile,
   errorMessage,
   exportProfiles,
   getButtonProfileState,
   getForegroundExecutable,
   getHostCapabilities,
   getMacroLibrary,
+  getRecommendedButtonProfiles,
   importProfiles,
   saveButtonProfiles,
 } from "../lib/api";
@@ -53,6 +63,7 @@ import type {
   ButtonProfilesDocument,
   LogicalAction,
   MacroDefinition,
+  RecommendedButtonProfile,
 } from "../lib/types";
 
 const TRIGGERS = PROFILE_TRIGGERS;
@@ -184,6 +195,95 @@ const { dirty, confirmDiscard } = useDraftGuard({
   draft: editor,
   baseline: baselineJson,
   discardMessage: "当前方案的修改尚未保存，继续将丢失这些修改。",
+});
+
+/** 推荐方案：只读列表 + 「复制并使用」；隐藏与「已查看版本」只存 localStorage。 */
+const recommendedOpen = shallowRef(false);
+const recommendedHidden = shallowRef(isRecommendedProfilesHidden());
+const recommendedBundleVersion = shallowRef("");
+const recommendedSeen = shallowRef(recommendedSeenVersion());
+const recommendedHasUpdate = computed(() =>
+  hasRecommendedUpdate(recommendedBundleVersion.value, recommendedSeen.value),
+);
+
+function openRecommendedProfiles() {
+  recommendedOpen.value = true;
+}
+
+async function loadRecommendedVersion() {
+  if (recommendedHidden.value) {
+    recommendedBundleVersion.value = "";
+    return;
+  }
+  try {
+    const bundle = await getRecommendedButtonProfiles(effectiveModel.value);
+    recommendedBundleVersion.value = bundle.bundleVersion ?? "";
+  } catch {
+    // The badge is only a hint; the dialog owns the visible load error.
+    recommendedBundleVersion.value = "";
+  }
+}
+
+/** 打开/查看过推荐列表后记下版本，工具栏的「有更新」徽标随之消失。 */
+function onRecommendedLoaded(version: string) {
+  recommendedBundleVersion.value = version;
+  recommendedSeen.value = version;
+  rememberRecommendedVersion(version);
+}
+
+function onRecommendedHiddenChange(hidden: boolean) {
+  recommendedHidden.value = hidden;
+  if (hidden) {
+    recommendedOpen.value = false;
+  } else {
+    void loadRecommendedVersion();
+  }
+}
+
+/**
+ * 推荐方案 →「复制并使用」：复制成用户方案并立即激活、进入编辑。
+ * 推荐源只读，所有写入都落在 copy 上。
+ */
+async function useRecommendedProfile(recommended: RecommendedButtonProfile) {
+  if (busy.value || !profilesDocument.value) return;
+  // The centered dialog covers ConfirmDialog (z-index), so ask after closing it.
+  if (dirty.value) {
+    recommendedOpen.value = false;
+    if (!(await confirmDiscard())) {
+      recommendedOpen.value = true;
+      return;
+    }
+  }
+  busy.value = true;
+  error.value = null;
+  try {
+    const copy = await copyRecommendedButtonProfile(recommended.id, effectiveModel.value);
+    const document = profilesDocument.value;
+    if (!document) return;
+    const profiles = document.profiles.some((profile) => profile.id === copy.id)
+      ? document.profiles.map((profile) => (profile.id === copy.id ? copy : profile))
+      : [...document.profiles, copy];
+    await saveButtonProfiles({ ...document, profiles });
+    await load();
+    if (!(await activateButtonProfile(copy.id))) {
+      error.value = tr("未找到该方案，可能已被删除。");
+    }
+    await load();
+    const created =
+      profilesDocument.value?.profiles.find((profile) => profile.id === copy.id) ?? copy;
+    openDraft(created);
+    recommendedOpen.value = false;
+  } catch (cause) {
+    // Close the centered dialog so the page-level error notice is visible.
+    recommendedOpen.value = false;
+    error.value = errorMessage(cause);
+  } finally {
+    busy.value = false;
+  }
+}
+
+watch(effectiveModel, () => {
+  void loadRecommendedVersion();
 });
 
 async function load() {
@@ -607,7 +707,13 @@ function setView(next: "workbench" | "table") {
 }
 
 onMounted(async () => {
-  await Promise.all([load(), loadMacros(), loadHostCapabilities(), loadForeground()]);
+  await Promise.all([
+    load(),
+    loadMacros(),
+    loadHostCapabilities(),
+    loadForeground(),
+    loadRecommendedVersion(),
+  ]);
   timer = window.setInterval(() => {
     if (window.document.visibilityState === "visible") void load();
   }, 3000);
@@ -745,6 +851,22 @@ onUnmounted(() => {
             <Plus :size="14" />
             {{ tr("新建") }}
           </Button>
+          <Button
+            v-if="!recommendedHidden"
+            size="sm"
+            :disabled="busy"
+            @click="openRecommendedProfiles"
+          >
+            <Sparkles :size="14" />
+            {{ tr("推荐方案") }}
+            <span
+              v-if="recommendedHasUpdate"
+              class="recommended-update-badge"
+              :title="tr('推荐方案有更新')"
+            >
+              {{ tr("有更新") }}
+            </span>
+          </Button>
         </div>
       </div>
 
@@ -872,6 +994,16 @@ onUnmounted(() => {
       :foreground-app="foregroundApp"
       @close="settingsOpen = false"
       @error="onEditorError"
+    />
+
+    <RecommendedProfilesDialog
+      :open="recommendedOpen"
+      :model="effectiveModel"
+      :busy="busy"
+      @use="useRecommendedProfile"
+      @close="recommendedOpen = false"
+      @loaded="onRecommendedLoaded"
+      @hidden-change="onRecommendedHiddenChange"
     />
   </section>
 </template>
@@ -1036,6 +1168,16 @@ onUnmounted(() => {
   gap: var(--space-2);
   /* Keep the actions on the right edge even when the chip strip is hidden. */
   margin-left: auto;
+}
+
+.recommended-update-badge {
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft-strong);
+  padding: 1px 6px;
+  color: var(--accent-ink);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .editor-toolbar {
