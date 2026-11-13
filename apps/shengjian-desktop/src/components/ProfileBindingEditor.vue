@@ -2,6 +2,8 @@
 import { computed, ref, shallowRef, watch } from "vue";
 import {
   Ban,
+  CircleAlert,
+  CircleCheck,
   CircleHelp,
   Crosshair,
   FolderOpen,
@@ -245,6 +247,63 @@ const mouseAmount = computed(() => {
   return amount > 0 ? amount : lastMouseAmount.value;
 });
 
+/** 有参数的动作：横线 + 「动作参数」+ 字段 + 说明（与宏编辑器同款）。 */
+const hasParamFields = computed(() =>
+  ["shortcut", "open-app", "run-macro", "mouse"].includes(actionType.value),
+);
+
+/** 缺必填内容时显示红色说明行。 */
+const paramIssue = computed(() => {
+  switch (actionType.value) {
+    case "shortcut":
+      return shortcutChord.value.key ? "" : tr("还没有录制快捷键。");
+    case "open-app":
+      return appValue.value.trim() ? "" : tr("还没有选择应用。");
+    case "run-macro": {
+      if (!macroId.value.trim()) return tr("还没有选择宏。");
+      return props.latestMacros.some((macro) => macro.macroId === macroId.value)
+        ? ""
+        : tr("所选宏已不存在，请重新选择。");
+    }
+    default:
+      return "";
+  }
+});
+
+/** 有参数动作的说明行。 */
+const paramNote = computed(() => {
+  switch (actionType.value) {
+    case "shortcut":
+      return tr("点击捕获后直接按组合键；Esc 退出。");
+    case "open-app":
+      return tr("点「选择应用」可更换；旧式目标可点「修复」。");
+    case "run-macro":
+      return tr("执行该宏的最新保存版本。");
+    case "mouse":
+      return tr("滚轮与移动支持按住连发；点击只触发一次。");
+    default:
+      return "";
+  }
+});
+
+/** 无参数动作的说明行。 */
+const actionNote = computed(() => {
+  switch (actionType.value) {
+    case "focus-input":
+      return tr("把光标送回当前应用的输入框。");
+    case "common-phrase":
+      return tr("使用当前平台可用的常用语。");
+    case "inherit":
+      return tr("删除该手势的覆盖，回到默认方案。");
+    case "disabled":
+      return tr("该手势不会触发任何动作，也不会向下传递。");
+    case "other":
+      return tr("该动作类型会被保留，但当前版本不提供编辑。");
+    default:
+      return "";
+  }
+});
+
 watch(
   currentAction,
   (action) => {
@@ -407,87 +466,105 @@ function setMouseAmount(value: string) {
       </button>
     </div>
 
-    <div v-if="actionType === 'shortcut'" class="binding-params">
-      <ChordInput :model-value="shortcutChord" @update:model-value="setShortcutChord" />
-      <p class="binding-hint">
-        {{ tr("点击捕获后直接按组合键；Esc 退出。") }}
-      </p>
-    </div>
+    <div v-if="hasParamFields" class="action-config">
+      <h4 class="config-head">{{ tr("动作参数") }}</h4>
 
-    <div v-else-if="actionType === 'open-app'" class="binding-params">
-      <div class="binding-app-row">
-        <AppTargetBadge v-if="appValue" :target="appValue" mode="launch" @repair="openAppPicker" />
-        <span v-else class="binding-app-empty">{{ tr("未设置应用目标") }}</span>
-        <Button size="sm" :disabled="busy" @click="openAppPicker">
-          {{ tr("选择应用") }}
-        </Button>
+      <div v-if="actionType === 'shortcut'" class="config-field">
+        <label>{{ tr("快捷键") }}</label>
+        <ChordInput :model-value="shortcutChord" @update:model-value="setShortcutChord" />
       </div>
-    </div>
 
-    <div v-else-if="actionType === 'run-macro'" class="binding-params">
-      <SelectInput
-        :model-value="macroId"
-        :aria-label="trDynamic('选择宏')"
-        @update:model-value="setMacro($event)"
-      >
-        <option value="">{{ tr("选择宏") }}</option>
-        <option v-for="macro in latestMacros" :key="macro.macroId" :value="macro.macroId">
-          {{ macro.name }}
-        </option>
-      </SelectInput>
-    </div>
+      <div v-else-if="actionType === 'open-app'" class="config-field">
+        <label>{{ tr("应用") }}</label>
+        <div class="app-pick-row">
+          <AppTargetBadge
+            v-if="appValue"
+            :target="appValue"
+            mode="launch"
+            @repair="openAppPicker"
+          />
+          <span v-else class="app-pick-empty">{{ tr("未设置应用目标") }}</span>
+          <Button size="sm" :disabled="busy" @click="openAppPicker">
+            {{ tr("选择应用") }}
+          </Button>
+        </div>
+      </div>
 
-    <div v-else-if="actionType === 'mouse'" class="binding-params">
-      <div class="mouse-grid">
+      <div v-else-if="actionType === 'run-macro'" class="config-field">
+        <label>{{ tr("宏") }}</label>
         <SelectInput
-          :model-value="mouseKind"
-          :aria-label="trDynamic('鼠标')"
-          @update:model-value="setMouseKind($event)"
+          :model-value="macroId"
+          :aria-label="trDynamic('选择宏')"
+          @update:model-value="setMacro($event)"
         >
-          <option value="scroll">{{ tr("滚轮") }}</option>
-          <option value="move">{{ tr("移动") }}</option>
-          <option value="click">{{ tr("左键点击") }}</option>
-          <option value="right-click">{{ tr("右键点击") }}</option>
+          <option value="">{{ tr("选择宏") }}</option>
+          <option v-for="macro in latestMacros" :key="macro.macroId" :value="macro.macroId">
+            {{ macro.name }}
+          </option>
         </SelectInput>
-        <template v-if="mouseKind !== 'click' && mouseKind !== 'right-click'">
+      </div>
+
+      <div v-else-if="actionType === 'mouse'" class="config-row">
+        <div class="config-field mouse-kind">
+          <label>{{ tr("鼠标动作") }}</label>
           <SelectInput
-            :model-value="mouseDirection"
-            :aria-label="trDynamic('移动')"
-            @update:model-value="setMouseDirection($event)"
+            :model-value="mouseKind"
+            :aria-label="trDynamic('鼠标动作')"
+            @update:model-value="setMouseKind($event)"
           >
-            <option value="up">{{ tr("上") }}</option>
-            <option value="down">{{ tr("下") }}</option>
-            <option value="left">{{ tr("左") }}</option>
-            <option value="right">{{ tr("右") }}</option>
+            <option value="scroll">{{ tr("滚轮") }}</option>
+            <option value="move">{{ tr("移动") }}</option>
+            <option value="click">{{ tr("左键点击") }}</option>
+            <option value="right-click">{{ tr("右键点击") }}</option>
           </SelectInput>
-          <div class="mouse-amount">
-            <TextInput
-              type="number"
-              min="1"
-              max="100"
-              :model-value="String(mouseAmount)"
-              :aria-label="trDynamic('鼠标移动量')"
-              @change="setMouseAmount(($event.target as HTMLInputElement).value)"
-            />
-            <span class="mouse-unit">{{ mouseKind === "scroll" ? tr("格") : "px" }}</span>
+        </div>
+        <template v-if="mouseKind !== 'click' && mouseKind !== 'right-click'">
+          <div class="config-field mouse-direction">
+            <label>{{ tr("方向") }}</label>
+            <SelectInput
+              :model-value="mouseDirection"
+              :aria-label="trDynamic('方向')"
+              @update:model-value="setMouseDirection($event)"
+            >
+              <option value="up">{{ tr("上") }}</option>
+              <option value="down">{{ tr("下") }}</option>
+              <option value="left">{{ tr("左") }}</option>
+              <option value="right">{{ tr("右") }}</option>
+            </SelectInput>
+          </div>
+          <div class="config-field mouse-amount">
+            <label>{{ tr("数量") }}</label>
+            <div class="mouse-amount-row">
+              <TextInput
+                type="number"
+                min="1"
+                max="100"
+                :model-value="String(mouseAmount)"
+                :aria-label="trDynamic('数量')"
+                @change="setMouseAmount(($event.target as HTMLInputElement).value)"
+              />
+              <span class="mouse-unit">{{ mouseKind === "scroll" ? tr("格") : "px" }}</span>
+            </div>
           </div>
         </template>
       </div>
+
+      <p v-if="paramIssue" class="config-issue" role="alert">
+        <CircleAlert :size="13" />
+        {{ paramIssue }}
+      </p>
+      <p v-else class="config-note">
+        <CircleCheck :size="13" />
+        {{ paramNote }}
+      </p>
     </div>
 
-    <p v-else-if="actionType === 'common-phrase'" class="binding-hint">
-      {{ tr("使用当前平台可用的常用语。") }}
-    </p>
-    <p v-else-if="actionType === 'inherit'" class="binding-hint">
-      {{ tr("删除该手势的覆盖，回到默认方案。") }}
-    </p>
-    <p v-else-if="actionType === 'disabled'" class="binding-hint">
-      {{ tr("该手势不会触发任何动作，也不会向下传递。") }}
-    </p>
-    <p v-else class="binding-hint">
-      <CircleHelp :size="14" />
-      {{ tr("该动作类型会被保留，但当前版本不提供编辑。") }}
-    </p>
+    <div v-else class="action-config action-config-note">
+      <p class="config-note">
+        <CircleHelp :size="13" />
+        {{ actionNote }}
+      </p>
+    </div>
 
     <div v-if="showHoldRepeat" class="hold-repeat-section">
       <div class="hold-repeat-head">
@@ -616,10 +693,47 @@ function setMouseAmount(value: string) {
   display: none;
 }
 
-.binding-params {
-  margin-top: var(--space-3);
+.action-config {
+  margin-top: var(--space-4);
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-3);
 }
-.binding-app-row {
+.action-config-note {
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+}
+.config-head {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.config-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+.config-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  margin-bottom: 8px;
+}
+.config-field label {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.mouse-kind {
+  flex: 1 1 160px;
+}
+.mouse-direction {
+  flex: 0 0 110px;
+}
+.mouse-amount {
+  flex: 0 0 130px;
+}
+.app-pick-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -627,27 +741,22 @@ function setMouseAmount(value: string) {
   gap: var(--space-2);
   min-width: 0;
 }
-.binding-app-row > :first-child {
+.app-pick-row > :first-child {
   flex: 1 1 140px;
   min-width: 0;
 }
-.binding-app-empty {
+.app-pick-empty {
   flex: 1 1 auto;
   color: var(--text-muted);
   font-size: var(--text-xs);
 }
-.mouse-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-2);
-}
-.mouse-amount {
+.mouse-amount-row {
   display: flex;
   align-items: center;
   gap: 5px;
   min-width: 0;
 }
-.mouse-amount > :first-child {
+.mouse-amount-row > :first-child {
   flex: 1;
   min-width: 0;
 }
@@ -657,8 +766,30 @@ function setMouseAmount(value: string) {
   font-size: var(--text-2xs);
   white-space: nowrap;
 }
-.binding-editor.compact .mouse-grid {
-  grid-template-columns: 1fr;
+.config-issue,
+.config-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.config-issue {
+  color: var(--warning-text);
+}
+.config-note {
+  color: var(--text-muted);
+}
+.binding-editor.compact .config-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+}
+.binding-editor.compact .mouse-kind,
+.binding-editor.compact .mouse-direction,
+.binding-editor.compact .mouse-amount {
+  flex: 1 1 auto;
 }
 
 .binding-hint {

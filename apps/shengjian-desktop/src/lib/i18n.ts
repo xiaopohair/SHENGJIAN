@@ -906,6 +906,20 @@ const ENGLISH = {
   目标不是可执行文件: "Target isn't an executable",
   目标无效: "Invalid target",
   未知问题: "Unknown issue",
+  应用: "App",
+  鼠标动作: "Mouse action",
+  方向: "Direction",
+  数量: "Amount",
+  "还没有录制快捷键。": "No shortcut recorded yet.",
+  "还没有选择应用。": "No app selected yet.",
+  "还没有选择宏。": "No macro selected yet.",
+  "所选宏已不存在，请重新选择。": "That macro no longer exists; please pick another one.",
+  "点「选择应用」可更换；旧式目标可点「修复」。":
+    "Use Choose app to change it; legacy targets can be repaired.",
+  "执行该宏的最新保存版本。": "Runs the latest saved version of the macro.",
+  "滚轮与移动支持按住连发；点击只触发一次。":
+    "Scroll and move repeat while held; clicks fire once.",
+  "把光标送回当前应用的输入框。": "Moves the caret back into the current app's input box.",
 } as const satisfies Record<string, string>;
 
 export type TranslationKey = keyof typeof ENGLISH;
