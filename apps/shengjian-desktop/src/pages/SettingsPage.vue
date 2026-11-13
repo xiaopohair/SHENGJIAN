@@ -208,7 +208,7 @@ const dependencyHint = computed(() => {
   const state = audioDependency.value?.state;
   if (state === "ready") {
     const name = suggestedCableEndpointName(audioDependency.value);
-    return name ? tr("远程语音输出设备：{name}", { name }) : tr("已找到可用的远程语音输出设备。");
+    return name ? tr("语音输出设备：{name}", { name }) : tr("已找到可用的语音输出设备。");
   }
   const detailKey = audioDependencyDetailKey(state);
   return detailKey ? tr(detailKey) : "";
@@ -256,8 +256,8 @@ async function downloadVbCable() {
 
 function dependencyHealthDetail(status: AudioDependencyStatus): string {
   const label = tr(audioDependencyTitleKey(status.state));
-  const name = status.state === "ready" ? suggestedCableEndpointName(status) : "";
-  return name ? `${label} · ${name}` : label;
+  // 健康检查只留标题，端点名过长会在行内溢出；设备名在音频设置里展示。
+  return label;
 }
 
 async function load() {
@@ -466,7 +466,7 @@ async function runHealthCheck() {
       },
       { label: tr("RC003 helper"), ok: helper, detail: helper ? tr("已安装") : tr("未安装") },
       {
-        label: tr("VB-CABLE 虚拟音频"),
+        label: tr("虚拟音频设备"),
         ok: audioDependencyStatus.state === "ready",
         detail: dependencyHealthDetail(audioDependencyStatus),
       },
@@ -666,7 +666,7 @@ onMounted(async () => {
           <p class="settings-group-label">{{ tr("音频") }}</p>
           <Card v-if="settingsDocument">
             <div class="settings-rows">
-              <SettingRow label="VB-CABLE 虚拟音频" :hint="dependencyHint">
+              <SettingRow label="虚拟音频设备" :hint="dependencyHint">
                 <div class="audio-dependency-control">
                   <StatusPill
                     :label="dependencyStateLabel"
@@ -684,7 +684,7 @@ onMounted(async () => {
               </SettingRow>
 
               <SettingRow
-                label="远程语音输出设备"
+                label="语音输出设备"
                 hint="遥控器语音输出到的设备；未设置时连接后自动选 CABLE"
               >
                 <SelectInput v-model="endpointId">
@@ -708,7 +708,7 @@ onMounted(async () => {
                 </Button>
               </div>
               <p v-if="endpointMissing" class="settings-inline-note warning" role="alert">
-                {{ tr("已保存的远程语音输出设备当前不可用，请重新选择。") }}
+                {{ tr("已保存的语音输出设备当前不可用，请重新选择。") }}
               </p>
 
               <SettingRow label="增益" hint="语音播放的音量增益">

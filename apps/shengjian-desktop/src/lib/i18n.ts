@@ -948,10 +948,10 @@ const ENGLISH = {
   // VB-CABLE 远程语音输出依赖
   "已检测到 VB-CABLE": "VB-CABLE detected",
   "未检测到 VB-CABLE，远程语音将没有声音": "VB-CABLE not found; remote voice will have no sound",
-  "已安装 VB-CABLE，但未找到可用的远程语音输出设备":
-    "VB-CABLE is installed, but no usable remote voice output device was found",
+  "已安装 VB-CABLE，但未找到可用的语音输出设备":
+    "VB-CABLE is installed, but no usable voice output device was found",
   "正在检测 VB-CABLE…": "Checking VB-CABLE…",
-  "已找到可用的远程语音输出设备。": "A usable remote voice output device was found.",
+  "已找到可用的语音输出设备。": "A usable voice output device was found.",
   "安装 VB-CABLE 后，遥控器语音会通过虚拟声卡进入转写。":
     "After installing VB-CABLE, remote voice goes through the virtual audio device.",
   "请在 Windows 声音设置中启用 VB-CABLE 的播放/录制设备，或重启系统后重新检测。":
@@ -964,16 +964,16 @@ const ENGLISH = {
   "无法确认 VB-CABLE 状态，请重试。": "Couldn't confirm the VB-CABLE status; retry.",
   "请先安装并检测通过 VB-CABLE，才能继续。":
     "Install VB-CABLE and pass the check before continuing.",
-  远程语音输出设备: "Remote voice output device",
-  "远程语音输出设备：{names}": "Remote voice output device: {names}",
-  "远程语音输出设备：{name}": "Remote voice output device: {name}",
-  "VB-CABLE 虚拟音频": "VB-CABLE virtual audio",
+  语音输出设备: "Voice output device",
+  "语音输出设备：{names}": "Voice output device: {names}",
+  "语音输出设备：{name}": "Voice output device: {name}",
+  虚拟音频设备: "Virtual audio device",
   未检测到: "Not found",
   设备未启用: "Device disabled",
   "未检测到 VB-CABLE：遥控器语音将没有声音输出。仍可选择其他输出设备。":
     "VB-CABLE not found: remote voice will have no audio output. You can still choose another output device.",
-  "已保存的远程语音输出设备当前不可用，请重新选择。":
-    "The saved remote voice output device is unavailable; choose another one.",
+  "已保存的语音输出设备当前不可用，请重新选择。":
+    "The saved voice output device is unavailable; choose another one.",
 } as const satisfies Record<string, string>;
 
 export type TranslationKey = keyof typeof ENGLISH;

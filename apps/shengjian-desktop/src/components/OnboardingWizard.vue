@@ -117,7 +117,7 @@ const audioDependencyDetail = computed(() => {
   const key = audioDependencyDetailKey(audioDependency.value?.state);
   if (!key) return "";
   const names = audioDependencyReady.value ? cableEndpointNames(audioDependency.value) : "";
-  return names ? tr("远程语音输出设备：{names}", { names }) : tr(key);
+  return names ? tr("语音输出设备：{names}", { names }) : tr(key);
 });
 const audioDependencyToneValue = computed(() => audioDependencyTone(audioDependency.value?.state));
 const showVbCableDownload = computed(
@@ -495,7 +495,7 @@ onUnmounted(() => {
               </option>
             </SelectInput>
           </Field>
-          <Field :label="tr('远程语音输出设备')">
+          <Field :label="tr('语音输出设备')">
             <SelectInput v-model="audioEndpointId">
               <option value="">{{ tr("未设置（连接时自动选 CABLE）") }}</option>
               <option v-for="endpoint in endpoints" :key="endpoint.id" :value="endpoint.id">

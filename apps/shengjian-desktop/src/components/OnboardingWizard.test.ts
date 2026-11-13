@@ -135,7 +135,7 @@ describe("OnboardingWizard VB-CABLE dependency", () => {
     await advanceToStep3(wrapper);
 
     const card = wrapper.find(".audio-dependency");
-    expect(card.text()).toContain("已安装 VB-CABLE，但未找到可用的远程语音输出设备");
+    expect(card.text()).toContain("已安装 VB-CABLE，但未找到可用的语音输出设备");
     expect(card.text()).toContain("Windows 声音设置");
     expect(
       wrapper

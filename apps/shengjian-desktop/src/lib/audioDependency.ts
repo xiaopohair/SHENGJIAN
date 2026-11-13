@@ -21,7 +21,7 @@ export function audioDependencyTitleKey(
     case "missing":
       return "未检测到 VB-CABLE，远程语音将没有声音";
     case "disabled":
-      return "已安装 VB-CABLE，但未找到可用的远程语音输出设备";
+      return "已安装 VB-CABLE，但未找到可用的语音输出设备";
     default:
       return "正在检测 VB-CABLE…";
   }
@@ -33,7 +33,7 @@ export function audioDependencyDetailKey(
 ): TranslationKey | null {
   switch (state) {
     case "ready":
-      return "已找到可用的远程语音输出设备。";
+      return "已找到可用的语音输出设备。";
     case "missing":
       return "安装 VB-CABLE 后，遥控器语音会通过虚拟声卡进入转写。";
     case "disabled":
