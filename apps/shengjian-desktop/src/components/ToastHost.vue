@@ -52,13 +52,24 @@ const ICONS = {
 <style scoped>
 .toast-host {
   position: fixed;
-  right: 20px;
-  bottom: 20px;
+  /* 顶部居中：标题栏 36px + 顶栏 56px 之下，落页面内容区最上方，
+     既不遮挡窗口按钮和顶栏状态，又比右下角更容易被注意到。 */
+  top: calc(var(--titlebar-height) + 64px);
+  left: 50%;
   z-index: 130;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 8px;
-  max-width: min(380px, calc(100vw - 40px));
+  width: max-content;
+  max-width: min(560px, calc(100vw - 120px));
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+/* 容器本身不挡点击，只有卡片接收事件（顶部位置会压在页面标题区上）。 */
+.toast-host > * {
+  pointer-events: auto;
 }
 
 .toast {
@@ -171,7 +182,7 @@ const ICONS = {
 @keyframes toast-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(-8px);
   }
   to {
     opacity: 1;
