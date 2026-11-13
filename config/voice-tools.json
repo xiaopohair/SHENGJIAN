@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "tools": [
+    {
+      "id": "wechat",
+      "label": "微信输入法",
+      "kind": "wechat",
+      "defaultHotkey": ["ControlLeft", "MetaLeft"]
+    },
+    {
+      "id": "doubao",
+      "label": "豆包输入法",
+      "kind": "doubao",
+      "defaultHotkey": ["AltRight"]
+    },
+    {
+      "id": "vokie",
+      "label": "Vokie 桌面版",
+      "kind": "vokie",
+      "defaultHotkey": []
+    },
+    {
+      "id": "other",
+      "label": "其他工具",
+      "kind": "custom",
+      "defaultHotkey": []
+    }
+  ]
+}

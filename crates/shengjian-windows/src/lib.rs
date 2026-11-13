@@ -2,7 +2,6 @@ use button_mapping::{ButtonMappingRuntime, ButtonMappingSnapshot, MappingInjecto
 use focus::RecordedFocusTarget;
 use raw_input::{RawInputPhase, RawInputSnapshot, RemoteButton};
 use serde::{Deserialize, Serialize};
-use shengjian_domain::settings::VoiceInputTool;
 use shengjian_domain::{AtvvCapabilities, VoiceSessionState};
 use std::collections::VecDeque;
 use std::fmt;
@@ -49,6 +48,10 @@ pub mod instance_signal;
 pub mod key_host;
 /// 回眸原始录音：WAV 写入、终态清理与 manifest。跨平台可单测，写入只在启用时发生。
 pub mod voice_recording;
+/// 语音输入工具的 **Windows 行为类别**（`kind`）：列表/名称/默认热键来自可编辑
+/// 配置 `config/voice-tools.json`，这里只保留必须写在代码里的行为分派。
+pub mod voice_tool;
+pub use voice_tool::VoiceToolKind;
 // 硬件信号脚本（仿真回放用；见模块注释）：解析模拟器导出的信号脚本。
 // 无副作用、不进入基础路径，仅仿真平台消费。
 pub mod hardware_script;
@@ -551,9 +554,10 @@ impl Default for ConnectionSnapshot {
 pub struct WindowsPlatform {
     usage: Arc<UsageCounters>,
     voice_hold_hotkey: Arc<Mutex<Option<send_input::KeyChord>>>,
-    /// 用户在连接页选的语音输入工具：决定语音会话开始前把哪个输入法
-    /// 切进当前会话（`ime::ensure_session_ime`）；Vokie / 其他工具不切。
-    voice_input_tool: Arc<Mutex<Option<VoiceInputTool>>>,
+    /// 用户在连接页选的语音输入工具（配置目录里的 id 解析出的 **Windows 行为类别**）：
+    /// 决定语音会话开始前把哪个输入法切进当前会话（`ime::ensure_session_ime`）；
+    /// Vokie / 自定义工具不切。
+    voice_input_tool: Arc<Mutex<Option<VoiceToolKind>>>,
     /// 语音增益（dB，0–24）：BLE 工作线程每批音频前读取，改动下一批即生效
     /// （对齐 Mac 逐帧读 `settings.gainDB` 的语义）。持久化由设置层负责。
     gain_db: Arc<Mutex<f32>>,
@@ -561,7 +565,7 @@ pub struct WindowsPlatform {
     /// WebView2 整页重载，Bugs/2026-09-12），此时只布防；本应用窗口失去焦点后由
     /// `align_ime_after_tool_selection` 取走并执行一次（2026-10-03，Andy 要求消除
     /// "换工具后第一按必拉不起"的窗口期）。
-    ime_align_pending: Arc<Mutex<Option<(VoiceInputTool, std::time::Instant)>>>,
+    ime_align_pending: Arc<Mutex<Option<(VoiceToolKind, std::time::Instant)>>>,
     #[cfg(windows)]
     button_mapping: Arc<ButtonMappingRuntime>,
     /// 组合动作运行时（引擎 RunMacro 手势与 UI 测试入口共用）。
@@ -920,7 +924,8 @@ impl WindowsPlatform {
         }
     }
 
-    /// 更新「你在用的输入工具」：BLE 工作线程在按下语音键时按它决定把哪个输入法
+    /// 更新「你在用的输入工具」的 **Windows 行为类别**（由配置目录的 `kind` 解析，
+    /// 见 [`VoiceToolKind`]）：BLE 工作线程在按下语音键时按它决定把哪个输入法
     /// 切进当前会话（`ime::ensure_session_ime`，按下时兜底切换）；并且**选中即对齐**——
     /// 用户刚选过工具时立即尝试把系统输入法切到该工具（自身窗口在前台时改为布防，
     /// 待窗口失去焦点后执行一次）。
@@ -929,7 +934,7 @@ impl WindowsPlatform {
     /// （早于应用知情一个 BLE 往返），若按下时系统输入法还不是所选工具，这一按必然
     /// 赶不上切换——表现为"换工具后第一按拉不起"。选中即对齐把该窗口期清零；
     /// 按下时的兜底切换保留（覆盖用户手动改走输入法的情况）。
-    pub fn set_voice_input_tool(&self, tool: Option<VoiceInputTool>) {
+    pub fn set_voice_input_tool(&self, tool: Option<VoiceToolKind>) {
         // 诊断时间基线（2026-10-09）：失败样本全部来自"切完工具、快速切到目标
         // 窗口"，按下时"距选工具多久"由此起算并进 `voice_attempt`。
         ime::note_tool_select();
@@ -938,7 +943,7 @@ impl WindowsPlatform {
             *lock(&self.ime_align_pending) = None;
             return;
         };
-        // Vokie / 其他工具明确不切输入法（`ime_target_for` 为 None），也不布防。
+        // Vokie / 自定义（custom）工具明确不切输入法（`ime_target_for` 为 None），也不布防。
         let Some(target) = ime::ime_target_for(tool) else {
             *lock(&self.ime_align_pending) = None;
             crate::ble::gatt_note(
@@ -1026,7 +1031,7 @@ impl WindowsPlatform {
             });
     }
 
-    pub fn voice_input_tool(&self) -> Option<VoiceInputTool> {
+    pub fn voice_input_tool(&self) -> Option<VoiceToolKind> {
         *lock(&self.voice_input_tool)
     }
 
@@ -1153,11 +1158,11 @@ impl WindowsPlatform {
             // 组合动作执行器读的聚焦档案镜像：与映射同一次热加载更新。
             // 预设应用没有显式档案时补产品默认值，使组合动作与按键页复用同一聚焦方式。
             let mut profiles = mappings.focus_profiles.clone();
-            for id in crate::app_launcher::DEFAULT_PRESET_IDS {
-                if !profiles.contains_key(*id) {
+            for app in shengjian_domain::app_catalog::visible_apps() {
+                if !profiles.contains_key(&app.id) {
                     profiles.insert(
-                        (*id).to_owned(),
-                        crate::button_mapping::preset_focus_profile(id),
+                        app.id.clone(),
+                        crate::button_mapping::preset_focus_profile(&app.id),
                     );
                 }
             }

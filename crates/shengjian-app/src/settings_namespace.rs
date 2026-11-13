@@ -8,7 +8,7 @@
 //! reading an old flat settings file and deciding which device it belongs to.
 
 use serde::{Deserialize, Serialize};
-use shengjian_domain::{AppSettings, VoiceInputTool};
+use shengjian_domain::AppSettings;
 use std::collections::BTreeMap;
 
 pub const SETTINGS_NAMESPACE_SCHEMA_VERSION: u32 = 1;
@@ -22,8 +22,9 @@ pub struct DeviceSettingsOverride {
     pub audio_endpoint_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub audio_endpoint_name: Option<String>,
+    /// 输入工具 id（配置目录 `config/voice-tools.json` 的 `id`，未知 id 原样保留）。
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub voice_input_tool: Option<VoiceInputTool>,
+    pub voice_input_tool: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -69,8 +70,8 @@ impl SettingsDocument {
         if let Some(endpoint_name) = &overrides.audio_endpoint_name {
             settings.audio_endpoint_name = Some(endpoint_name.clone());
         }
-        if let Some(tool) = overrides.voice_input_tool {
-            settings.voice_input_tool = Some(tool);
+        if let Some(tool) = &overrides.voice_input_tool {
+            settings.voice_input_tool = Some(tool.clone());
         }
         settings
     }
@@ -109,6 +110,15 @@ impl SettingsDocument {
                 {
                     overrides.audio_endpoint_name = None;
                 }
+                // 输入工具覆盖值同样是「空 = 未覆盖」；id 集合由配置目录决定，
+                // 认不出的 id 不在这里清掉。
+                if overrides
+                    .voice_input_tool
+                    .as_deref()
+                    .is_some_and(|id| id.trim().is_empty())
+                {
+                    overrides.voice_input_tool = None;
+                }
             }
         }
         self
@@ -124,7 +134,7 @@ mod tests {
             gain_db: Some(gain),
             audio_endpoint_id: Some("cable".to_owned()),
             audio_endpoint_name: Some("CABLE Input".to_owned()),
-            voice_input_tool: Some(VoiceInputTool::Doubao),
+            voice_input_tool: Some("doubao".to_owned()),
         }
     }
 
@@ -135,7 +145,7 @@ mod tests {
         let resolved = document.resolve(Some("xiaomi-rc003"), "windows");
         assert_eq!(resolved.gain_db, 12.0);
         assert_eq!(resolved.audio_endpoint_id.as_deref(), Some("cable"));
-        assert_eq!(resolved.voice_input_tool, Some(VoiceInputTool::Doubao));
+        assert_eq!(resolved.voice_input_tool.as_deref(), Some("doubao"));
 
         let other = document.resolve(Some("xiaomi-rc001"), "windows");
         assert_eq!(other.gain_db, document.global.gain_db);

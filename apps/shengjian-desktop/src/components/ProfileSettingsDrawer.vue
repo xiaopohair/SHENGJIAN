@@ -4,7 +4,9 @@ import { FolderOpen, X } from "lucide-vue-next";
 import { mergeAppTargetsText, splitAppTargets } from "../lib/appTargets";
 import type { ProfileDraft } from "../lib/buttons";
 import { tr, trDynamic } from "../lib/i18n";
+import { voiceToolOptions } from "../lib/voiceTools";
 import { useAppPicker } from "../composables/useAppPicker";
+import { useVoiceToolCatalog } from "../composables/useVoiceToolCatalog";
 import AppPickerDialog from "./app-picker/AppPickerDialog.vue";
 import Button from "./ui/Button.vue";
 import Checkbox from "./ui/Checkbox.vue";
@@ -31,6 +33,7 @@ const {
   closePicker: closeAppPicker,
 } = useAppPicker();
 const recentMatchTargets = computed(() => splitAppTargets(draft.value.appTargets));
+const { catalog: voiceToolCatalog, load: loadVoiceToolCatalog } = useVoiceToolCatalog();
 let previousFocus: HTMLElement | null = null;
 
 function close() {
@@ -73,7 +76,10 @@ watch(
   },
 );
 
-onMounted(() => window.addEventListener("keydown", onKeydown, true));
+onMounted(() => {
+  window.addEventListener("keydown", onKeydown, true);
+  void loadVoiceToolCatalog();
+});
 onUnmounted(() => window.removeEventListener("keydown", onKeydown, true));
 </script>
 
@@ -127,10 +133,13 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown, true));
           <Field class="settings-field" label="语音输入工具">
             <SelectInput v-model="draft.voiceInputTool">
               <option value="">{{ tr("使用设备覆盖设置或全局设置") }}</option>
-              <option value="wechat">{{ tr("微信输入法") }}</option>
-              <option value="doubao">{{ tr("豆包输入法") }}</option>
-              <option value="vokie">{{ tr("Vokie 桌面版") }}</option>
-              <option value="other">{{ tr("其他工具") }}</option>
+              <option
+                v-for="tool in voiceToolOptions(voiceToolCatalog, draft.voiceInputTool)"
+                :key="tool.id"
+                :value="tool.id"
+              >
+                {{ tool.label }}
+              </option>
             </SelectInput>
             <span class="settings-help">
               {{ tr("设备有单独覆盖设置时，以设备设置为准。") }}

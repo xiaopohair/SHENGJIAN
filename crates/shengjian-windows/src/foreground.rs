@@ -118,7 +118,7 @@ pub fn foreground_application_name() -> Option<String> {
 
 /// 把可执行文件名映射成界面上使用的应用名。
 ///
-/// 优先复用 `app_launcher::PRESET_APPS` 的产品名（例如 `WeChat.exe` → 微信、
+/// 优先复用可编辑配置 `config/app-presets.json` 的产品名（例如 `WeChat.exe` → 微信、
 /// `cloudmusic.exe` → 网易云音乐），再补充一批常见 Windows 应用；未知应用回退到
 /// 去掉 `.exe` 的文件名。输入只是文件名，不接收路径。
 pub fn application_display_name(executable: &str) -> Option<String> {
@@ -134,12 +134,15 @@ pub fn application_display_name(executable: &str) -> Option<String> {
         return Some("声键".to_owned());
     }
     let exe_name = format!("{lower}.exe");
-    if let Some(app) = crate::app_launcher::PRESET_APPS.iter().find(|app| {
-        app.exe_names
-            .iter()
-            .any(|name| name.eq_ignore_ascii_case(&exe_name))
-    }) {
-        return Some(app.name.to_owned());
+    if let Some(app) = shengjian_domain::app_catalog::apps()
+        .into_iter()
+        .find(|app| {
+            app.exe_names
+                .iter()
+                .any(|name| name.eq_ignore_ascii_case(&exe_name))
+        })
+    {
+        return Some(app.name);
     }
     let known = match lower.as_str() {
         "msedge" => "Microsoft Edge",

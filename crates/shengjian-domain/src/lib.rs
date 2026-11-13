@@ -1,4 +1,5 @@
 pub mod adpcm;
+pub mod app_catalog;
 pub mod atvv;
 pub mod frame;
 pub mod gestures;
@@ -10,6 +11,7 @@ pub mod settings;
 pub mod statistics;
 pub mod transcripts;
 pub mod voice;
+pub mod voice_tools;
 
 pub use adpcm::{ImaAdpcmDecoder, NibbleOrder};
 pub use atvv::{AtvvCapabilities, AtvvCommand, AtvvControlEvent, AtvvError, AtvvUuids};
@@ -31,7 +33,7 @@ pub use portable_macros::{
     export_portable_library, import_portable_library, PortableError, PORTABLE_MAX_BYTES,
 };
 pub use settings::{
-    AppIconIdentifier, AppLanguage, AppSettings, ThemePreference, VoiceInputTool, VoiceTriggerMode,
+    AppIconIdentifier, AppLanguage, AppSettings, ThemePreference, VoiceTriggerMode,
 };
 pub use statistics::{
     DailyUsage, UsageStatistics, VoiceSessionUsageRecord, MAX_APPLICATION_NAME_CHARS,

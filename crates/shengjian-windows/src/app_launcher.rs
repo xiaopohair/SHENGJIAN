@@ -19,209 +19,12 @@ pub struct PresetAppInfo {
     pub installed: bool,
 }
 
-/// 预设应用定义。
-pub struct PresetApp {
-    pub id: &'static str,
-    pub name: &'static str,
-    /// 进程/窗口匹配用可执行文件名（大小写不敏感；含不同版本命名）。
-    pub exe_names: &'static [&'static str],
-    /// 额外安装位置候选（`%ENV%` 模板；探测与启动共用，按顺序取首个存在项）。
-    pub install_paths: &'static [&'static str],
-    /// 开始菜单快捷方式名（不含 .lnk）：覆盖自定义安装目录的兜底探测，
-    /// 命中且解析出的目标 exe 属于 `exe_names` 才算已安装。
-    pub shortcut_names: &'static [&'static str],
-    /// 托盘隐藏且托盘图标路线未生效时，是否按应用入口重新拉起（让单实例应用
-    /// 自己把已有窗口恢复出来）。微信 4.x 实测反例：已运行时再次启动**不会**
-    /// 恢复主窗口，而是新起第二个实例并弹出 295×387 的"进入微信"登录/入口
-    /// 小窗——用户看到的就是"又打开一个登录界面"（2026-10-03、2026-10-18
-    /// 两次真机实证）→ 置 `false` 跳过该步，直接定点显示已知主窗口。
-    pub relaunch_when_hidden: bool,
-}
-
-/// 「打开应用」分组实际展示的预设（顺序即界面顺序，2026-10-23 用户定稿）。
+/// 预设应用定义（`config/app-presets.json` 的只读视图，见 `shengjian_domain::app_catalog`）。
 ///
-/// 表内其余条目是旧版本用过的目标，只为已有按键映射 / 组合动作保留可执行解析，
-/// 不再出现在选择列表里。
-pub const DEFAULT_PRESET_IDS: &[&str] = &[
-    "shengjian",
-    "wechat",
-    "netease_music",
-    "chrome",
-    "chatgpt",
-    "workbuddy",
-    "dimagent",
-    "vokie",
-    "notepad",
-    "qq",
-];
-
-/// 预设应用表（对齐 Mac 预设 + Windows 常见项）。遥控器自身排首位
-/// （对齐 Mac `PresetApplication.remoteMic`，恒为已安装）。
-///
-/// 安装探测（任一命中即视为已安装）：System32 直存或 App Paths 注册表 →
-/// `install_paths` 候选路径 → 开始菜单快捷方式（解析目标 exe 与 `exe_names`
-/// 比对）→ 已登记的 AppsFolder AUMID（Microsoft Store 包，如 ChatGPT）。
-/// 未安装的条目由 UI 过滤，不在"打开应用"列表展示。
-pub const PRESET_APPS: &[PresetApp] = &[
-    PresetApp {
-        id: "shengjian",
-        name: "遥控器 声键",
-        exe_names: &["shengjian-windows-app.exe"],
-        install_paths: &[],
-        shortcut_names: &[],
-        relaunch_when_hidden: true,
-    },
-    PresetApp {
-        id: "wechat",
-        name: "微信",
-        exe_names: &["WeChat.exe", "Weixin.exe"],
-        install_paths: &[
-            "%ProgramFiles%\\Tencent\\WeChat\\WeChat.exe",
-            "%ProgramFiles(x86)%\\Tencent\\WeChat\\WeChat.exe",
-        ],
-        shortcut_names: &["微信", "WeChat"],
-        relaunch_when_hidden: false,
-    },
-    PresetApp {
-        id: "workbuddy",
-        name: "WorkBuddy",
-        exe_names: &["WorkBuddy.exe"],
-        install_paths: &[
-            "%LOCALAPPDATA%\\Programs\\WorkBuddy\\WorkBuddy.exe",
-            "%LOCALAPPDATA%\\WorkBuddy\\WorkBuddy.exe",
-        ],
-        shortcut_names: &["WorkBuddy"],
-        relaunch_when_hidden: true,
-    },
-    PresetApp {
-        id: "chatgpt",
-        name: "ChatGPT",
-        exe_names: &["ChatGPT.exe"],
-        install_paths: &[
-            "%LOCALAPPDATA%\\Programs\\ChatGPT\\ChatGPT.exe",
-            "%LOCALAPPDATA%\\ChatGPT\\ChatGPT.exe",
-        ],
-        shortcut_names: &["ChatGPT"],
-        relaunch_when_hidden: true,
-    },
-    PresetApp {
-        id: "chrome",
-        name: "Chrome 浏览器",
-        exe_names: &["chrome.exe"],
-        install_paths: &[],
-        shortcut_names: &[],
-        relaunch_when_hidden: true,
-    },
-    PresetApp {
-        id: "notepad",
-        name: "记事本",
-        exe_names: &["notepad.exe"],
-        install_paths: &[],
-        shortcut_names: &[],
-        relaunch_when_hidden: true,
-    },
-    PresetApp {
-        id: "calc",
-        name: "计算器",
-        exe_names: &["calc.exe", "CalculatorApp.exe"],
-        install_paths: &[],
-        shortcut_names: &[],
-        relaunch_when_hidden: true,
-    },
-    PresetApp {
-        id: "explorer",
-        name: "文件资源管理器",
-        exe_names: &["explorer.exe"],
-        install_paths: &[],
-        shortcut_names: &[],
-        relaunch_when_hidden: true,
-    },
-    PresetApp {
-        id: "netease_music",
-        name: "网易云音乐",
-        exe_names: &["cloudmusic.exe"],
-        install_paths: &[],
-        shortcut_names: &[],
-        relaunch_when_hidden: true,
-    },
-    // 2026-10-02 扩充：这些应用常装在自定义目录（如 D:\Apps\vokie），
-    // App Paths 与 System32 探测覆盖不到，必须走候选路径/开始菜单兜底。
-    PresetApp {
-        id: "vokie",
-        name: "Vokie",
-        exe_names: &["Vokie.exe"],
-        install_paths: &["%LOCALAPPDATA%\\Programs\\Vokie\\Vokie.exe"],
-        shortcut_names: &["Vokie"],
-        relaunch_when_hidden: true,
-    },
-    PresetApp {
-        id: "vscode",
-        name: "Visual Studio Code",
-        exe_names: &["Code.exe"],
-        install_paths: &[
-            "%LOCALAPPDATA%\\Programs\\Microsoft VS Code\\Code.exe",
-            "%ProgramFiles%\\Microsoft VS Code\\Code.exe",
-        ],
-        shortcut_names: &["Visual Studio Code", "VS Code"],
-        relaunch_when_hidden: true,
-    },
-    PresetApp {
-        id: "cursor",
-        name: "Cursor",
-        exe_names: &["Cursor.exe"],
-        install_paths: &[
-            "%LOCALAPPDATA%\\Programs\\cursor\\Cursor.exe",
-            "%ProgramFiles%\\cursor\\Cursor.exe",
-        ],
-        shortcut_names: &["Cursor"],
-        relaunch_when_hidden: true,
-    },
-    PresetApp {
-        id: "dimagent",
-        name: "DimAgent",
-        exe_names: &["DimAgent.exe"],
-        install_paths: &[
-            "%LOCALAPPDATA%\\Programs\\DimAgent\\DimAgent.exe",
-            "%ProgramFiles%\\DimAgent\\DimAgent.exe",
-        ],
-        shortcut_names: &["DimAgent"],
-        relaunch_when_hidden: true,
-    },
-    PresetApp {
-        id: "qq",
-        name: "QQ",
-        exe_names: &["QQ.exe"],
-        install_paths: &[
-            "%ProgramFiles%\\Tencent\\QQNT\\QQ.exe",
-            "%ProgramFiles(x86)%\\Tencent\\QQ\\Bin\\QQ.exe",
-        ],
-        shortcut_names: &["QQ"],
-        relaunch_when_hidden: true,
-    },
-    PresetApp {
-        id: "feishu",
-        name: "飞书",
-        exe_names: &["Feishu.exe", "Lark.exe"],
-        install_paths: &[
-            "%LOCALAPPDATA%\\Feishu\\Feishu.exe",
-            "%ProgramFiles%\\Feishu\\Feishu.exe",
-            "%ProgramFiles%\\Lark\\Lark.exe",
-        ],
-        shortcut_names: &["飞书", "Lark"],
-        relaunch_when_hidden: true,
-    },
-    PresetApp {
-        id: "hermes",
-        name: "Hermes",
-        exe_names: &["Hermes.exe"],
-        install_paths: &[
-            "%LOCALAPPDATA%\\Programs\\Hermes\\Hermes.exe",
-            "%LOCALAPPDATA%\\hermes\\hermes-agent\\apps\\desktop\\release\\win-unpacked\\Hermes.exe",
-        ],
-        shortcut_names: &["Hermes"],
-        relaunch_when_hidden: true,
-    },
-];
+/// 名字保留给本模块内部使用：字段语义与旧常量表一致，但数据来自可编辑配置
+/// （安装包资源里的 `resources/config/app-presets.json`，缺失时用内嵌副本）。
+/// 配置顺序即「打开应用」展示顺序；旧版隐藏项（`hidden`）仍可解析启动。
+pub type PresetApp = shengjian_domain::app_catalog::AppPreset;
 
 /// 展开 `%VAR%` 形式的安装路径模板；任一变量缺失返回 None。
 fn expand_install_path(template: &str) -> Option<std::path::PathBuf> {
@@ -242,8 +45,9 @@ fn expand_install_path(template: &str) -> Option<std::path::PathBuf> {
     (!expanded.is_empty()).then(|| std::path::PathBuf::from(expanded))
 }
 
-pub fn preset_app(id: &str) -> Option<&'static PresetApp> {
-    PRESET_APPS.iter().find(|app| app.id == id)
+/// 按 id 查预设（catalog 快照的 owned 副本；调用频率低，避免跨线程持有借用）。
+pub fn preset_app(id: &str) -> Option<PresetApp> {
+    shengjian_domain::app_catalog::preset(id)
 }
 
 /// 按键动作 target 对应的前台可执行文件名。
@@ -252,7 +56,7 @@ pub fn preset_app(id: &str) -> Option<&'static PresetApp> {
 /// 名字预备目标应用的覆盖层，避免下一次按键仍打到旧方案。
 pub fn target_executable_name(target: &str) -> Option<String> {
     if let Some(app) = preset_app(target) {
-        return app.exe_names.first().map(|name| (*name).to_owned());
+        return app.exe_names.first().map(|name| name.clone());
     }
     #[cfg(windows)]
     if target.to_ascii_lowercase().ends_with(".lnk") {
@@ -333,7 +137,7 @@ fn preset_launch_target(
     app: &PresetApp,
     shortcuts: &[(String, std::path::PathBuf)],
 ) -> Option<PresetLaunchTarget> {
-    for template in app.install_paths {
+    for template in &app.install_paths {
         let Some(path) = expand_install_path(template) else {
             continue;
         };
@@ -417,10 +221,11 @@ pub(crate) fn preset_executable_path(
 /// 路径 / 开始菜单快捷方式 / 已登记的 AppsFolder AUMID。
 #[cfg(windows)]
 fn preset_installed(app: &PresetApp, shortcuts: &[(String, std::path::PathBuf)]) -> bool {
-    app.id == "shengjian"
+    app.always_installed
         || app.exe_names.iter().any(|exe| exe_resolvable(exe))
         || preset_launch_target(app, shortcuts).is_some()
-        || preset_aumid(app.id).is_some_and(crate::registered_apps::registered_target_is_installed)
+        || preset_aumid(&app.id)
+            .is_some_and(|aumid| crate::registered_apps::registered_target_is_installed(&aumid))
 }
 
 /// 探测预设应用安装状态（System32 直存 / App Paths 注册表 / `install_paths`
@@ -431,13 +236,12 @@ pub fn probe_preset_apps() -> Vec<PresetAppInfo> {
     let started = std::time::Instant::now();
     // 开始菜单索引只扫一次，供全部条目复用（每页加载调用一次，不能按条目重复遍历）。
     let shortcuts = start_menu_shortcuts();
-    let apps: Vec<PresetAppInfo> = DEFAULT_PRESET_IDS
-        .iter()
-        .filter_map(|id| preset_app(id))
+    let apps: Vec<PresetAppInfo> = shengjian_domain::app_catalog::visible_apps()
+        .into_iter()
         .map(|app| PresetAppInfo {
-            id: app.id.to_owned(),
-            name: app.name.to_owned(),
-            installed: preset_installed(app, &shortcuts),
+            installed: preset_installed(&app, &shortcuts),
+            id: app.id,
+            name: app.name,
         })
         .collect();
     crate::ble::gatt_note(format!(
@@ -456,14 +260,13 @@ pub fn probe_preset_apps() -> Vec<PresetAppInfo> {
 
 /// 预设应用在聚焦快捷键之后仍需点击的控件（96 DPI 下的窗口内偏移）。
 ///
-/// 网易云音乐的 `Ctrl+F` 只负责打开搜索页，不会把键盘焦点放进搜索框
-/// （2026-10-23 现场实测：随后输入的字符不会进入搜索框）。这里记录搜索框中心，
-/// 调用方在快捷键之后点击并全选已有文字。
+/// 由配置的 `focus.click` 提供（网易云音乐的 `Ctrl+F` 只负责打开搜索页，不会把
+/// 键盘焦点放进搜索框，2026-10-23 现场实测：随后输入的字符不会进入搜索框）；
+/// 未配置点击点的应用返回 None。
 fn preset_focus_click_design(target: &str) -> Option<(f64, f64)> {
-    match target {
-        "netease_music" => Some((410.0, 37.0)),
-        _ => None,
-    }
+    shengjian_domain::app_catalog::focus(target)
+        .click
+        .map(|point| (point.x, point.y))
 }
 
 /// 预设应用聚焦后的点击点（物理屏幕像素）。
@@ -499,7 +302,7 @@ pub struct CustomAppPick {
     pub path: String,
 }
 
-/// 预设应用的**打包应用（UWP/MSIX）AUMID 表**。
+/// 预设应用的**打包应用（UWP/MSIX）AUMID**（配置里的 `aumid` 字段）。
 ///
 /// 为什么需要它（2026-10-15 现场）：这类应用的窗口**不属于自己的进程**
 /// （或按 exe 名匹配不到），按进程/映像名枚举窗口永远看不到；只有按 AUMID
@@ -508,17 +311,9 @@ pub struct CustomAppPick {
 ///   （计算器实测：calc.exe 与 `shell:AppsFolder\…` 激活都会新开实例）；
 /// ② 就绪判据等不到窗口 → 步骤报"结果不可确认"且耗满超时。
 ///
-/// 表内只登记**本机实测确认**的条目；未登记的应用维持原有（按进程/映像名）路径。
-pub fn preset_aumid(id: &str) -> Option<&'static str> {
-    match id {
-        // 本机实测（Windows 11，2026-10-15）：按 exe 名看不到窗口，按 AUMID 可见。
-        "calc" => Some("Microsoft.WindowsCalculator_8wekyb3d8bbwe!App"),
-        // 2026-10-22 本机实测（安装包显示名 ChatGPT）：Microsoft Store 包为
-        // `OpenAI.Codex`，清单 `Application Id="App"`、`Executable="app/ChatGPT.exe"`。
-        // 这类包没有 App Paths / 开始菜单 .lnk，安装探测与启动都走 AppsFolder。
-        "chatgpt" => Some("OpenAI.Codex_2p2nqsd0c76g0!App"),
-        _ => None,
-    }
+/// 只有本机实测确认的条目才在配置里登记；未登记的应用维持原有（按进程/映像名）路径。
+pub fn preset_aumid(id: &str) -> Option<String> {
+    shengjian_domain::app_catalog::aumid(id)
 }
 
 /// 当前前台进程的 AppsFolder AUMID（打包应用才有）。
@@ -776,9 +571,9 @@ pub fn activate_or_launch(id: &str) -> Result<(), String> {
         return crate::registered_apps::launch_registered_app(id);
     }
     if let Some(app) = preset_app(id) {
-        if app.id == "shengjian" {
+        if app.self_app {
             // 自身：恒已运行；激活失败（窗口隐藏等）时用自身 exe 路径重启拉起。
-            let activation = activate_running(app.exe_names);
+            let activation = activate_running(&app.exe_names);
             // `activate_running` 对隐藏的自身窗口用 Win32 `ShowWindow` 显示它
             // （同步生效，其后抢前台才有意义），这会让 tao 的
             // `WindowFlags::VISIBLE` 缓存停在 false。只要找到窗口就必须同步，
@@ -804,12 +599,13 @@ pub fn activate_or_launch(id: &str) -> Result<(), String> {
                 std::env::current_exe().map_err(|error| format!("获取自身路径失败：{error}"))?;
             return launch_explicit(&exe.to_string_lossy(), None, None, true);
         }
-        let visibility = window_visibility(WindowSelector::ExecutableNames(app.exe_names));
+        let visibility = window_visibility(WindowSelector::ExecutableNames(&app.exe_names));
         // 打包应用（登记了 AUMID）：窗口按映像名常常看不到，只有 AUMID 口径可见。
         // 已经开着 → **只前置，绝不重新启动**——这类应用每次启动都会新开一个实例
         // （2026-10-15 现场：多次执行打开多个计算器窗口）。
-        if let Some(aumid) = preset_aumid(app.id) {
-            let merged = visibility.merge(window_visibility(WindowSelector::AppUserModelId(aumid)));
+        if let Some(aumid) = preset_aumid(&app.id) {
+            let merged =
+                visibility.merge(window_visibility(WindowSelector::AppUserModelId(&aumid)));
             if let Some(hwnd) = merged.largest_visible {
                 let activated = unsafe { win_impl::activate_known_window(hwnd) };
                 crate::ble::gatt_note(format!(
@@ -829,7 +625,7 @@ pub fn activate_or_launch(id: &str) -> Result<(), String> {
             visibility.hidden,
             visibility.hidden_max_area,
         ) {
-            RunningWindowDisposition::ActivateVisible => match activate_running(app.exe_names) {
+            RunningWindowDisposition::ActivateVisible => match activate_running(&app.exe_names) {
                 RunningActivation::Activated(_) => return Ok(()),
                 RunningActivation::ForegroundDenied => {
                     return Err("Windows 拒绝将目标应用切换到前台".to_owned());
@@ -842,11 +638,11 @@ pub fn activate_or_launch(id: &str) -> Result<(), String> {
                 // （2026-10-03 真机：直接 ShowWindow 出来的窗口点不动）。
                 // 托盘触发失败时，按应用入口重新拉起（`relaunch_when_hidden == false`
                 // 的应用除外，见下）。
-                let mut names: Vec<&str> = app.shortcut_names.to_vec();
+                let mut names: Vec<&str> = app.shortcut_names.iter().map(String::as_str).collect();
                 names.extend(app.exe_names.iter().map(|name| {
                     name.strip_suffix(".exe")
-                        .or(name.strip_suffix(".EXE"))
-                        .unwrap_or(name)
+                        .or_else(|| name.strip_suffix(".EXE"))
+                        .unwrap_or(name.as_str())
                 }));
                 let tray = crate::tray_icons::invoke_tray_icon(&names);
                 let tray_visible = tray.submitted
@@ -881,11 +677,11 @@ pub fn activate_or_launch(id: &str) -> Result<(), String> {
                     let focused = match visibility.largest_hidden {
                         Some(hwnd) => unsafe { win_impl::activate_known_window(hwnd) },
                         None => matches!(
-                            activate_running(app.exe_names),
+                            activate_running(&app.exe_names),
                             RunningActivation::Activated(_)
                         ),
                     } || wait_for_target_foreground(
-                        app.id,
+                        &app.id,
                         std::time::Duration::from_millis(400),
                     );
                     crate::ble::gatt_note(format!(
@@ -911,7 +707,7 @@ pub fn activate_or_launch(id: &str) -> Result<(), String> {
                         app.id,
                         visibility.hidden
                     ));
-                    let relaunched = if let Some(target) = resolve_preset_launch_target(app) {
+                    let relaunched = if let Some(target) = resolve_preset_launch_target(&app) {
                         crate::ble::gatt_note(format!(
                             "app_launcher action=activate_or_launch preset={} phase=launch_target source={} arguments_present={} working_dir_present={}",
                             app.id,
@@ -926,12 +722,12 @@ pub fn activate_or_launch(id: &str) -> Result<(), String> {
                             true,
                         )
                         .is_ok()
-                    } else if let Some(aumid) = preset_aumid(app.id) {
+                    } else if let Some(aumid) = preset_aumid(&app.id) {
                         let target =
                             format!("{}{aumid}", crate::registered_apps::REGISTERED_PREFIX);
                         crate::registered_apps::launch_registered_app(&target).is_ok()
                     } else {
-                        launch_new(app.exe_names).is_ok()
+                        launch_new(&app.exe_names).is_ok()
                     };
                     // 有界等待：必须观察到**原先那个隐藏窗口**自己变可见才算成功。
                     // 只数"有没有可见窗口"会被应用一闪而过的登录/提示窗口骗过（实测假阳性）。
@@ -946,7 +742,7 @@ pub fn activate_or_launch(id: &str) -> Result<(), String> {
                             }
                             .as_bool(),
                             None => {
-                                window_visibility(WindowSelector::ExecutableNames(app.exe_names))
+                                window_visibility(WindowSelector::ExecutableNames(&app.exe_names))
                                     .visible
                                     > 0
                             }
@@ -967,11 +763,11 @@ pub fn activate_or_launch(id: &str) -> Result<(), String> {
                         let focused = match known_hidden {
                             Some(hwnd) => unsafe { win_impl::activate_known_window(hwnd) },
                             None => matches!(
-                                activate_running(app.exe_names),
+                                activate_running(&app.exe_names),
                                 RunningActivation::Activated(_)
                             ),
                         } || wait_for_target_foreground(
-                            app.id,
+                            &app.id,
                             std::time::Duration::from_millis(400),
                         );
                         crate::ble::gatt_note(format!(
@@ -1010,7 +806,7 @@ pub fn activate_or_launch(id: &str) -> Result<(), String> {
                     }
                 }
                 // 最后兜底：仍按旧的"枚举 + 显示隐藏候选"路径（最坏等于修复前行为）。
-                match activate_running(app.exe_names) {
+                match activate_running(&app.exe_names) {
                     RunningActivation::Activated(_) => return Ok(()),
                     RunningActivation::ForegroundDenied => {
                         return Err("Windows 拒绝将目标应用切换到前台".to_owned());
@@ -1020,7 +816,7 @@ pub fn activate_or_launch(id: &str) -> Result<(), String> {
             }
             RunningWindowDisposition::StartFresh => {}
         }
-        if let Some(target) = resolve_preset_launch_target(app) {
+        if let Some(target) = resolve_preset_launch_target(&app) {
             // 候选路径/开始菜单解析出的完整路径：自定义安装目录的应用
             // （Vokie、DimAgent、Hermes 等）ShellExecuteW 只拿文件名会找不到。
             // 日志只记来源与副产品可用性，不落任何个人路径。
@@ -1038,11 +834,11 @@ pub fn activate_or_launch(id: &str) -> Result<(), String> {
                 true,
             );
             launched?;
-            return foreground_after_launch(app);
+            return foreground_after_launch(&app);
         }
         // Microsoft Store 包（如 ChatGPT）没有可执行路径/开始菜单 .lnk：
         // 用 AppsFolder 的 AUMID 启动，而不是对 WindowsApps 里的 exe 名做 ShellExecute。
-        if let Some(aumid) = preset_aumid(app.id) {
+        if let Some(aumid) = preset_aumid(&app.id) {
             let target = format!("{}{aumid}", crate::registered_apps::REGISTERED_PREFIX);
             crate::ble::gatt_note(format!(
                 "app_launcher action=activate_or_launch preset={} phase=launch_aumid",
@@ -1050,8 +846,8 @@ pub fn activate_or_launch(id: &str) -> Result<(), String> {
             ));
             return crate::registered_apps::launch_registered_app(&target);
         }
-        launch_new(app.exe_names)?;
-        return foreground_after_launch(app);
+        launch_new(&app.exe_names)?;
+        return foreground_after_launch(&app);
     }
     if is_custom_path_target(id) {
         let path = std::path::Path::new(id);
@@ -1063,7 +859,7 @@ pub fn activate_or_launch(id: &str) -> Result<(), String> {
                 .file_name()
                 .map(|name| name.to_string_lossy().to_string())
                 .unwrap_or_default();
-            match activate_running(&[&exe_name]) {
+            match activate_running(std::slice::from_ref(&exe_name)) {
                 RunningActivation::Activated(_) => return Ok(()),
                 RunningActivation::ForegroundDenied => {
                     return Err("Windows 拒绝将目标应用切换到前台".to_owned());
@@ -1078,7 +874,7 @@ pub fn activate_or_launch(id: &str) -> Result<(), String> {
                     .file_name()
                     .map(|name| name.to_string_lossy().to_string())
                     .unwrap_or_default();
-                match activate_running(&[&exe_name]) {
+                match activate_running(std::slice::from_ref(&exe_name)) {
                     RunningActivation::Activated(_) => return Ok(()),
                     RunningActivation::ForegroundDenied => {
                         return Err("Windows 拒绝将目标应用切换到前台".to_owned());
@@ -1110,7 +906,7 @@ pub fn activate_or_launch(id: &str) -> Result<(), String> {
                 .file_name()
                 .map(|name| name.to_string_lossy().to_string())
                 .unwrap_or_default();
-            match activate_running(&[&exe_name]) {
+            match activate_running(std::slice::from_ref(&exe_name)) {
                 RunningActivation::Activated(_) => return Ok(()),
                 RunningActivation::ForegroundDenied => {
                     return Err("Windows 拒绝将目标应用切换到前台".to_owned());
@@ -1351,7 +1147,8 @@ const LAUNCH_FOREGROUND_WAIT: std::time::Duration = std::time::Duration::from_mi
 #[cfg(windows)]
 fn foreground_after_launch(app: &PresetApp) -> Result<(), String> {
     for _ in 0..LAUNCH_FOREGROUND_CHECKS {
-        if let Some(hwnd) = target_window_visibility(app.id).and_then(|visit| visit.largest_visible)
+        if let Some(hwnd) =
+            target_window_visibility(&app.id).and_then(|visit| visit.largest_visible)
         {
             let activated = unsafe { win_impl::activate_known_window(hwnd) };
             crate::ble::gatt_note(format!(
@@ -1397,7 +1194,7 @@ fn readback_with_recheck(
 /// 已运行 → 恢复窗口并前置。区分“未找到”与“找到但 Windows 拒绝前置”，
 /// 防止后者被误报为成功或错误地再启动一个实例。
 #[cfg(windows)]
-fn activate_running(exe_names: &[&str]) -> RunningActivation {
+fn activate_running(exe_names: &[String]) -> RunningActivation {
     use std::collections::HashSet;
 
     let wanted: HashSet<String> = exe_names
@@ -1741,7 +1538,7 @@ pub(crate) fn process_app_user_model_id(pid: u32) -> Option<String> {
 /// 再决定是直接激活还是交给应用自己的打开路径。
 #[cfg(windows)]
 pub(crate) enum WindowSelector<'a> {
-    ExecutableNames(&'a [&'a str]),
+    ExecutableNames(&'a [String]),
     ExecutablePath(&'a str),
     AppUserModelId(&'a str),
 }
@@ -1826,9 +1623,9 @@ pub(crate) fn target_window_visibility(target: &str) -> Option<WindowVisibility>
         return Some(by_identity.merge(by_path));
     }
     if let Some(app) = preset_app(target) {
-        let by_exe = window_visibility(WindowSelector::ExecutableNames(app.exe_names));
-        return Some(match preset_aumid(app.id) {
-            Some(aumid) => by_exe.merge(window_visibility(WindowSelector::AppUserModelId(aumid))),
+        let by_exe = window_visibility(WindowSelector::ExecutableNames(&app.exe_names));
+        return Some(match preset_aumid(&app.id) {
+            Some(aumid) => by_exe.merge(window_visibility(WindowSelector::AppUserModelId(&aumid))),
             None => by_exe,
         });
     }
@@ -1918,7 +1715,7 @@ fn pids_for_executable_path(executable_path: &str) -> std::collections::HashSet<
 
 /// 进程快照：可执行文件名 → pid 集合。
 #[cfg(windows)]
-fn pids_for_exe_names(exe_names: &[&str]) -> std::collections::HashSet<u32> {
+fn pids_for_exe_names(exe_names: &[String]) -> std::collections::HashSet<u32> {
     use windows::Win32::System::Diagnostics::ToolHelp::{
         CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
         TH32CS_SNAPPROCESS,
@@ -2773,8 +2570,8 @@ pub(crate) use win_impl::with_alt_foreground_unlock;
 
 /// 启动新实例（短命线程内 COM 初始化后 ShellExecuteW，避免引擎线程套间约束）。
 #[cfg(windows)]
-fn launch_new(exe_names: &[&str]) -> Result<(), String> {
-    let exes: Vec<String> = exe_names.iter().map(|exe| (*exe).to_owned()).collect();
+fn launch_new(exe_names: &[String]) -> Result<(), String> {
+    let exes: Vec<String> = exe_names.to_vec();
     let handle = std::thread::Builder::new()
         .name("shengjian-app-launch".to_owned())
         .spawn(move || {
@@ -3038,7 +2835,7 @@ pub fn application_readiness(target: &str) -> ApplicationReadiness {
     } else if let Some(app) = preset_app(target) {
         // 与激活路径同一份口径（AUMID 合并）：打包应用的窗口按映像名看不到。
         let visibility = target_window_visibility(target).unwrap_or(WindowVisibility::EMPTY);
-        (visibility, !pids_for_exe_names(app.exe_names).is_empty())
+        (visibility, !pids_for_exe_names(&app.exe_names).is_empty())
     } else if is_custom_path_target(target) {
         let resolved = if target.to_ascii_lowercase().ends_with(".lnk") {
             resolve_lnk(target)
@@ -3138,7 +2935,7 @@ pub struct AppTargetInfo {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum LaunchableAppSource {
-    /// 预设表（`DEFAULT_PRESET_IDS`）。
+    /// 预设表（`config/app-presets.json` 的可见条目）。
     Preset,
     /// 开始菜单注册的桌面程序（扫描时解析出了 exe 路径，target 存该路径）。
     StartMenu,
@@ -3225,28 +3022,30 @@ fn is_lnk_target(target: &str) -> bool {
     target.to_ascii_lowercase().ends_with(".lnk")
 }
 
-/// 按 exe 文件名反查预设（忽略大小写；`PRESET_APPS` 顺序即优先级）。
-fn preset_for_executable_name(exe_name: &str) -> Option<&'static PresetApp> {
-    PRESET_APPS.iter().find(|app| {
-        app.exe_names
-            .iter()
-            .any(|name| name.eq_ignore_ascii_case(exe_name))
-    })
+/// 按 exe 文件名反查预设（忽略大小写；`config/app-presets.json` 顺序即优先级）。
+fn preset_for_executable_name(exe_name: &str) -> Option<PresetApp> {
+    shengjian_domain::app_catalog::apps()
+        .into_iter()
+        .find(|app| {
+            app.exe_names
+                .iter()
+                .any(|name| name.eq_ignore_ascii_case(exe_name))
+        })
 }
 
 /// 构造预设目标的描述（`installed` 由平台探测给出）。
-fn preset_target_info(raw: &str, app: &'static PresetApp, installed: bool) -> AppTargetInfo {
+fn preset_target_info(raw: &str, app: &PresetApp, installed: bool) -> AppTargetInfo {
     AppTargetInfo {
         input: raw.to_owned(),
         target: app.id.to_owned(),
         kind: AppTargetKind::Preset,
         display_name: Some(app.name.to_owned()),
-        executable_name: app.exe_names.first().map(|name| (*name).to_owned()),
+        executable_name: app.exe_names.first().map(|name| name.clone()),
         installed,
         launchable: installed,
         matchable: app.exe_names.first().is_some(),
-        portable: shengjian_domain::portable_macros::preset_is_portable(app.id),
-        legacy: raw != app.id,
+        portable: shengjian_domain::portable_macros::preset_is_portable(&app.id),
+        legacy: raw != app.id.as_str(),
         issue: (!installed).then_some(AppTargetIssue::PresetNotInstalled),
     }
 }
@@ -3260,23 +3059,23 @@ fn classify_app_target(raw: &str, facts: &AppTargetFacts) -> AppTargetInfo {
     let input = raw.to_owned();
     let trimmed = raw.trim();
 
-    // 1) 预设 id 精确命中（后端匹配大小写敏感，输出保持表内精确大小写）。
+    // 1) 预设 id 精确命中（后端匹配大小写敏感，输出保持配置内精确大小写）。
     if let Some(app) = preset_app(trimmed) {
-        return preset_target_info(raw, app, facts.preset_installed);
+        return preset_target_info(raw, &app, facts.preset_installed);
     }
     // 2) 可执行文件命中预设 `exe_names`（忽略大小写）→ 存预设 id。
     //    选择器给的是完整路径/裸 exe 名时归并到预设，默认聚焦、AUMID 合并、
     //    便携导出与就绪判据才能全部生效。
     if let Some(app) = target_file_name(trimmed).and_then(preset_for_executable_name) {
         if facts.preset_installed {
-            return preset_target_info(raw, app, true);
+            return preset_target_info(raw, &app, true);
         }
         // 例外（2026-11-13）：预设探测不到、但用户给的路径/裸名确能解析成真实
         // 文件（便携副本）时保留路径形态——存预设 id 会让启动链路按 exe_names
         // 走 ShellExecuteW 而找不到该副本，用户"选了却打不开"。
         let portable_copy = facts.path_exists || facts.bare_path.is_some();
         if !portable_copy {
-            return preset_target_info(raw, app, false);
+            return preset_target_info(raw, &app, false);
         }
     }
     // 3) AppsFolder AUMID：原样保留；能否自动匹配取决于能否解析出 exe。
@@ -3459,7 +3258,7 @@ fn probe_app_target_facts(
     let preset = preset_app(trimmed)
         .or_else(|| target_file_name(trimmed).and_then(preset_for_executable_name));
     if let Some(app) = preset {
-        facts.preset_installed = preset_installed_lazy(app, shortcuts);
+        facts.preset_installed = preset_installed_lazy(&app, shortcuts);
     }
     if crate::registered_apps::is_registered_target(trimmed) {
         if let Some(info) = crate::registered_apps::describe_registered_app(trimmed) {
@@ -3493,7 +3292,7 @@ fn preset_installed_lazy(
     app: &PresetApp,
     shortcuts: Option<&[(String, std::path::PathBuf)]>,
 ) -> bool {
-    if app.id == "shengjian" || app.exe_names.iter().any(|exe| exe_resolvable(exe)) {
+    if app.always_installed || app.exe_names.iter().any(|exe| exe_resolvable(exe)) {
         return true;
     }
     match shortcuts {
@@ -3605,7 +3404,7 @@ where
 
 /// 已安装应用目录（已安装预设 + 开始菜单/AppsFolder 已安装应用）。
 ///
-/// 预设按 `DEFAULT_PRESET_IDS` 顺序在前；扫描结果与预设 `exe_names`/AUMID 命中的
+/// 预设按配置可见顺序在前；扫描结果与预设 `exe_names`/AUMID 命中的
 /// 条目归并到预设，同 exe 路径/AUMID 去重；扫描失败降级为只返回已安装预设 +
 /// `scanError` token，不 panic。
 pub fn list_launchable_apps(refresh: bool) -> LaunchableAppsResult {
@@ -3675,28 +3474,28 @@ fn windows_scan_launchable_apps() -> LaunchableAppsResult {
     }
 }
 
-/// 已安装预设（按 `DEFAULT_PRESET_IDS` 顺序；未安装项不出现在目录里）。
+/// 已安装预设（按 `config/app-presets.json` 的可见顺序；未安装项不出现在目录里）。
 #[cfg(windows)]
 fn installed_preset_launchable_apps() -> Vec<LaunchableApp> {
     probe_preset_apps()
         .into_iter()
         .filter(|info| info.installed)
-        .filter_map(|info| preset_app(&info.id).map(preset_launchable_app))
+        .filter_map(|info| preset_app(&info.id).map(|app| preset_launchable_app(&app)))
         .collect()
 }
 
 /// 预设项 → 目录条目（target 存预设 id，便携标记取导出白名单）。
 #[cfg_attr(not(windows), allow(dead_code))]
-fn preset_launchable_app(app: &'static PresetApp) -> LaunchableApp {
+fn preset_launchable_app(app: &PresetApp) -> LaunchableApp {
     LaunchableApp {
         app_id: app.id.to_owned(),
         display_name: app.name.to_owned(),
         target: app.id.to_owned(),
-        executable_name: app.exe_names.first().map(|name| (*name).to_owned()),
+        executable_name: app.exe_names.first().map(|name| name.clone()),
         kind: AppTargetKind::Preset,
         source: LaunchableAppSource::Preset,
         installed: true,
-        portable: shengjian_domain::portable_macros::preset_is_portable(app.id),
+        portable: shengjian_domain::portable_macros::preset_is_portable(&app.id),
         matchable: app.exe_names.first().is_some(),
     }
 }
@@ -3706,7 +3505,7 @@ fn preset_launchable_app(app: &'static PresetApp) -> LaunchableApp {
 /// 规则：与已列出预设的 `exe_names` 命中的条目归并到预设（不再重复出现）；
 /// 与预设已登记的 AUMID 相同也归并；扫描结果之间按 exe 路径 / AUMID 去重；
 /// 解析出 exe 的桌面程序存 exe 绝对路径（source=StartMenu），否则存 AUMID
-/// （source=AppsFolder）；预设保持 `DEFAULT_PRESET_IDS` 顺序在前，其余按名称排序。
+/// （source=AppsFolder）；预设保持配置顺序在前，其余按名称排序。
 #[cfg_attr(not(windows), allow(dead_code))]
 fn merge_launchable_apps(
     preset_apps: Vec<LaunchableApp>,
@@ -3827,15 +3626,15 @@ mod application_readiness_tests {
         assert!(readiness.known);
     }
 
-    /// 打包应用 AUMID 表：登记项可用，未登记项不猜（2026-10-15 现场）。
+    /// 打包应用 AUMID：配置里登记项可用，未登记项不猜（2026-10-15 现场）。
     #[test]
     fn preset_aumid_table_is_explicit() {
         assert_eq!(
-            preset_aumid("calc"),
+            preset_aumid("calc").as_deref(),
             Some("Microsoft.WindowsCalculator_8wekyb3d8bbwe!App")
         );
         assert_eq!(
-            preset_aumid("chatgpt"),
+            preset_aumid("chatgpt").as_deref(),
             Some("OpenAI.Codex_2p2nqsd0c76g0!App")
         );
         assert_eq!(preset_aumid("notepad"), None);
@@ -4089,7 +3888,10 @@ pub(crate) mod tests {
                 .relaunch_when_hidden,
             "微信：重新拉起会新起实例弹登录小窗，必须跳过"
         );
-        for app in PRESET_APPS.iter().filter(|app| app.id != "wechat") {
+        for app in shengjian_domain::app_catalog::apps()
+            .into_iter()
+            .filter(|app| app.id != "wechat")
+        {
             assert!(
                 app.relaunch_when_hidden,
                 "{} 未观察到同类副作用，保持既有行为",
@@ -4197,7 +3999,7 @@ pub(crate) mod tests {
     fn running_notepad_reaches_observed_foreground() {
         assert!(
             matches!(
-                activate_running(&["notepad.exe"]),
+                activate_running(&["notepad.exe".to_owned()]),
                 RunningActivation::Activated(_)
             ),
             "请先启动记事本并让另一个应用处于前台"
@@ -4343,7 +4145,7 @@ pub(crate) mod tests {
     #[cfg(windows)]
     #[ignore = "会显示短暂测试消息框并把已运行的记事本切到前台"]
     fn foreground_lock_retry_reaches_observed_notepad() {
-        let activation = with_foreground_lock(|| activate_running(&["notepad.exe"]));
+        let activation = with_foreground_lock(|| activate_running(&["notepad.exe".to_owned()]));
         let RunningActivation::Activated(outcome) = activation else {
             panic!("foreground lock 后的 Alt 解锁重试未激活记事本：{activation:?}");
         };
@@ -4353,13 +4155,14 @@ pub(crate) mod tests {
 
     #[test]
     fn preset_ids_are_unique_and_nonempty() {
-        let mut ids: Vec<&str> = PRESET_APPS.iter().map(|app| app.id).collect();
+        let apps = shengjian_domain::app_catalog::apps();
+        let mut ids: Vec<&str> = apps.iter().map(|app| app.id.as_str()).collect();
         ids.sort_unstable();
         let count = ids.len();
         ids.dedup();
         assert_eq!(ids.len(), count, "预设应用 id 必须唯一");
         assert!(!ids.is_empty());
-        for app in PRESET_APPS {
+        for app in &apps {
             assert!(!app.name.is_empty());
             assert!(!app.exe_names.is_empty());
         }
@@ -4369,8 +4172,9 @@ pub(crate) mod tests {
     fn preset_app_lookup_rejects_unknown() {
         assert!(preset_app("wechat").is_some());
         assert!(preset_app("nonexistent-app").is_none());
-        // 2026-10-22 用户要求：Edge 不再作为默认预设展示。
-        assert!(preset_app("edge").is_none());
+        // 2026-10-22 用户要求：Edge 不再作为默认预设展示；
+        // 配置里仍保留 hidden 条目（便携映射 / 旧数据可解析）。
+        assert!(preset_app("edge").is_some_and(|app| app.hidden));
     }
 
     /// 2026-10-23 用户定稿的 10 个默认预设：顺序与展示名必须一致。
@@ -4385,7 +4189,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn preset_table_includes_requested_apps() {
+    fn catalog_visible_presets_keep_expected_order() {
         let expected = [
             ("shengjian", "遥控器 声键"),
             ("wechat", "微信"),
@@ -4398,11 +4202,11 @@ pub(crate) mod tests {
             ("notepad", "记事本"),
             ("qq", "QQ"),
         ];
-        assert_eq!(DEFAULT_PRESET_IDS.len(), expected.len());
+        let visible = shengjian_domain::app_catalog::visible_apps();
+        assert_eq!(visible.len(), expected.len());
         for (index, (id, name)) in expected.iter().enumerate() {
-            assert_eq!(DEFAULT_PRESET_IDS[index], *id, "默认预设顺序");
-            let app = preset_app(id).unwrap_or_else(|| panic!("预设表缺少 {id}"));
-            assert_eq!(app.name, *name, "{id} 的展示名");
+            assert_eq!(visible[index].id, *id, "默认预设顺序");
+            assert_eq!(visible[index].name, *name, "{id} 的展示名");
         }
         // 常装在自定义目录的应用仍须有开始菜单兜底探测。
         for id in ["chatgpt", "workbuddy", "dimagent", "vokie", "qq"] {
@@ -4417,9 +4221,19 @@ pub(crate) mod tests {
     /// 旧版本的预设保留可执行解析，但不进入默认列表（已有映射不失效）。
     #[test]
     fn legacy_presets_stay_resolvable_but_hidden() {
+        let visible_ids: Vec<String> = shengjian_domain::app_catalog::visible_apps()
+            .into_iter()
+            .map(|app| app.id)
+            .collect();
         for id in ["calc", "explorer", "vscode", "cursor", "feishu", "hermes"] {
+            let app = shengjian_domain::app_catalog::preset(id)
+                .unwrap_or_else(|| panic!("{id} 旧目标应仍可解析"));
+            assert!(app.hidden, "{id} 应标记为配置隐藏项");
+            assert!(
+                !visible_ids.iter().any(|visible| visible == id),
+                "{id} 不应出现在默认列表"
+            );
             assert!(preset_app(id).is_some(), "{id} 旧目标应仍可解析");
-            assert!(!DEFAULT_PRESET_IDS.contains(&id), "{id} 不应出现在默认列表");
         }
     }
 
@@ -4429,7 +4243,7 @@ pub(crate) mod tests {
     fn wechat_preset_falls_back_to_start_menu_shortcut() {
         let app = preset_app("wechat").expect("微信预设");
         assert!(
-            app.shortcut_names.contains(&"微信"),
+            app.shortcut_names.iter().any(|name| name == "微信"),
             "微信需要开始菜单快捷方式兜底探测"
         );
     }
@@ -4490,12 +4304,18 @@ pub(crate) mod tests {
         let probe = std::env::temp_dir().join("shengjian-preset-install-path-probe.exe");
         std::fs::write(&probe, b"x").expect("创建探测文件");
         let app = PresetApp {
-            id: "probe",
-            name: "probe",
-            exe_names: &["probe.exe"],
-            install_paths: &["%TEMP%\\shengjian-preset-install-path-probe.exe"],
-            shortcut_names: &[],
+            id: "probe".to_owned(),
+            name: "probe".to_owned(),
+            exe_names: vec!["probe.exe".to_owned()],
+            install_paths: vec!["%TEMP%\\shengjian-preset-install-path-probe.exe".to_owned()],
+            shortcut_names: Vec::new(),
             relaunch_when_hidden: true,
+            hidden: false,
+            self_app: false,
+            always_installed: false,
+            aumid: None,
+            focus: None,
+            portable_bundle: None,
         };
         let target = preset_launch_target(&app, &[]).expect("候选路径应命中");
         assert_eq!(target.source, "install_path");
@@ -4523,12 +4343,18 @@ pub(crate) mod tests {
         );
 
         let app = PresetApp {
-            id: "shortcut-probe",
-            name: "shortcut-probe",
-            exe_names: &["Hermes.exe"],
-            install_paths: &[],
-            shortcut_names: &["Hermes"],
+            id: "shortcut-probe".to_owned(),
+            name: "shortcut-probe".to_owned(),
+            exe_names: vec!["Hermes.exe".to_owned()],
+            install_paths: Vec::new(),
+            shortcut_names: vec!["Hermes".to_owned()],
             relaunch_when_hidden: true,
+            hidden: false,
+            self_app: false,
+            always_installed: false,
+            aumid: None,
+            focus: None,
+            portable_bundle: None,
         };
         let index = vec![("hermes".to_owned(), lnk.clone())];
         let target = preset_launch_target(&app, &index).expect("快捷方式应命中");
@@ -4563,15 +4389,19 @@ pub(crate) mod tests {
     fn installed_preset_apps_expose_launch_targets() {
         let shortcuts = start_menu_shortcuts();
         for info in probe_preset_apps() {
-            if !info.installed || info.id == "shengjian" {
+            if !info.installed {
                 continue;
             }
             let app = preset_app(&info.id).expect("probe 只返回预设表内的条目");
+            if app.self_app {
+                continue;
+            }
             assert!(
                 app.exe_names.iter().any(|exe| exe_resolvable(exe))
-                    || preset_launch_target(app, &shortcuts).is_some()
-                    || preset_aumid(app.id)
-                        .is_some_and(crate::registered_apps::registered_target_is_installed),
+                    || preset_launch_target(&app, &shortcuts).is_some()
+                    || preset_aumid(&app.id).is_some_and(|aumid| {
+                        crate::registered_apps::registered_target_is_installed(&aumid)
+                    }),
                 "{} 判定已安装却没有可用的启动位置",
                 info.id
             );
@@ -5360,8 +5190,8 @@ mod app_target_tests {
     #[test]
     fn merge_keeps_presets_first_and_folds_covered_entries() {
         let presets = vec![
-            preset_launchable_app(preset_app("wechat").expect("wechat")),
-            preset_launchable_app(preset_app("chatgpt").expect("chatgpt")),
+            preset_launchable_app(&preset_app("wechat").expect("wechat")),
+            preset_launchable_app(&preset_app("chatgpt").expect("chatgpt")),
         ];
         let scanned = vec![
             // exe 名命中已列出的微信预设 → 归并掉。
@@ -5372,7 +5202,7 @@ mod app_target_tests {
             ),
             // AUMID 命中已列出的 ChatGPT 预设 → 归并掉（即使解析不出 exe）。
             scanned_entry("ChatGPT", "OpenAI.Codex_2p2nqsd0c76g0!App", None),
-            // 计算器不在 DEFAULT_PRESET_IDS 里 → 作为普通 AppsFolder 条目保留。
+            // 计算器不在可见预设列表里 → 作为普通 AppsFolder 条目保留。
             scanned_entry(
                 "计算器",
                 "Microsoft.WindowsCalculator_8wekyb3d8bbwe!App",
@@ -5481,7 +5311,9 @@ mod app_target_tests {
     #[test]
     fn launchable_app_result_serializes_with_frontend_contract() {
         let result = LaunchableAppsResult {
-            apps: vec![preset_launchable_app(preset_app("wechat").expect("wechat"))],
+            apps: vec![preset_launchable_app(
+                &preset_app("wechat").expect("wechat"),
+            )],
             scanned: false,
             scan_error: Some("app_scan_timeout".to_owned()),
         };
@@ -5499,15 +5331,14 @@ mod app_target_tests {
         assert_eq!(value["apps"][0]["matchable"], true);
     }
 
-    /// 预设目录顺序 = DEFAULT_PRESET_IDS（界面顺序定稿）。
+    /// 预设目录顺序 = 配置可见顺序（界面顺序定稿）。
     #[test]
     fn launchable_presets_keep_default_order_and_mark_portable() {
-        let apps: Vec<LaunchableApp> = DEFAULT_PRESET_IDS
-            .iter()
-            .filter_map(|id| preset_app(id).map(preset_launchable_app))
-            .collect();
+        let visible = shengjian_domain::app_catalog::visible_apps();
+        let apps: Vec<LaunchableApp> = visible.iter().map(preset_launchable_app).collect();
         let ids: Vec<&str> = apps.iter().map(|app| app.app_id.as_str()).collect();
-        assert_eq!(ids, DEFAULT_PRESET_IDS);
+        let expected: Vec<&str> = visible.iter().map(|app| app.id.as_str()).collect();
+        assert_eq!(ids, expected);
         for app in &apps {
             assert_eq!(app.source, LaunchableAppSource::Preset);
             assert!(app.installed && app.matchable);

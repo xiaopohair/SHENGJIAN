@@ -39,6 +39,8 @@ import { getSettings, setTrayLanguage } from "./lib/api";
 import { setLanguagePreference, statusLabel, tr, trDynamic, uiLocale } from "./lib/i18n";
 import { canLeavePage } from "./lib/navigation";
 import { deviceProductNameKey } from "./lib/deviceProduct";
+import { voiceToolLabel } from "./lib/voiceTools";
+import { useVoiceToolCatalog } from "./composables/useVoiceToolCatalog";
 import {
   applyAccent,
   applyTheme,
@@ -70,6 +72,7 @@ const store = useEngineStore();
 const status = useStatusStore();
 const updateStore = useUpdateStore();
 const pairing = usePairingStore();
+const { catalog: voiceToolCatalog, load: loadVoiceToolCatalog } = useVoiceToolCatalog();
 const active = ref<PageId>("connection");
 const appVersion = shallowRef("");
 const showOnboarding = ref(localStorage.getItem(ONBOARDING_KEY) !== "1");
@@ -126,13 +129,6 @@ function onMainPointerLeave() {
   scheduleMainScrollbarHide(150);
 }
 
-const INPUT_TOOL_LABELS: Record<string, string> = {
-  wechat: "微信输入法",
-  doubao: "豆包输入法",
-  vokie: "Vokie 桌面版",
-  other: "其他工具",
-};
-
 const pages = [
   { id: "connection" as const, label: "连接", icon: Radio, component: ConnectionPage },
   { id: "buttons" as const, label: "按键", icon: Keyboard, component: ButtonsPage },
@@ -175,7 +171,7 @@ const batteryLow = computed(() => status.batteryLevel !== null && status.battery
 const batteryIcon = computed(() => (batteryLow.value ? BatteryLow : BatteryMedium));
 const inputToolLabel = computed(() =>
   status.voiceInputTool
-    ? trDynamic(INPUT_TOOL_LABELS[status.voiceInputTool] ?? status.voiceInputTool)
+    ? voiceToolLabel(voiceToolCatalog.value, status.voiceInputTool)
     : tr("未选择"),
 );
 const voiceActive = computed(() => String(store.voiceState) !== "idle");
@@ -326,6 +322,9 @@ onMounted(async () => {
   });
   await store.hydrate();
   await loadTheme();
+  // The topbar input-tool badge shows the configured label, so load the
+  // config-driven catalog alongside the settings.
+  await loadVoiceToolCatalog();
   appVersion.value = await getVersion().catch(() => "");
   applyAccent(localStorage.getItem(ACCENT_KEY) ?? "default");
   await finishStartup();

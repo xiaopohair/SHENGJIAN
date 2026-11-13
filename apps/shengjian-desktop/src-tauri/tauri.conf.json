@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://127.0.0.1:1420",
-    "beforeBuildCommand": "pnpm prepare:helper && pnpm build",
+    "beforeBuildCommand": "pnpm prepare:helper && pnpm prepare:config && pnpm build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -64,6 +64,8 @@
       }
     },
     "resources": [
+      "resources/config/app-presets.json",
+      "resources/config/voice-tools.json",
       "resources/rc003/shengjian-helper.exe",
       "resources/rc003/frida-gadget.dll",
       "resources/licenses/LICENSE",

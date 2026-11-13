@@ -21,6 +21,8 @@ import {
 import { PROFILE_BUTTONS } from "../lib/buttons";
 import { deviceProductNameKey } from "../lib/deviceProduct";
 import { statusLabel, tr, trDynamic } from "../lib/i18n";
+import { voiceToolOptions } from "../lib/voiceTools";
+import { useVoiceToolCatalog } from "../composables/useVoiceToolCatalog";
 import type { AudioEndpoint, SettingsDocument } from "../lib/types";
 import { useEngineStore } from "../stores/engine";
 import { usePairingStore } from "../stores/pairing";
@@ -42,6 +44,7 @@ const step = shallowRef(1);
 const connecting = shallowRef(false);
 const settings = ref<SettingsDocument | null>(null);
 const voiceInputTool = shallowRef("");
+const { catalog: voiceToolCatalog, load: loadVoiceToolCatalog } = useVoiceToolCatalog();
 const audioEndpointId = shallowRef("");
 const endpoints = ref<AudioEndpoint[]>([]);
 const rc003Capture = shallowRef(false);
@@ -274,6 +277,7 @@ onMounted(async () => {
   await nextTick();
   focusableElements()[0]?.focus();
   try {
+    await loadVoiceToolCatalog();
     settings.value = await getSettings();
     voiceInputTool.value = String(settings.value.global.voice_input_tool ?? "");
     audioEndpointId.value = String(settings.value.global.audio_endpoint_id ?? "");
@@ -382,10 +386,13 @@ onUnmounted(() => {
           <Field :label="tr('语音输入工具')">
             <SelectInput v-model="voiceInputTool">
               <option value="">{{ tr("未选择") }}</option>
-              <option value="wechat">{{ tr("微信输入法") }}</option>
-              <option value="doubao">{{ tr("豆包输入法") }}</option>
-              <option value="vokie">{{ tr("Vokie 桌面版") }}</option>
-              <option value="other">{{ tr("其他工具") }}</option>
+              <option
+                v-for="tool in voiceToolOptions(voiceToolCatalog, voiceInputTool)"
+                :key="tool.id"
+                :value="tool.id"
+              >
+                {{ tool.label }}
+              </option>
             </SelectInput>
           </Field>
           <Field :label="tr('音频输入设备')">

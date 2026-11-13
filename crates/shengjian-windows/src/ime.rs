@@ -30,15 +30,16 @@
 //! 等待（500ms）防卡 BLE 工作线程；仅在配置了按住说话快捷键的语音会话上
 //! 调用。
 //!
-//! 2026-10-01 泛化：目标不再写死 WeType，而是按**用户选的输入工具**
-//! （`AppSettings.voice_input_tool`）决定——豆包输入法同款配方（STA +
+//! 2026-10-01 泛化：目标不再写死 WeType，而是按**用户选的输入工具的行为类别**
+//! （`config/voice-tools.json` 的 `kind`，经 [`crate::voice_tool::VoiceToolKind`]
+//! 解析）决定——豆包输入法同款配方（STA +
 //! `TF_IPPMF_FORSESSION` + 冷路径重绑等待），GUID 由 `examples/doubao_ime_probe.rs`
-//! 真机取得并读回验证。Vokie / 「其他工具」不切输入法（`NotRequired`）。
+//! 真机取得并读回验证。Vokie / custom（自定义工具）不切输入法（`NotRequired`）。
 
 use std::sync::mpsc;
 use std::time::Duration;
 
-use shengjian_domain::settings::VoiceInputTool;
+use crate::voice_tool::VoiceToolKind;
 use windows::core::GUID;
 use windows::Win32::UI::Input::KeyboardAndMouse::HKL;
 use windows::Win32::UI::TextServices::{
@@ -81,16 +82,16 @@ const DOUBAO_IME: ImeProfile = ImeProfile {
     label: "doubao",
 };
 
-/// 工具 → 需要确保为当前会话活动输入法的目标。
+/// 工具行为类别 → 需要确保为当前会话活动输入法的目标。
 ///
-/// 只有"自身是输入法"的工具才需要切：Vokie 是桌面程序（不受输入法影响），
-/// 「其他工具」由用户自备输入法，两者都返回 `None`——**绝不**替它们切输入法
-/// （2026-09-29 真机实证：误切会让豆包路径被切成微信输入法）。
-pub fn ime_target_for(tool: VoiceInputTool) -> Option<ImeProfile> {
+/// 只有"自身是输入法"的 kind 才需要切：Vokie 是桌面程序（不受输入法影响），
+/// `custom`（自定义工具）由用户自备输入法，两者都返回 `None`——**绝不**替它们切
+/// 输入法（2026-09-29 真机实证：误切会让豆包路径被切成微信输入法）。
+pub fn ime_target_for(tool: VoiceToolKind) -> Option<ImeProfile> {
     match tool {
-        VoiceInputTool::Wechat => Some(WETYPE_IME),
-        VoiceInputTool::Doubao => Some(DOUBAO_IME),
-        VoiceInputTool::Vokie | VoiceInputTool::Other => None,
+        VoiceToolKind::Wechat => Some(WETYPE_IME),
+        VoiceToolKind::Doubao => Some(DOUBAO_IME),
+        VoiceToolKind::Vokie | VoiceToolKind::Custom => None,
     }
 }
 /// STA 激活线程的有界等待：正常 <10ms，500ms 只是防卡上限。
@@ -374,7 +375,7 @@ impl ImeSwitchScope {
 /// `tool` 由"用户选的输入工具"决定（不是按和弦猜）：选豆包却把和弦配成
 /// Ctrl+Win 时，旧实现会把输入法切成微信（2026-10-01 语义缺口）。
 pub fn ensure_session_ime(
-    tool: VoiceInputTool,
+    tool: VoiceToolKind,
     scope: ImeSwitchScope,
 ) -> Result<ImeActivation, String> {
     ensure_session_ime_inner(tool, scope, false, false)
@@ -386,12 +387,12 @@ pub fn ensure_session_ime(
 /// 为什么必须强制：`GetActiveProfile` 在新建 STA 线程上读到的是本进程会话，
 /// 看不到目标窗口（Windows 按应用记忆输入法）；现场日志里 `ime_activation`
 /// 全程 `already_active`、`last_switch_age_ms=never`，说明这条兜底从未真正执行。
-pub(crate) fn heal_target_ime(tool: VoiceInputTool) -> Result<ImeActivation, String> {
+pub(crate) fn heal_target_ime(tool: VoiceToolKind) -> Result<ImeActivation, String> {
     ensure_session_ime_inner(tool, ImeSwitchScope::VoiceHeal, false, true)
 }
 
 fn ensure_session_ime_inner(
-    tool: VoiceInputTool,
+    tool: VoiceToolKind,
     scope: ImeSwitchScope,
     allow_self_foreground: bool,
     force: bool,
@@ -664,13 +665,13 @@ pub(crate) fn hotkey_change_age_ms() -> Option<u64> {
     age_of(&LAST_HOTKEY_CHANGE_AT)
 }
 
-/// 工具标签（日志用；与 `ime_target_for` 的 label 语义一致）。
-pub(crate) fn tool_label(tool: Option<VoiceInputTool>) -> &'static str {
+/// 工具行为标签（日志用；与 `ime_target_for` 的 label 语义一致）。
+pub(crate) fn tool_label(tool: Option<VoiceToolKind>) -> &'static str {
     match tool {
-        Some(VoiceInputTool::Wechat) => "wechat",
-        Some(VoiceInputTool::Doubao) => "doubao",
-        Some(VoiceInputTool::Vokie) => "vokie",
-        Some(VoiceInputTool::Other) => "other",
+        Some(VoiceToolKind::Wechat) => "wechat",
+        Some(VoiceToolKind::Doubao) => "doubao",
+        Some(VoiceToolKind::Vokie) => "vokie",
+        Some(VoiceToolKind::Custom) => "custom",
         None => "none",
     }
 }
@@ -682,12 +683,13 @@ pub(crate) fn tool_label(tool: Option<VoiceInputTool>) -> &'static str {
 /// - 微信：沿用既有 `wetype` 片段（`wetype_check` 阶梯已用同一观测做恢复裁决，
 ///   这里只复用观测本身，不改其恢复逻辑）；
 /// - Vokie：`Vokie.exe`；
-/// - 其他/未选：没有可依赖的条目，返回 None（判据按 `unknown` 处理，不推断）。
-pub(crate) fn mic_marker_for(tool: Option<VoiceInputTool>) -> Option<&'static str> {
+/// - custom（自定义工具）/ 未选：没有可依赖的条目，返回 None（判据按 `unknown`
+///   处理，不推断）。
+pub(crate) fn mic_marker_for(tool: Option<VoiceToolKind>) -> Option<&'static str> {
     match tool {
-        Some(VoiceInputTool::Doubao) => Some("doubao"),
-        Some(VoiceInputTool::Wechat) => Some("wetype"),
-        Some(VoiceInputTool::Vokie) => Some("vokie"),
+        Some(VoiceToolKind::Doubao) => Some("doubao"),
+        Some(VoiceToolKind::Wechat) => Some("wetype"),
+        Some(VoiceToolKind::Vokie) => Some("vokie"),
         _ => None,
     }
 }
@@ -705,10 +707,10 @@ mod press_context_tests {
 
     #[test]
     fn mic_markers_cover_shipped_tools_only() {
-        assert_eq!(mic_marker_for(Some(VoiceInputTool::Doubao)), Some("doubao"));
-        assert_eq!(mic_marker_for(Some(VoiceInputTool::Wechat)), Some("wetype"));
-        assert_eq!(mic_marker_for(Some(VoiceInputTool::Vokie)), Some("vokie"));
-        assert_eq!(mic_marker_for(Some(VoiceInputTool::Other)), None);
+        assert_eq!(mic_marker_for(Some(VoiceToolKind::Doubao)), Some("doubao"));
+        assert_eq!(mic_marker_for(Some(VoiceToolKind::Wechat)), Some("wetype"));
+        assert_eq!(mic_marker_for(Some(VoiceToolKind::Vokie)), Some("vokie"));
+        assert_eq!(mic_marker_for(Some(VoiceToolKind::Custom)), None);
         assert_eq!(mic_marker_for(None), None);
     }
 
@@ -811,10 +813,10 @@ mod press_context_tests {
 
     #[test]
     fn tool_labels_are_stable_log_tokens() {
-        assert_eq!(tool_label(Some(VoiceInputTool::Wechat)), "wechat");
-        assert_eq!(tool_label(Some(VoiceInputTool::Doubao)), "doubao");
-        assert_eq!(tool_label(Some(VoiceInputTool::Vokie)), "vokie");
-        assert_eq!(tool_label(Some(VoiceInputTool::Other)), "other");
+        assert_eq!(tool_label(Some(VoiceToolKind::Wechat)), "wechat");
+        assert_eq!(tool_label(Some(VoiceToolKind::Doubao)), "doubao");
+        assert_eq!(tool_label(Some(VoiceToolKind::Vokie)), "vokie");
+        assert_eq!(tool_label(Some(VoiceToolKind::Custom)), "custom");
         assert_eq!(tool_label(None), "none");
     }
 }
@@ -1090,7 +1092,7 @@ impl ImeStatus {
 /// ——后者看 `matches_expected`（以及切换路径的 `ime_activation` 日志）。
 pub fn ime_status_log_line(
     action: &str,
-    tool: Option<VoiceInputTool>,
+    tool: Option<VoiceToolKind>,
     status: &ImeStatus,
     elapsed_ms: u128,
 ) -> String {
@@ -1190,7 +1192,7 @@ pub fn list_installed_ime_names() -> Result<Vec<String>, String> {
 /// 输入法状态：当前会话活动输入法 + 系统可用输入法 + 与所选工具的匹配情况。
 ///
 /// 纯只读，不改任何输入法状态；查询不可用返回 `ImeStatus::unavailable()`。
-pub fn ime_status_for(tool: Option<VoiceInputTool>) -> ImeStatus {
+pub fn ime_status_for(tool: Option<VoiceToolKind>) -> ImeStatus {
     let target = tool.and_then(ime_target_for);
     match run_sta_ime_query("shengjian-ime-status", move || sta_probe_ime(target)) {
         Ok(probe) => ImeStatus {
@@ -1504,32 +1506,32 @@ mod yield_plan_tests {
 #[cfg(test)]
 mod ime_target_tests {
     use super::{ime_target_for, DOUBAO_CLSID, DOUBAO_PROFILE, WETYPE_CLSID, WETYPE_PROFILE};
-    use shengjian_domain::settings::VoiceInputTool;
+    use crate::voice_tool::VoiceToolKind;
 
-    /// 工具 → 目标输入法映射：输入法类工具要有目标，桌面程序/其他工具必须没有
-    /// （给 Vokie 切输入法会破坏它，且 2026-09-29 真机回归过"豆包路径被切成微信"）。
+    /// 工具 → 目标输入法映射：输入法类 kind 要有目标，桌面程序 / 自定义工具必须
+    /// 没有（给 Vokie 切输入法会破坏它，且 2026-09-29 真机回归过"豆包路径被切成微信"）。
     #[test]
     fn maps_only_input_method_tools() {
-        let wechat = ime_target_for(VoiceInputTool::Wechat).expect("wechat target");
+        let wechat = ime_target_for(VoiceToolKind::Wechat).expect("wechat target");
         assert_eq!(wechat.label, "wechat");
-        let doubao = ime_target_for(VoiceInputTool::Doubao).expect("doubao target");
+        let doubao = ime_target_for(VoiceToolKind::Doubao).expect("doubao target");
         assert_eq!(doubao.label, "doubao");
-        assert!(ime_target_for(VoiceInputTool::Vokie).is_none());
-        assert!(ime_target_for(VoiceInputTool::Other).is_none());
+        assert!(ime_target_for(VoiceToolKind::Vokie).is_none());
+        assert!(ime_target_for(VoiceToolKind::Custom).is_none());
         // 身份必须是两套不同的 GUID（复制粘贴写错会在这里失败）。
         assert_ne!(WETYPE_CLSID, DOUBAO_CLSID);
         assert_ne!(WETYPE_PROFILE, DOUBAO_PROFILE);
         assert_ne!(
-            ime_target_for(VoiceInputTool::Wechat),
-            ime_target_for(VoiceInputTool::Doubao)
+            ime_target_for(VoiceToolKind::Wechat),
+            ime_target_for(VoiceToolKind::Doubao)
         );
     }
 
-    /// Vokie（桌面程序）与「其他工具」绝不能被切输入法：整条链路必须原样返回
-    /// NotRequired，不碰 TSF（2026-09-29 真机回归过"豆包路径被切成微信"）。
+    /// Vokie（桌面程序）与 custom（自定义工具）绝不能被切输入法：整条链路必须
+    /// 原样返回 NotRequired，不碰 TSF（2026-09-29 真机回归过"豆包路径被切成微信"）。
     #[test]
-    fn vokie_and_other_do_not_touch_input_methods() {
-        for tool in [VoiceInputTool::Vokie, VoiceInputTool::Other] {
+    fn vokie_and_custom_do_not_touch_input_methods() {
+        for tool in [VoiceToolKind::Vokie, VoiceToolKind::Custom] {
             assert_eq!(
                 super::ensure_session_ime(tool, super::ImeSwitchScope::VoicePress),
                 Ok(super::ImeActivation::NotRequired)
@@ -1559,7 +1561,7 @@ mod ime_status_tests {
         ime_status_log_line, judge_matches, normalize_ime_name, normalize_installed_ime_names,
         ImeStatus, MAX_INSTALLED_IME_NAMES,
     };
-    use shengjian_domain::settings::VoiceInputTool;
+    use crate::voice_tool::VoiceToolKind;
 
     #[test]
     fn installed_names_drop_empty_dedupe_case_insensitively_and_sort() {
@@ -1633,7 +1635,7 @@ mod ime_status_tests {
             expected: Some("微信输入法".to_owned()),
             matches_expected: Some(false),
         };
-        let line = ime_status_log_line("queried", Some(VoiceInputTool::Wechat), &status, 7);
+        let line = ime_status_log_line("queried", Some(VoiceToolKind::Wechat), &status, 7);
         assert_eq!(
             line,
             "ime_status action=queried phase=completed terminal_result=passed tool=wechat detected=true matches_expected=false installed_count=3 elapsed_ms=7"

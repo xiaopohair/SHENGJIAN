@@ -5,11 +5,12 @@ use crate::host::{
     TranscriptRecord,
 };
 use shengjian_app::CoreEngine;
-use shengjian_domain::{MacroDefinition, MacroLibraryDocument, VoiceInputTool};
+use shengjian_domain::voice_tools;
+use shengjian_domain::{MacroDefinition, MacroLibraryDocument};
 use shengjian_windows::common_phrases::{current_common_phrase_host, CommonPhraseAccess};
 use shengjian_windows::macro_runtime::{macro_key_to_key_code, MacroRunReport, MacroStartError};
 use shengjian_windows::send_input::{KeyChord, KeyCode};
-use shengjian_windows::{DiagnosticLogMetadata, WindowsPlatform};
+use shengjian_windows::{DiagnosticLogMetadata, VoiceToolKind, WindowsPlatform};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -46,7 +47,12 @@ pub fn note(message: String) {
 
 pub struct PlatformHost {
     platform: Arc<WindowsPlatform>,
-    current_tool: Mutex<Option<VoiceInputTool>>,
+    /// 当前输入工具的 **id**（`config/voice-tools.json` 的 `id`，如 `wechat`）。
+    ///
+    /// 平台层保存 id 而不是枚举/行为：默认热键按 id 查配置目录，Windows 行为按
+    /// id 对应配置里的 `kind` 解析（见 [`voice_tool_kind`]）。这样配置里新增/改名
+    /// 工具时，这里不需要跟着改代码。
+    current_tool: Mutex<Option<String>>,
     custom_hotkey: Mutex<Option<KeyChord>>,
 }
 
@@ -65,22 +71,29 @@ impl PlatformHost {
             .lock()
             .expect("voice hotkey lock")
             .clone();
-        let current_tool = *self.current_tool.lock().expect("voice tool lock");
-        let hotkey = custom.or_else(|| default_voice_hotkey(current_tool));
+        let current_tool = self.current_tool.lock().expect("voice tool lock").clone();
+        let hotkey = custom.or_else(|| default_voice_hotkey(current_tool.as_deref()));
         self.platform.set_voice_hold_hotkey(hotkey);
     }
 }
 
-fn default_voice_hotkey(tool: Option<VoiceInputTool>) -> Option<KeyChord> {
-    match tool {
-        Some(VoiceInputTool::Wechat) => Some(KeyChord {
-            keys: vec![KeyCode::LeftControl, KeyCode::LeftWindows],
-        }),
-        Some(VoiceInputTool::Doubao) => Some(KeyChord {
-            keys: vec![KeyCode::RightAlt],
-        }),
-        Some(VoiceInputTool::Vokie) | Some(VoiceInputTool::Other) | None => None,
-    }
+/// 工具 id → 默认热键（配置目录里的 `defaultHotkey`，`KeyboardEvent.code` 名）。
+///
+/// 目录里没有该 id、默认热键为空或无法识别时返回 `None`：没有默认热键的工具
+/// （Vokie / custom）只有用户自定义热键，不替用户猜组合键。
+fn default_voice_hotkey(tool_id: Option<&str>) -> Option<KeyChord> {
+    let tool_id = tool_id?;
+    let keys = voice_tools::default_hotkey(tool_id);
+    parse_voice_hotkey(&keys)
+}
+
+/// 工具 id → Windows 行为类别：查配置目录的 `kind`；认不出的 id 按 `custom`
+/// （只注入热键、不切/救输入法），**绝不**借用微信/豆包行为。
+fn voice_tool_kind(tool_id: Option<&str>) -> Option<VoiceToolKind> {
+    let tool_id = tool_id.map(str::trim).filter(|id| !id.is_empty())?;
+    Some(VoiceToolKind::from_kind(
+        &voice_tools::kind(tool_id).unwrap_or_default(),
+    ))
 }
 
 /// 把前端 `KeyboardEvent.code` 列表解析成注入用 `KeyChord`。
@@ -206,9 +219,16 @@ impl HostPlatform for PlatformHost {
         }
     }
 
-    fn set_voice_input_tool(&self, tool: Option<VoiceInputTool>) {
-        *self.current_tool.lock().expect("voice tool lock") = tool;
-        self.platform.set_voice_input_tool(tool);
+    fn set_voice_input_tool(&self, tool: Option<&str>) {
+        // 平台层只认 id；空串按「未选择」处理，未知 id 保留（默认热键查不到就
+        // 没有默认，行为按 custom），不静默丢掉用户的选择。
+        let tool_id = tool
+            .map(str::trim)
+            .filter(|id| !id.is_empty())
+            .map(str::to_owned);
+        self.platform
+            .set_voice_input_tool(voice_tool_kind(tool_id.as_deref()));
+        *self.current_tool.lock().expect("voice tool lock") = tool_id;
         self.apply_voice_hotkey();
     }
 
@@ -227,15 +247,10 @@ impl HostPlatform for PlatformHost {
         self.apply_voice_hotkey();
     }
 
+    /// 与 [`HostPlatform::set_voice_input_tool`] 同义的历史入口：都接收配置目录里的
+    /// 工具 id（前台轮询/方案覆盖用它换当前工具）。
     fn set_voice_input_tool_name(&self, tool: Option<&str>) {
-        let parsed = match tool {
-            Some("wechat") => Some(VoiceInputTool::Wechat),
-            Some("doubao") => Some(VoiceInputTool::Doubao),
-            Some("vokie") => Some(VoiceInputTool::Vokie),
-            Some("other") => Some(VoiceInputTool::Other),
-            _ => None,
-        };
-        self.set_voice_input_tool(parsed);
+        self.set_voice_input_tool(tool);
     }
 
     fn set_macro_library(&self, document: MacroLibraryDocument) {
@@ -388,10 +403,11 @@ mod tests {
 
     #[test]
     fn parses_default_and_custom_hotkeys() {
-        let wechat = parse_voice_hotkey(&["ControlLeft".to_owned(), "MetaLeft".to_owned()])
-            .expect("wechat hotkey");
+        // 纯解析夹具（不是某个工具的默认值）：`KeyboardEvent.code` 名 → KeyChord。
+        let ctrl_win = parse_voice_hotkey(&["ControlLeft".to_owned(), "MetaLeft".to_owned()])
+            .expect("ctrl+win hotkey");
         assert_eq!(
-            wechat.keys,
+            ctrl_win.keys,
             vec![KeyCode::LeftControl, KeyCode::LeftWindows]
         );
 
@@ -412,17 +428,48 @@ mod tests {
         assert!(parse_voice_hotkey(&[]).is_none());
     }
 
+    /// 默认热键**完全来自配置目录**（`config/voice-tools.json` 的 `defaultHotkey`），
+    /// 这里不再写死任何工具组合键：断言解析链路与目录一致，并钉住空列表→None。
     #[test]
-    fn default_hotkeys_follow_input_tool() {
-        assert_eq!(
-            default_voice_hotkey(Some(VoiceInputTool::Wechat)).map(|chord| chord.keys),
-            Some(vec![KeyCode::LeftControl, KeyCode::LeftWindows])
-        );
-        assert_eq!(
-            default_voice_hotkey(Some(VoiceInputTool::Doubao)).map(|chord| chord.keys),
-            Some(vec![KeyCode::RightAlt])
-        );
-        assert!(default_voice_hotkey(Some(VoiceInputTool::Other)).is_none());
+    fn default_hotkeys_follow_the_voice_tool_catalog() {
+        for tool in voice_tools::tools() {
+            assert_eq!(
+                default_voice_hotkey(Some(&tool.id)),
+                parse_voice_hotkey(&tool.default_hotkey),
+                "tool={}",
+                tool.id
+            );
+            if tool.default_hotkey.is_empty() {
+                assert!(
+                    default_voice_hotkey(Some(&tool.id)).is_none(),
+                    "目录里没有默认热键的工具不得有默认值: {}",
+                    tool.id
+                );
+            }
+        }
         assert!(default_voice_hotkey(None).is_none());
+        // 认不出的 id（目录已删/换了名字）：没有默认热键，不回落硬编码组合键。
+        assert!(default_voice_hotkey(Some("not-in-catalog")).is_none());
+        assert!(default_voice_hotkey(Some("  ")).is_none());
+    }
+
+    /// 工具 id → 行为类别：目录里的 `kind` 决定；未知 id / 空串按 custom 或 None。
+    /// 新增自定义工具时必须是 custom（只有自定义热键、无 IME 修复）。
+    #[test]
+    fn voice_tool_kind_comes_from_the_catalog_kind_field() {
+        for tool in voice_tools::tools() {
+            assert_eq!(
+                voice_tool_kind(Some(&tool.id)),
+                Some(VoiceToolKind::from_kind(&tool.kind)),
+                "tool={}",
+                tool.id
+            );
+        }
+        assert_eq!(voice_tool_kind(None), None);
+        assert_eq!(voice_tool_kind(Some("  ")), None);
+        assert_eq!(
+            voice_tool_kind(Some("not-in-catalog")),
+            Some(VoiceToolKind::Custom)
+        );
     }
 }

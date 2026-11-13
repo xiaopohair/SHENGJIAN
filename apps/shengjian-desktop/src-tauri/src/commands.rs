@@ -14,6 +14,27 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::State;
 use tauri_plugin_autostart::ManagerExt;
 
+/// 可配置的语音输入工具目录（`config/voice-tools.json`）。
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VoiceToolInfo {
+    pub id: String,
+    pub label: String,
+    pub default_hotkey: Vec<String>,
+}
+
+#[tauri::command]
+pub fn voice_tool_catalog() -> Vec<VoiceToolInfo> {
+    shengjian_domain::voice_tools::tools()
+        .into_iter()
+        .map(|tool| VoiceToolInfo {
+            id: tool.id,
+            label: tool.label,
+            default_hotkey: tool.default_hotkey,
+        })
+        .collect()
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ButtonProfileState {
@@ -227,7 +248,9 @@ pub fn reset_settings(state: State<'_, AppState>) -> Result<(), CommandError> {
     state
         .host
         .set_enhanced_capture_enabled(settings.rc003_capture_enabled);
-    state.host.set_voice_input_tool(settings.voice_input_tool);
+    state
+        .host
+        .set_voice_input_tool(settings.voice_input_tool.as_deref());
     state.host.set_voice_hotkey(settings.voice_hotkey.clone());
     state
         .host
@@ -817,7 +840,7 @@ fn apply_effective_audio_settings(
         return;
     };
     let settings = document.resolve(device_id, platform_id);
-    host.set_voice_input_tool(settings.voice_input_tool);
+    host.set_voice_input_tool(settings.voice_input_tool.as_deref());
     host.set_voice_hotkey(settings.voice_hotkey.clone());
     let gain = settings.gain_db.round().clamp(0.0, 24.0) as i16;
     let _ = engine.audio().set_gain_db(gain);

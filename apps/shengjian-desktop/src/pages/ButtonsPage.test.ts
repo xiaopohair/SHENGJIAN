@@ -26,6 +26,10 @@ vi.mock("../lib/api", () => ({
     commonPhrases: false,
   })),
   getMacroLibrary: vi.fn(async () => ({ formatVersion: 1, definitions: [] })),
+  getVoiceToolCatalog: vi.fn(async () => [
+    { id: "wechat", label: "微信输入法", defaultHotkey: ["ControlLeft", "MetaLeft"] },
+    { id: "doubao", label: "豆包输入法", defaultHotkey: ["AltRight"] },
+  ]),
   importProfiles: vi.fn(),
   resolveAppTarget: vi.fn(async () => null),
   listLaunchableApps: vi.fn(async () => ({ apps: [], scanned: true, scanError: null })),

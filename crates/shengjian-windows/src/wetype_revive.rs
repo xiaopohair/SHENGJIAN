@@ -329,8 +329,8 @@ pub(crate) fn focus_bounce_foreground() -> String {
 /// 自动救回的上下文：按下目标工具有可切换的输入法目标时携带。
 pub(crate) struct ImeHealContext {
     pub state: Arc<Mutex<ConnectionSnapshot>>,
-    /// 用户选的输入工具（救回第 2 档要对齐它对应的输入法）。
-    pub tool: shengjian_domain::settings::VoiceInputTool,
+    /// 用户选的输入工具的行为类别（救回第 2 档要对齐它对应的输入法）。
+    pub tool: crate::voice_tool::VoiceToolKind,
 }
 
 /// 救回动作档位（2026-10-28，逐级升级）。

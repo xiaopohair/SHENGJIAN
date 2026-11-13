@@ -21,6 +21,7 @@ import type {
   RemoteCandidate,
   SettingsDocument,
   TranscriptRecord,
+  VoiceToolInfo,
 } from "./types";
 
 export async function getEngineSnapshot(): Promise<EngineSnapshot> {
@@ -109,6 +110,14 @@ export async function disconnectRemote(): Promise<ConnectionSnapshot> {
 
 export async function getSettings(): Promise<SettingsDocument> {
   return invoke<SettingsDocument>("get_settings");
+}
+
+/**
+ * 配置目录下发的语音输入工具目录（`config/voice-tools.json`）。
+ * label 直接来自配置，应用名不翻译；defaultHotkey 是 KeyboardEvent.code 序列。
+ */
+export async function getVoiceToolCatalog(): Promise<VoiceToolInfo[]> {
+  return invoke<VoiceToolInfo[]>("voice_tool_catalog");
 }
 
 export async function saveSettings(document: SettingsDocument): Promise<void> {

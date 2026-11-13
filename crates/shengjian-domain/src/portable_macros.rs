@@ -218,25 +218,12 @@ struct PortableParameters {
     built_in_action: Option<String>,
 }
 
-const APP_BUNDLE_BY_PRESET: &[(&str, &str)] = &[
-    ("netease_music", "com.netease.163music"),
-    ("chrome", "com.google.Chrome"),
-    ("wechat", "com.tencent.xinWeChat"),
-    ("vscode", "com.microsoft.VSCode"),
-    ("cursor", "com.todesktop.230313mzl4w4u92"),
-    ("edge", "com.microsoft.edgemac"),
-    ("notepad", "com.apple.TextEdit"),
-    ("calc", "com.apple.calculator"),
-    ("explorer", "com.apple.finder"),
-    ("shengjian", "com.hd838a.RemoteMic"),
-];
-
 /// 预设 id 是否在便携导出白名单内（只读、跨平台）。
 ///
-/// 「打开应用」选择器的 `portable` 字段用它判断该 target 是否能随组合动作
-/// 导出到 macOS（白名单表见上）；非预设 target 一律不可便携。
+/// 白名单来自可编辑配置 `config/app-presets.json` 的 `portableBundle` 字段
+/// （见 [`crate::app_catalog`]）；非预设 target 一律不可便携。
 pub fn preset_is_portable(id: &str) -> bool {
-    APP_BUNDLE_BY_PRESET.iter().any(|(preset, _)| *preset == id)
+    crate::app_catalog::preset_portable_bundle(id).is_some()
 }
 
 const BUILT_IN_KEYS: &[(&str, &str)] = &[
@@ -999,17 +986,11 @@ fn built_in_to_key(action: &str) -> Option<&'static str> {
 }
 
 fn preset_to_bundle(preset: &str) -> Option<String> {
-    APP_BUNDLE_BY_PRESET
-        .iter()
-        .find(|(id, _)| *id == preset)
-        .map(|(_, bundle)| (*bundle).to_owned())
+    crate::app_catalog::preset_portable_bundle(preset)
 }
 
 fn bundle_to_preset(bundle: &str) -> Option<String> {
-    APP_BUNDLE_BY_PRESET
-        .iter()
-        .find(|(_, id)| *id == bundle)
-        .map(|(preset, _)| (*preset).to_owned())
+    crate::app_catalog::preset_for_portable_bundle(bundle)
 }
 
 fn required<'a>(

@@ -112,7 +112,7 @@ where
 /// target 形态分类（纯字符串 + 预设表判定，不触碰 OS；便于单测）。
 enum IconTargetKind {
     /// 预设 id：按预设启动位置/登记的 AUMID 取图标。
-    Preset(&'static PresetApp),
+    Preset(PresetApp),
     /// `shell:AppsFolder\…`：直接走 Shell 项图标。
     Aumid(String),
     /// `.lnk`：先解析目标 exe，再退回 Shell 项图标。
@@ -246,19 +246,19 @@ fn extract_target_icon_png(
     match classify_icon_target(target) {
         IconTargetKind::Preset(app) => {
             // 遥控器自身：直接取当前进程 exe，不依赖安装路径探测。
-            if app.id == "shengjian" {
+            if app.self_app {
                 if let Ok(executable) = std::env::current_exe() {
                     if let Some(png) = file_icon_png(&executable.to_string_lossy(), ICON_SIZE) {
                         return Some(png);
                     }
                 }
             }
-            if let Some(path) = preset_executable_path(app, shortcuts) {
+            if let Some(path) = preset_executable_path(&app, shortcuts) {
                 if let Some(png) = file_icon_png(&path, ICON_SIZE) {
                     return Some(png);
                 }
             }
-            let aumid = preset_aumid(app.id)?;
+            let aumid = preset_aumid(&app.id)?;
             shell_item_icon_png(&format!("{REGISTERED_PREFIX}{aumid}"))
         }
         IconTargetKind::Aumid(target) => shell_item_icon_png(&target),

@@ -1,0 +1,186 @@
+{
+  "schemaVersion": 1,
+  "apps": [
+    {
+      "id": "shengjian",
+      "name": "遥控器 声键",
+      "exeNames": ["shengjian-windows-app.exe"],
+      "relaunchWhenHidden": true,
+      "selfApp": true,
+      "alwaysInstalled": true,
+      "portableBundle": "com.hd838a.RemoteMic"
+    },
+    {
+      "id": "wechat",
+      "name": "微信",
+      "exeNames": ["WeChat.exe", "Weixin.exe"],
+      "installPaths": [
+        "%ProgramFiles%\\Tencent\\WeChat\\WeChat.exe",
+        "%ProgramFiles(x86)%\\Tencent\\WeChat\\WeChat.exe"
+      ],
+      "shortcutNames": ["微信", "WeChat"],
+      "relaunchWhenHidden": false,
+      "portableBundle": "com.tencent.xinWeChat"
+    },
+    {
+      "id": "netease_music",
+      "name": "网易云音乐",
+      "exeNames": ["cloudmusic.exe"],
+      "relaunchWhenHidden": true,
+      "focus": {
+        "strategy": "appShortcut",
+        "shortcut": ["left_control", "f"],
+        "click": { "x": 410.0, "y": 37.0 }
+      },
+      "portableBundle": "com.netease.163music"
+    },
+    {
+      "id": "chrome",
+      "name": "Chrome 浏览器",
+      "exeNames": ["chrome.exe"],
+      "relaunchWhenHidden": true,
+      "focus": {
+        "strategy": "appShortcut",
+        "shortcut": ["left_control", "l"]
+      },
+      "portableBundle": "com.google.Chrome"
+    },
+    {
+      "id": "chatgpt",
+      "name": "ChatGPT",
+      "exeNames": ["ChatGPT.exe"],
+      "installPaths": [
+        "%LOCALAPPDATA%\\Programs\\ChatGPT\\ChatGPT.exe",
+        "%LOCALAPPDATA%\\ChatGPT\\ChatGPT.exe"
+      ],
+      "shortcutNames": ["ChatGPT"],
+      "relaunchWhenHidden": true,
+      "aumid": "OpenAI.Codex_2p2nqsd0c76g0!App"
+    },
+    {
+      "id": "workbuddy",
+      "name": "WorkBuddy",
+      "exeNames": ["WorkBuddy.exe"],
+      "installPaths": [
+        "%LOCALAPPDATA%\\Programs\\WorkBuddy\\WorkBuddy.exe",
+        "%LOCALAPPDATA%\\WorkBuddy\\WorkBuddy.exe"
+      ],
+      "shortcutNames": ["WorkBuddy"],
+      "relaunchWhenHidden": true
+    },
+    {
+      "id": "dimagent",
+      "name": "DimAgent",
+      "exeNames": ["DimAgent.exe"],
+      "installPaths": [
+        "%LOCALAPPDATA%\\Programs\\DimAgent\\DimAgent.exe",
+        "%ProgramFiles%\\DimAgent\\DimAgent.exe"
+      ],
+      "shortcutNames": ["DimAgent"],
+      "relaunchWhenHidden": true
+    },
+    {
+      "id": "vokie",
+      "name": "Vokie",
+      "exeNames": ["Vokie.exe"],
+      "installPaths": ["%LOCALAPPDATA%\\Programs\\Vokie\\Vokie.exe"],
+      "shortcutNames": ["Vokie"],
+      "relaunchWhenHidden": true
+    },
+    {
+      "id": "notepad",
+      "name": "记事本",
+      "exeNames": ["notepad.exe"],
+      "relaunchWhenHidden": true,
+      "portableBundle": "com.apple.TextEdit"
+    },
+    {
+      "id": "qq",
+      "name": "QQ",
+      "exeNames": ["QQ.exe"],
+      "installPaths": [
+        "%ProgramFiles%\\Tencent\\QQNT\\QQ.exe",
+        "%ProgramFiles(x86)%\\Tencent\\QQ\\Bin\\QQ.exe"
+      ],
+      "shortcutNames": ["QQ"],
+      "relaunchWhenHidden": true
+    },
+    {
+      "id": "calc",
+      "name": "计算器",
+      "exeNames": ["calc.exe", "CalculatorApp.exe"],
+      "relaunchWhenHidden": true,
+      "hidden": true,
+      "aumid": "Microsoft.WindowsCalculator_8wekyb3d8bbwe!App",
+      "portableBundle": "com.apple.calculator"
+    },
+    {
+      "id": "explorer",
+      "name": "文件资源管理器",
+      "exeNames": ["explorer.exe"],
+      "relaunchWhenHidden": true,
+      "hidden": true,
+      "portableBundle": "com.apple.finder"
+    },
+    {
+      "id": "vscode",
+      "name": "Visual Studio Code",
+      "exeNames": ["Code.exe"],
+      "installPaths": [
+        "%LOCALAPPDATA%\\Programs\\Microsoft VS Code\\Code.exe",
+        "%ProgramFiles%\\Microsoft VS Code\\Code.exe"
+      ],
+      "shortcutNames": ["Visual Studio Code", "VS Code"],
+      "relaunchWhenHidden": true,
+      "hidden": true,
+      "portableBundle": "com.microsoft.VSCode"
+    },
+    {
+      "id": "cursor",
+      "name": "Cursor",
+      "exeNames": ["Cursor.exe"],
+      "installPaths": [
+        "%LOCALAPPDATA%\\Programs\\cursor\\Cursor.exe",
+        "%ProgramFiles%\\cursor\\Cursor.exe"
+      ],
+      "shortcutNames": ["Cursor"],
+      "relaunchWhenHidden": true,
+      "hidden": true,
+      "portableBundle": "com.todesktop.230313mzl4w4u92"
+    },
+    {
+      "id": "feishu",
+      "name": "飞书",
+      "exeNames": ["Feishu.exe", "Lark.exe"],
+      "installPaths": [
+        "%LOCALAPPDATA%\\Feishu\\Feishu.exe",
+        "%ProgramFiles%\\Feishu\\Feishu.exe",
+        "%ProgramFiles%\\Lark\\Lark.exe"
+      ],
+      "shortcutNames": ["飞书", "Lark"],
+      "relaunchWhenHidden": true,
+      "hidden": true
+    },
+    {
+      "id": "hermes",
+      "name": "Hermes",
+      "exeNames": ["Hermes.exe"],
+      "installPaths": [
+        "%LOCALAPPDATA%\\Programs\\Hermes\\Hermes.exe",
+        "%LOCALAPPDATA%\\hermes\\hermes-agent\\apps\\desktop\\release\\win-unpacked\\Hermes.exe"
+      ],
+      "shortcutNames": ["Hermes"],
+      "relaunchWhenHidden": true,
+      "hidden": true
+    },
+    {
+      "id": "edge",
+      "name": "Microsoft Edge",
+      "exeNames": ["msedge.exe"],
+      "shortcutNames": ["Microsoft Edge"],
+      "relaunchWhenHidden": true,
+      "hidden": true,
+      "portableBundle": "com.microsoft.edgemac"
+    }
+  ]
+}

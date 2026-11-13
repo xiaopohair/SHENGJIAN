@@ -38,6 +38,8 @@ import {
 import { ONBOARDING_KEY, ACCENT_KEY, applyAccent, applyTheme } from "../lib/preferences";
 import { confirmAction } from "../lib/confirm";
 import { setLanguagePreference, statusLabel, tr, trDynamic, uiLocale } from "../lib/i18n";
+import { defaultHotkeyFor, voiceToolLabel, voiceToolOptions } from "../lib/voiceTools";
+import { useVoiceToolCatalog } from "../composables/useVoiceToolCatalog";
 import PageHeader from "../components/PageHeader.vue";
 import { useHotkeyRecorder } from "../composables/useHotkeyRecorder";
 import Button from "../components/ui/Button.vue";
@@ -149,10 +151,7 @@ const accentModel = computed({
 const voiceInputTool = shallowRef("");
 const transcriptHistory = shallowRef(false);
 const voiceHotkey = ref<string[] | null>(null);
-const DEFAULT_VOICE_HOTKEYS: Record<string, string[]> = {
-  wechat: ["ControlLeft", "MetaLeft"],
-  doubao: ["AltRight"],
-};
+const { catalog: voiceToolCatalog, load: loadVoiceToolCatalog } = useVoiceToolCatalog();
 const {
   recording,
   label: hotkeyLabel,
@@ -161,7 +160,8 @@ const {
   reset: resetHotkey,
 } = useHotkeyRecorder({
   hotkey: voiceHotkey,
-  fallback: () => DEFAULT_VOICE_HOTKEYS[voiceInputTool.value] ?? [],
+  // 工具默认热键来自配置目录；旧 id 或加载失败时回退为「不注入热键」。
+  fallback: () => defaultHotkeyFor(voiceToolCatalog.value, voiceInputTool.value),
 });
 
 const languageModel = computed({
@@ -346,6 +346,9 @@ async function runHealthCheck() {
   healthBusy.value = true;
   error.value = null;
   try {
+    // The catalog is cached; awaiting it here makes sure the check shows the
+    // configured display name even if the settings page loads first.
+    await loadVoiceToolCatalog();
     const [caps, helper, endpoints, battery, foreground, currentSettings] = await Promise.all([
       getHostCapabilities(),
       getRc003HelperInstalled(),
@@ -379,7 +382,9 @@ async function runHealthCheck() {
       {
         label: tr("语音输入工具"),
         ok: Boolean(currentSettings.global.voice_input_tool),
-        detail: String(currentSettings.global.voice_input_tool ?? tr("未选择")),
+        detail:
+          voiceToolLabel(voiceToolCatalog.value, currentSettings.global.voice_input_tool) ||
+          tr("未选择"),
       },
       { label: tr("前台应用识别"), ok: Boolean(foreground), detail: foreground ?? tr("未识别") },
       {
@@ -469,7 +474,7 @@ async function importBackup() {
 }
 
 onMounted(async () => {
-  await load();
+  await Promise.all([load(), loadVoiceToolCatalog()]);
 });
 </script>
 
@@ -587,10 +592,13 @@ onMounted(async () => {
               <SettingRow label="输入法" hint="遥控器语音转写注入的目标输入法">
                 <SelectInput v-model="voiceInputTool">
                   <option value="">{{ tr("未选择") }}</option>
-                  <option value="wechat">{{ tr("微信输入法") }}</option>
-                  <option value="doubao">{{ tr("豆包输入法") }}</option>
-                  <option value="vokie">{{ tr("Vokie 桌面版") }}</option>
-                  <option value="other">{{ tr("其他工具") }}</option>
+                  <option
+                    v-for="tool in voiceToolOptions(voiceToolCatalog, voiceInputTool)"
+                    :key="tool.id"
+                    :value="tool.id"
+                  >
+                    {{ tool.label }}
+                  </option>
                 </SelectInput>
               </SettingRow>
 

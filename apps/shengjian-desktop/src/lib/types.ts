@@ -109,6 +109,17 @@ export interface DeviceSettingsOverride {
   voiceInputTool?: string | null;
 }
 
+/**
+ * 配置目录（`config/voice-tools.json`）下发的语音输入工具。
+ * `label` 是应用自己的名字，不做界面翻译；`defaultHotkey` 是
+ * `KeyboardEvent.code` 序列，作为用户未自定义热键时的默认值。
+ */
+export interface VoiceToolInfo {
+  id: string;
+  label: string;
+  defaultHotkey: string[];
+}
+
 export interface SettingsDocument {
   schemaVersion: number;
   global: {

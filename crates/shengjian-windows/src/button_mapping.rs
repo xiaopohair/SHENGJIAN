@@ -62,34 +62,52 @@ fn open_app_effective_profile(
     None
 }
 
-/// 预设应用的默认聚焦入口。
+/// 预设应用的默认聚焦入口（配置 `focus` 字段，见 `shengjian_domain::app_catalog`）。
 ///
-/// 有稳定公开快捷键的应用优先用快捷键（不依赖无障碍树）：
-/// - Chrome：`Ctrl+L` 聚焦地址栏；
-/// - 网易云音乐：`Ctrl+F` 打开搜索页并聚焦搜索框。
-///
-/// 其余预设仍走通用输入框选择。快捷键在目标应用成为前台后才发送。
+/// `appShortcut` 使用配置里的快捷键（如 Chrome 的 `Ctrl+L`、网易云音乐的 `Ctrl+F`，
+/// 2026-10-23 现场实测均生效）；`openOnly` / `autoComposer` 原样映射。
+/// 快捷键键名按 `KeyCode` 的 serde 名解析（如 `left_control`、`l`），任一键名
+/// 无法解析或没有键位时回退 `AutoComposer`——避免"聚焦按钮点了没反应"。
+/// 快捷键在目标应用成为前台后才发送。
 pub(crate) fn preset_focus_profile(target: &str) -> crate::focus::AppFocusProfile {
-    let shortcut = match target {
-        "chrome" => Some(KeyChord {
-            keys: vec![KeyCode::LeftControl, KeyCode::L],
-        }),
-        "netease_music" => Some(KeyChord {
-            keys: vec![KeyCode::LeftControl, KeyCode::F],
-        }),
-        _ => None,
+    use crate::focus::{AppFocusProfile, FocusStrategy};
+
+    let config = shengjian_domain::app_catalog::focus(target);
+    let strategy = match config.strategy.as_str() {
+        "appShortcut" => FocusStrategy::AppShortcut,
+        "openOnly" => FocusStrategy::OpenOnly,
+        // "autoComposer" 与任何未知值都按产品默认处理（catalog 校验会拒绝非法值，
+        // 这里只是防御配置被手工改坏）。
+        _ => FocusStrategy::AutoComposer,
     };
-    match shortcut {
-        Some(shortcut) => crate::focus::AppFocusProfile {
-            strategy: crate::focus::FocusStrategy::AppShortcut,
-            shortcut: Some(shortcut),
+    if strategy != FocusStrategy::AppShortcut {
+        return AppFocusProfile {
+            strategy,
+            ..Default::default()
+        };
+    }
+    let keys: Option<Vec<KeyCode>> = config
+        .shortcut
+        .iter()
+        .map(|name| parse_configured_key(name))
+        .collect();
+    match keys {
+        Some(keys) if !keys.is_empty() => AppFocusProfile {
+            strategy,
+            shortcut: Some(KeyChord { keys }),
             ..Default::default()
         },
-        None => crate::focus::AppFocusProfile {
-            strategy: crate::focus::FocusStrategy::AutoComposer,
+        // 配置缺快捷键或键名无效：回退通用输入框聚焦。
+        _ => AppFocusProfile {
+            strategy: FocusStrategy::AutoComposer,
             ..Default::default()
         },
     }
+}
+
+/// 配置里的按键名 → `KeyCode`：按 serde 名解析（`left_control`、`l`、`f1`…）。
+fn parse_configured_key(name: &str) -> Option<KeyCode> {
+    serde_json::from_value::<KeyCode>(serde_json::Value::String(name.to_owned())).ok()
 }
 
 /// 引擎消息（监听器/门控/宿主 → 引擎线程）。
@@ -2659,6 +2677,24 @@ mod tests {
             preset_focus_profile("notepad").strategy,
             crate::focus::FocusStrategy::AutoComposer
         );
+        // 未知 target（catalog 无 focus 配置）按产品默认 autoComposer。
+        assert_eq!(
+            preset_focus_profile("not-a-preset").strategy,
+            crate::focus::FocusStrategy::AutoComposer
+        );
+    }
+
+    /// 配置里的快捷键键名按 `KeyCode` serde 名解析；无效键名被拒绝（调用方回退）。
+    #[test]
+    fn configured_shortcut_names_follow_keycode_serde_names() {
+        assert_eq!(
+            parse_configured_key("left_control"),
+            Some(KeyCode::LeftControl)
+        );
+        assert_eq!(parse_configured_key("l"), Some(KeyCode::L));
+        assert_eq!(parse_configured_key("f1"), Some(KeyCode::F1));
+        assert_eq!(parse_configured_key("not_a_key"), None);
+        assert_eq!(parse_configured_key(""), None);
     }
 
     #[test]

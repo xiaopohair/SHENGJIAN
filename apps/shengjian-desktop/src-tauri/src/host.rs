@@ -4,7 +4,7 @@
 //! only sees this trait. A future macOS/Linux host implements the same surface.
 
 use serde::{Deserialize, Serialize};
-use shengjian_domain::{MacroDefinition, MacroLibraryDocument, VoiceInputTool};
+use shengjian_domain::{MacroDefinition, MacroLibraryDocument};
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize)]
@@ -83,7 +83,10 @@ pub trait HostPlatform: Send + Sync {
     fn device_status(&self) -> Option<DeviceStatus>;
 
     fn set_enhanced_capture_enabled(&self, enabled: bool);
-    fn set_voice_input_tool(&self, tool: Option<VoiceInputTool>);
+    /// 当前输入工具：传 `config/voice-tools.json` 里的 **id**（`None` = 未选择）。
+    /// 默认热键由 id 查配置目录，Windows 行为由 id 对应 `kind` 决定。
+    fn set_voice_input_tool(&self, tool: Option<&str>);
+    /// 与 [`HostPlatform::set_voice_input_tool`] 同义的历史入口（同样接收工具 id）。
     fn set_voice_input_tool_name(&self, tool: Option<&str>);
     /// 自定义语音热键；`None` 表示跟随输入工具默认。
     fn set_voice_hotkey(&self, keys: Option<Vec<String>>);

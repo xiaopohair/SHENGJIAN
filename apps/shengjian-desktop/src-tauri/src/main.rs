@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod catalog;
 mod commands;
 mod events;
 mod helper;
@@ -44,6 +45,7 @@ fn main() {
         .setup(|app| {
             app.manage(splash::StartupClock::default());
             platform::initialize_diagnostics();
+            catalog::initialize(app.handle());
 
             let sink = Arc::new(events::TauriEventSink::new(app.handle().clone()));
             let (engine, windows_platform) =
@@ -79,7 +81,7 @@ fn main() {
                     tray_language = "en";
                 }
                 host.set_enhanced_capture_enabled(settings.rc003_capture_enabled);
-                host.set_voice_input_tool(settings.voice_input_tool);
+                host.set_voice_input_tool(settings.voice_input_tool.as_deref());
                 host.set_voice_hotkey(settings.voice_hotkey.clone());
                 host.set_transcript_capture_enabled(settings.local_transcript_history_enabled);
             }
@@ -204,6 +206,7 @@ fn main() {
             commands::describe_app_targets,
             commands::canonicalize_app_target,
             commands::app_icon_data_urls,
+            commands::voice_tool_catalog,
             commands::resolve_app_target,
             commands::device_status,
             commands::device_support,
@@ -356,7 +359,6 @@ fn spawn_foreground_poll(
                     document
                         .resolve(device_id.as_deref(), host.platform_id())
                         .voice_input_tool
-                        .map(voice_tool_token)
                 });
                 let desired = engine.active_profile_voice_input_tool().or(base_tool);
                 if last_voice_tool.as_ref() != Some(&desired) {
@@ -366,14 +368,4 @@ fn spawn_foreground_poll(
             }
         })
         .expect("foreground poll thread");
-}
-
-fn voice_tool_token(tool: shengjian_domain::VoiceInputTool) -> String {
-    match tool {
-        shengjian_domain::VoiceInputTool::Wechat => "wechat",
-        shengjian_domain::VoiceInputTool::Doubao => "doubao",
-        shengjian_domain::VoiceInputTool::Vokie => "vokie",
-        shengjian_domain::VoiceInputTool::Other => "other",
-    }
-    .to_owned()
 }

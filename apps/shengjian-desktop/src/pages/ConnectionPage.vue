@@ -10,6 +10,8 @@ import {
   saveSettings,
 } from "../lib/api";
 import { statusLabel, tr, trDynamic, uiLocale } from "../lib/i18n";
+import { voiceToolOptions } from "../lib/voiceTools";
+import { useVoiceToolCatalog } from "../composables/useVoiceToolCatalog";
 import {
   deviceAction,
   findLastRemote,
@@ -46,6 +48,7 @@ const useDeviceOverride = shallowRef(false);
 const deviceGain = shallowRef(0);
 const deviceEndpointId = shallowRef("");
 const deviceVoiceInputTool = shallowRef("");
+const { catalog: voiceToolCatalog, load: loadVoiceToolCatalog } = useVoiceToolCatalog();
 const rc003Capture = shallowRef(false);
 const rc003HelperInstalled = shallowRef(false);
 const helperMessage = shallowRef<string | null>(null);
@@ -349,7 +352,11 @@ async function autoConnectLast() {
 }
 
 onMounted(async () => {
-  await Promise.all([statusStore.refreshDeviceStatus(), loadDeviceSettings()]);
+  await Promise.all([
+    statusStore.refreshDeviceStatus(),
+    loadDeviceSettings(),
+    loadVoiceToolCatalog(),
+  ]);
   await autoConnectLast();
 });
 
@@ -562,10 +569,13 @@ onUnmounted(() => {
         <Field label="语音输入工具">
           <SelectInput v-model="deviceVoiceInputTool">
             <option value="">{{ tr("继承全局工具") }}</option>
-            <option value="wechat">{{ tr("微信输入法") }}</option>
-            <option value="doubao">{{ tr("豆包输入法") }}</option>
-            <option value="vokie">{{ tr("Vokie 桌面版") }}</option>
-            <option value="other">{{ tr("其他工具") }}</option>
+            <option
+              v-for="tool in voiceToolOptions(voiceToolCatalog, deviceVoiceInputTool)"
+              :key="tool.id"
+              :value="tool.id"
+            >
+              {{ tool.label }}
+            </option>
           </SelectInput>
         </Field>
       </template>

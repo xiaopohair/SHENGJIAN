@@ -478,6 +478,13 @@ issue:           未安装 / 路径不存在 / 无法解析 / 不支持自动匹
 - AUMID/窗口类匹配扩展（需把 `ForegroundPort` 从 exe basename 扩展为身份）、聚焦档案统一、旧数据批量修复向导（见 §6.5/§6.6）。
 - 真机人工验收需补：便携应用启动与前置、预设默认聚焦、UWP 列表去重、旧值「修复」交互。
 
+### 2026-11-13 追加：推荐应用/输入法改为配置驱动
+
+- 预设应用（名单、顺序、exe/安装路径/开始菜单名、AUMID、默认聚焦策略/快捷键/点击点、便携 bundle id、hidden/self 标记）全部迁到 `config/app-presets.json`；代码只保留 `shengjian-domain::app_catalog` 查询与行为实现，删除 `PRESET_APPS`/`DEFAULT_PRESET_IDS`/`preset_aumid` 等硬编码表。
+- 语音输入工具（列表、名称、默认热键、行为 kind）迁到 `config/voice-tools.json`；Windows IME 行为按 `kind` 适配器保留，前端下拉与默认热键改读 `voice_tool_catalog`。
+- 构建时 `prepare-config.ps1` 复制进安装包 `resources/config/`，启动读取；读取失败回退内嵌副本。详见 `docs/config-catalogs.md`。
+- 发布前改仓库 `config/*.json` 即可调整推荐应用/输入法，无需改 Rust；安装目录里的同名文件也可直接改，重启生效。
+
 ---
 
 ## 附：一句话给评审

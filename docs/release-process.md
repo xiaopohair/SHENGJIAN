@@ -11,6 +11,12 @@
 
 ## 本地发布
 
+发布前如需调整「推荐应用」或「语音输入工具」，先编辑仓库根目录的
+`config/app-presets.json` / `config/voice-tools.json`（说明见
+[config-catalogs.md](config-catalogs.md)）；`pnpm tauri build` 会通过
+`prepare:config` 自动复制进安装包资源。安装目录里的
+`resources/config/*.json` 也可直接修改，重启生效。
+
 ```powershell
 cd apps/shengjian-desktop
 pnpm tauri build

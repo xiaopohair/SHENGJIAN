@@ -1,3 +1,4 @@
+use crate::voice_tool::VoiceToolKind;
 use crate::wetype_revive::{
     reaction_verdict, response_since, wetype_mic_observation, MicObservation, MicResponse,
     WetypeReaction,
@@ -13,7 +14,6 @@ use crate::{
     ConnectionPhase, ConnectionSnapshot, PlatformError, RemoteModel, UsageCounters,
     VoiceAudioHealth,
 };
-use shengjian_domain::settings::VoiceInputTool;
 use shengjian_domain::{AtvvCommand, AtvvVoicePipeline, PipelineOutput, VoiceSessionState};
 use std::sync::{
     atomic::{AtomicI32, AtomicU64, Ordering},
@@ -90,8 +90,8 @@ const VOICE_SYNTH_RELEASE_GRACE_MS: u64 = 300;
 ///
 /// 早期版本按“和弦精确等于 Ctrl+Win”判定；支持自定义语音热键后，
 /// 用户仍可能选微信输入法但改成别的组合键，因此判据改为工具，而不是和弦。
-fn is_wetype_tool(tool: Option<VoiceInputTool>) -> bool {
-    tool == Some(VoiceInputTool::Wechat)
+fn is_wetype_tool(tool: Option<VoiceToolKind>) -> bool {
+    tool == Some(VoiceToolKind::Wechat)
 }
 
 /// 本次按下将走的注入路径（与下方 `chord_press` 分支条件严格同源；供日志与单测，
@@ -565,43 +565,43 @@ mod voice_effect_verdict_tests {
 /// 按下。纯判定便于单测；真实键态读取与 SendInput 由调度线程执行。
 fn should_release_stuck_voice_synth(
     report_layer_active: bool,
-    tool: Option<VoiceInputTool>,
+    tool: Option<VoiceToolKind>,
     right_alt_down: bool,
 ) -> bool {
-    report_layer_active && tool == Some(VoiceInputTool::Doubao) && right_alt_down
+    report_layer_active && tool == Some(VoiceToolKind::Doubao) && right_alt_down
 }
 
 #[cfg(test)]
 mod stuck_voice_synth_tests {
     use super::should_release_stuck_voice_synth;
-    use shengjian_domain::settings::VoiceInputTool;
+    use crate::voice_tool::VoiceToolKind;
 
     #[test]
     fn releases_only_when_report_layer_doubao_and_key_is_down() {
         assert!(should_release_stuck_voice_synth(
             true,
-            Some(VoiceInputTool::Doubao),
+            Some(VoiceToolKind::Doubao),
             true
         ));
         assert!(!should_release_stuck_voice_synth(
             false,
-            Some(VoiceInputTool::Doubao),
+            Some(VoiceToolKind::Doubao),
             true
         ));
         assert!(!should_release_stuck_voice_synth(
             true,
-            Some(VoiceInputTool::Wechat),
+            Some(VoiceToolKind::Wechat),
             true
         ));
         assert!(!should_release_stuck_voice_synth(
             true,
-            Some(VoiceInputTool::Vokie),
+            Some(VoiceToolKind::Vokie),
             true
         ));
         assert!(!should_release_stuck_voice_synth(true, None, true));
         assert!(!should_release_stuck_voice_synth(
             true,
-            Some(VoiceInputTool::Doubao),
+            Some(VoiceToolKind::Doubao),
             false
         ));
     }
@@ -621,7 +621,7 @@ impl BleRuntime {
         usage: Arc<UsageCounters>,
         send_input: Arc<SendInputRuntime>,
         voice_hold_hotkey: Arc<Mutex<Option<KeyChord>>>,
-        voice_input_tool: Arc<Mutex<Option<VoiceInputTool>>>,
+        voice_input_tool: Arc<Mutex<Option<VoiceToolKind>>>,
         gain_db: Arc<Mutex<f32>>,
         transcript_capture: Arc<crate::transcript_capture::TranscriptCaptureRuntime>,
     ) -> Self {
@@ -895,7 +895,7 @@ fn worker_loop(
     usage: Arc<UsageCounters>,
     send_input: Arc<SendInputRuntime>,
     voice_hold_hotkey: Arc<Mutex<Option<KeyChord>>>,
-    voice_input_tool: Arc<Mutex<Option<VoiceInputTool>>>,
+    voice_input_tool: Arc<Mutex<Option<VoiceToolKind>>>,
     gain_db: Arc<Mutex<f32>>,
     transcript_capture: Arc<crate::transcript_capture::TranscriptCaptureRuntime>,
     voice_level_dbfs: Arc<AtomicI32>,
@@ -2387,7 +2387,7 @@ fn handle_control(
     audio: &AudioRuntime,
     send_input: &Arc<SendInputRuntime>,
     voice_hold_hotkey: &Mutex<Option<KeyChord>>,
-    voice_input_tool: &Mutex<Option<VoiceInputTool>>,
+    voice_input_tool: &Mutex<Option<VoiceToolKind>>,
     held_hotkey: &mut Option<KeyChord>,
     usage: &UsageCounters,
     active_voice_samples: &mut u64,
@@ -2611,7 +2611,7 @@ fn handle_control(
             // （LLKHF_INJECTED，见 docs/investigations/2026-09-04-avoid-driver-signing-input-paths.md），
             // 这一按必然出不了字。单列一行，让"按住语音键没反应"的报障一眼归因到路径。
             if press_path(synth_gate, attempt_hotkey.is_some()) == "send_input"
-                && matches!(attempt_tool, Some(VoiceInputTool::Doubao))
+                && matches!(attempt_tool, Some(VoiceToolKind::Doubao))
             {
                 gatt_note(format!(
                     "voice_path fallback session={session_id} tool=doubao reason=report_layer_inactive note=tool_ignores_injected_keys"
@@ -2855,9 +2855,9 @@ fn spawn_voice_synth_guard(
     send_input: Arc<SendInputRuntime>,
     voice_session_epoch: Arc<AtomicU64>,
     generation: u64,
-    tool: Option<VoiceInputTool>,
+    tool: Option<VoiceToolKind>,
 ) {
-    if tool != Some(VoiceInputTool::Doubao) || !crate::key_gate::voice_synth_active() {
+    if tool != Some(VoiceToolKind::Doubao) || !crate::key_gate::voice_synth_active() {
         return;
     }
     let epoch = voice_session_epoch.load(Ordering::SeqCst);
@@ -4234,7 +4234,7 @@ fn spawn_wetype_check(
 /// 一次助手），「界面全绿、按下无效」不再有静默态。
 fn spawn_voice_effect_check(
     session_id: u8,
-    tool: Option<VoiceInputTool>,
+    tool: Option<VoiceToolKind>,
     before: Option<crate::rc003_bridge::VoiceFrameStamp>,
     press_at: Instant,
 ) {
@@ -4265,7 +4265,7 @@ fn spawn_voice_effect_check(
                     crate::rc003_bridge::note_voice_effect_verdict(false);
                     // 豆包按设计丢弃注入键：缺失即"本次按下必然没生效"，没有可用的
                     // 注入兜底（token 与既有 fallback 行一致，供日志分流）。
-                    let note = if matches!(tool, Some(VoiceInputTool::Doubao)) {
+                    let note = if matches!(tool, Some(VoiceToolKind::Doubao)) {
                         " note=tool_ignores_injected_keys"
                     } else {
                         ""
@@ -4773,11 +4773,11 @@ mod tests {
 
     #[test]
     fn wetype_activation_is_limited_to_wetype_tool() {
-        assert!(is_wetype_tool(Some(VoiceInputTool::Wechat)));
+        assert!(is_wetype_tool(Some(VoiceToolKind::Wechat)));
         for tool in [
-            Some(VoiceInputTool::Doubao),
-            Some(VoiceInputTool::Vokie),
-            Some(VoiceInputTool::Other),
+            Some(VoiceToolKind::Doubao),
+            Some(VoiceToolKind::Vokie),
+            Some(VoiceToolKind::Custom),
             None,
         ] {
             assert!(

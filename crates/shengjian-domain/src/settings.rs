@@ -39,19 +39,6 @@ impl AppLanguage {
     }
 }
 
-/// 用户在连接页选择的输入工具（决定"按住说话快捷键"的默认组合与引导步骤）。
-///
-/// `None` = 用户从未选择过（老配置）：前端按当前快捷键推断一次后落存，
-/// 不在这里猜——推断规则只属于界面，Rust 侧只做持久化。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum VoiceInputTool {
-    Wechat,
-    Doubao,
-    Vokie,
-    Other,
-}
-
 /// 应用图标（设置页「应用图标」，2026-10-02 用户指定）。
 ///
 /// 对齐 Mac main `Sources/RemoteMic/AppIconController.swift` 的 `AppIconIdentifier`：
@@ -104,8 +91,16 @@ pub struct AppSettings {
     pub audio_endpoint_name: Option<String>,
     pub gain_db: f32,
     pub voice_trigger_mode: VoiceTriggerMode,
-    /// 连接页选择的输入工具（微信输入法 / 豆包输入法 / 其他工具）。
-    pub voice_input_tool: Option<VoiceInputTool>,
+    /// 连接页选择的输入工具 id（`config/voice-tools.json` 里的 `id`，如 `wechat`）。
+    ///
+    /// `None` = 用户从未选择过（老配置）：前端按当前快捷键推断一次后落存，
+    /// 不在这里猜——推断规则只属于界面，Rust 侧只做持久化。
+    ///
+    /// 值是配置目录里的稳定 id，不在这里枚举：列表/名称/默认热键都由
+    /// `config/voice-tools.json` 维护（见 `crate::voice_tools`），Windows 专属行为
+    /// 按配置里的 `kind` 在 `shengjian-windows` 里选择。旧版本写下的
+    /// `wechat` / `doubao` / `vokie` / `other` 是同名字符串，读回语义不变。
+    pub voice_input_tool: Option<String>,
     /// 自定义语音热键（`KeyboardEvent.code` 顺序）；`None` 表示跟随输入工具默认。
     /// 空列表或空字符串在 `normalized()` 中收敛为 `None`。
     pub voice_hotkey: Option<Vec<String>>,
@@ -205,6 +200,12 @@ impl AppSettings {
         }
         self.schema_version = CURRENT_SCHEMA_VERSION;
         self.gain_db = crate::normalize_gain_db(self.gain_db);
+        if let Some(tool) = self.voice_input_tool.take() {
+            // 只收敛空白：id 的集合由配置目录决定（可能新增自定义工具），
+            // 认不出的 id 原样保留，交给界面按兜底选项显示，不静默清空。
+            let tool = tool.trim().to_owned();
+            self.voice_input_tool = (!tool.is_empty()).then_some(tool);
+        }
         if let Some(keys) = self.voice_hotkey.take() {
             let mut seen = std::collections::HashSet::new();
             let cleaned: Vec<String> = keys
@@ -341,21 +342,49 @@ mod tests {
         .unwrap();
         assert_eq!(settings.voice_input_tool, None);
 
-        for tool in [
-            VoiceInputTool::Wechat,
-            VoiceInputTool::Doubao,
-            VoiceInputTool::Vokie,
-            VoiceInputTool::Other,
-        ] {
+        // 旧版本枚举时代写下的字符串（snake_case 名）与现在的 id 完全同形，
+        // 读回必须原样得到同一个 id——这就是旧配置兼容的全部内容。
+        for id in ["wechat", "doubao", "vokie", "other"] {
+            let json = format!(r#"{{"schema_version":8,"voice_input_tool":"{id}"}}"#);
+            let decoded: AppSettings = serde_json::from_str(&json).unwrap();
+            assert_eq!(decoded.voice_input_tool.as_deref(), Some(id));
+
             let settings = AppSettings {
-                voice_input_tool: Some(tool),
+                voice_input_tool: Some(id.to_owned()),
                 ..AppSettings::default()
             };
             let encoded = serde_json::to_string(&settings).unwrap();
             assert!(encoded.contains("\"voice_input_tool\""));
             let decoded: AppSettings = serde_json::from_str(&encoded).unwrap();
-            assert_eq!(decoded.voice_input_tool, Some(tool));
+            assert_eq!(decoded.voice_input_tool.as_deref(), Some(id));
         }
+    }
+
+    #[test]
+    fn voice_input_tool_accepts_catalog_ids_but_normalizes_blank() {
+        // 配置目录里的任意 id（含用户新增的自定义工具）原样保留：Rust 侧不再
+        // 按固定枚举拒绝，否则配置化就白做了。
+        let custom = AppSettings {
+            voice_input_tool: Some("my-custom-tool".to_owned()),
+            ..AppSettings::default()
+        }
+        .normalized();
+        assert_eq!(custom.voice_input_tool.as_deref(), Some("my-custom-tool"));
+
+        // 首尾空白收敛；全空白 = 未选择。
+        let padded = AppSettings {
+            voice_input_tool: Some("  doubao  ".to_owned()),
+            ..AppSettings::default()
+        }
+        .normalized();
+        assert_eq!(padded.voice_input_tool.as_deref(), Some("doubao"));
+
+        let blank = AppSettings {
+            voice_input_tool: Some("   ".to_owned()),
+            ..AppSettings::default()
+        }
+        .normalized();
+        assert_eq!(blank.voice_input_tool, None);
     }
 
     #[test]
