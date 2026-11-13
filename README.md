@@ -19,13 +19,13 @@
 
 ## 当前状态
 
-- 版本：`0.6.0`（方案按设备型号隔离；新增 ARN9 支持；三款遥控器各有产品图与实测热区）
+- 版本：`0.7.0`（VB-CABLE 依赖检测与首次配置引导；系统动作网格；推荐应用/方案/宏配置化）
 - 已支持设备：RC003（小米蓝牙语音遥控器 2 Pro）、RC001（小米蓝牙语音遥控器 2）、ARN9（小米蓝牙语音遥控器）；Windows x64
-- GitHub Release 0.6.0：<https://github.com/xiaopohair/SHENGJIAN/releases/tag/v0.6.0>（CI 构建、未签名），安装包 `shengjian_0.6.0_x64-setup.exe`；校验值以 Release 内的 `SHA256SUMS` 为准
+- GitHub Release 0.7.0：<https://github.com/xiaopohair/SHENGJIAN/releases/tag/v0.7.0>（CI 构建、未签名），安装包 `shengjian_0.7.0_x64-setup.exe`；校验值以 Release 内的 `SHA256SUMS` 为准
 - 代码签名：已接入 **SignPath Foundation** 免费开源签名（release workflow 内置，配置后自动启用）；见 [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md) 与 [docs/signing.md](docs/signing.md)
 - 真机已验证：RC003（连接、语音、按键手势、方案自动切换、运行宏、返回键增强捕获）；ARN9（连接、ATVV 语音链路、导航键、音量/返回增强捕获）
-- 本地发布清单：`release/0.6.0/manifest.json`（记录本地构建结果，线上资产以 Release 为准）
-- 发布说明：`docs/release-notes-0.6.0.md`
+- 本地发布清单：`release/0.7.0/manifest.json`（记录本地构建结果，线上资产以 Release 为准）
+- 发布说明：`docs/release-notes-0.7.0.md`
 - GitHub 仓库已创建并推送：<https://github.com/xiaopohair/SHENGJIAN>；发布由 `v*` tag 触发的 Release workflow 生成
 - 不包含自动更新器
 
@@ -127,7 +127,7 @@ pnpm build:installer
 
 `pnpm build:installer` = `tauri build` + 文件名归一化。Tauri 会先按 `productName` 产出 `声键_<version>_x64-setup.exe`，随后 `scripts/normalize-installer-name.ps1` 把它改名为 ASCII 小写的发布文件名：
 
-`apps/shengjian-desktop/src-tauri/target/release/bundle/nsis/shengjian_0.6.0_x64-setup.exe`
+`apps/shengjian-desktop/src-tauri/target/release/bundle/nsis/shengjian_0.7.0_x64-setup.exe`
 
 只跑 `pnpm tauri build` 也能构建，但产出的是中文文件名；发布、CI 与下载链接统一用 `shengjian_<version>_x64-setup.exe`。
 
@@ -179,10 +179,10 @@ cargo test --workspace
 
 ## 验证
 
-- 根 workspace：`cargo fmt --all -- --check`、`cargo check --workspace`、`cargo test --workspace` 通过（**684 passed**，其中 `shengjian-windows` 平台库 494）
-- 桌面 Rust：**14 passed**
-- 桌面前端：`pnpm lint`、`pnpm format:check`、`pnpm test`（**66 passed**）、`pnpm build` 通过
-- 本地构建：`shengjian_0.6.0_x64-setup.exe` 生成，`prepare-release.ps1` / `verify-release.ps1` 通过
+- 根 workspace：`cargo fmt --all -- --check`、`cargo check --workspace`、`cargo test --workspace` 通过（**761 passed**）
+- 桌面 Rust：**19 passed**
+- 桌面前端：`pnpm lint`、`pnpm format:check`、`pnpm test`（**148 passed**）、`pnpm build` 通过
+- 本地构建：`shengjian_0.7.0_x64-setup.exe` 生成，`prepare-release.ps1` / `verify-release.ps1` 通过
 - 真机安装 / 启动 / 卸载：安装目录、快捷方式、卸载项、版本号清理正确；用户数据 `%LOCALAPPDATA%\Shengjian` 保留
 - 安装向导：欢迎页侧栏、页头品牌图、中文界面与「声键 安装」标题正常
 - 便携版：zip 解压到含空格/中文路径后启动正常；splash 窗口出现，主窗口就绪后自动关闭
@@ -202,20 +202,20 @@ cargo test --workspace
 ## 本地发布
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1 -Version 0.6.0
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -Version 0.6.0
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1 -Version 0.7.0
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -Version 0.7.0
 ```
 
 两个脚本从 `src-tauri/tauri.conf.json` 读取 `productName` 再拼安装包路径，品牌改名后不需要改脚本。
 `prepare-release.ps1` 写 `release/<version>/manifest.json`（`version` / `file` / `sizeBytes` / `sha256` /
 `builtAtUtc` / `signed`），`verify-release.ps1` 用它逐项比对本地安装包。
 
-GitHub Release 0.6.0（CI 构建）：
+GitHub Release 0.7.0（CI 构建）：
 
 ```text
-version=0.6.0
-installer=shengjian_0.6.0_x64-setup.exe
-portable=shengjian_0.6.0_x64-portable.zip
+version=0.7.0
+installer=shengjian_0.7.0_x64-setup.exe
+portable=shengjian_0.7.0_x64-portable.zip
 sha256/size：见 Release 内的 SHA256SUMS 与 manifest.json
 signed=false
 ```
@@ -238,7 +238,7 @@ signed=false
 - 安全说明：[SECURITY.md](SECURITY.md)
 - 发布流程：[docs/release-process.md](docs/release-process.md)
 
-仓库已推送至 <https://github.com/xiaopohair/SHENGJIAN>；Release 列表：<https://github.com/xiaopohair/SHENGJIAN/releases>（已发布 `v0.4.1`、`v0.5.0`、`v0.5.1`、`v0.6.0`）。
+仓库已推送至 <https://github.com/xiaopohair/SHENGJIAN>；Release 列表：<https://github.com/xiaopohair/SHENGJIAN/releases>（已发布 `v0.4.1`、`v0.5.0`、`v0.5.1`、`v0.6.0`、`v0.7.0`）。
 
 ## 已知限制
 
