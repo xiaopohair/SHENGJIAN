@@ -28,6 +28,8 @@ const error = shallowRef<string | null>(null);
 const updateStore = useUpdateStore();
 const pairing = usePairingStore();
 const updateState = computed(() => updateStore.status);
+/** 参与版本比较的当前版本（与横幅「当前版本 → 最新版本」保持一致）。 */
+const comparisonVersion = computed(() => updateStore.currentVersion || appVersion.value);
 const latestRelease = computed(() => updateStore.latest);
 const includePrereleases = computed({
   get: () => updateStore.includePrereleases,
@@ -143,7 +145,8 @@ onMounted(async () => {
           <strong class="update-banner-version">{{ latestRelease.tagName }}</strong>
         </p>
         <p class="update-banner-sub">
-          {{ tr("当前版本") }} {{ appVersion ? `v${appVersion}` : "—" }}
+          {{ tr("当前版本") }}
+          {{ comparisonVersion ? `v${comparisonVersion}` : "—" }}
           <span class="update-banner-arrow" aria-hidden="true">→</span>
           {{ tr("最新版本") }} {{ latestRelease.tagName }}
         </p>
