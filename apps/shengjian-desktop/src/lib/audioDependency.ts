@@ -35,7 +35,7 @@ export function audioDependencyDetailKey(
     case "ready":
       return "已找到可用的语音输出设备。";
     case "missing":
-      return "安装 VB-CABLE 后，遥控器语音会通过虚拟声卡进入转写。";
+      return "请下载并安装 VB-CABLE，安装完成后回到这里点「重新检测」。";
     case "disabled":
       return "请在 Windows 声音设置中启用 VB-CABLE 的播放/录制设备，或重启系统后重新检测。";
     default:

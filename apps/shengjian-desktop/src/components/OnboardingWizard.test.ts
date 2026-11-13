@@ -116,7 +116,8 @@ describe("OnboardingWizard VB-CABLE dependency", () => {
     await recheck!.trigger("click");
     await flushPromises();
 
-    expect(card.text()).toContain("已检测到 VB-CABLE");
+    // Detected: no success prompt at all (the card is hidden).
+    expect(wrapper.find(".audio-dependency").exists()).toBe(false);
     expect(primaryButton(wrapper).attributes("disabled")).toBeUndefined();
     expect(wrapper.find(".wizard-block-reason").exists()).toBe(false);
     const endpointSelect = wrapper.findAll(".voice-options select")[1];
@@ -141,6 +142,12 @@ describe("OnboardingWizard VB-CABLE dependency", () => {
       wrapper
         .findAll(".audio-dependency-actions button")
         .some((button) => button.text() === "重新检测"),
+    ).toBe(true);
+    // 已安装但设备不可用时也给出下载/重装入口。
+    expect(
+      wrapper
+        .findAll(".audio-dependency-actions button")
+        .some((button) => button.text() === "下载 VB-CABLE"),
     ).toBe(true);
     expect(primaryButton(wrapper).attributes("disabled")).toBeDefined();
   });

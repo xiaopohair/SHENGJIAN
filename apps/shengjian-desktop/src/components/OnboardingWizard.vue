@@ -121,7 +121,7 @@ const audioDependencyDetail = computed(() => {
 });
 const audioDependencyToneValue = computed(() => audioDependencyTone(audioDependency.value?.state));
 const showVbCableDownload = computed(
-  () => audioDependency.value?.state === "missing" || Boolean(audioDependencyError.value),
+  () => !audioDependencyReady.value && !audioDependencyLoading.value,
 );
 const stepBlocked = computed(() => blocksOnboardingProgress(step.value, audioDependency.value));
 const blockReason = computed(() => {
@@ -460,6 +460,7 @@ onUnmounted(() => {
         <p class="step-lead">{{ tr("按住遥控器语音键说一句话，再松开。") }}</p>
 
         <div
+          v-if="!audioDependencyReady"
           class="audio-dependency"
           :class="`tone-${audioDependencyToneValue}`"
           role="status"
