@@ -65,7 +65,7 @@ describe("ChordInput", () => {
     const wrapper = mount(ChordInput, {
       props: { modelValue: { modifiers: ["control"], key: "n" } as MacroChord },
     });
-    const clearButton = wrapper.find('[aria-label="Clear shortcut"]');
+    const clearButton = wrapper.find('[aria-label="清除快捷键"]');
     expect(clearButton.exists()).toBe(true);
     await clearButton.trigger("click");
     expect(wrapper.emitted("update:modelValue")?.[0]?.[0]).toEqual({ modifiers: [], key: "" });
@@ -76,7 +76,7 @@ describe("ChordInput", () => {
     const wrapper = mount(ChordInput, {
       props: { modelValue: { modifiers: [], key: "" } as MacroChord },
     });
-    expect(wrapper.find('[aria-label="Clear shortcut"]').exists()).toBe(false);
+    expect(wrapper.find('[aria-label="清除快捷键"]').exists()).toBe(false);
     wrapper.unmount();
   });
 });
