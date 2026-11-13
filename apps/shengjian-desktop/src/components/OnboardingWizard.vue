@@ -24,7 +24,6 @@ import {
   audioDependencyDetailKey,
   audioDependencyTitleKey,
   audioDependencyTone,
-  blocksOnboardingProgress,
   cableEndpointNames,
   isAudioDependencyReady,
   mergeAudioEndpoints,
@@ -123,20 +122,38 @@ const audioDependencyToneValue = computed(() => audioDependencyTone(audioDepende
 const showVbCableDownload = computed(
   () => !audioDependencyReady.value && !audioDependencyLoading.value,
 );
-const stepBlocked = computed(() => blocksOnboardingProgress(step.value, audioDependency.value));
+const stepBlocked = computed(() => {
+  if (step.value === 2 && !connected.value) return true;
+  if (step.value === 3) {
+    if (!isAudioDependencyReady(audioDependency.value)) return true;
+    return voiceResult.value !== "success";
+  }
+  if (step.value === 4) return detectedCount.value !== PROFILE_BUTTONS.length;
+  return false;
+});
 const blockReason = computed(() => {
   if (!stepBlocked.value) return "";
-  if (audioDependencyLoading.value) return tr("正在检测 VB-CABLE，请稍候。");
-  if (audioDependencyError.value) return tr("无法确认 VB-CABLE 状态，请重试。");
-  return tr("请先安装并检测通过 VB-CABLE，才能继续。");
+  if (step.value === 2 && !connected.value) return tr("请先连接遥控器，才能继续。");
+  if (step.value === 3 && !isAudioDependencyReady(audioDependency.value)) {
+    if (audioDependencyLoading.value) return tr("正在检测 VB-CABLE，请稍候。");
+    if (audioDependencyError.value) return tr("无法确认 VB-CABLE 状态，请重试。");
+    return tr("请先安装并检测通过 VB-CABLE，才能继续。");
+  }
+  if (step.value === 3) {
+    return voiceResult.value === "failure"
+      ? tr("语音测试未通过，请重试。")
+      : tr("请先完成语音测试，才能继续。");
+  }
+  if (step.value === 4) return tr("请先检测全部按键，才能继续。");
+  return "";
 });
 
 const primaryLabel = computed(() => {
   if (step.value === 1) return "开始配置";
-  if (step.value === 2) return connected.value ? "下一步" : "稍后连接";
-  if (step.value === 3) return hasVoiceEvent.value ? "下一步" : "跳过语音测试";
+  if (step.value === 2) return "下一步";
+  if (step.value === 3) return "下一步";
   if (step.value === 4) {
-    return detectedCount.value === PROFILE_BUTTONS.length ? "下一步" : "跳过按键测试";
+    return "下一步";
   }
   return saving.value ? "保存中" : "进入应用";
 });

@@ -964,6 +964,10 @@ const ENGLISH = {
   "无法检测 VB-CABLE": "Couldn't check VB-CABLE",
   "正在检测 VB-CABLE，请稍候。": "Checking VB-CABLE; please wait.",
   "无法确认 VB-CABLE 状态，请重试。": "Couldn't confirm the VB-CABLE status; retry.",
+  "请先连接遥控器，才能继续。": "Connect the remote before continuing.",
+  "请先完成语音测试，才能继续。": "Pass the voice test before continuing.",
+  "语音测试未通过，请重试。": "Voice test failed; try again.",
+  "请先检测全部按键，才能继续。": "Detect all buttons before continuing.",
   "请先安装并检测通过 VB-CABLE，才能继续。":
     "Install VB-CABLE and pass the check before continuing.",
   语音输出设备: "Voice output device",

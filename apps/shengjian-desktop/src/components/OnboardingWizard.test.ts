@@ -24,6 +24,9 @@ vi.mock("../lib/api", () => ({
 }));
 
 import * as api from "../lib/api";
+import { useEngineStore } from "../stores/engine";
+import { PROFILE_BUTTONS } from "../lib/buttons";
+import type { EngineSnapshot } from "../lib/types";
 import OnboardingWizard from "./OnboardingWizard.vue";
 
 enableAutoUnmount(afterEach);
@@ -68,12 +71,107 @@ function primaryButton(wrapper: ReturnType<typeof mountWizard>) {
   return wrapper.findAll(".wizard-footer button").at(-1)!;
 }
 
+function setConnected(connected: boolean) {
+  const store = useEngineStore();
+  if (!connected) {
+    store.snapshot = null;
+    return;
+  }
+  const snapshot = {
+    connection: {
+      phase: "ready",
+      remote: {
+        remoteId: "remote-1",
+        name: "遥控器",
+        model: "RC003",
+        deviceId: "xiaomi-rc003",
+        token: "remote-1",
+        isSupported: true,
+      },
+      generation: 1,
+      lastError: null,
+    },
+    voice: { state: "idle" },
+    audio: {
+      state: "unconfigured",
+      endpoint: null,
+      format: null,
+      gainDb: 0,
+      generation: 0,
+      lastError: null,
+    },
+    capabilities: {},
+  } as unknown as EngineSnapshot;
+  store.snapshot = snapshot;
+}
+
+function setVoiceTestPassed() {
+  const store = useEngineStore();
+  store.voiceHistory = [{ seq: 1, state: "streaming" }];
+}
+
 async function advanceToStep3(wrapper: ReturnType<typeof mountWizard>) {
   await primaryButton(wrapper).trigger("click"); // 开始配置
   await flushPromises();
-  await primaryButton(wrapper).trigger("click"); // 稍后连接
+  setConnected(true);
+  await flushPromises();
+  await primaryButton(wrapper).trigger("click"); // 下一步（第 2 步要求已连接）
   await flushPromises();
 }
+
+describe("OnboardingWizard step test gates", () => {
+  it("requires the voice test and all button checks before advancing", async () => {
+    getAudioDependencyStatus.mockResolvedValue(readyStatus());
+    const wrapper = mountWizard();
+    await flushPromises();
+
+    // step 1 -> step 2 (connected) -> step 3
+    setConnected(true);
+    await flushPromises();
+    await primaryButton(wrapper).trigger("click");
+    await flushPromises();
+    await primaryButton(wrapper).trigger("click");
+    await flushPromises();
+
+    expect(primaryButton(wrapper).attributes("disabled")).toBeDefined();
+    expect(wrapper.find(".wizard-block-reason").text()).toContain("请先完成语音测试");
+
+    setVoiceTestPassed();
+    await flushPromises();
+    expect(primaryButton(wrapper).attributes("disabled")).toBeUndefined();
+    await primaryButton(wrapper).trigger("click");
+    await flushPromises();
+
+    // step 4: 必须检测到全部按键
+    expect(primaryButton(wrapper).attributes("disabled")).toBeDefined();
+    expect(wrapper.find(".wizard-block-reason").text()).toContain("请先检测全部按键");
+    const store = useEngineStore();
+    store.buttonHistory = PROFILE_BUTTONS.map((button, index) => ({
+      seq: index + 1,
+      type: "gesture" as const,
+      button: button.id,
+    }));
+    await flushPromises();
+    expect(primaryButton(wrapper).attributes("disabled")).toBeUndefined();
+  });
+});
+
+describe("OnboardingWizard remote connection gate", () => {
+  it("blocks step 2 until a remote is connected", async () => {
+    const wrapper = mountWizard();
+    await flushPromises();
+    await primaryButton(wrapper).trigger("click"); // 开始配置
+    await flushPromises();
+
+    expect(primaryButton(wrapper).attributes("disabled")).toBeDefined();
+    expect(wrapper.find(".wizard-block-reason").text()).toContain("请先连接遥控器");
+
+    setConnected(true);
+    await flushPromises();
+    expect(primaryButton(wrapper).attributes("disabled")).toBeUndefined();
+    expect(wrapper.find(".wizard-block-reason").exists()).toBe(false);
+  });
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -118,6 +216,10 @@ describe("OnboardingWizard VB-CABLE dependency", () => {
 
     // Detected: no success prompt at all (the card is hidden).
     expect(wrapper.find(".audio-dependency").exists()).toBe(false);
+    // 依赖通过后还必须完成语音测试，才允许进入下一步。
+    expect(primaryButton(wrapper).attributes("disabled")).toBeDefined();
+    setVoiceTestPassed();
+    await flushPromises();
     expect(primaryButton(wrapper).attributes("disabled")).toBeUndefined();
     expect(wrapper.find(".wizard-block-reason").exists()).toBe(false);
     const endpointSelect = wrapper.findAll(".voice-options select")[1];
