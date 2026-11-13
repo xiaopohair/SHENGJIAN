@@ -27,7 +27,6 @@ import { statusLabel, tr, trDynamic } from "../lib/i18n";
 import { confirmAction } from "../lib/confirm";
 import {
   hasRecommendedUpdate,
-  isRecommendedProfilesHidden,
   recommendedSeenVersion,
   rememberRecommendedVersion,
 } from "../lib/recommended";
@@ -204,9 +203,8 @@ const { dirty, confirmDiscard } = useDraftGuard({
   discardMessage: "当前方案的修改尚未保存，继续将丢失这些修改。",
 });
 
-/** 推荐方案：只读列表 + 「复制并使用」；隐藏与「已查看版本」只存 localStorage。 */
+/** 推荐方案：只读列表 + 「复制并使用」；「已查看版本」只存 localStorage。 */
 const recommendedOpen = shallowRef(false);
-const recommendedHidden = shallowRef(isRecommendedProfilesHidden());
 const recommendedBundleVersion = shallowRef("");
 const recommendedSeen = shallowRef(recommendedSeenVersion());
 const recommendedHasUpdate = computed(() =>
@@ -218,10 +216,6 @@ function openRecommendedProfiles() {
 }
 
 async function loadRecommendedVersion() {
-  if (recommendedHidden.value) {
-    recommendedBundleVersion.value = "";
-    return;
-  }
   try {
     const bundle = await getRecommendedButtonProfiles(effectiveModel.value);
     recommendedBundleVersion.value = bundle.bundleVersion ?? "";
@@ -236,15 +230,6 @@ function onRecommendedLoaded(version: string) {
   recommendedBundleVersion.value = version;
   recommendedSeen.value = version;
   rememberRecommendedVersion(version);
-}
-
-function onRecommendedHiddenChange(hidden: boolean) {
-  recommendedHidden.value = hidden;
-  if (hidden) {
-    recommendedOpen.value = false;
-  } else {
-    void loadRecommendedVersion();
-  }
 }
 
 /**
@@ -865,12 +850,7 @@ onUnmounted(() => {
             <Plus :size="14" />
             {{ tr("新建") }}
           </Button>
-          <Button
-            v-if="!recommendedHidden"
-            size="sm"
-            :disabled="busy"
-            @click="openRecommendedProfiles"
-          >
+          <Button size="sm" :disabled="busy" @click="openRecommendedProfiles">
             <Sparkles :size="14" />
             {{ tr("推荐方案") }}
             <span
@@ -1017,7 +997,6 @@ onUnmounted(() => {
       @use="useRecommendedProfile"
       @close="recommendedOpen = false"
       @loaded="onRecommendedLoaded"
-      @hidden-change="onRecommendedHiddenChange"
     />
   </section>
 </template>

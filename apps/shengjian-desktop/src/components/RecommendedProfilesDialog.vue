@@ -3,11 +3,9 @@ import { computed, nextTick, onUnmounted, ref, shallowRef, useTemplateRef, watch
 import { Sparkles, X } from "lucide-vue-next";
 import { errorMessage, getRecommendedButtonProfiles } from "../lib/api";
 import { tr } from "../lib/i18n";
-import { isRecommendedProfilesHidden, setRecommendedProfilesHidden } from "../lib/recommended";
 import type { RecommendedButtonProfile } from "../lib/types";
 import Button from "./ui/Button.vue";
 import IconButton from "./ui/IconButton.vue";
-import Switch from "./ui/Switch.vue";
 
 const props = withDefaults(
   defineProps<{
@@ -25,14 +23,12 @@ const emit = defineEmits<{
   close: [];
   /** 列表加载完成，携带推荐包版本（父组件用来记录「已查看」）。 */
   loaded: [bundleVersion: string];
-  "hidden-change": [hidden: boolean];
 }>();
 
 const profiles = ref<RecommendedButtonProfile[]>([]);
 const bundleVersion = shallowRef("");
 const loading = shallowRef(false);
 const error = shallowRef<string | null>(null);
-const hideRecommended = shallowRef(false);
 const dialogRef = useTemplateRef<HTMLElement>("dialogRef");
 let previousFocus: HTMLElement | null = null;
 let requestSeq = 0;
@@ -99,18 +95,11 @@ function onKeydown(event: KeyboardEvent) {
   }
 }
 
-function toggleHidden(hidden: boolean) {
-  hideRecommended.value = hidden;
-  setRecommendedProfilesHidden(hidden);
-  emit("hidden-change", hidden);
-}
-
 watch(
   () => props.open,
   async (open) => {
     if (open) {
       previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-      hideRecommended.value = isRecommendedProfilesHidden();
       window.addEventListener("keydown", onKeydown, true);
       await nextTick();
       const initial =
@@ -150,7 +139,6 @@ onUnmounted(() => {
               {{ tr("推荐方案") }}
             </h2>
             <p>{{ tr("由配置目录下发的只读方案；复制后成为你自己的方案，可自由修改。") }}</p>
-            <p v-if="versionLabel" class="recommended-version">{{ versionLabel }}</p>
           </div>
           <IconButton size="sm" :label="tr('关闭')" @click="close">
             <X :size="16" />
@@ -192,14 +180,7 @@ onUnmounted(() => {
         <p v-else class="recommended-empty">{{ tr("当前型号暂无推荐方案") }}</p>
 
         <footer class="recommended-foot">
-          <div class="recommended-hide">
-            <Switch
-              :model-value="hideRecommended"
-              :label="tr('不再显示推荐方案')"
-              @update:model-value="toggleHidden"
-            />
-            <span>{{ tr("不再显示推荐方案") }}</span>
-          </div>
+          <span v-if="versionLabel" class="recommended-foot-version">{{ versionLabel }}</span>
           <Button size="sm" variant="ghost" @click="close">{{ tr("关闭") }}</Button>
         </footer>
       </section>
@@ -258,12 +239,6 @@ onUnmounted(() => {
   color: var(--text-muted);
   font-size: var(--text-xs);
   line-height: 1.45;
-}
-
-.recommended-heading .recommended-version {
-  margin-top: 3px;
-  font-family: var(--font-mono);
-  font-size: var(--text-2xs);
 }
 
 .recommended-status {
@@ -369,17 +344,16 @@ onUnmounted(() => {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: var(--space-2);
   border-top: 1px solid var(--border);
   padding: var(--space-3) var(--space-5);
 }
 
-.recommended-hide {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
+.recommended-foot-version {
+  margin-right: auto;
   color: var(--text-muted);
-  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
 }
 </style>

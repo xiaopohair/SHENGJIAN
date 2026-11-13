@@ -935,10 +935,7 @@ const ENGLISH = {
   "{count} 个应用目标": "{count} app targets",
   复制并使用: "Copy & use",
   当前型号暂无推荐方案: "No recommended profiles for this model",
-  不再显示推荐方案: "Don't show recommended profiles again",
-  显示推荐方案: "Show recommended profiles",
-  关闭后按键页不再显示推荐方案入口:
-    "When off, the Buttons page hides the recommended profiles entry.",
+
   有更新: "Update",
   推荐方案有更新: "Recommended profiles updated",
 } as const satisfies Record<string, string>;

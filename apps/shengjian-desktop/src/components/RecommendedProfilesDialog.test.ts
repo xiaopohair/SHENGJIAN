@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { setLanguagePreference } from "../lib/i18n";
-import { RECOMMENDED_HIDDEN_KEY } from "../lib/recommended";
+
 import type { ButtonProfile, RecommendedButtonProfilesBundle } from "../lib/types";
 
 vi.mock("../lib/api", () => ({
@@ -94,6 +94,8 @@ describe("RecommendedProfilesDialog", () => {
     expect(text).toContain("3 个绑定");
     expect(text).toContain("自动应用");
     expect(text).toContain("2026.11.1");
+    // 配置版本在页脚（不再放标题下方）。
+    expect(query(".recommended-foot-version").textContent).toContain("2026.11.1");
     expect(wrapper.emitted("loaded")?.[0]).toEqual(["2026.11.1"]);
   });
 
@@ -133,18 +135,6 @@ describe("RecommendedProfilesDialog", () => {
 
     expect(getRecommendedButtonProfiles).toHaveBeenCalledTimes(2);
     expect(document.body.textContent).toContain("桌面快捷键");
-  });
-
-  it("persists the hide preference and notifies the parent", async () => {
-    const wrapper = mountDialog();
-    await flushPromises();
-
-    query<HTMLButtonElement>(".recommended-hide .ui-switch").click();
-    await flushPromises();
-
-    expect(window.localStorage.getItem(RECOMMENDED_HIDDEN_KEY)).toBe("1");
-    expect(wrapper.emitted("hidden-change")?.[0]).toEqual([true]);
-    expect(query(".recommended-hide .ui-switch").getAttribute("aria-checked")).toBe("true");
   });
 
   it("closes on Escape", async () => {

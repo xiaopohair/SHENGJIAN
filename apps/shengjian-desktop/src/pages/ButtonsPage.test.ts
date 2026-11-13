@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { createPinia } from "pinia";
 import { setLanguagePreference } from "../lib/i18n";
-import { RECOMMENDED_HIDDEN_KEY, RECOMMENDED_SEEN_VERSION_KEY } from "../lib/recommended";
+import { RECOMMENDED_SEEN_VERSION_KEY } from "../lib/recommended";
 import type {
   ButtonProfile,
   ButtonProfilesDocument,
@@ -295,14 +295,6 @@ describe("ButtonsPage profile navigation and editor", () => {
     expect(activateButtonProfile).toHaveBeenCalledWith("profile-copied");
     expect(wrapper.find(".editor-name").text()).toContain("（我的）");
     expect(document.querySelector(".recommended-dialog")).toBeNull();
-  });
-
-  it("hides the recommended profiles entry when the preference is set", async () => {
-    window.localStorage.setItem(RECOMMENDED_HIDDEN_KEY, "1");
-    const wrapper = await mountPage();
-
-    expect(wrapper.find(".profile-tools").text()).not.toContain("推荐方案");
-    expect(getRecommendedButtonProfiles).not.toHaveBeenCalled();
   });
 
   it("shows recommended-only macros in the run-macro dropdown and prefers user versions", async () => {
