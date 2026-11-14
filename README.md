@@ -1,15 +1,20 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="brand/logo/shengjian-lockup-horizontal-dark.svg">
-  <img src="brand/logo/shengjian-lockup-horizontal-light.svg" height="56" alt="声键（SHENGJIAN）">
-</picture>
+<p align="center">
+  <img src="brand/logo/shengjian-app-icon.svg" width="112" alt="声键（SHENGJIAN）">
+</p>
 
-# 声键（SHENGJIAN）· Voice remote for Windows
+<h1 align="center">声键（SHENGJIAN）· Voice remote for Windows</h1>
 
-[English](README.en.md) | 简体中文
+<p align="center">
+  <a href="README.en.md">English</a> | 简体中文
+</p>
 
-**声音，就是快捷键。** · **Your voice is the shortcut.**
+<p align="center">
+  <strong>声音，就是快捷键。</strong> · <strong>Your voice is the shortcut.</strong>
+</p>
 
-`语音输入` · `按键映射` · `宏与方案`
+<p align="center">
+  <code>语音输入</code> · <code>按键映射</code> · <code>宏与方案</code>
+</p>
 
 仓库：<https://github.com/xiaopohair/SHENGJIAN>
 
