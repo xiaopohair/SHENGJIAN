@@ -1204,14 +1204,10 @@ onUnmounted(() => {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
-  gap: 1px;
+  gap: var(--space-1);
   min-height: 0;
-  margin: 0 var(--space-3);
-  /* 列表本体带边框 + 浅底，行与行之间的容器边界一眼可见 */
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
-  background: var(--bg);
-  padding: var(--space-1);
+  margin: 0;
+  padding: 0 var(--space-2) var(--space-2);
   overflow-y: auto;
   list-style: none;
   scrollbar-width: thin;
@@ -1226,11 +1222,7 @@ onUnmounted(() => {
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: background var(--duration-fast) ease;
-}
-
-.import-row {
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  cursor: default;
+  border: 1px solid var(--border);
 }
 
 .macro-row:hover {
@@ -1239,6 +1231,7 @@ onUnmounted(() => {
 
 .macro-row.selected {
   background: color-mix(in srgb, var(--accent) 9%, transparent);
+  border-color: var(--accent-soft-strong);
 }
 
 .macro-row.selected:hover {
