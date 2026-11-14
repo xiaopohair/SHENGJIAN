@@ -9,7 +9,8 @@
 |---|---|
 | `config/app-presets.json` | 推荐应用（含安装探测、AUMID、默认聚焦、便携导出映射） |
 | `config/voice-tools.json` | 语音输入工具列表、名称、默认热键、行为类型 |
-| `config/button-profiles.json` | 推荐按键方案（只读；复制后成为用户方案） |
+| `config/button-profiles/` | 推荐按键方案的**源目录**（一方案一文件，见下） |
+| `config/button-profiles.json` | 推荐按键方案的**聚合产物**（生成文件，不要手改） |
 | `config/recommended-macros.json` | 推荐宏（只读；供推荐/复制方案引用，用户宏优先） |
 
 构建时 `apps/shengjian-desktop/scripts/prepare-config.ps1` 会把它们复制到
@@ -206,33 +207,62 @@ Get-WinUserLanguageList | Select-Object LanguageTag, InputMethodTips
   `catalog ime_profile … source=config|discovered outcome=resolved|failed`；
   若显示 `failed`，先核对路径里的 CLSID/Profile 是否抄错、`Enable` 是否为 1
 
-## `button-profiles.json`（推荐按键方案）
+## 推荐按键方案：源目录 + 聚合文件
 
 推荐方案是**只读**的：不会写进用户方案库，用户点「复制并使用」后才生成一份可编辑副本。
 同「推荐应用」一样随安装包下发、启动读取、非法时回退内嵌副本。
 
+源码侧采用**一方案一文件**，方便 review、减少多人改同一文件的冲突：
+
+```text
+config/button-profiles/
+├── catalog.json                        { "schemaVersion": 1, "bundleVersion": "2026.11.1" }
+├── preset.desktop.shortcuts.json       一个文件 = 一条推荐方案
+└── preset.netease.controls.json
+```
+
+单条方案文件就是方案对象本身（不带 `profiles` 外壳），文件名必须等于方案 id：
+
+```jsonc
+// config/button-profiles/preset.netease.controls.json
+{
+  "id": "preset.netease.controls",     // 稳定 id，必须 preset. 前缀，且与文件名一致
+  "name": "网易云音乐按键",
+  "deviceModel": null,                 // 复制后归属；null = 通用
+  "compatibleModels": ["RC003"],       // 适配型号；空 = 全部
+  "appTargets": ["netease_music"],     // 前台应用匹配（预设 id / exe）
+  "autoApply": true,
+  "holdRepeat": "long",                // 可选
+  "bindings": {                        // 只允许可编辑按钮（is_profile_button）
+    "ok": { "single": { "type": "mouse", "kind": "click", "direction": null, "amount": 1 } }
+  }
+}
+```
+
+运行时与安装包只认聚合文件 `config/button-profiles.json`（`include_str!` 内嵌兜底也用它）：
+
 ```jsonc
 {
   "schemaVersion": 1,
-  "bundleVersion": "2026.11.1",       // 版本变化时按键页显示「有更新」
-  "profiles": [
-    {
-      "id": "preset.desktop.shortcuts", // 稳定 id，必须 preset. 前缀
-      "name": "桌面快捷键",
-      "deviceModel": null,              // 复制后归属；null = 通用
-      "compatibleModels": ["RC003"],    // 适配型号；空 = 全部
-      "appTargets": [],                 // 前台应用匹配（预设 id / exe）
-      "autoApply": false,
-      "holdRepeat": "long",             // 可选
-      "bindings": {                     // 只允许可编辑按钮（is_profile_button）
-        "home": {
-          "single": { "type": "shortcut", "label": "资源管理器", "keys": ["left_windows", "e"] }
-        }
-      }
-    }
-  ]
+  "bundleVersion": "2026.11.1",   // 版本变化时按键页显示「有更新」
+  "profiles": [ /* 由目录按文件名升序合并 */ ]
 }
 ```
+
+**聚合文件是生成物，不要手改。** 改完目录后跑：
+
+```powershell
+cd apps/shengjian-desktop
+pnpm config:build     # 目录 → 聚合文件（并 prettier 排版）
+pnpm config:check     # 校验目录 + 聚合是否一致 + 其余三个配置
+```
+
+- 顺序 = 文件名升序（界面里推荐方案的排列顺序；想调顺序改文件名前缀）
+- CI 会跑 `pnpm config:check`：**改了目录忘记 `config:build` 会直接失败**，
+  并列出「目录里有但聚合文件没有」之类的差异
+- 单条方案的校验规则与运行时一致（见下），不合法时 `config:build` 拒绝生成
+
+### 通用规则
 
 - `compatibleModels` 为空 = 所有型号；非空时只有当前设备型号匹配才会列出/允许复制
 - 未连接设备（型号未知）时只显示「通用」方案
@@ -244,7 +274,7 @@ Get-WinUserLanguageList | Select-Object LanguageTag, InputMethodTips
 ### 用脚本把「我的方案」转成推荐方案
 
 应用导出的 `button-profiles.json` 是**用户方案库**（`schemaVersion: 5` + `activeManualProfileId`），
-和推荐目录不是同一个结构：id 前缀、`isDefault`、`compatibleModels`、`bundleVersion` 都不一样。
+和推荐方案不是同一个结构：id 前缀、`isDefault`、`compatibleModels`、`bundleVersion` 都不一样。
 手动搬字段容易漏掉 `isDefault`（一条就会让整份目录被拒），因此提供转换脚本：
 
 ```powershell
@@ -257,25 +287,26 @@ pnpm config:import-profile --list --input "%USERPROFILE%\Desktop\button-profiles
 pnpm config:import-profile --input "%USERPROFILE%\Desktop\button-profiles.json" `
   --profile "豆包语音输入（我的）" --id preset.rc003.doubao --models RC003 --dry-run
 
-# 3) 正式写入 config/button-profiles.json（同名 id 会替换，并自动递增 bundleVersion）
+# 3) 写入 config/button-profiles/preset.rc003.doubao.json 并重建聚合文件
+#    （同名 id 会覆盖原文件，并自动递增 catalog.json 里的 bundleVersion）
 pnpm config:import-profile --input "%USERPROFILE%\Desktop\button-profiles.json" `
   --profile "豆包语音输入（我的）" --id preset.rc003.doubao --models RC003
 
-# 4) 校验四个配置文件（脚本会按 Rust 侧同样的规则检查）
+# 4) 校验
 pnpm config:check
 ```
 
 脚本做这些事：
 
 - 自动剔除 `isDefault` / `createdAt`，补 `compatibleModels` 与 `bundleVersion`
-- 按 `--id` 生成 `preset.` 前缀 id；同名 id 视为替换，不会重复追加
+- 按 `--id` 生成 `preset.` 前缀 id，写成 `<id>.json`；同名 id 覆盖原文件，不会重复追加
 - 写盘前跑一遍与 `button_presets::validate_catalog` 等价的校验（id 前缀/重复、
   `isDefault`、空 name、不可编辑按键、`run-macro` 引用是否存在、动作类型等），
   不合法直接报原因并**不写盘**
-- `--check` 同时检查 `app-presets.json` / `voice-tools.json` / `recommended-macros.json`
-  的结构性问题；CI 也会跑 `pnpm config:check`
+- `--check` 同时检查聚合一致性与 `app-presets.json` / `voice-tools.json` /
+  `recommended-macros.json` 的结构性问题；CI 也会跑 `pnpm config:check`
 
-已安装的机器想直接试效果，把 `--out` 指向安装目录即可（改完重启程序生效）：
+已安装的机器想直接试效果，用 `--out` 直接写安装目录（只写聚合文件，不动源目录）：
 
 ```powershell
 pnpm config:import-profile --input ... --id preset.xxx `

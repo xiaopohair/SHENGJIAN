@@ -18,7 +18,8 @@
     "build:portable": "powershell -NoProfile -ExecutionPolicy Bypass -File ../../scripts/build-portable.ps1",
     "prepare:helper": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-helper.ps1",
     "prepare:config": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-config.ps1",
-    "config:check": "node ../../scripts/profile-to-preset.mjs --check",
+    "config:build": "node ../../scripts/profile-to-preset.mjs --build && prettier --write ../../config/button-profiles.json",
+    "config:check": "node ../../scripts/profile-to-preset.mjs --check && prettier --check ../../config/button-profiles.json",
     "config:import-profile": "node ../../scripts/profile-to-preset.mjs"
   },
   "dependencies": {

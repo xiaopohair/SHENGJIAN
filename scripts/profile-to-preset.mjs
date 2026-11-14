@@ -1,30 +1,40 @@
 #!/usr/bin/env node
-// 把「按键」页导出的用户方案库转成推荐方案目录（`config/button-profiles.json`）。
+// 推荐按键方案的源文件管理 + 转换 + 聚合 + 校验。
 //
-// 应用导出的文件是**用户方案库**结构：
-//   { "schemaVersion": 5, "profiles": [ ... ], "activeManualProfileId": "..." }
-// 推荐目录是另一种结构，还有额外约束（id 前缀、禁止 isDefault、适配型号等）：
-//   { "schemaVersion": 1, "bundleVersion": "2026.11.1", "profiles": [ ... ] }
+// 源码侧是**一方案一文件**（便于 review / 减少冲突）：
+//   config/button-profiles/catalog.json              { schemaVersion, bundleVersion }
+//   config/button-profiles/preset.desktop.shortcuts.json
+//   config/button-profiles/preset.netease.controls.json
 //
-// 本脚本负责这段转换，并在写盘前按 `shengjian-domain::button_presets::validate_catalog`
-// 的同一套规则校验，避免「改完重启才发现整份目录被拒、静默回退内嵌副本」。
+// 运行时/安装包仍然只认单个聚合文件（`include_str!` 内嵌兜底 + 资源文件）：
+//   config/button-profiles.json   { schemaVersion, bundleVersion, profiles: [...] }
+// 聚合文件由 `--build` 从目录生成，必须保持与目录一致（CI 用 `--check` 强制）。
+//
+// 另外负责把应用「按键」页导出的用户方案库转成推荐方案条目：
+//   { "schemaVersion": 5, "profiles": [...], "activeManualProfileId": "..." }
 //
 // 用法：
+//   node scripts/profile-to-preset.mjs --build               # 目录 → 聚合文件
+//   node scripts/profile-to-preset.mjs --check               # 校验目录 + 聚合一致性
 //   node scripts/profile-to-preset.mjs --list --input exported.json
 //   node scripts/profile-to-preset.mjs --input exported.json --profile "豆包输入" \
 //        --id preset.rc003.doubao --models RC003 --dry-run
-//   node scripts/profile-to-preset.mjs --input exported.json --profile 2 --id preset.x
-//   node scripts/profile-to-preset.mjs --check            # 校验仓库里的配置
-//   node scripts/profile-to-preset.mjs --check --out "%LOCALAPPDATA%\\声键\\resources\\config\\button-profiles.json"
 
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, unlinkSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { dirname, resolve, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(SCRIPT_DIR, "..");
-const DEFAULT_CATALOG = resolve(REPO_ROOT, "config/button-profiles.json");
-const MACRO_CATALOG = resolve(REPO_ROOT, "config/recommended-macros.json");
+const CONFIG_DIR = resolve(REPO_ROOT, "config");
+/** 一方案一文件的源目录。 */
+const PROFILE_DIR = resolve(CONFIG_DIR, "button-profiles");
+/** 源目录里的版本清单（文件名固定，不当方案解析）。 */
+const DIR_MANIFEST = "catalog.json";
+/** 聚合产物：运行时与安装包唯一读取的文件。 */
+const DEFAULT_CATALOG = resolve(CONFIG_DIR, "button-profiles.json");
+const MACRO_CATALOG = resolve(CONFIG_DIR, "recommended-macros.json");
 
 /** 与 `shengjian-contract` 的 `PROFILE_BUTTONS` 保持一致（12 键，TV/Menu 含在内）。 */
 const PROFILE_BUTTONS = [
@@ -56,35 +66,43 @@ const ACTION_TYPES = [
   "system-action",
 ];
 
-const USAGE = `把应用导出的按键方案转成推荐方案目录条目。
+const USAGE = `推荐按键方案：一方案一文件的源目录 → 聚合文件，兼做「我的方案」转换。
 
-必需参数：
+目录结构（源码侧，手工编辑这里是主要入口）：
+  config/button-profiles/catalog.json            { schemaVersion, bundleVersion }
+  config/button-profiles/<方案 id>.json          一个文件一条推荐方案
+聚合产物（不要手改，由 --build 生成；运行时与安装包只认它）：
+  config/button-profiles.json                    { schemaVersion, bundleVersion, profiles }
+
+目录维护：
+  --build               目录 → 聚合文件（写完建议跑一次 --check）
+  --check               校验目录 + 聚合文件是否与目录一致（CI 用）
+
+把应用导出的方案转成推荐方案：
   --input <file>        应用「按键」页导出的 button-profiles.json
-
-选择要转换的方案（三选一）：
   --profile <name|id|index>   方案名 / 方案 id / 1 起的序号；只有一条非默认方案时可省略
   --list                      只列出导出文件里的方案，不做转换
 
-推荐目录标识（转换模式）：
+推荐方案标识（转换模式）：
   --id <preset.xxx>     推荐方案 id，必须以 "preset." 开头；源 id 已是 preset.* 时可省略
   --name <显示名>        覆盖方案名（默认沿用导出时的名字）
   --models <A,B>        适配型号，空 = 全部型号（默认空）
   --device-model <M>    复制后的归属型号（默认 null = 通用）
 
-输出：
-  --out <file>          目标目录文件（默认 config/button-profiles.json；
-                        已安装也可指向 <安装目录>/resources/config/button-profiles.json）
-  --bundle-version <v>  指定版本号（默认把现有版本号末段 +1）
+输出与选项：
+  --dir <dir>           源目录（默认 config/button-profiles）
+  --out <file>          只把聚合结果写到指定文件（用于已安装机器，例如
+                        <安装目录>/resources/config/button-profiles.json）
+  --bundle-version <v>  指定版本号（默认把 catalog.json 里的末段 +1）
   --no-bump             不自动递增 bundleVersion
   --dry-run             只打印结果，不写盘
-  --check               不转换，只校验配置文件。默认校验 config/ 下四个目录文件；
-                        --out 给目录则校验该目录，给具体文件名则只校验那一个
 
 示例：
+  node scripts/profile-to-preset.mjs --build
+  node scripts/profile-to-preset.mjs --check
   node scripts/profile-to-preset.mjs --list --input "%USERPROFILE%\\Desktop\\button-profiles.json"
   node scripts/profile-to-preset.mjs --input button-profiles.json --profile "豆包输入" \\
        --id preset.rc003.doubao --models RC003 --dry-run
-  node scripts/profile-to-preset.mjs --check
 `;
 
 function fail(message) {
@@ -101,11 +119,13 @@ function parseArgs(argv) {
     models: null,
     deviceModel: null,
     out: null,
+    dir: null,
     bundleVersion: null,
     bump: true,
     dryRun: false,
     check: false,
     list: false,
+    build: false,
     help: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -137,6 +157,12 @@ function parseArgs(argv) {
         break;
       case "--out":
         args.out = next();
+        break;
+      case "--dir":
+        args.dir = next();
+        break;
+      case "--build":
+        args.build = true;
         break;
       case "--bundle-version":
         args.bundleVersion = next();
@@ -192,6 +218,186 @@ function recommendedMacroIds() {
   const catalog = readJsonFile(MACRO_CATALOG, "推荐宏配置");
   const macros = Array.isArray(catalog.macros) ? catalog.macros : [];
   return new Set(macros.map((macro) => macro?.macroId).filter(Boolean));
+}
+
+// ---------------------------------------------------------------------------
+// 源目录（一方案一文件）→ 聚合文件
+// ---------------------------------------------------------------------------
+
+/** 目录里参与聚合的方案文件名（排除 catalog.json 与隐藏文件），按文件名排序。 */
+function listProfileFiles(dir) {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((name) => name.toLowerCase().endsWith(".json"))
+    .filter((name) => name.toLowerCase() !== DIR_MANIFEST)
+    .filter((name) => !name.startsWith("."))
+    .sort((left, right) => left.localeCompare(right, "en"));
+}
+
+/**
+ * 读取源目录，返回聚合对象；同时收集结构性问题（不抛出，便于 `--check` 一次报全）。
+ *
+ * 排序规则：按文件名升序 —— 界面里推荐方案的顺序就是这个顺序，想调顺序就改文件名前缀。
+ */
+function readProfileDir(dir) {
+  const issues = [];
+  if (!existsSync(dir)) {
+    return { aggregate: null, issues: [`源目录不存在：${dir}`], files: [] };
+  }
+  const manifestPath = resolve(dir, DIR_MANIFEST);
+  let manifest = { schemaVersion: 1, bundleVersion: "" };
+  if (existsSync(manifestPath)) {
+    try {
+      manifest = JSON.parse(readFileSync(manifestPath, "utf8").replace(/^\uFEFF/, ""));
+    } catch (error) {
+      issues.push(`${DIR_MANIFEST}: 不是合法 JSON：${error.message}`);
+    }
+  } else {
+    issues.push(`缺少 ${DIR_MANIFEST}（至少要写 { "schemaVersion": 1, "bundleVersion": "..." }）`);
+  }
+  const bundleVersion =
+    typeof manifest?.bundleVersion === "string" ? manifest.bundleVersion.trim() : "";
+  if (!bundleVersion) issues.push(`${DIR_MANIFEST}: bundleVersion 不能为空`);
+
+  const files = listProfileFiles(dir);
+  const profiles = [];
+  for (const fileName of files) {
+    const path = resolve(dir, fileName);
+    let preset;
+    try {
+      preset = JSON.parse(readFileSync(path, "utf8").replace(/^\uFEFF/, ""));
+    } catch (error) {
+      issues.push(`${fileName}: 不是合法 JSON：${error.message}`);
+      continue;
+    }
+    const stem = basename(fileName, ".json");
+    if (typeof preset?.id === "string" && preset.id !== stem) {
+      // 文件名与 id 不一致时，改 id 会悄悄改变「谁是这条方案」，早报早改。
+      issues.push(`${fileName}: 文件内 id "${preset.id}" 与文件名 "${stem}" 不一致`);
+    }
+    profiles.push(preset);
+  }
+
+  return {
+    aggregate: { schemaVersion: manifest?.schemaVersion ?? 1, bundleVersion, profiles },
+    issues,
+    files,
+  };
+}
+
+/** 聚合对象序列化为文件内容（先按 2 空格缩进，再由 prettier 统一排版）。 */
+function serializeAggregate(aggregate) {
+  return `${JSON.stringify(aggregate, null, 2)}\n`;
+}
+
+/**
+ * 用仓库里已安装的 prettier 格式化聚合文件。
+ *
+ * 排版统一交给 prettier（和 `pnpm config:build` 一致），脚本本身不实现格式化，
+ * 免得两边规则漂移导致 `prettier --check` 失败。找不到 prettier 时只提示，
+ * 不阻断——`pnpm config:check` 会再拦一次。
+ */
+function formatAggregate(path) {
+  // 直接跑 prettier 的 bin 脚本（node 调用，不经 shell，避免转义与跨平台问题）。
+  const bin = resolve(REPO_ROOT, "apps/shengjian-desktop/node_modules/prettier/bin/prettier.cjs");
+  if (!existsSync(bin)) return false;
+  const result = spawnSync(process.execPath, [bin, "--write", path], {
+    cwd: REPO_ROOT,
+    stdio: "ignore",
+  });
+  return result.status === 0;
+}
+
+/** 目录 → 聚合文件；返回写出的路径。校验失败时不写盘。 */
+function buildFromDir(dir, outPath = DEFAULT_CATALOG, { dryRun = false, format = true } = {}) {
+  const { aggregate, issues } = readProfileDir(dir);
+  const allIssues = [...issues];
+  if (aggregate) {
+    allIssues.push(...validateCatalog(aggregate));
+  }
+  if (allIssues.length > 0) {
+    console.error(`✗ 源目录不合法（${dir}），未生成聚合文件：`);
+    for (const issue of allIssues) console.error(`  - ${issue}`);
+    process.exit(1);
+  }
+  const json = serializeAggregate(aggregate);
+  if (dryRun) return { aggregate, json, formatted: false };
+  writeFileSync(outPath, json, "utf8");
+  const formatted = format ? formatAggregate(outPath) : false;
+  return { aggregate, json, formatted };
+}
+
+/**
+ * 比较「目录聚合结果」与「已提交的聚合文件」内容是否一致。
+ *
+ * 只比**结构**（键排序后深比较），不比字节：聚合文件的排版由 prettier 负责
+ * （`pnpm config:build` 会格式化），这里只关心运行时读到的东西对不对。
+ */
+function describeAggregateDrift(dir, aggregatePath = DEFAULT_CATALOG) {
+  if (!existsSync(aggregatePath)) {
+    return [`聚合文件缺失：${aggregatePath}（运行 pnpm config:build 生成）`];
+  }
+  const { aggregate } = readProfileDir(dir);
+  if (!aggregate) return [];
+
+  let onDisk;
+  try {
+    onDisk = JSON.parse(readFileSync(aggregatePath, "utf8").replace(/^\uFEFF/, ""));
+  } catch (error) {
+    return [`聚合文件不是合法 JSON：${error.message}`, "  修复：pnpm config:build"];
+  }
+  if (canonicalJson(onDisk) === canonicalJson(aggregate)) return [];
+
+  // 给出可操作的差异摘要，而不是整份 diff。
+  const issues = [`聚合文件与源目录不一致：${aggregatePath}`];
+  const expectedIds = aggregate.profiles.map((profile) => profile?.id);
+  const actualIds = Array.isArray(onDisk?.profiles)
+    ? onDisk.profiles.map((profile) => profile?.id)
+    : [];
+  const missing = expectedIds.filter((id) => !actualIds.includes(id));
+  const extra = actualIds.filter((id) => !expectedIds.includes(id));
+  if (missing.length) issues.push(`  目录里有但聚合文件没有：${missing.join(", ")}`);
+  if (extra.length) issues.push(`  聚合文件有但目录里没有：${extra.join(", ")}`);
+  if (onDisk?.bundleVersion !== aggregate.bundleVersion) {
+    issues.push(
+      `  bundleVersion 不同：目录=${aggregate.bundleVersion} 聚合文件=${onDisk?.bundleVersion}`,
+    );
+  }
+  if (!missing.length && !extra.length && onDisk?.bundleVersion === aggregate.bundleVersion) {
+    issues.push("  方案内容有差异（字段不同），运行 pnpm config:build 重新生成");
+  }
+  issues.push("  修复：pnpm config:build");
+  return issues;
+}
+
+/** 键排序后的 JSON 文本，用于与排版无关的深比较。 */
+function canonicalJson(value) {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    const keys = Object.keys(value).sort();
+    return `{${keys.map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+/** 把一条推荐方案写进源目录（同名 id 覆盖），返回文件路径。 */
+function writeProfileFile(dir, preset) {
+  mkdirSync(dir, { recursive: true });
+  const path = resolve(dir, `${preset.id}.json`);
+  // 先删掉 id 相同但文件名不同的旧文件，避免聚合时出现重复 id。
+  const stem = `${preset.id}.json`;
+  for (const fileName of listProfileFiles(dir)) {
+    if (fileName === stem) continue;
+    const candidate = resolve(dir, fileName);
+    try {
+      const existing = JSON.parse(readFileSync(candidate, "utf8").replace(/^\uFEFF/, ""));
+      if (existing?.id === preset.id) unlinkSync(candidate);
+    } catch {
+      // 解析不了的文件留给 --check 报，不在这里删。
+    }
+  }
+  writeFileSync(path, `${JSON.stringify(preset, null, 2)}\n`, "utf8");
+  return path;
 }
 
 function validateAction(action, label, macroIds, issues) {
@@ -543,41 +749,128 @@ function checkOne(fileName, path) {
   return true;
 }
 
-function runCheck(args) {
-  const base = resolve(REPO_ROOT, "config");
-  const target = args.out ? resolve(process.cwd(), args.out) : base;
-  const isFile = /\.[jt]s$|\.json$/i.test(target) && !target.endsWith("\\") && !target.endsWith("/");
-  let files;
-  if (isFile) {
-    const fileName = target.split(/[\\/]/).pop();
-    if (!CATALOGS[fileName]) {
-      fail(`--out 指向的文件名不认识：${fileName}（可选：${Object.keys(CATALOGS).join(" / ")}）`);
-    }
-    files = [fileName];
+/** 仓库内模式：源目录 + 聚合一致性 + 其余三个目录文件。 */
+function checkRepository() {
+  let ok = true;
+
+  // 1) 一方案一文件的源目录
+  const { aggregate, issues, files } = readProfileDir(PROFILE_DIR);
+  const dirIssues = [...issues];
+  if (aggregate) dirIssues.push(...validateCatalog(aggregate));
+  if (dirIssues.length > 0) {
+    console.error(`✗ 推荐按键方案源目录（${PROFILE_DIR}）`);
+    for (const issue of dirIssues) console.error(`  - ${issue}`);
+    ok = false;
   } else {
-    files = Object.keys(CATALOGS);
+    console.log(`✓ 推荐按键方案源目录  ${PROFILE_DIR}`);
+    console.log(
+      `  ${files.length} 个文件  bundleVersion=${aggregate.bundleVersion}  型号=${
+        summarizeModels(aggregate) || "-"
+      }`,
+    );
+    for (const fileName of files) console.log(`    · ${fileName}`);
   }
 
-  console.log(`校验配置目录：${isFile ? target : target}\n`);
-  let ok = true;
-  for (const fileName of files) {
-    const path = isFile ? target : resolve(target, fileName);
+  // 2) 聚合文件必须与目录一致（改了目录忘记 --build 时在这里拦住）
+  const drift = describeAggregateDrift(PROFILE_DIR, DEFAULT_CATALOG);
+  if (drift.length > 0) {
+    console.error(`✗ 推荐按键方案聚合文件（${DEFAULT_CATALOG}）`);
+    for (const issue of drift) console.error(`  - ${issue}`);
+    ok = false;
+  } else {
+    console.log(`✓ 推荐按键方案聚合文件  ${DEFAULT_CATALOG}`);
+    console.log(`  与源目录一致  方案数=${aggregate?.profiles.length ?? 0}`);
+  }
+
+  // 3) 其余三个目录文件（button-profiles 已由上面两步覆盖）
+  for (const fileName of Object.keys(CATALOGS)) {
+    if (fileName === "button-profiles.json") continue;
+    const path = resolve(CONFIG_DIR, fileName);
     if (!existsSync(path)) {
-      // 已安装的目录里可能缺文件（旧版本安装包），缺文件本身不会让程序崩溃，
-      // 只提示一句，不算失败。
       console.log(`· ${CATALOGS[fileName].label}  ${path}（不存在，跳过）`);
       continue;
     }
     if (!checkOne(fileName, path)) ok = false;
   }
+  return ok;
+}
 
-  if (!ok) {
+function summarizeModels(catalog) {
+  const models = new Set();
+  for (const preset of catalog?.profiles ?? []) {
+    const list = Array.isArray(preset?.compatibleModels) ? preset.compatibleModels : [];
+    if (list.length === 0) models.add("通用");
+    else list.forEach((model) => models.add(model));
+  }
+  return [...models].join(" / ");
+}
+
+/** 已安装目录模式：只校验产物本身（没有源目录）。 */
+function checkInstalled(target) {
+  const isFile = /\.[jt]s$|\.json$/i.test(target) && !target.endsWith("\\") && !target.endsWith("/");
+  const fileNameOf = (path) => path.split(/[\\/]/).pop();
+  const files = isFile ? [fileNameOf(target)] : Object.keys(CATALOGS);
+  let ok = true;
+  for (const fileName of files) {
+    const path = isFile ? target : resolve(target, fileName);
+    if (!CATALOGS[fileName]) {
+      fail(`不认识的文件名：${fileName}（可选：${Object.keys(CATALOGS).join(" / ")}）`);
+    }
+    if (!existsSync(path)) {
+      console.log(`· ${CATALOGS[fileName].label}  ${path}（不存在，跳过）`);
+      continue;
+    }
+    if (!checkOne(fileName, path)) ok = false;
+  }
+  return ok;
+}
+
+function runCheck(args) {
+  // --out 指向已安装目录/文件时只校验产物；否则是仓库内模式。
+  if (args.out) {
+    const target = resolve(process.cwd(), args.out);
+    console.log(`校验配置文件：${target}\n`);
+    if (!checkInstalled(target)) {
+      console.error(
+        "\n任意一条不合规都会让桌面端拒绝整份目录并回退到内嵌副本，界面上看是「配置没更新」。",
+      );
+      process.exit(1);
+    }
+    console.log("\n全部通过。");
+    return;
+  }
+
+  console.log(`校验配置：${CONFIG_DIR}\n`);
+  if (!checkRepository()) {
     console.error(
-      "\n任意一条不合规都会让桌面端拒绝整份目录并回退到内嵌副本，界面上看是「配置没更新」。",
+      "\n修复后重跑。源目录改完记得 `pnpm config:build`；任何一条不合规都会让桌面端" +
+        "拒绝整份目录并回退到内嵌副本，界面上看是「配置没更新」。",
     );
     process.exit(1);
   }
   console.log("\n全部通过。");
+}
+
+function runBuild(args) {
+  const dir = args.dir ? resolve(process.cwd(), args.dir) : PROFILE_DIR;
+  const out = args.out ? resolve(process.cwd(), args.out) : DEFAULT_CATALOG;
+  const { aggregate, formatted } = buildFromDir(dir, out, { dryRun: args.dryRun });
+  const count = aggregate.profiles.length;
+  if (args.dryRun) {
+    console.log(`--dry-run：${dir} → ${out}（${count} 条方案，未写盘）`);
+    console.log(serializeAggregate(aggregate));
+    return;
+  }
+  console.log(`✓ 已生成 ${out}`);
+  console.log(
+    `  方案数=${count} bundleVersion=${aggregate.bundleVersion} 型号=${
+      summarizeModels(aggregate) || "-"
+    }`,
+  );
+  console.log("  运行时与安装包读取的是这个聚合文件（由 include_str! 内嵌兜底）。");
+  if (!formatted) {
+    console.log("  提示：没找到 prettier，聚合文件未排版；跑一次 `pnpm config:build` 可格式化。");
+  }
 }
 
 
@@ -602,48 +895,100 @@ function runConvert(args) {
   }
   const preset = buildPreset(source, args);
 
-  const target = args.out ? resolve(process.cwd(), args.out) : DEFAULT_CATALOG;
-  const catalog = existsSync(target)
-    ? readJsonFile(target, "推荐方案目录")
-    : { schemaVersion: 1, bundleVersion: "1", profiles: [] };
-  if (!Array.isArray(catalog.profiles)) catalog.profiles = [];
-  catalog.schemaVersion = 1;
-  catalog.bundleVersion =
-    args.bundleVersion ?? (args.bump ? bumpVersion(catalog.bundleVersion) : catalog.bundleVersion);
+  const dir = args.dir ? resolve(process.cwd(), args.dir) : PROFILE_DIR;
 
-  const existingIndex = catalog.profiles.findIndex((item) => item?.id === preset.id);
-  const replaced = existingIndex >= 0;
-  if (replaced) catalog.profiles[existingIndex] = preset;
-  else catalog.profiles.push(preset);
+  // --out：只把聚合结果写到指定文件（已安装机器），不动源目录。
+  if (args.out) {
+    const target = resolve(process.cwd(), args.out);
+    const catalog = existsSync(target)
+      ? readJsonFile(target, "推荐方案目录")
+      : { schemaVersion: 1, bundleVersion: "1", profiles: [] };
+    if (!Array.isArray(catalog.profiles)) catalog.profiles = [];
+    catalog.schemaVersion = 1;
+    catalog.bundleVersion =
+      args.bundleVersion ?? (args.bump ? bumpVersion(catalog.bundleVersion) : catalog.bundleVersion);
+    const existingIndex = catalog.profiles.findIndex((item) => item?.id === preset.id);
+    const replaced = existingIndex >= 0;
+    if (replaced) catalog.profiles[existingIndex] = preset;
+    else catalog.profiles.push(preset);
 
-  const issues = validateCatalog(catalog);
-  if (issues.length > 0) {
-    console.error("✗ 转换后的目录不合法，未写盘：");
-    for (const issue of issues) console.error(`  - ${issue}`);
-    process.exit(1);
+    const issues = validateCatalog(catalog);
+    if (issues.length > 0) {
+      console.error("✗ 转换后的目录不合法，未写盘：");
+      for (const issue of issues) console.error(`  - ${issue}`);
+      process.exit(1);
+    }
+    reportPreset(preset, catalog.bundleVersion, replaced);
+    if (args.dryRun) {
+      console.log("\n--dry-run：未写盘，下面是将要写入的条目：");
+      console.log(JSON.stringify(preset, null, 2));
+      return;
+    }
+    writeFileSync(target, serializeAggregate(catalog), "utf8");
+    formatAggregate(target);
+    console.log(`\n已写入 ${target}`);
+    console.log("重启应用即可生效。");
+    return;
   }
 
-  console.log(`${replaced ? "已替换" : "已新增"}推荐方案：${preset.name}（${preset.id}）`);
-  console.log(`  适配型号：${preset.compatibleModels.length ? preset.compatibleModels.join(" / ") : "通用"}`);
-  console.log(`  绑定按键：${Object.keys(preset.bindings).join(" / ") || "（空）"}`);
-  console.log(`  应用目标：${preset.appTargets.join(" / ") || "（无，仅手动复制使用）"}`);
-  console.log(`  自动应用：${preset.autoApply ? "是" : "否"}`);
-  console.log(`  bundleVersion：${catalog.bundleVersion}（改过之后用户在按键页会看到「有更新」）`);
+  // 默认：写进一方案一文件的源目录，再重建聚合文件。
+  const manifestPath = resolve(dir, DIR_MANIFEST);
+  const manifest = existsSync(manifestPath)
+    ? readJsonFile(manifestPath, "源目录清单")
+    : { schemaVersion: 1, bundleVersion: "1" };
+  const existingFiles = listProfileFiles(dir);
+  let replaced = false;
+  for (const fileName of existingFiles) {
+    try {
+      const existing = JSON.parse(
+        readFileSync(resolve(dir, fileName), "utf8").replace(/^\uFEFF/, ""),
+      );
+      if (existing?.id === preset.id) replaced = true;
+    } catch {
+      // 坏文件留给 --check 报。
+    }
+  }
+  const nextVersion =
+    args.bundleVersion ?? (args.bump ? bumpVersion(manifest.bundleVersion) : manifest.bundleVersion);
 
   if (args.dryRun) {
-    console.log("\n--dry-run：未写盘，下面是将要写入的条目：");
+    reportPreset(preset, nextVersion, replaced);
+    console.log(`\n--dry-run：将写入 ${resolve(dir, `${preset.id}.json`)} 并重建聚合文件，未写盘。`);
     console.log(JSON.stringify(preset, null, 2));
     return;
   }
-  writeCatalog(target, catalog);
-  console.log(`\n已写入 ${target}`);
-  console.log("重新构建安装包，或直接改安装目录里的 resources/config/button-profiles.json 后重启应用即可生效。");
+
+  const presetPath = writeProfileFile(dir, preset);
+  manifest.schemaVersion = manifest.schemaVersion ?? 1;
+  manifest.bundleVersion = nextVersion;
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+
+  reportPreset(preset, nextVersion, replaced);
+  console.log(`\n已写入 ${presetPath}`);
+  buildFromDir(dir, DEFAULT_CATALOG);
+  console.log(`已重建聚合文件 ${DEFAULT_CATALOG}`);
+  console.log("\n检查一遍：pnpm config:check");
+}
+
+function reportPreset(preset, bundleVersion, replaced) {
+  console.log(`${replaced ? "已替换" : "已新增"}推荐方案：${preset.name}（${preset.id}）`);
+  console.log(
+    `  适配型号：${preset.compatibleModels.length ? preset.compatibleModels.join(" / ") : "通用"}`,
+  );
+  console.log(`  绑定按键：${Object.keys(preset.bindings).join(" / ") || "（空）"}`);
+  console.log(`  应用目标：${preset.appTargets.join(" / ") || "（无，仅手动复制使用）"}`);
+  console.log(`  自动应用：${preset.autoApply ? "是" : "否"}`);
+  console.log(`  bundleVersion：${bundleVersion}（改过之后用户在按键页会看到「有更新」）`);
 }
 
 function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
     console.log(USAGE);
+    return;
+  }
+  if (args.build) {
+    runBuild(args);
     return;
   }
   if (args.check) {

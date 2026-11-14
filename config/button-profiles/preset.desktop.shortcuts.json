@@ -1,0 +1,24 @@
+{
+  "id": "preset.desktop.shortcuts",
+  "name": "桌面快捷键",
+  "deviceModel": null,
+  "compatibleModels": [],
+  "appTargets": [],
+  "autoApply": false,
+  "bindings": {
+    "home": {
+      "single": {
+        "type": "shortcut",
+        "label": "资源管理器",
+        "keys": ["left_windows", "e"]
+      }
+    },
+    "menu": {
+      "single": {
+        "type": "shortcut",
+        "label": "任务视图",
+        "keys": ["left_windows", "tab"]
+      }
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "id": "preset.netease.controls",
+  "name": "网易云音乐按键",
+  "deviceModel": null,
+  "compatibleModels": ["RC003"],
+  "appTargets": ["netease_music"],
+  "autoApply": true,
+  "holdRepeat": "long",
+  "bindings": {
+    "up": {
+      "single": {
+        "type": "shortcut",
+        "label": "音量 +",
+        "keys": ["volume_up"]
+      }
+    },
+    "down": {
+      "single": {
+        "type": "shortcut",
+        "label": "音量 -",
+        "keys": ["volume_down"]
+      }
+    },
+    "ok": {
+      "single": {
+        "type": "mouse",
+        "kind": "click",
+        "direction": null,
+        "amount": 1
+      }
+    }
+  }
+}
