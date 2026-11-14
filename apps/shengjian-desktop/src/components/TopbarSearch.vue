@@ -107,14 +107,14 @@ defineExpose({ open });
       ref="toggleRef"
       type="button"
       class="topbar-search-toggle"
-      :aria-label="trDynamic('搜索命令或页面')"
-      :title="trDynamic('搜索命令或页面')"
+      :aria-label="trDynamic('搜索页面和命令')"
+      :title="trDynamic('搜索页面和命令')"
       aria-keyshortcuts="Control+K Meta+K"
       :aria-expanded="false"
       @click="open"
     >
       <Search :size="14" aria-hidden="true" />
-      <span class="topbar-search-hint">{{ tr("按 Ctrl+K") }}</span>
+      <span class="topbar-search-hint">{{ tr("搜索页面和命令") }}</span>
       <kbd class="topbar-search-kbd">Ctrl K</kbd>
     </button>
 
@@ -131,7 +131,7 @@ defineExpose({ open });
           aria-haspopup="listbox"
           aria-controls="topbar-search-results"
           :aria-activedescendant="activeDescendant"
-          :aria-label="trDynamic('搜索命令或页面')"
+          :aria-label="trDynamic('搜索页面和命令')"
           :placeholder="trDynamic('搜索命令或页面…')"
           @keydown="onKeydown"
         />
