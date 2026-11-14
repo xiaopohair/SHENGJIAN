@@ -18,22 +18,30 @@ import {
   saveMacroLibrary,
 } from "../lib/api";
 import { tr } from "../lib/i18n";
-import { libraryWithMacros, macroFileStems, mergeMacroLibraries } from "../lib/macroTransfer";
+import {
+  buildMacroImportRows,
+  collectIncomingMacros,
+  composeMacroImportDocument,
+  libraryWithMacros,
+  localOnlyMacros,
+  macroFileStems,
+  macroImportCounts,
+  resolveMacroImportRows,
+  type MacroImportCounts,
+  type MacroImportMode,
+  type MacroImportPolicy,
+} from "../lib/macroTransfer";
 import type { MacroDefinition, MacroLibraryDocument } from "../lib/types";
 import Button from "./ui/Button.vue";
 import IconButton from "./ui/IconButton.vue";
-import Notice from "./ui/Notice.vue";
 import TransferProgress from "./ui/TransferProgress.vue";
 
 /**
- * 宏库导入/导出面板（单文件或多文件）。
+ * 宏库导入/导出面板，和「按键方案 → 导入与导出」保持同一套骨架与手势。
  *
- * 视觉与「按键方案 → 导入与导出」弹窗（`ProfileTransferDialog`）保持同一套：
- * 头部徽标 + 标题说明、方向分段控件 + 右侧提示、正文列表 / 忙碌层 / 结果面板、
- * 页脚目的地 + 汇总 + 操作按钮。
- *
- * 单文件 = 一个 JSON = 整个（或选中的）宏库，一次读写（不定态）；
- * 多文件 = 每个宏一个 JSON，按条读写（真进度）；导入按 `macroId` + `version` 合并。
+ * 导出：挑宏 → 单文件 / 多文件 → 写盘（多文件按条报进度）。
+ * 导入：先选文件 → 预检逐条对比（新增 / 更新 / 相同）→ 选合并或整库替换、
+ * 同 ID 新版本覆盖还是保留 → 落地 → 可撤销。
  */
 const props = defineProps<{
   open: boolean;
@@ -50,6 +58,24 @@ type Direction = "export" | "import";
 type Format = "single" | "multi";
 type Stage = "form" | "busy" | "done" | "error";
 
+interface ImportFile {
+  path: string;
+  name: string;
+  document: MacroLibraryDocument;
+}
+
+type TransferResult =
+  | { kind: "export"; count: number; path: string; single: boolean }
+  | {
+      kind: "import";
+      count: number;
+      counts: MacroImportCounts;
+      /** 整库替换时被删掉的本机宏名字，结果页要逐条列出来。 */
+      dropped: string[];
+      mode: MacroImportMode;
+      path: string;
+    };
+
 const dialogRef = useTemplateRef<HTMLElement>("dialogRef");
 const direction = ref<Direction>("export");
 const format = ref<Format>("single");
@@ -57,28 +83,69 @@ const stage = ref<Stage>("form");
 const busyLabel = ref("");
 const progress = ref<{ done: number; total: number } | null>(null);
 const failure = shallowRef<string | null>(null);
-const appliedCount = shallowRef(0);
-const mergedCounts = ref({ added: 0, updated: 0, skipped: 0 });
-const resultPath = shallowRef("");
+const result = shallowRef<TransferResult | null>(null);
+
+const pickedIds = ref<string[]>([]);
+const importFiles = shallowRef<ImportFile[]>([]);
+const importMode = ref<MacroImportMode>("merge");
+const importPolicy = ref<MacroImportPolicy>("overwrite");
+const rowOverrides = ref<Record<string, MacroImportPolicy>>({});
+/** 导入前的库快照：撤销时原样写回去。 */
+const previousDocument = shallowRef<MacroLibraryDocument | null>(null);
 
 const macros = computed(() => props.document?.definitions ?? []);
-const pickedIds = ref<string[]>([]);
 const picked = computed<MacroDefinition[]>(() =>
   macros.value.filter((macro) => pickedIds.value.includes(macro.macroId)),
 );
-const canSubmit = computed(() => direction.value === "import" || picked.value.length > 0);
+
+const incoming = computed(() =>
+  collectIncomingMacros(importFiles.value.map((file) => file.document)),
+);
+const incomingFormatVersion = computed(() => {
+  const versions = importFiles.value.map((file) => file.document.formatVersion);
+  return versions.length ? Math.max(...versions) : 1;
+});
+const importRows = computed(() => buildMacroImportRows(incoming.value, macros.value));
+const resolvedRows = computed(() =>
+  resolveMacroImportRows(importRows.value, importPolicy.value, rowOverrides.value),
+);
+const counts = computed(() => macroImportCounts(resolvedRows.value));
+const droppedMacros = computed(() =>
+  importMode.value === "replace" ? localOnlyMacros(macros.value, incoming.value) : [],
+);
+
+/** 单文件才提供「整库替换」；多文件是逐条合并，没有替换语义。 */
+const effectiveMode = computed<MacroImportMode>(() =>
+  format.value === "single" ? importMode.value : "merge",
+);
+const pendingCount = computed(() =>
+  effectiveMode.value === "replace"
+    ? importRows.value.length
+    : counts.value.added + counts.value.updated,
+);
+
+const canSubmit = computed(() => {
+  if (stage.value === "busy") return false;
+  if (direction.value === "export") return picked.value.length > 0;
+  return importFiles.value.length > 0;
+});
 
 let previousFocus: HTMLElement | null = null;
 
 function resetState() {
+  direction.value = "export";
+  format.value = "single";
   stage.value = "form";
   busyLabel.value = "";
   progress.value = null;
   failure.value = null;
-  resultPath.value = "";
-  appliedCount.value = 0;
-  mergedCounts.value = { added: 0, updated: 0, skipped: 0 };
+  result.value = null;
   pickedIds.value = macros.value.map((macro) => macro.macroId);
+  importFiles.value = [];
+  importMode.value = "merge";
+  importPolicy.value = "overwrite";
+  rowOverrides.value = {};
+  previousDocument.value = null;
 }
 
 function beginBusy(label: string, total: number | null = null) {
@@ -105,11 +172,20 @@ function toggleAll() {
       : macros.value.map((macro) => macro.macroId);
 }
 
+function fileNameOf(path: string): string {
+  return path.split(/[\\/]/).pop() ?? path;
+}
+
+function setRowPolicy(macroId: string, policy: MacroImportPolicy) {
+  rowOverrides.value = { ...rowOverrides.value, [macroId]: policy };
+}
+
 async function runExport() {
   const document = props.document;
   if (!document || picked.value.length === 0) return;
-  try {
-    if (format.value === "single") {
+
+  if (format.value === "single") {
+    try {
       const path = await save({
         defaultPath: `${tr("宏库")}.json`,
         filters: [{ name: "JSON", extensions: ["json"] }],
@@ -117,12 +193,15 @@ async function runExport() {
       if (!path) return;
       beginBusy(tr("正在导出…"));
       await exportMacroLibrary(path, libraryWithMacros(document, picked.value));
-      appliedCount.value = picked.value.length;
-      resultPath.value = path;
+      result.value = { kind: "export", count: picked.value.length, path, single: true };
       stage.value = "done";
-      return;
+    } catch (cause) {
+      failWith(cause);
     }
+    return;
+  }
 
+  try {
     const directory = await openDialog({ directory: true, multiple: false });
     if (!directory || Array.isArray(directory)) return;
     beginBusy(tr("正在导出…"), picked.value.length);
@@ -134,57 +213,61 @@ async function runExport() {
       );
       if (progress.value) progress.value = { done: index + 1, total: picked.value.length };
     }
-    appliedCount.value = picked.value.length;
-    resultPath.value = directory;
+    result.value = { kind: "export", count: picked.value.length, path: directory, single: false };
     stage.value = "done";
   } catch (cause) {
     failWith(cause);
   }
 }
 
-async function runImport() {
-  const current = props.document;
-  if (!current) return;
+async function chooseImportFiles() {
   try {
-    if (format.value === "single") {
-      const path = await openDialog({
-        multiple: false,
-        filters: [{ name: "JSON", extensions: ["json"] }],
-      });
-      if (!path || Array.isArray(path)) return;
-      beginBusy(tr("正在导入…"));
-      const imported = await previewImportMacroLibrary(path);
-      const saved = await saveMacroLibrary(imported);
-      appliedCount.value = saved.definitions.length;
-      resultPath.value = path;
-      emit("applied", saved);
-      stage.value = "done";
-      return;
-    }
-
     const paths = await openDialog({
-      multiple: true,
+      multiple: format.value === "multi",
       filters: [{ name: "JSON", extensions: ["json"] }],
     });
     if (!paths) return;
     const list = Array.isArray(paths) ? paths : [paths];
     if (list.length === 0) return;
 
-    beginBusy(tr("正在导入…"), list.length);
-    let merged = current;
-    const counts = { added: 0, updated: 0, skipped: 0 };
+    beginBusy(tr("正在读取文件…"), list.length);
+    const files: ImportFile[] = [];
     for (const [index, path] of list.entries()) {
-      const imported = await previewImportMacroLibrary(path);
-      const step = mergeMacroLibraries(merged, imported);
-      merged = step.document;
-      counts.added += step.added;
-      counts.updated += step.updated;
-      counts.skipped += step.skipped;
+      files.push({ path, name: fileNameOf(path), document: await previewImportMacroLibrary(path) });
       if (progress.value) progress.value = { done: index + 1, total: list.length };
     }
-    const saved = await saveMacroLibrary(merged);
-    mergedCounts.value = counts;
-    appliedCount.value = counts.added + counts.updated + counts.skipped;
+    importFiles.value = files;
+    rowOverrides.value = {};
+    stage.value = "form";
+  } catch (cause) {
+    failWith(cause);
+  }
+}
+
+async function applyImport() {
+  const current = props.document;
+  if (!current || importFiles.value.length === 0) return;
+  const mode = effectiveMode.value;
+  const next = composeMacroImportDocument(
+    current,
+    resolvedRows.value,
+    mode,
+    incomingFormatVersion.value,
+  );
+
+  try {
+    beginBusy(tr("正在导入…"));
+    const saved = await saveMacroLibrary(next);
+    previousDocument.value = current;
+    result.value = {
+      kind: "import",
+      count:
+        mode === "replace" ? importRows.value.length : counts.value.added + counts.value.updated,
+      counts: { ...counts.value },
+      dropped: droppedMacros.value.map((macro) => macro.name),
+      mode,
+      path: importFiles.value.map((file) => file.name).join("、"),
+    };
     emit("applied", saved);
     stage.value = "done";
   } catch (cause) {
@@ -192,11 +275,27 @@ async function runImport() {
   }
 }
 
+async function undoImport() {
+  if (!previousDocument.value) return;
+  const restore = previousDocument.value;
+  try {
+    beginBusy(tr("正在撤销…"));
+    const saved = await saveMacroLibrary(restore);
+    previousDocument.value = null;
+    result.value = null;
+    emit("applied", saved);
+    stage.value = "form";
+  } catch (cause) {
+    failWith(cause);
+  }
+}
+
 function submit() {
-  if (stage.value === "busy" || !canSubmit.value) return;
+  if (!canSubmit.value) return;
   failure.value = null;
   if (direction.value === "export") void runExport();
-  else void runImport();
+  else if (importFiles.value.length) void applyImport();
+  else void chooseImportFiles();
 }
 
 function setDirection(next: Direction) {
@@ -216,22 +315,58 @@ function onKeydown(event: KeyboardEvent) {
     event.preventDefault();
     event.stopPropagation();
     close();
+    return;
   }
+  if (event.key !== "Enter") return;
+  const target = event.target as HTMLElement | null;
+  if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+  if (stage.value !== "form") return;
+  event.preventDefault();
+  submit();
 }
 
 const resultTitle = computed(() => {
-  if (direction.value === "export") return tr("已导出 {count} 个宏", { count: appliedCount.value });
-  return tr("已导入 {count} 个宏", { count: appliedCount.value });
+  const value = result.value;
+  if (!value) return "";
+  return value.kind === "export"
+    ? tr("已导出 {count} 个宏", { count: value.count })
+    : tr("已导入 {count} 个宏", { count: value.count });
 });
 
 const resultCopy = computed(() => {
-  if (direction.value === "export") {
-    return format.value === "single"
+  const value = result.value;
+  if (!value) return "";
+  if (value.kind === "export") {
+    return value.single
       ? tr("已写出 1 个文件")
-      : tr("已写出 {count} 个文件", { count: appliedCount.value });
+      : tr("已写出 {count} 个文件", { count: value.count });
   }
-  if (format.value === "single") return tr("整库已替换");
-  return tr("新增 {added} · 更新 {updated} · 跳过 {skipped}", mergedCounts.value);
+  const parts: string[] = [];
+  if (value.mode === "replace") {
+    parts.push(tr("整库已替换"));
+    if (value.dropped.length) parts.push(tr("删除 {count} 个", { count: value.dropped.length }));
+  } else {
+    if (value.counts.added) parts.push(tr("新增 {count}", { count: value.counts.added }));
+    if (value.counts.updated) parts.push(tr("更新 {count}", { count: value.counts.updated }));
+    if (value.counts.kept) parts.push(tr("保留 {count}", { count: value.counts.kept }));
+    if (value.counts.same) parts.push(tr("相同 {count}", { count: value.counts.same }));
+  }
+  return parts.join(" · ");
+});
+
+/** 结果页里要列出来的「被删掉的本机宏」。 */
+const droppedNames = computed(() => {
+  const value = result.value;
+  return value && value.kind === "import" ? value.dropped : [];
+});
+
+const importSummary = computed(() => {
+  const parts: string[] = [];
+  if (counts.value.added) parts.push(tr("新增 {count}", { count: counts.value.added }));
+  if (counts.value.updated) parts.push(tr("更新 {count}", { count: counts.value.updated }));
+  if (counts.value.kept) parts.push(tr("保留 {count}", { count: counts.value.kept }));
+  if (counts.value.same) parts.push(tr("相同 {count}", { count: counts.value.same }));
+  return parts.join(" · ");
 });
 
 watch(
@@ -249,7 +384,12 @@ watch(
       previousFocus = null;
     }
   },
+  { immediate: true },
 );
+
+watch(format, (value) => {
+  if (value !== "single") importMode.value = "merge";
+});
 
 onUnmounted(() => {
   window.removeEventListener("keydown", onKeydown, true);
@@ -322,15 +462,29 @@ onUnmounted(() => {
               <template v-if="stage === 'error'">
                 <h3 class="result-title">{{ tr("操作失败，请重试") }}</h3>
                 <p class="result-copy">{{ failure }}</p>
+                <div class="result-actions">
+                  <Button size="sm" variant="primary" @click="close">{{ tr("知道了") }}</Button>
+                </div>
               </template>
               <template v-else>
                 <h3 class="result-title">{{ resultTitle }}</h3>
                 <p class="result-copy">{{ resultCopy }}</p>
-                <p v-if="resultPath" class="result-path" :title="resultPath">{{ resultPath }}</p>
+                <p v-if="result?.path" class="result-path" :title="result.path">
+                  {{ result.path }}
+                </p>
+                <div v-if="droppedNames.length" class="result-dropped">
+                  <p class="result-dropped-label">{{ tr("被删掉的本机宏") }}</p>
+                  <ul class="dropped-list">
+                    <li v-for="name in droppedNames" :key="name">{{ name }}</li>
+                  </ul>
+                </div>
+                <div class="result-actions">
+                  <Button v-if="previousDocument" size="sm" @click="undoImport">
+                    {{ tr("撤销导入") }}
+                  </Button>
+                  <Button size="sm" variant="primary" @click="close">{{ tr("知道了") }}</Button>
+                </div>
               </template>
-              <div class="result-actions">
-                <Button size="sm" variant="primary" @click="close">{{ tr("知道了") }}</Button>
-              </div>
             </div>
           </template>
 
@@ -347,15 +501,20 @@ onUnmounted(() => {
                       </button>
                     </div>
                   </div>
-                  <ul class="macro-rows">
+                  <ul
+                    class="macro-rows"
+                    role="listbox"
+                    aria-multiselectable="true"
+                    :aria-label="tr('选择要导出的宏')"
+                  >
                     <li
                       v-for="macro in macros"
                       :key="macro.macroId"
                       class="macro-row"
                       :class="{ selected: pickedIds.includes(macro.macroId) }"
                       tabindex="0"
-                      role="checkbox"
-                      :aria-checked="pickedIds.includes(macro.macroId)"
+                      role="option"
+                      :aria-selected="pickedIds.includes(macro.macroId)"
                       @click="togglePick(macro.macroId)"
                       @keydown.enter.prevent="togglePick(macro.macroId)"
                       @keydown.space.prevent="togglePick(macro.macroId)"
@@ -372,20 +531,94 @@ onUnmounted(() => {
                 </template>
 
                 <template v-else>
-                  <div class="pane-head">
-                    <p class="pane-label">{{ tr("本机宏库") }}</p>
-                    <span class="pane-count">{{ macros.length }} {{ tr("个宏") }}</span>
+                  <div v-if="!importFiles.length" class="pane-head">
+                    <p class="pane-label">{{ tr("导入") }}</p>
                   </div>
-                  <div class="import-hint">
-                    <Notice v-if="format === 'single'" kind="warning">
-                      {{ tr("单文件导入会整库替换当前宏库。") }}
-                    </Notice>
-                    <Notice v-else kind="info">
+
+                  <button
+                    v-if="!importFiles.length"
+                    type="button"
+                    class="drop-zone"
+                    @click="chooseImportFiles"
+                  >
+                    <span class="drop-icon"><Upload :size="20" aria-hidden="true" /></span>
+                    <strong>
                       {{
-                        tr("多文件导入会按宏合并：同 ID 同版本跳过，同 ID 新版本覆盖，新 ID 追加。")
+                        format === "single" ? tr("选择一个宏库文件") : tr("选择宏文件（可多选）")
                       }}
-                    </Notice>
-                  </div>
+                    </strong>
+                    <span class="drop-hint">{{ tr("支持 .json；单个宏文件也是合法的库。") }}</span>
+                  </button>
+
+                  <template v-else>
+                    <div v-for="file in importFiles" :key="file.path" class="file-card">
+                      <span class="file-icon"><FileJson :size="16" aria-hidden="true" /></span>
+                      <span class="file-copy">
+                        <span class="file-name" :title="file.path">{{ file.name }}</span>
+                        <span class="file-meta">
+                          {{ tr("{count} 个宏", { count: file.document.definitions.length }) }}
+                        </span>
+                      </span>
+                    </div>
+
+                    <div class="pane-head">
+                      <p class="pane-label">{{ tr("将导入") }}</p>
+                      <span class="pane-count">{{ importRows.length }} {{ tr("个宏") }}</span>
+                    </div>
+
+                    <ul class="macro-rows">
+                      <li
+                        v-for="row in resolvedRows"
+                        :key="row.macro.macroId"
+                        class="macro-row import-row"
+                      >
+                        <span class="status-chip" :class="`status-${row.status}`">
+                          {{
+                            row.status === "new"
+                              ? tr("新增")
+                              : row.status === "update"
+                                ? tr("更新")
+                                : tr("相同")
+                          }}
+                        </span>
+                        <span class="row-main">
+                          <span class="row-name">{{ row.macro.name }}</span>
+                          <span class="row-meta">
+                            {{ tr("{count} 步", { count: row.macro.steps.length }) }} · v{{
+                              row.macro.version
+                            }}
+                            <template
+                              v-if="row.localVersion && row.localVersion !== row.macro.version"
+                            >
+                              （{{ tr("本机 v{version}", { version: row.localVersion }) }}）
+                            </template>
+                          </span>
+                        </span>
+                        <span class="row-side">
+                          <span
+                            v-if="row.status === 'update' && effectiveMode === 'merge'"
+                            class="mini-segment"
+                            role="group"
+                          >
+                            <button
+                              type="button"
+                              :aria-pressed="row.action === 'overwrite'"
+                              @click="setRowPolicy(row.macro.macroId, 'overwrite')"
+                            >
+                              {{ tr("覆盖") }}
+                            </button>
+                            <button
+                              type="button"
+                              :aria-pressed="row.action === 'skip'"
+                              @click="setRowPolicy(row.macro.macroId, 'keep')"
+                            >
+                              {{ tr("保留本机") }}
+                            </button>
+                          </span>
+                        </span>
+                      </li>
+                    </ul>
+                  </template>
                 </template>
               </div>
 
@@ -419,7 +652,78 @@ onUnmounted(() => {
                     <span class="format-hint">{{ tr("每个宏一个 JSON，按条推进") }}</span>
                   </button>
                 </div>
-                <p class="option-note">
+
+                <template v-if="direction === 'import'">
+                  <template v-if="importFiles.length">
+                    <p class="pane-label is-spaced">{{ tr("导入方式") }}</p>
+                    <div v-if="format === 'single'" class="option-seg" role="radiogroup">
+                      <button
+                        type="button"
+                        role="radio"
+                        :aria-pressed="importMode === 'merge'"
+                        @click="importMode = 'merge'"
+                      >
+                        {{ tr("合并进本机") }}
+                      </button>
+                      <button
+                        type="button"
+                        role="radio"
+                        :aria-pressed="importMode === 'replace'"
+                        @click="importMode = 'replace'"
+                      >
+                        {{ tr("替换整库") }}
+                      </button>
+                    </div>
+                    <p v-if="format === 'single'" class="option-note">
+                      {{ importMode === "merge" ? tr("保留本机独有的宏") : tr("库变成文件内容") }}
+                    </p>
+                    <p v-else class="option-note">
+                      {{ tr("多文件导入按宏合并，不会删除本机宏。") }}
+                    </p>
+
+                    <p
+                      v-if="effectiveMode === 'replace' && droppedMacros.length"
+                      class="option-warning"
+                    >
+                      <TriangleAlert :size="13" aria-hidden="true" />
+                      <span>
+                        {{ tr("会删除 {count} 个本机独有的宏。", { count: droppedMacros.length }) }}
+                      </span>
+                    </p>
+
+                    <p class="pane-label is-spaced">{{ tr("遇到版本不同的同名宏") }}</p>
+                    <div class="option-seg" role="radiogroup">
+                      <button
+                        type="button"
+                        role="radio"
+                        :aria-pressed="importPolicy === 'overwrite'"
+                        @click="importPolicy = 'overwrite'"
+                      >
+                        {{ tr("用文件里的版本") }}
+                      </button>
+                      <button
+                        type="button"
+                        role="radio"
+                        :aria-pressed="importPolicy === 'keep'"
+                        @click="importPolicy = 'keep'"
+                      >
+                        {{ tr("保留本机版本") }}
+                      </button>
+                    </div>
+                    <p class="option-note">
+                      {{
+                        importPolicy === "overwrite"
+                          ? tr("同 ID 覆盖本机")
+                          : tr("同 ID 时跳过文件里的")
+                      }}
+                    </p>
+                  </template>
+                  <p v-else class="option-note">
+                    {{ tr("先选文件，读到内容后再决定怎么合并。") }}
+                  </p>
+                </template>
+
+                <p v-else class="option-note">
                   {{
                     format === "single"
                       ? tr("一个 JSON，适合整库备份与迁移。")
@@ -456,12 +760,28 @@ onUnmounted(() => {
               <b>{{ picked.length }}</b>
               {{ tr("个宏") }} · {{ format === "single" ? tr("单文件") : tr("多文件") }}
             </template>
-            <template v-else>{{ format === "single" ? tr("单文件") : tr("多文件") }}</template>
+            <template v-else-if="importFiles.length">
+              {{ tr("将导入 {count} 个宏", { count: pendingCount }) }}
+              <template v-if="importSummary"> · {{ importSummary }}</template>
+            </template>
+            <template v-else>{{ tr("还没有选择文件") }}</template>
           </p>
           <div class="foot-actions">
             <Button size="sm" variant="ghost" @click="close">{{ tr("取消") }}</Button>
-            <Button size="sm" variant="primary" :disabled="!canSubmit" @click="submit">
-              {{ direction === "export" ? tr("开始导出") : tr("开始导入") }}
+            <Button
+              v-if="direction === 'import' && !importFiles.length"
+              size="sm"
+              variant="primary"
+              @click="chooseImportFiles"
+            >
+              {{ tr("选择文件…") }}
+            </Button>
+            <Button v-else size="sm" variant="primary" :disabled="!canSubmit" @click="submit">
+              {{
+                direction === "export"
+                  ? tr("开始导出")
+                  : tr("导入 {count} 个宏", { count: pendingCount })
+              }}
             </Button>
           </div>
         </footer>
@@ -590,7 +910,7 @@ onUnmounted(() => {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
-  min-height: 400px;
+  min-height: 452px;
   border-top: 1px solid var(--border);
   overflow: hidden;
 }
@@ -615,6 +935,7 @@ onUnmounted(() => {
   flex-direction: column;
   gap: var(--space-2);
   min-height: 0;
+  overflow-y: auto;
   border-left: 1px solid var(--border);
   background: color-mix(in srgb, var(--bg-subtle) 55%, transparent);
   padding: var(--space-3) var(--space-4) var(--space-4);
@@ -627,8 +948,22 @@ onUnmounted(() => {
   line-height: 1.6;
 }
 
-.import-hint {
-  padding: 0 var(--space-4);
+.option-warning {
+  display: flex;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--warning) 8%, transparent);
+  padding: 7px 9px;
+  color: var(--warning-text);
+  font-size: var(--text-2xs);
+  line-height: 1.5;
+}
+
+.option-warning svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
 }
 
 .pane-head {
@@ -645,6 +980,10 @@ onUnmounted(() => {
   font-size: var(--text-2xs);
   font-weight: 600;
   letter-spacing: 0.06em;
+}
+
+.pane-label.is-spaced {
+  margin-top: var(--space-3);
 }
 
 .pane-head-actions {
@@ -675,6 +1014,99 @@ onUnmounted(() => {
   background: var(--accent-soft);
 }
 
+.drop-zone {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: var(--space-2) var(--space-4) var(--space-3);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-subtle);
+  padding: var(--space-5);
+  color: var(--text-muted);
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) ease,
+    background var(--duration-fast) ease;
+}
+
+.drop-zone:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.drop-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+}
+
+.drop-zone strong {
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 650;
+}
+
+.drop-hint {
+  font-size: var(--text-2xs);
+  line-height: 1.5;
+}
+
+.file-card {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  margin: 0 var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  padding: 7px 9px;
+}
+
+.file-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--accent);
+}
+
+.file-copy {
+  min-width: 0;
+}
+
+.file-name {
+  display: block;
+  overflow: hidden;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-meta {
+  display: block;
+  margin-top: 1px;
+  color: var(--text-muted);
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+}
+
 .format-seg {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -689,7 +1121,7 @@ onUnmounted(() => {
   align-items: center;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--bg);
+  background: var(--bg-raised);
   padding: 9px 11px;
   color: var(--text-muted);
   font: inherit;
@@ -731,14 +1163,55 @@ onUnmounted(() => {
   color: var(--accent);
 }
 
+.option-seg {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  padding: 3px;
+}
+
+.option-seg button {
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  padding: 6px 8px;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) ease,
+    color var(--duration-fast) ease;
+}
+
+.option-seg button:hover {
+  color: var(--text-secondary);
+}
+
+.option-seg button[aria-pressed="true"] {
+  background: var(--bg-elevated);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--shadow) 22%, transparent),
+    0 0 0 1px var(--border);
+  color: var(--text);
+}
+
 .macro-rows {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
   gap: 1px;
   min-height: 0;
-  margin: 0;
-  padding: 0 var(--space-2) var(--space-2);
+  margin: 0 var(--space-3);
+  /* 列表本体带边框 + 浅底，行与行之间的容器边界一眼可见 */
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  padding: var(--space-1);
   overflow-y: auto;
   list-style: none;
   scrollbar-width: thin;
@@ -753,6 +1226,11 @@ onUnmounted(() => {
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: background var(--duration-fast) ease;
+}
+
+.import-row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  cursor: default;
 }
 
 .macro-row:hover {
@@ -821,6 +1299,82 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
+.row-side {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.row-note {
+  color: var(--text-muted);
+  font-size: var(--text-2xs);
+  white-space: nowrap;
+}
+
+.status-chip {
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.status-new {
+  border-color: color-mix(in srgb, var(--accent) 32%, transparent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.status-update {
+  border-color: color-mix(in srgb, var(--info) 30%, transparent);
+  background: color-mix(in srgb, var(--info) 12%, transparent);
+  color: var(--info-text);
+}
+
+.status-same {
+  border-color: var(--border);
+  background: var(--bg-hover);
+  color: var(--text-muted);
+}
+
+.mini-segment {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--bg-raised);
+}
+
+.mini-segment button {
+  border: 0;
+  border-right: 1px solid var(--border);
+  background: transparent;
+  padding: 3px 7px;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 10.5px;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) ease,
+    color var(--duration-fast) ease;
+}
+
+.mini-segment button:last-child {
+  border-right: 0;
+}
+
+.mini-segment button:hover {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.mini-segment button[aria-pressed="true"] {
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-weight: 600;
+}
+
 .transfer-busy {
   position: absolute;
   inset: 0;
@@ -860,34 +1414,74 @@ onUnmounted(() => {
 }
 
 .result-title {
-  margin: 0;
+  margin: var(--space-2) 0 0;
   color: var(--text);
-  font-size: var(--text-md);
+  font-size: var(--text-lg);
   font-weight: 650;
 }
 
 .result-copy {
   margin: 0;
+  max-width: 460px;
   color: var(--text-muted);
   font-size: var(--text-xs);
   line-height: 1.6;
 }
 
 .result-path {
-  margin: 0;
+  margin: 8px 0 0;
   max-width: 100%;
   overflow: hidden;
-  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  padding: 5px 10px;
+  color: var(--text-secondary);
   font-family: var(--font-mono);
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.result-dropped {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 10px;
+  max-width: 460px;
+}
+
+.result-dropped-label {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-2xs);
+}
+
+.dropped-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  max-height: 96px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.dropped-list li {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--bg-subtle);
+  padding: 1px 7px;
+  color: var(--text-secondary);
+  font-size: var(--text-2xs);
+}
+
 .result-actions {
   display: flex;
   gap: var(--space-2);
-  margin-top: var(--space-2);
+  margin-top: var(--space-4);
 }
 
 .transfer-foot {
@@ -903,6 +1497,7 @@ onUnmounted(() => {
   flex: 0 0 260px;
   align-items: center;
   gap: 6px;
+  max-width: 260px;
   min-width: 0;
   height: 32px;
   border: 1px solid var(--border);

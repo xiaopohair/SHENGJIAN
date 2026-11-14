@@ -126,6 +126,7 @@ const ENGLISH = {
   "整个宏库打包成一个 JSON": "The whole library in one JSON file",
   "每个宏一个 JSON，按条推进": "One JSON per macro, advanced one by one",
   文件个数: "Files",
+  选择要导出的宏: "Select macros to export",
   要导出的宏: "Macros to export",
   "{count} 步": "{count} steps",
   "单文件导入会整库替换当前宏库。": "A single-file import replaces the whole library.",
@@ -1132,6 +1133,36 @@ const ENGLISH = {
 
   "已保存的语音输出设备当前不可用，请重新选择。":
     "The saved voice output device is unavailable; choose another one.",
+
+  // 导入 / 导出（宏页 · 与按键方案同一套）
+  "会删除 {count} 个本机独有的宏。": "This deletes {count} macros that only exist on this PC.",
+  保留本机: "Keep local",
+  保留本机版本: "Keep the local version",
+  保留本机独有的宏: "Keeps macros that only exist here",
+  "先选文件，读到内容后再决定怎么合并。": "Pick a file first; decide the merge once it is read.",
+  "删除 {count} 个": "deleted {count}",
+  合并进本机: "Merge into this PC",
+  "同 ID 时跳过文件里的": "Skip the file's copy for the same id",
+  "同 ID 覆盖本机": "Overwrite the local copy with the same id",
+  "多文件导入按宏合并，不会删除本机宏。":
+    "Multi-file import merges per macro and never deletes local ones.",
+  "导入 {count} 个宏": "Import {count} macros",
+  导入方式: "Import mode",
+  "将导入 {count} 个宏": "Importing {count} macros",
+  库变成文件内容: "The library becomes the file",
+  "支持 .json；单个宏文件也是合法的库。":
+    "Accepts .json; a single macro file is a valid library too.",
+  替换整库: "Replace the library",
+  被删掉的本机宏: "Removed from this PC",
+  "本机 v{version}": "local v{version}",
+  用文件里的版本: "Use the file's version",
+  相同: "Same",
+  "相同 {count}": "Same {count}",
+  还没有选择文件: "No file selected yet",
+  选择一个宏库文件: "Choose a macro library file",
+  "选择宏文件（可多选）": "Choose macro files (can pick several)",
+  遇到版本不同的同名宏: "Same macro, different version",
+  "{count} 个宏": "{count} macros",
 
   // 导入 / 导出（按键页 · 重设计）
   "在电脑之间搬运按键方案，或者把方案整理成推荐方案。":
