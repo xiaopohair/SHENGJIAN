@@ -1030,6 +1030,8 @@ const ENGLISH = {
     "Pick an app first: this profile's keys apply when it comes to the foreground.",
   "声键窗口在前台，语音不会输入到本窗口；请先切换到要输入文字的应用":
     "Shengjian is in the foreground, so voice won't be typed into it; switch to the app you want to type in first",
+  "按下遥控器语音键时注入的组合键；避免用 Win 组合键（会被系统占用）":
+    "Chord injected when the remote voice key is pressed; avoid Win chords (the system claims them)",
   按键增强: "Key enhancement",
   方案激活: "Profile activation",
   更多操作: "More actions",

@@ -105,19 +105,39 @@ export function useHotkeyRecorder(options: HotkeyRecorderOptions) {
     return keys.map(hotkeyKeyLabel).join(" + ");
   }
 
-  function finish() {
-    if (captured.length > 0) {
+  /** 用已捕获的按键结算并结束录制；`commit=false` 表示丢弃。 */
+  function settle(commit: boolean) {
+    if (commit && captured.length > 0) {
       options.hotkey.value = captured.slice(0, MAX_HOTKEY_KEYS);
     }
     stop();
   }
 
+  function finish() {
+    settle(true);
+  }
+
+  /**
+   * 窗口失焦时结算。
+   *
+   * 采集组合键时按下的键会被系统或别的程序抢走（Win 开开始菜单、输入法弹面板等），
+   * 焦点一旦离开本窗口，`keyup` 就收不到了——纯修饰键的组合（Ctrl+Win）永远等不到
+   * 「全部松开」那一刻，录制会一直挂在「请按下组合键…」。这里用已捕获的按键结算，
+   * 保证采集能结束且不丢已按下的键。
+   */
+  function onWindowBlur() {
+    if (!recording.value) return;
+    settle(true);
+  }
+
   function onKeydown(event: KeyboardEvent) {
     if (!recording.value) return;
+    // 输入法组字期间不采集：这些键是给输入法的，抢过来只会打架。
+    if (event.isComposing) return;
     event.preventDefault();
     event.stopPropagation();
     if (event.code === "Escape") {
-      stop();
+      settle(false);
       return;
     }
     if (event.repeat || !isSupportedHotkeyCode(event.code)) return;
@@ -143,6 +163,7 @@ export function useHotkeyRecorder(options: HotkeyRecorderOptions) {
     captured = [];
     window.addEventListener("keydown", onKeydown, true);
     window.addEventListener("keyup", onKeyup, true);
+    window.addEventListener("blur", onWindowBlur);
   }
 
   function stop() {
@@ -151,6 +172,7 @@ export function useHotkeyRecorder(options: HotkeyRecorderOptions) {
     captured = [];
     window.removeEventListener("keydown", onKeydown, true);
     window.removeEventListener("keyup", onKeyup, true);
+    window.removeEventListener("blur", onWindowBlur);
   }
 
   function toggle() {

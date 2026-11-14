@@ -878,7 +878,10 @@ onMounted(async () => {
                 </SelectInput>
               </SettingRow>
 
-              <SettingRow label="语音热键" hint="按下遥控器语音键时注入的组合键">
+              <SettingRow
+                label="语音热键"
+                hint="按下遥控器语音键时注入的组合键；避免用 Win 组合键（会被系统占用）"
+              >
                 <div class="hotkey-inline">
                   <kbd class="hotkey-value" :class="{ recording }" aria-live="polite">
                     <span v-if="recording" class="hotkey-recording-dot" aria-hidden="true" />
