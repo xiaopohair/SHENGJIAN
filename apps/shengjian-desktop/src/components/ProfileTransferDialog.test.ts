@@ -36,6 +36,16 @@ function mountDialog() {
   });
 }
 
+function primaryButton(wrapper: ReturnType<typeof mountDialog>) {
+  return wrapper.findAll(".transfer-foot button").at(-1)!;
+}
+
+function formatButton(wrapper: ReturnType<typeof mountDialog>, title: string) {
+  return wrapper
+    .findAll(".transfer-formats button")
+    .find((button) => button.text().includes(title))!;
+}
+
 describe("ProfileTransferDialog", () => {
   it("starts with every profile selected and exports the chosen subset", async () => {
     const wrapper = mountDialog();
@@ -44,24 +54,26 @@ describe("ProfileTransferDialog", () => {
     const boxes = wrapper.findAll('.transfer-item input[type="checkbox"]');
     expect(boxes).toHaveLength(3);
     expect(boxes.every((box) => (box.element as HTMLInputElement).checked)).toBe(true);
+    expect(wrapper.find(".transfer-count").text()).toContain("3/3");
 
     // 取消勾选方案 B，只导出前两个。
     await boxes[2].setValue(false);
-    const primary = wrapper.findAll(".transfer-foot button").at(-1)!;
-    await primary.trigger("click");
+    await primaryButton(wrapper).trigger("click");
 
     expect(wrapper.emitted("exportDocument")?.[0]?.[0]).toEqual(["default-rc003", "profile-a"]);
   });
 
-  it("switches to import mode and emits import once", async () => {
+  it("switches to import mode and emits import from the footer action", async () => {
     const wrapper = mountDialog();
     const importTab = wrapper
       .findAll(".transfer-tab-group button")
       .find((button) => button.text() === "导入")!;
     await importTab.trigger("click");
 
-    const button = wrapper.findAll(".transfer-body button").at(-1)!;
-    await button.trigger("click");
+    expect(wrapper.find(".transfer-import").exists()).toBe(true);
+    expect(wrapper.find(".transfer-list").exists()).toBe(false);
+
+    await primaryButton(wrapper).trigger("click");
     expect(wrapper.emitted("import")).toHaveLength(1);
   });
 
@@ -69,19 +81,17 @@ describe("ProfileTransferDialog", () => {
     const wrapper = mountDialog();
     await wrapper.vm.$nextTick();
 
-    const presetTab = wrapper
-      .findAll(".transfer-body .toggle-group button")
-      .find((button) => button.text() === "推荐方案")!;
-    await presetTab.trigger("click");
+    await formatButton(wrapper, "推荐方案").trigger("click");
     await wrapper.vm.$nextTick();
 
     const boxes = wrapper.findAll('.transfer-item input[type="checkbox"]');
     // 默认方案在推荐方案模式下不可选，且已被自动剔除。
     expect((boxes[0].element as HTMLInputElement).disabled).toBe(true);
     expect((boxes[0].element as HTMLInputElement).checked).toBe(false);
-    expect(wrapper.find(".transfer-list-head").text()).toContain("2/3");
+    expect(wrapper.find(".transfer-count").text()).toContain("2/3");
+    expect(wrapper.find(".transfer-format.active").text()).toContain("推荐方案");
 
-    await wrapper.findAll(".transfer-foot button").at(-1)!.trigger("click");
+    await primaryButton(wrapper).trigger("click");
     expect(wrapper.emitted("exportPreset")?.[0]?.[0]).toEqual(["profile-a", "profile-b"]);
   });
 
@@ -94,7 +104,7 @@ describe("ProfileTransferDialog", () => {
       .find((button) => button.text() === "全不选")!;
     await clear.trigger("click");
 
-    const primary = wrapper.findAll(".transfer-foot button").at(-1)!;
-    expect(primary.attributes("disabled")).toBeDefined();
+    expect(primaryButton(wrapper).attributes("disabled")).toBeDefined();
+    expect(wrapper.find(".transfer-foot-summary").text()).toContain("0");
   });
 });
