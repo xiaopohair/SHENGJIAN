@@ -983,6 +983,12 @@ const ENGLISH = {
     "VB-CABLE not found: remote voice will have no audio output. You can still choose another output device.",
   // 导入与导出（按键页）
   "导入 / 导出": "Import / Export",
+  "仅 RC003 支持按键增强": "Only RC003 supports key enhancement",
+  前台应用匹配时自动切换到本方案:
+    "Switch to this profile automatically when the foreground app matches",
+  手动切换到本方案: "Switch to this profile manually",
+  按键增强: "Key enhancement",
+  方案激活: "Profile activation",
   更多操作: "More actions",
   "备份、迁移当前按键方案，或把方案整理成内置推荐方案。":
     "Back up or move the current profiles, or turn them into built-in recommended profiles.",
@@ -1013,6 +1019,105 @@ const ENGLISH = {
 
   "已保存的语音输出设备当前不可用，请重新选择。":
     "The saved voice output device is unavailable; choose another one.",
+
+  // 导入 / 导出（按键页 · 重设计）
+  "在电脑之间搬运按键方案，或者把方案整理成推荐方案。":
+    "Move key profiles between PCs, or shape them into recommended profiles.",
+  "从别的电脑带过来：先看清内容、冲突和依赖，再决定放哪儿。":
+    "Bring profiles over from another PC: read what's inside, then decide where it lands.",
+  "导出只读，不改动本机配置": "Export only reads; nothing on this PC changes.",
+  导入前先显示冲突与依赖: "Clashes and dependencies show before anything is applied",
+  导出设置: "Export settings",
+  备份文件: "Backup file",
+  "打成一个文件，可原样恢复。": "One file you can restore as-is.",
+  "每个方案一个 .json，便于分发。": "One .json per profile, easy to share.",
+  推荐方案不含默认: "Not for presets",
+  "选中的方案引用了 {count} 个宏，备份文件不含宏定义。":
+    "The selected profiles reference {count} macros, which a backup file doesn't include.",
+  "换台电脑导入后，这些键位会显示为失效。":
+    "After importing on another PC those bindings will show as unavailable.",
+  "全选可以一次备份全部方案。": "Select all to back up every profile at once.",
+  "还有 {count} 个键位": "{count} more bindings",
+  未绑定应用: "No apps bound",
+  "{count} 个应用": "{count} apps",
+  "{count} 个方案": "{count} profiles",
+  "{count} 个文件": "{count} files",
+  "{count} 个方案 · {models}": "{count} profiles · {models}",
+  "{binds} 个键位": "{binds} key bindings",
+  "含 {count} 个宏": "{count} macros included",
+  按键方案: "Button profiles",
+  "按键方案-{date}": "button-profiles-{date}",
+  导出时选择文件夹: "Pick a folder when exporting",
+  文件名: "File name",
+  "约 {size}": "about {size}",
+  个方案: "profiles",
+  键位: "key bindings",
+
+  选择方案文件: "Choose a profile file",
+  "支持 .json 备份文件，也可以选一个推荐方案的 .json。":
+    "Accepts a .json backup, or a single recommended profile .json.",
+  "导入只新增或覆盖方案，不会清空现有配置。":
+    "Importing only adds or replaces profiles; it never clears your setup.",
+  更换: "Change",
+  处理方式: "Handling",
+  遇到同名方案: "When a name already exists",
+  覆盖本地: "Replace local",
+  "用文件里的版本替换，本地原内容不保留。":
+    "Replace with the file's version; the local copy is lost.",
+  保留两者: "Keep both",
+  "导入为新方案，名字后面加「副本」。": "Add as a new profile named “name (copy)”.",
+  "同名方案保持不动。": "Leave the local profile untouched.",
+  "只导入与 {model} 兼容的方案": "Only import profiles that work with {model}",
+  只导入与当前遥控器兼容的方案: "Only import profiles that work with this remote",
+  "导入不会删除本地方案；同一 id 的方案会被更新。":
+    "Importing never deletes local profiles; a profile with the same id is updated.",
+  "先选文件，读到内容后再决定同名方案怎么办。":
+    "Pick a file first; decide about name clashes once we can read it.",
+  选好文件后会检查: "Once a file is picked we check",
+  同名方案: "Same-name profiles",
+  可以逐个决定覆盖或保留: "Decide per profile: replace or keep",
+  与当前遥控器不兼容的会标出来: "Ones that don't match this remote are flagged",
+  键位与引用: "Bindings and references",
+  "一并带过来，不留半条方案": "They come along, no half-imported profiles",
+  "备份文件不含宏定义，导入后引用宏的键位需要本机已有这些宏。":
+    "Backup files don't carry macro definitions; bindings that run macros need them on this PC.",
+  型号不符: "Wrong model",
+  默认方案不覆盖: "Default stays",
+  新增: "New",
+  冲突: "Conflict",
+  覆盖: "Replace",
+  保留: "Keep",
+
+  "正在读取文件…": "Reading file…",
+  "正在导出…": "Exporting…",
+  "正在写入推荐方案…": "Writing recommended profiles…",
+  "正在导入…": "Importing…",
+  "正在撤销…": "Undoing…",
+  "已导入 {count} 个方案": "Imported {count} profiles",
+  方案列表已更新: "Profile list updated",
+  撤销导入: "Undo import",
+  换个文件: "Pick another file",
+  知道了: "Got it",
+  这个文件读不了: "This file can't be read",
+  "被跳过的方案还在文件里，可以重新导入。":
+    "Skipped profiles stay in the file, so you can import them again.",
+  "将导入 {count} 个方案": "Importing {count} profiles",
+  没有可导入的方案: "Nothing to import",
+  未选择方案: "No profiles selected",
+  将导入: "To import",
+  "导出 {count} 个方案": "Export {count} profiles",
+  "导入 {count} 个方案": "Import {count} profiles",
+  "选择文件…": "Choose file…",
+  "新增 {count}": "Added {count}",
+  "更新 {count}": "Updated {count}",
+  "保留 {count}": "Kept {count}",
+  "跳过 {count}": "Skipped {count}",
+  "覆盖 {count}": "Replaced {count}",
+  "替换 {count} 个方案": "replaced {count} profiles",
+  "保留 {count} 个副本": "kept {count} copies",
+  "跳过 {count} 个": "skipped {count}",
+  已禁用: "Disabled",
+  鼠标操作: "Mouse",
 } as const satisfies Record<string, string>;
 
 export type TranslationKey = keyof typeof ENGLISH;

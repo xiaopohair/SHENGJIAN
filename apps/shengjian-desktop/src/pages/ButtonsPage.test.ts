@@ -204,8 +204,9 @@ describe("ButtonsPage profile navigation and editor", () => {
 
     // 「添加」现在直接把空方案落盘，再按普通方案打开编辑。
     expect(saveButtonProfiles).toHaveBeenCalledTimes(1);
-    expect(wrapper.find(".editor-toolbar").exists()).toBe(true);
-    expect(wrapper.find(".editor-toolbar").text()).toContain("新方案");
+    // 编辑工具栏已删除，方案上下文由 chip + 工作台承载。
+    expect(wrapper.find(".editor-toolbar").exists()).toBe(false);
+    expect(wrapper.find(".profile-chip").text()).toContain("新方案");
     expect(wrapper.find(".profile-workbench").exists()).toBe(true);
     expect(wrapper.findAll(".profile-chip")).toHaveLength(1);
     expect(wrapper.find(".profile-chip.new-chip").exists()).toBe(false);
@@ -310,7 +311,7 @@ describe("ButtonsPage profile navigation and editor", () => {
     const saved = saveButtonProfiles.mock.calls[0][0];
     expect(saved.profiles.map((profile) => profile.id)).toContain("profile-copied");
     expect(activateButtonProfile).toHaveBeenCalledWith("profile-copied");
-    expect(wrapper.find(".editor-name").text()).toContain("（我的）");
+    expect(wrapper.find(".profile-chip.selected").text()).toContain("（我的）");
     expect(document.querySelector(".recommended-dialog")).toBeNull();
   });
 

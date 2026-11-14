@@ -3,8 +3,10 @@ withDefaults(
   defineProps<{
     disabled?: boolean;
     label?: string;
+    /** `sm` = 紧凑尺寸，用在工具栏这类高密度位置。 */
+    size?: "md" | "sm";
   }>(),
-  { disabled: false, label: "" },
+  { disabled: false, label: "", size: "md" },
 );
 
 const model = defineModel<boolean>({ default: false });
@@ -14,7 +16,7 @@ const model = defineModel<boolean>({ default: false });
   <button
     type="button"
     class="ui-switch"
-    :class="{ checked: model }"
+    :class="[`size-${size}`, { checked: model }]"
     role="switch"
     :aria-checked="model"
     :aria-label="label || undefined"
@@ -71,5 +73,21 @@ const model = defineModel<boolean>({ default: false });
 .ui-switch.checked .ui-switch-thumb {
   background: var(--text-on-accent);
   transform: translateX(18px);
+}
+
+/* 紧凑尺寸（工具栏）：更小的轨与滑块，滑块位移同步缩小。 */
+.ui-switch.size-sm {
+  width: 30px;
+  height: 17px;
+}
+
+.ui-switch.size-sm .ui-switch-thumb {
+  width: 12px;
+  height: 12px;
+  transform: translateX(2px);
+}
+
+.ui-switch.size-sm.checked .ui-switch-thumb {
+  transform: translateX(14px);
 }
 </style>

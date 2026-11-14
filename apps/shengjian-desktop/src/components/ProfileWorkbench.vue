@@ -12,7 +12,6 @@ import {
   type ProfileTrigger,
 } from "../lib/buttons";
 import { statusLabel, tr, trDynamic } from "../lib/i18n";
-import { deviceProductNameKey } from "../lib/deviceProduct";
 import { formatShortcut } from "../lib/shortcuts";
 import { systemKeyLabel } from "../lib/systemActions";
 import {
@@ -23,6 +22,7 @@ import {
 import type { LogicalAction, LogicalButton, MacroDefinition } from "../lib/types";
 import ProfileBindingEditor from "./ProfileBindingEditor.vue";
 import StatusPill from "./ui/StatusPill.vue";
+import Switch from "./ui/Switch.vue";
 
 const props = defineProps<{
   view: "workbench" | "table";
@@ -38,20 +38,31 @@ const props = defineProps<{
   remoteModel: string | null;
   /** 设备上报的蓝牙名（型号识别不出来时的兜底显示）。 */
   remoteName: string | null;
+  /** 按键增强（RC003 增强捕获）当前是否开启。 */
+  enhancedCapture: boolean;
+  /** 机型是否支持按键增强（仅 RC003）。 */
+  enhancedCaptureEnabled: boolean;
+  /** 当前方案是否自动应用。 */
+  autoApply: boolean;
+  /** 默认方案不能自动应用。 */
+  autoApplyEnabled: boolean;
+  /** 当前方案是否已激活。 */
+  activationActive: boolean;
+  /** 默认方案始终生效，不需要也不能手动激活。 */
+  activationEnabled: boolean;
+  /** 开关是否不可操作（无已保存方案或正忙）。 */
+  toggleDisabled: boolean;
 }>();
 
 const emit = defineEmits<{
   error: [message: string];
+  toggleEnhancedCapture: [value: boolean];
+  toggleAutoApply: [value: boolean];
+  toggleActivation: [value: boolean];
 }>();
 
 const draft = defineModel<ProfileDraft>("draft", { required: true });
 const selectedButton = ref<LogicalButton>("home");
-/** 型号 + 连接状态。型号识别得出来就用产品正式名，识别不出来退回蓝牙名。 */
-const devicePillText = computed(() => {
-  const productKey = deviceProductNameKey(props.remoteModel);
-  const label = productKey ? trDynamic(productKey) : props.remoteName?.trim() || tr("遥控器");
-  return `${label} · ${props.remoteConnected ? tr("已连接") : tr("未连接")}`;
-});
 
 const selectedTrigger = ref<ProfileTrigger>("single");
 const query = shallowRef("");
@@ -316,9 +327,37 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
       <aside class="remote-panel panel">
         <!-- 不再单列「当前遥控器」标签：型号识别得出来时胶囊里是产品正式名，
              名称本身就说明了这是当前遥控器，省下的宽度让长名称能单行放下。 -->
-        <div class="panel-head">
-          <span class="device-pill" :class="{ offline: !remoteConnected }">
-            {{ devicePillText }}
+        <!-- 产品图上方工具栏：按键增强 / 自动应用 / 方案激活，三个开关。 -->
+        <div class="panel-head remote-toolbar">
+          <span class="toolbar-toggle" :title="tr('仅 RC003 支持按键增强')">
+            <span class="toolbar-toggle-label">{{ tr("按键增强") }}</span>
+            <Switch
+              size="sm"
+              :model-value="enhancedCapture"
+              :disabled="!enhancedCaptureEnabled || toggleDisabled"
+              :label="tr('按键增强')"
+              @update:model-value="emit('toggleEnhancedCapture', $event)"
+            />
+          </span>
+          <span class="toolbar-toggle" :title="tr('前台应用匹配时自动切换到本方案')">
+            <span class="toolbar-toggle-label">{{ tr("自动应用") }}</span>
+            <Switch
+              size="sm"
+              :model-value="autoApply"
+              :disabled="!autoApplyEnabled || toggleDisabled"
+              :label="tr('自动应用')"
+              @update:model-value="emit('toggleAutoApply', $event)"
+            />
+          </span>
+          <span class="toolbar-toggle" :title="tr('手动切换到本方案')">
+            <span class="toolbar-toggle-label">{{ tr("方案激活") }}</span>
+            <Switch
+              size="sm"
+              :model-value="activationActive"
+              :disabled="!activationEnabled || toggleDisabled"
+              :label="tr('方案激活')"
+              @update:model-value="emit('toggleActivation', $event)"
+            />
           </span>
         </div>
         <div class="product-stage">
@@ -542,6 +581,33 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
   gap: var(--space-2);
   /* Match .binding-panel's padding so both columns start on the same line. */
   padding: var(--space-5) var(--space-4) var(--space-2);
+}
+
+/* 产品图上方工具栏：三个开关横向铺开，文字在上、开关在下，窄面板也放得下。 */
+.panel-head.remote-toolbar {
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  min-width: 0;
+  /* 组间距比组内间距大一点，三组不至于糊在一起。 */
+  gap: var(--space-3);
+  padding-bottom: 0;
+}
+
+/* 左右结构：标签在左、开关在右；标签与开关都用紧凑尺寸，250px 宽也放得下三组。 */
+.toolbar-toggle {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  min-width: 0;
+}
+
+.toolbar-toggle-label {
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .eyebrow {

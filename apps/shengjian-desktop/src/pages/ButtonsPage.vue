@@ -9,7 +9,6 @@ import {
   useTemplateRef,
   watch,
 } from "vue";
-import { open, save } from "@tauri-apps/plugin-dialog";
 import {
   ArrowLeftRight,
   Copy,
@@ -48,8 +47,6 @@ import EmptyState from "../components/ui/EmptyState.vue";
 import LoadingState from "../components/ui/LoadingState.vue";
 import IconButton from "../components/ui/IconButton.vue";
 import Notice from "../components/ui/Notice.vue";
-import StatusPill from "../components/ui/StatusPill.vue";
-import Switch from "../components/ui/Switch.vue";
 import ProfileWorkbench from "../components/ProfileWorkbench.vue";
 import ProfileSettingsDrawer from "../components/ProfileSettingsDrawer.vue";
 import ProfileTransferDialog from "../components/ProfileTransferDialog.vue";
@@ -59,16 +56,15 @@ import {
   clearButtonProfileActivation,
   copyRecommendedButtonProfile,
   errorMessage,
-  exportProfileAsPreset,
-  exportProfiles,
   getButtonProfileState,
   getForegroundExecutable,
   getHostCapabilities,
   getMacroLibrary,
   getRecommendedButtonProfiles,
+  getSettings,
   getRecommendedMacros,
-  importProfiles,
   saveButtonProfiles,
+  saveSettings,
 } from "../lib/api";
 import type {
   ButtonProfile,
@@ -76,6 +72,7 @@ import type {
   LogicalAction,
   MacroDefinition,
   RecommendedButtonProfile,
+  SettingsDocument,
 } from "../lib/types";
 
 const TRIGGERS = PROFILE_TRIGGERS;
@@ -560,7 +557,6 @@ async function saveEditor() {
 
 /** 导入与导出合并成一个弹窗：选方案 → 导出一个文件或每个方案一个文件。 */
 const transferOpen = shallowRef(false);
-const transferBusy = shallowRef(false);
 
 /** 「更多」菜单（竖向三点）：导入 / 导出等低频操作收在这里。 */
 const moreMenuOpen = shallowRef(false);
@@ -577,6 +573,43 @@ function openTransfer() {
 
 /** 已保存的方案才能重置/复制；新建草稿或未保存时这两项不可用。 */
 const canEditCurrentProfile = computed(() => Boolean(currentProfileRecord.value));
+
+/** 按键增强（RC003 增强捕获）来自全局设置，随页面加载并立即保存。 */
+const enhancedCapture = shallowRef(false);
+const settingsDocument = shallowRef<SettingsDocument | null>(null);
+const isRc003 = computed(() => (remoteModel.value ?? "").trim().toUpperCase() === "RC003");
+
+async function loadSettingsDocument() {
+  try {
+    settingsDocument.value = await getSettings();
+    enhancedCapture.value = settingsDocument.value.global.rc003_capture_enabled ?? false;
+  } catch (cause) {
+    error.value = errorMessage(cause);
+  }
+}
+
+async function toggleEnhancedCapture(value: boolean) {
+  enhancedCapture.value = value;
+  const current = settingsDocument.value;
+  if (!current) return;
+  try {
+    const next: SettingsDocument = {
+      ...current,
+      global: { ...current.global, rc003_capture_enabled: value },
+    };
+    await saveSettings(next);
+    settingsDocument.value = next;
+  } catch (cause) {
+    enhancedCapture.value = !value;
+    error.value = errorMessage(cause);
+  }
+}
+
+/** 自动应用是方案自身的字段，改动走正常的「未保存 → 保存」。 */
+function toggleAutoApply(value: boolean) {
+  if (!editor.value || editor.value.isDefault) return;
+  editor.value.autoApply = value;
+}
 const canDeleteCurrentProfile = computed(
   () =>
     Boolean(currentProfileRecord.value) &&
@@ -603,116 +636,16 @@ function onMoreMenuKeydown(event: KeyboardEvent) {
     moreMenuOpen.value = false;
   }
 }
-
-/** 把选中的方案导出成一个可再次导入的文件。 */
-async function exportSelectedDocument(ids: string[]) {
-  if (!profilesDocument.value || ids.length === 0) return;
-  error.value = null;
-  transferBusy.value = true;
-  try {
-    const path = await save({
-      defaultPath: "button-profiles.json",
-      filters: [{ name: "JSON", extensions: ["json"] }],
-    });
-    if (!path) return;
-    const picked = profilesDocument.value.profiles.filter((profile) => ids.includes(profile.id));
-    await exportProfiles(path, {
-      ...profilesDocument.value,
-      profiles: picked,
-      activeManualProfileId: picked.some(
-        (profile) => profile.id === profilesDocument.value?.activeManualProfileId,
-      )
-        ? profilesDocument.value.activeManualProfileId
-        : null,
-    });
-    transferOpen.value = false;
-    pushToast(tr("已导出 {count} 个方案", { count: picked.length }), "success");
-  } catch (cause) {
-    error.value = errorMessage(cause);
-  } finally {
-    transferBusy.value = false;
-  }
-}
-
-/** 方案名 → 标识片段：保留中英文与数字，其余折叠成连字符。 */
-function presetSlug(value: string): string {
-  const slug = value
-    .trim()
-    .toLowerCase()
-    .replace(/[\s_/\\]+/g, "-")
-    .replace(/[^a-z0-9\u4e00-\u9fa5-]/g, "")
-    .replace(/-{2,}/g, "-")
-    .replace(/^-|-$/g, "");
-  return slug || "custom";
-}
-
-/** 生成不重复的推荐方案 id（`preset.<型号>.<名称>`）。 */
-function presetIdsFor(profiles: ButtonProfile[]): Map<string, string> {
-  const used = new Set<string>();
-  const result = new Map<string, string>();
-  for (const profile of profiles) {
-    const model = (profile.deviceModel ?? effectiveModel.value ?? "generic").trim().toLowerCase();
-    const base = `preset.${model}.${presetSlug(profile.name)}`;
-    let candidate = base;
-    let suffix = 2;
-    while (used.has(candidate)) {
-      candidate = `${base}-${suffix}`;
-      suffix += 1;
-    }
-    used.add(candidate);
-    result.set(profile.id, candidate);
-  }
-  return result;
-}
-
-/** 把选中的方案导出成推荐方案：每个方案一个文件，写进用户选的文件夹。 */
-async function exportSelectedPresets(ids: string[]) {
-  if (!profilesDocument.value || ids.length === 0) return;
-  const picked = profilesDocument.value.profiles.filter((profile) => ids.includes(profile.id));
-  if (picked.length === 0) return;
-  error.value = null;
-  transferBusy.value = true;
-  try {
-    const directory = await open({ directory: true, multiple: false });
-    if (!directory || Array.isArray(directory)) return;
-    const ids_ = presetIdsFor(picked);
-    for (const profile of picked) {
-      const presetId = ids_.get(profile.id);
-      if (!presetId) continue;
-      await exportProfileAsPreset({
-        path: `${directory}\\${presetId}.json`,
-        profile,
-        presetId,
-        compatibleModels: profile.deviceModel ? [profile.deviceModel] : [],
-      });
-    }
-    transferOpen.value = false;
-    pushToast(tr("已导出 {count} 个推荐方案", { count: picked.length }), "success");
-  } catch (cause) {
-    error.value = errorMessage(cause);
-  } finally {
-    transferBusy.value = false;
-  }
-}
-
-async function importFile() {
-  if (!(await confirmDiscard())) return;
-  error.value = null;
-  busy.value = true;
-  try {
-    const path = await open({
-      multiple: false,
-      filters: [{ name: "JSON", extensions: ["json"] }],
-    });
-    if (!path || Array.isArray(path)) return;
-    await importProfiles(path);
-    closeEditor();
-    await load();
-  } catch (cause) {
-    error.value = errorMessage(cause);
-  } finally {
-    busy.value = false;
-  }
+/**
+ * 弹窗自己完成文件读写；页面只负责把新状态读回来。
+ *
+ * 导入是合并而不是覆盖，正在编辑的草稿依然指向一条存在的方案，
+ * 所以这里不关编辑器（关掉等于静默丢掉用户没保存的修改）。
+ */
+async function onTransferApplied() {
+  await load();
+  if (!editor.value) syncBaseline();
+  pushToast(tr("方案列表已更新"), "success");
 }
 
 async function removeProfile(profile: ButtonProfile) {
@@ -872,6 +805,7 @@ onMounted(async () => {
     loadHostCapabilities(),
     loadForeground(),
     loadRecommendedVersion(),
+    loadSettingsDocument(),
   ]);
   timer = window.setInterval(() => {
     if (window.document.visibilityState === "visible") void load();
@@ -1066,43 +1000,6 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <div v-if="editor" class="editor-toolbar">
-        <div class="editor-context">
-          <span class="eyebrow">{{ tr("编辑方案：") }}</span>
-          <strong class="editor-name">{{ editor.name || tr("未命名方案") }}</strong>
-          <span class="editor-target text-truncate" :title="editor.appTargets">
-            {{ editor.appTargets || tr("未设置应用目标") }}
-          </span>
-          <StatusPill
-            :label="
-              editor.isDefault ? tr('默认方案') : editor.autoApply ? tr('自动应用') : tr('手动')
-            "
-            :tone="editor.isDefault ? 'accent' : editor.autoApply ? 'info' : 'neutral'"
-            :title="
-              editor.isDefault
-                ? tr('该型号的基线方案，始终生效')
-                : editor.autoApply
-                  ? tr('前台应用匹配时自动切换到此方案')
-                  : tr('不自动切换，需要手动激活')
-            "
-          />
-          <!-- 默认方案就是当前型号的基线，不存在「激活/未激活」，不显示开关。 -->
-          <span v-if="!editor.isDefault" class="activation-control">
-            <Switch
-              :model-value="isActiveProfile(editor.id)"
-              :disabled="busy || !currentProfileRecord"
-              :label="tr('激活')"
-              @update:model-value="toggleEditorActivation"
-            />
-            <span class="activation-state" :class="{ on: isActiveProfile(editor.id) }">
-              {{ isActiveProfile(editor.id) ? tr("已激活") : tr("未激活") }}
-            </span>
-          </span>
-          <StatusPill v-if="justSaved" :label="trDynamic('已保存')" tone="accent" dot />
-          <StatusPill v-if="dirty" :label="trDynamic('未保存')" tone="warning" dot />
-        </div>
-      </div>
-
       <ProfileWorkbench
         v-if="editor"
         v-model:draft="editor"
@@ -1116,6 +1013,16 @@ onUnmounted(() => {
         :remote-connected="remoteConnected"
         :remote-model="remoteModel"
         :remote-name="remoteName"
+        :enhanced-capture="enhancedCapture"
+        :enhanced-capture-enabled="isRc003"
+        :auto-apply="editor.autoApply"
+        :auto-apply-enabled="!editor.isDefault"
+        :activation-active="isActiveProfile(editor.id)"
+        :activation-enabled="!editor.isDefault"
+        :toggle-disabled="busy || !currentProfileRecord"
+        @toggle-enhanced-capture="toggleEnhancedCapture"
+        @toggle-auto-apply="toggleAutoApply"
+        @toggle-activation="toggleEditorActivation"
         @error="onEditorError"
       />
 
@@ -1152,12 +1059,11 @@ onUnmounted(() => {
 
     <ProfileTransferDialog
       :open="transferOpen"
-      :profiles="profilesDocument?.profiles ?? []"
-      :busy="transferBusy || busy"
+      :document="profilesDocument"
+      :model="effectiveModel"
+      :busy="busy"
       @close="transferOpen = false"
-      @import="importFile"
-      @export-document="exportSelectedDocument"
-      @export-preset="exportSelectedPresets"
+      @applied="onTransferApplied"
     />
 
     <RecommendedProfilesDialog
@@ -1387,88 +1293,6 @@ onUnmounted(() => {
   font-weight: 700;
   white-space: nowrap;
 }
-
-.editor-toolbar {
-  display: flex;
-  /* Single row at every supported width: the context block shrinks and
-     truncates instead of pushing the action buttons onto a second line. */
-  flex-wrap: nowrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  padding: var(--space-2) 0;
-}
-
-.editor-context {
-  display: flex;
-  flex: 1 1 auto;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-  overflow: hidden;
-}
-
-.editor-context .eyebrow {
-  flex: 0 0 auto;
-}
-
-.editor-name {
-  flex: 0 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.editor-context .eyebrow {
-  color: var(--text-muted);
-  font-size: var(--text-2xs);
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.editor-name {
-  font-size: var(--text-lg);
-  font-weight: 650;
-  letter-spacing: -0.01em;
-}
-
-.activation-control {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.activation-state {
-  color: var(--text-muted);
-  font-size: var(--text-2xs);
-}
-
-.activation-state.on {
-  color: var(--accent-ink);
-  font-weight: 600;
-}
-.editor-target {
-  max-width: 230px;
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-}
-
-.editor-toolbar-actions {
-  display: flex;
-  flex: 0 0 auto;
-  /* Cap the row at its intrinsic width so the context block keeps the rest. */
-  width: max-content;
-  max-width: 100%;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: var(--space-2);
-}
-
 .empty-workspace {
   padding-top: var(--space-2);
 }
@@ -1483,12 +1307,6 @@ onUnmounted(() => {
   }
   .profile-tools {
     justify-content: flex-end;
-  }
-  .editor-toolbar-actions {
-    width: 100%;
-  }
-  .editor-target {
-    max-width: 100%;
   }
 }
 </style>
