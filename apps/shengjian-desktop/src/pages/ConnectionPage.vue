@@ -102,8 +102,21 @@ const deviceProductName = computed(() => {
   const key = deviceProductNameKey(remoteModel.value);
   return key ? trDynamic(key) : deviceName.value;
 });
-/** 型号 → 产品线稿只在 `lib/deviceArt` 里维护一份，导入/导出弹窗共用同一套资源。 */
-const deviceArtwork = computed(() => (store.isConnected ? deviceLineArt(remoteModel.value) : null));
+/**
+ * 型号 → 产品线稿只在 `lib/deviceArt` 里维护一份，导入/导出弹窗共用同一套资源。
+ *
+ * 记住最后一次连上时的型号：断开后继续显示同一张产品图，避免断开瞬间图像跳成
+ * 兜底线稿、卡片高度跟着抖一下。
+ */
+const lastKnownModel = shallowRef<string | null>(null);
+watch(
+  remoteModel,
+  (model) => {
+    if (store.isConnected && model) lastKnownModel.value = model;
+  },
+  { immediate: true },
+);
+const deviceArtwork = computed(() => deviceLineArt(lastKnownModel.value));
 const autoConnecting = shallowRef(false);
 const autoConnectFailed = shallowRef(false);
 const connectionError = computed(() => (store.error ? errorMessage(store.error) : null));
@@ -496,12 +509,29 @@ onUnmounted(() => {
         </div>
 
         <div class="hero-side">
-          <StatusPill v-if="store.isConnected" :label="trDynamic('使用中')" tone="success" dot />
-          <div v-if="store.isConnected" class="hero-actions">
-            <Button size="sm" :disabled="store.connecting" @click="disconnect">
+          <StatusPill
+            :label="trDynamic(store.isConnected ? '使用中' : '未连接')"
+            :tone="store.isConnected ? 'success' : 'neutral'"
+            dot
+          />
+          <div class="hero-actions">
+            <Button
+              v-if="store.isConnected"
+              size="sm"
+              :disabled="store.connecting"
+              @click="disconnect"
+            >
               {{ tr("断开") }}
             </Button>
-            <button type="button" class="hero-link" @click="focusOverrides">
+            <Button v-else size="sm" :disabled="store.scanning" @click="refresh">
+              {{ trDynamic(store.scanning ? "扫描中" : "扫描设备") }}
+            </Button>
+            <button
+              v-if="store.isConnected"
+              type="button"
+              class="hero-link"
+              @click="focusOverrides"
+            >
               {{ tr("设置") }}
             </button>
           </div>
@@ -916,6 +946,8 @@ onUnmounted(() => {
   grid-template-columns: 96px minmax(0, 1fr) auto;
   align-items: start;
   gap: var(--space-5);
+  /* 连接状态切换时卡片高度保持一致，不抖动 */
+  min-height: 156px;
   min-width: 0;
 }
 
@@ -923,7 +955,9 @@ onUnmounted(() => {
   display: grid;
   place-items: center;
   align-self: center;
-  max-height: 150px;
+  /* 固定槽位：连接/断开切换时图像不改变布局尺寸 */
+  width: 64px;
+  height: 140px;
   min-width: 0;
 }
 
@@ -932,7 +966,6 @@ onUnmounted(() => {
   width: auto;
   max-width: 64px;
   max-height: 140px;
-  height: 100%;
   object-fit: contain;
 }
 
@@ -989,6 +1022,7 @@ onUnmounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+  min-height: 26px;
   margin-top: 2px;
 }
 
@@ -1021,6 +1055,7 @@ onUnmounted(() => {
   align-items: flex-end;
   gap: var(--space-3);
   /* 与标题行对齐：网格里这几行都是顶部对齐的。 */
+  min-height: 60px;
   padding-top: 2px;
 }
 
