@@ -62,6 +62,9 @@ const ENGLISH = {
   尚未连接: "Not connected",
   重新扫描: "Scan again",
   选择程序: "Choose a program",
+  程序与行为: "Program and behaviour",
+  清除: "Clear",
+  "另外还匹配：{names}": "Also matches: {names}",
   运行中: "Running",
   停止: "Stop",
   音频: "Audio",
@@ -1015,6 +1018,11 @@ const ENGLISH = {
   "未检测到卸载完成，请确认 UAC 已通过后重新检测。":
     "The removal wasn't detected; confirm the UAC prompt and check again",
   选择这个方案要匹配的应用: "Choose the app this profile should match",
+  选择或填写程序: "Choose or type a program",
+  "这个程序切到前台时，方案会自动生效。":
+    "This profile takes effect automatically when this program comes to the foreground.",
+  "选择后方案的键位会在它切到前台时生效。":
+    "Pick one; the profile's keys apply when it comes to the foreground.",
   "先选一个程序：方案的键位会在它切到前台时生效。":
     "Pick an app first: this profile's keys apply when it comes to the foreground.",
   按键增强: "Key enhancement",

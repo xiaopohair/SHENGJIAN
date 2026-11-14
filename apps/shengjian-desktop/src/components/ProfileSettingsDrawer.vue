@@ -1,13 +1,19 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, useTemplateRef, watch } from "vue";
-import { FolderOpen, X } from "lucide-vue-next";
+import { X } from "lucide-vue-next";
 import { mergeAppTargetsText, splitAppTargets } from "../lib/appTargets";
+import {
+  appTargetFriendlyName,
+  cachedAppTarget,
+  describeAppTargetsCached,
+} from "../composables/useAppPicker";
 import type { ProfileDraft } from "../lib/buttons";
 import { tr, trDynamic } from "../lib/i18n";
 import { voiceToolOptions } from "../lib/voiceTools";
 import { useAppPicker } from "../composables/useAppPicker";
 import { useVoiceToolCatalog } from "../composables/useVoiceToolCatalog";
 import AppPickerDialog from "./app-picker/AppPickerDialog.vue";
+import AppTargetField from "./app-picker/AppTargetField.vue";
 import Button from "./ui/Button.vue";
 import Checkbox from "./ui/Checkbox.vue";
 import Field from "./ui/Field.vue";
@@ -33,6 +39,22 @@ const {
   closePicker: closeAppPicker,
 } = useAppPicker();
 const recentMatchTargets = computed(() => splitAppTargets(draft.value.appTargets));
+
+/** 方案可能匹配多个程序：只读展示友好名，选择/更换一律走选择器。 */
+const programTargets = computed(() => splitAppTargets(draft.value.appTargets));
+const programLabel = computed(() =>
+  programTargets.value.map((target) => appTargetFriendlyName(target, target)).join("、"),
+);
+
+// 先把已知目标丢进描述缓存，友好名才能在下一帧变成产品名。
+watch(
+  programTargets,
+  (targets) => {
+    const missing = targets.filter((target) => !cachedAppTarget(target));
+    if (missing.length > 0) void describeAppTargetsCached(missing);
+  },
+  { immediate: true },
+);
 const { catalog: voiceToolCatalog, load: loadVoiceToolCatalog } = useVoiceToolCatalog();
 let previousFocus: HTMLElement | null = null;
 
@@ -96,7 +118,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown, true));
         <header class="settings-head">
           <div>
             <span class="eyebrow">{{ tr("方案设置") }}</span>
-            <h2>{{ tr("应用目标与行为") }}</h2>
+            <h2>{{ tr("程序与行为") }}</h2>
             <p>{{ tr("这些设置随方案一起保存。") }}</p>
           </div>
           <button
@@ -113,16 +135,33 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown, true));
           <Field class="settings-field" label="名称">
             <TextInput v-model="draft.name" :maxlength="80" />
           </Field>
-          <Field class="settings-field" label="应用目标">
-            <TextInput v-model="draft.appTargets" :placeholder="trDynamic('选择或填写应用')" />
+          <Field class="settings-field" label="程序">
+            <AppTargetField
+              :target="programTargets[0] ?? ''"
+              :choose-label="tr('选择程序')"
+              :disabled="busy"
+              @choose="openAppPicker"
+            />
+            <span v-if="programTargets.length > 1" class="settings-help">
+              {{ tr("另外还匹配：{names}", { names: programLabel }) }}
+            </span>
+            <span v-else class="settings-help">
+              {{ tr("这个程序切到前台时，方案会自动生效。") }}
+            </span>
           </Field>
 
           <div class="settings-action-row">
-            <Checkbox v-model="draft.autoApply">{{ tr("前台匹配时自动应用") }}</Checkbox>
+            <Checkbox v-model="draft.autoApply" :disabled="programTargets.length === 0">
+              {{ tr("前台匹配时自动应用") }}
+            </Checkbox>
             <div class="settings-buttons">
-              <Button size="sm" :disabled="busy" @click="openAppPicker">
-                <FolderOpen :size="14" />
-                {{ tr("选择应用") }}
+              <Button
+                v-if="programTargets.length > 0"
+                size="sm"
+                :disabled="busy"
+                @click="draft.appTargets = ''"
+              >
+                {{ tr("清除") }}
               </Button>
               <Button size="sm" :disabled="!foregroundApp" @click="useForegroundTarget">
                 {{ tr("使用当前程序") }}
@@ -156,7 +195,8 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown, true));
     <AppPickerDialog
       :open="appPickerOpen"
       mode="match"
-      :title="tr('选择用于自动匹配的应用')"
+      :title="tr('选择这个方案要匹配的应用')"
+      :description="tr('选择后方案的键位会在它切到前台时生效。')"
       :foreground-app="foregroundApp"
       :recent-targets="recentMatchTargets"
       @select="applyPickedTarget"
