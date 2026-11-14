@@ -24,13 +24,13 @@
 
 ## 当前状态
 
-- 版本：`0.7.0`（VB-CABLE 依赖检测与首次配置引导；系统动作网格；推荐应用/方案/宏配置化）
+- 版本：`0.8.0`（组合键一律点选录入；宏库单/多文件导入导出；连接页与宏页导航重构；Toast 反馈标准落地）
 - 已支持设备：RC003（小米蓝牙语音遥控器 2 Pro）、RC001（小米蓝牙语音遥控器 2）、ARN9（小米蓝牙语音遥控器）；Windows x64
-- GitHub Release 0.7.0：<https://github.com/xiaopohair/SHENGJIAN/releases/tag/v0.7.0>（CI 构建、未签名），安装包 `shengjian_0.7.0_x64-setup.exe`；校验值以 Release 内的 `SHA256SUMS` 为准
+- GitHub Release 0.8.0：<https://github.com/xiaopohair/SHENGJIAN/releases/tag/v0.8.0>（CI 构建、未签名），安装包 `shengjian_0.8.0_x64-setup.exe`；校验值以 Release 内的 `SHA256SUMS` 为准
 - 代码签名：已接入 **SignPath Foundation** 免费开源签名（release workflow 内置，配置后自动启用）；见 [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md) 与 [docs/signing.md](docs/signing.md)
 - 真机已验证：RC003（连接、语音、按键手势、方案自动切换、运行宏、返回键增强捕获）；ARN9（连接、ATVV 语音链路、导航键、音量/返回增强捕获）
-- 本地发布清单：`release/0.7.0/manifest.json`（记录本地构建结果，线上资产以 Release 为准）
-- 发布说明：`docs/release-notes-0.7.0.md`
+- 本地发布清单：`release/0.8.0/manifest.json`（记录本地构建结果，线上资产以 Release 为准）
+- 发布说明：`docs/release-notes-0.8.0.md`
 - GitHub 仓库已创建并推送：<https://github.com/xiaopohair/SHENGJIAN>；发布由 `v*` tag 触发的 Release workflow 生成
 - 不包含自动更新器
 
@@ -40,15 +40,15 @@
 
 `apps/shengjian-desktop`：Tauri 2 + Vue 3，in-process 使用 core。
 
-- 界面：无边框自定义标题栏（左侧品牌图标与产品名称）、圆角主内容面板、启动居中、`Ctrl+K` 命令面板
+- 界面：无边框自定义标题栏（拖拽区 + 窗口控制，品牌只在侧栏出现一次）、圆角主内容面板、启动居中、`Ctrl+K` 命令面板；顶栏集中显示连接状态、设备名、电量、当前输入法与语音/音频状态胶囊
 - 启动 splash：品牌启动画面覆盖初始化过程，设置与主题就绪后切换到主窗口，避免白屏闪烁；启动画面文案跟随应用语言设置，未设置时跟随系统语言
-- 连接页：扫描、连接、断开、多设备切换、记住上次设备、状态、型号、固件版本、电量、连接详情、当前设备音频/语音工具覆盖、RC003 增强捕获与 helper
+- 连接页：设备信息卡（自定义设备昵称、产品名 · 型号、电量 / 已连接时长 / 固件、蓝牙/语音/按键增强状态胶囊、顶部强调色渐变边）、扫描连接断开与多设备切换、记住上次设备；「设置」打开右侧设备设置抽屉（设备名称、独立音频开关、增益、语音输出设备、语音输入工具）
 - 托盘：显示/隐藏、打开设置、打开日志目录、退出；tooltip 显示连接/电量；中英文菜单随语言即时切换；托盘图标随任务栏明暗使用亮松青 / 墨色两版
 - 语音页：voice/audio 状态、实时电平、语音测试、语音输入工具、自定义语音热键、语音记录开关
-- 按键页：方案列表、编辑、激活、导入/全部方案导出；宽屏工作台 + 表格视图，未保存导航确认
+- 按键页：方案列表、编辑、激活；宽屏工作台 + 表格视图，未保存导航确认；导入 / 导出合并进「更多操作」菜单（单文件整库 / 单个·多个文件、逐文件真实进度、导入冲突预览）
 - 推荐应用、推荐按键方案、语音输入工具、推荐宏由 `config/*.json` 配置驱动（随安装包下发，可在发布前或安装目录中编辑，见 [docs/config-catalogs.md](docs/config-catalogs.md)）；推荐方案只读，复制后成为可编辑的用户方案
 - 方案编辑器：应用目标（支持应用选择器：预设/已安装/UWP/浏览文件；用当前前台）、当前前台填充、快捷键捕获、自动方案冲突提示、保存校验、按键级按住连发、方案语音工具覆盖、复制方案、12 键（含 TV、菜单）；常用语入口按平台能力显示
-- 宏页：创建/编辑/删除、8 种动作、三栏编辑器（步骤列表 / 当前步骤 / 动作参数）、拖动排序、步骤复制、步骤超时、快捷键捕获与清除、宏属性抽屉（名称与说明）、测试/停止、分步运行结果与失败原因、导入/导出、中文校验提示
+- 宏页：导航栏统一为「试运行 / 保存 / 添加 / 属性 / 更多操作」（复制宏、删除宏、导入导出收进更多菜单，编辑工具栏已取消）；新建宏直接落盘成草稿；三栏编辑器（步骤列表 / 当前步骤 / 动作参数）、拖动排序（跟随指针的鬼影 + 强调色插入线）、步骤复制与超时、快捷键点选、宏属性抽屉、测试/停止、分步运行结果、单/多文件导入导出与按条进度、中文校验提示
 - 历史页：语音事件、按键事件、宏运行、语音记录四个标签；语音/按键按本次运行保留，宏运行/语音记录持久保存
 - 设置页：全局音频、主题、强调色、应用语言（中文/English/跟随系统）、开机自启、启动后隐藏到系统托盘、关闭行为、配置备份/恢复（设置、方案、宏库、语音记录、外观偏好、上次设备）、日志查看/诊断包、健康检查、恢复默认、分区选项卡；设置加载失败时仍可进入数据与诊断
 - 可访问性：页面 landmark/标题层级、表单 label、Tabs/命令面板/确认框焦点圈定、装饰图标隐藏；详见 `docs/ui-accessibility-report.md`
@@ -132,7 +132,7 @@ pnpm build:installer
 
 `pnpm build:installer` = `tauri build` + 文件名归一化。Tauri 会先按 `productName` 产出 `声键_<version>_x64-setup.exe`，随后 `scripts/normalize-installer-name.ps1` 把它改名为 ASCII 小写的发布文件名：
 
-`apps/shengjian-desktop/src-tauri/target/release/bundle/nsis/shengjian_0.7.0_x64-setup.exe`
+`apps/shengjian-desktop/src-tauri/target/release/bundle/nsis/shengjian_0.8.0_x64-setup.exe`
 
 只跑 `pnpm tauri build` 也能构建，但产出的是中文文件名；发布、CI 与下载链接统一用 `shengjian_<version>_x64-setup.exe`。
 
@@ -175,19 +175,18 @@ cargo test --workspace
 
 首次使用：
 
-1. 连接页勾选“启用 RC003 增强捕获（返回键、音量键）”
-2. 点击“安装/更新 helper”，确认 UAC
-3. 保存设置
-4. helper 计划任务由 app 启动/停止
+1. 打开「设置 → 音频及语音」，在「按键增强服务」里点击安装 / 更新（确认 UAC）
+2. 在同一分组里打开「按键增强」开关（三款小米遥控器通用，按电脑生效而不是按遥控器）
+3. helper 计划任务由 app 启动/停止；连接页设备卡上的「按键增强 · 已安装」胶囊显示服务状态
 
 细节见 [docs/rc003-helper-setup.md](docs/rc003-helper-setup.md)。
 
 ## 验证
 
 - 根 workspace：`cargo fmt --all -- --check`、`cargo check --workspace`、`cargo test --workspace` 通过（**761 passed**）
-- 桌面 Rust：**19 passed**
-- 桌面前端：`pnpm lint`、`pnpm format:check`、`pnpm test`（**148 passed**）、`pnpm build` 通过
-- 本地构建：`shengjian_0.7.0_x64-setup.exe` 生成，`prepare-release.ps1` / `verify-release.ps1` 通过
+- 桌面 Rust：`cargo fmt -- --check`、`cargo test` 通过（**22 passed**）
+- 桌面前端：`pnpm lint`、`pnpm format:check`、`pnpm test`（**207 passed**）、`pnpm build`、`pnpm config:check` 通过
+- 本地构建：`shengjian_0.8.0_x64-setup.exe` 生成，`prepare-release.ps1` / `verify-release.ps1` 通过
 - 真机安装 / 启动 / 卸载：安装目录、快捷方式、卸载项、版本号清理正确；用户数据 `%LOCALAPPDATA%\Shengjian` 保留
 - 安装向导：欢迎页侧栏、页头品牌图、中文界面与「声键 安装」标题正常
 - 便携版：zip 解压到含空格/中文路径后启动正常；splash 窗口出现，主窗口就绪后自动关闭
@@ -207,20 +206,20 @@ cargo test --workspace
 ## 本地发布
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1 -Version 0.7.0
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -Version 0.7.0
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1 -Version 0.8.0
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -Version 0.8.0
 ```
 
 两个脚本从 `src-tauri/tauri.conf.json` 读取 `productName` 再拼安装包路径，品牌改名后不需要改脚本。
 `prepare-release.ps1` 写 `release/<version>/manifest.json`（`version` / `file` / `sizeBytes` / `sha256` /
 `builtAtUtc` / `signed`），`verify-release.ps1` 用它逐项比对本地安装包。
 
-GitHub Release 0.7.0（CI 构建）：
+GitHub Release 0.8.0（CI 构建）：
 
 ```text
-version=0.7.0
-installer=shengjian_0.7.0_x64-setup.exe
-portable=shengjian_0.7.0_x64-portable.zip
+version=0.8.0
+installer=shengjian_0.8.0_x64-setup.exe
+portable=shengjian_0.8.0_x64-portable.zip
 sha256/size：见 Release 内的 SHA256SUMS 与 manifest.json
 signed=false
 ```
