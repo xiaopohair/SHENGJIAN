@@ -489,8 +489,10 @@ function cleanBindings(): ProfileDraft["bindings"] {
 function validateProfileDraft(): string | null {
   if (!editor.value) return tr("没有正在编辑的方案");
   if (!editor.value.name.trim()) return tr("方案名称不能为空");
-  if (editor.value.autoApply && editor.value.appTargets.trim() === "") {
-    return tr("开启自动应用时必须填写至少一个应用目标");
+  // 方案存在的意义就是「匹配某个程序时生效」；没有程序的普通方案无法自动生效，
+  // 也不符合「新建必须先选程序」的流程，所以保存时直接拦住。默认方案是基线，豁免。
+  if (!editor.value.isDefault && editor.value.appTargets.trim() === "") {
+    return tr("请先为方案选择一个程序");
   }
   for (const [button, triggers] of Object.entries(editor.value.bindings)) {
     for (const [trigger, action] of Object.entries(triggers ?? {})) {

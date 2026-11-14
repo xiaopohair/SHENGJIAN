@@ -15,6 +15,7 @@ import { useVoiceToolCatalog } from "../composables/useVoiceToolCatalog";
 import AppPickerDialog from "./app-picker/AppPickerDialog.vue";
 import AppTargetField from "./app-picker/AppTargetField.vue";
 import Button from "./ui/Button.vue";
+import IconButton from "./ui/IconButton.vue";
 import Checkbox from "./ui/Checkbox.vue";
 import Field from "./ui/Field.vue";
 import SelectInput from "./ui/SelectInput.vue";
@@ -67,9 +68,10 @@ function applyPickedTarget(target: string) {
   closeAppPicker();
 }
 
-function useForegroundTarget() {
-  if (!props.foregroundApp) return;
-  draft.value.appTargets = mergeAppTargetsText(draft.value.appTargets, props.foregroundApp);
+/** 清掉程序选择（连带关掉自动应用——没有程序就无从匹配）。 */
+function clearProgram() {
+  draft.value.appTargets = "";
+  draft.value.autoApply = false;
 }
 
 function onKeydown(event: KeyboardEvent) {
@@ -136,17 +138,32 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown, true));
             <TextInput v-model="draft.name" :maxlength="80" />
           </Field>
           <Field class="settings-field" label="程序">
-            <AppTargetField
-              :target="programTargets[0] ?? ''"
-              :choose-label="tr('选择程序')"
-              :disabled="busy"
-              @choose="openAppPicker"
-            />
+            <div class="settings-program-row">
+              <AppTargetField
+                :target="programTargets[0] ?? ''"
+                :choose-label="tr('选择程序')"
+                :disabled="busy"
+                @choose="openAppPicker"
+              />
+              <IconButton
+                v-if="programTargets.length > 0"
+                size="sm"
+                :label="tr('清除程序')"
+                :disabled="busy"
+                @click="clearProgram"
+              >
+                <X :size="14" />
+              </IconButton>
+            </div>
             <span v-if="programTargets.length > 1" class="settings-help">
               {{ tr("另外还匹配：{names}", { names: programLabel }) }}
             </span>
             <span v-else class="settings-help">
-              {{ tr("这个程序切到前台时，方案会自动生效。") }}
+              {{
+                tr(
+                  "这是方案用来匹配前台的程序。只有开启「前台匹配时自动应用」时才会自动切换，否则需要手动激活。",
+                )
+              }}
             </span>
           </Field>
 
@@ -154,19 +171,6 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown, true));
             <Checkbox v-model="draft.autoApply" :disabled="programTargets.length === 0">
               {{ tr("前台匹配时自动应用") }}
             </Checkbox>
-            <div class="settings-buttons">
-              <Button
-                v-if="programTargets.length > 0"
-                size="sm"
-                :disabled="busy"
-                @click="draft.appTargets = ''"
-              >
-                {{ tr("清除") }}
-              </Button>
-              <Button size="sm" :disabled="!foregroundApp" @click="useForegroundTarget">
-                {{ tr("使用当前程序") }}
-              </Button>
-            </div>
           </div>
 
           <Field class="settings-field" label="语音输入工具">
@@ -302,6 +306,17 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown, true));
 
 .settings-body :deep(.ui-field-control) {
   width: 100%;
+}
+
+.settings-program-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.settings-program-row :deep(.app-target-field) {
+  flex: 1 1 auto;
 }
 
 .settings-action-row {

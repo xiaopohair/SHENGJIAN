@@ -64,6 +64,10 @@ const ENGLISH = {
   选择程序: "Choose a program",
   程序与行为: "Program and behaviour",
   清除: "Clear",
+  清除程序: "Clear program",
+  请先为方案选择一个程序: "Choose a program for this profile first",
+  "这是方案用来匹配前台的程序。只有开启「前台匹配时自动应用」时才会自动切换，否则需要手动激活。":
+    "The program this profile matches. It switches automatically only when Auto apply is on; otherwise activate it manually.",
   "另外还匹配：{names}": "Also matches: {names}",
   运行中: "Running",
   停止: "Stop",
