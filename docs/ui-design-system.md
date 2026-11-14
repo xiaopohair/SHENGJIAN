@@ -65,6 +65,13 @@
 
 所有组件都使用 scoped CSS，颜色/间距来自 token。
 
+**新界面先在这里找组件，找不到再考虑写页面级布局。** 现有清单：`Button`、`IconButton`、`Card`、
+`SectionHeader`、`Field`、`TextInput`、`SelectInput`、`Checkbox`、`Switch`、`RangeInput`、`ToggleGroup`、
+`Tabs`、`Notice`、`StatusPill`、`EmptyState`、`LoadingState`、`ConfirmDialog`、`SystemActionGrid`、`ChordInput`。
+
+弹窗类界面没有独立基础组件，直接照 [`RecommendedProfilesDialog.vue`](../apps/shengjian-desktop/src/components/RecommendedProfilesDialog.vue)
+的骨架写（遮罩 + 标题栏 + 主体 + 页脚），数值见第 5 节第 19 条。
+
 ### Button
 
 `Button.vue`
@@ -229,6 +236,14 @@ if (!(await confirmAction({
 14. 不修改 `lib/i18n.ts`。需要新 key 时在交付消息里列出“中文原文 + 英文建议”，由 Lead 统一补。
 15. 不修改 `styles/tokens.css`、`styles/global.css`、`App.vue`、`components/ui/*`、`lib/*`。页面只改自己的 `.vue` 文件。
 16. 保留现有脚本业务逻辑（Tauri invoke、自动保存、轮询、录音、事件监听），只调整模板、样式、展示文案和必要的只读展示逻辑。
+17. **复用优先，不另造视觉语言**：新界面必须先用 `components/ui/*` 和已有页面/弹窗的区块样式；
+    需要新布局时，先找一个同类现有界面照抄骨架（列表类弹窗照 `RecommendedProfilesDialog`），
+    不要自创小标题排版、分隔方式、圆角/宽度体系。
+18. **不用内联样式**：除运行时计算值（坐标、缩放、比例的 `:style` 绑定）外，一律写 scoped CSS
+    并走 token；`style="..."` 静态内联样式禁止。现有例外只有产品图热区/缩放这类动态几何
+    （`DevicePairingHelp.vue`、`ProfileWorkbench.vue`、`BrandMark.vue` 的高度参数）。
+19. 新弹窗对齐既有骨架数值：`width: min(620px, calc(100vw - 48px))`、`--radius-xl`、
+    遮罩 `z-index: 300`、头部 `1px` 分隔线 + 标题前图标 + 字重 650、页脚 `padding: var(--space-3) var(--space-5)`。
 
 ## 6. 响应式
 
