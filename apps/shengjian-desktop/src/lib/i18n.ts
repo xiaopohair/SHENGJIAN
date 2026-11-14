@@ -158,6 +158,10 @@ const ENGLISH = {
   整库已替换: "The whole library was replaced",
   "新增 {added} · 更新 {updated} · 跳过 {skipped}":
     "{added} added · {updated} updated · {skipped} skipped",
+  本机宏库: "Local macro library",
+  "一个 JSON，适合整库备份与迁移。": "One JSON — good for backing up or moving the whole library.",
+  "按宏拆分，适合只带走或只合并某几个宏。":
+    "Split per macro — good for taking or merging just a few.",
   组件与许可: "Components & licenses",
   随安装包分发的开源组件: "Open-source components shipped with the app",
   "按键增强（RC003 helper）": "Key enhancement (RC003 helper)",

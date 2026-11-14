@@ -335,77 +335,98 @@ onUnmounted(() => {
           </template>
 
           <template v-else>
-            <div class="macro-pane">
-              <div class="pane-head">
-                <p class="pane-label">{{ tr("文件个数") }}</p>
-              </div>
-              <div class="format-seg" role="radiogroup" :aria-label="tr('文件个数')">
-                <button
-                  type="button"
-                  role="radio"
-                  :aria-checked="format === 'single'"
-                  class="format-option"
-                  :class="{ selected: format === 'single' }"
-                  @click="format = 'single'"
-                >
-                  <FileJson :size="15" aria-hidden="true" />
-                  <span class="format-name">{{ tr("单文件") }}</span>
-                  <span class="format-hint">{{ tr("整个宏库打包成一个 JSON") }}</span>
-                </button>
-                <button
-                  type="button"
-                  role="radio"
-                  :aria-checked="format === 'multi'"
-                  class="format-option"
-                  :class="{ selected: format === 'multi' }"
-                  @click="format = 'multi'"
-                >
-                  <FolderOpen :size="15" aria-hidden="true" />
-                  <span class="format-name">{{ tr("多文件") }}</span>
-                  <span class="format-hint">{{ tr("每个宏一个 JSON，按条推进") }}</span>
-                </button>
-              </div>
-
-              <template v-if="direction === 'export'">
-                <div class="pane-head">
-                  <p class="pane-label">{{ tr("要导出的宏") }}</p>
-                  <div class="pane-head-actions">
-                    <span class="pane-count">{{ picked.length }} / {{ macros.length }}</span>
-                    <button type="button" class="link-button" @click="toggleAll">
-                      {{ pickedIds.length === macros.length ? tr("全不选") : tr("全选") }}
-                    </button>
+            <div class="transfer-split">
+              <div class="macro-list-pane">
+                <template v-if="direction === 'export'">
+                  <div class="pane-head">
+                    <p class="pane-label">{{ tr("要导出的宏") }}</p>
+                    <div class="pane-head-actions">
+                      <span class="pane-count">{{ picked.length }} / {{ macros.length }}</span>
+                      <button type="button" class="link-button" @click="toggleAll">
+                        {{ pickedIds.length === macros.length ? tr("全不选") : tr("全选") }}
+                      </button>
+                    </div>
                   </div>
-                </div>
-                <ul class="macro-rows">
-                  <li
-                    v-for="macro in macros"
-                    :key="macro.macroId"
-                    class="macro-row"
-                    :class="{ selected: pickedIds.includes(macro.macroId) }"
-                    tabindex="0"
-                    role="checkbox"
-                    :aria-checked="pickedIds.includes(macro.macroId)"
-                    @click="togglePick(macro.macroId)"
-                    @keydown.enter.prevent="togglePick(macro.macroId)"
-                    @keydown.space.prevent="togglePick(macro.macroId)"
-                  >
-                    <span class="row-check" aria-hidden="true" />
-                    <span class="row-main">
-                      <span class="row-name">{{ macro.name }}</span>
-                    </span>
-                    <span class="row-meta">
-                      {{ tr("{count} 步", { count: macro.steps.length }) }} · v{{ macro.version }}
-                    </span>
-                  </li>
-                </ul>
-              </template>
+                  <ul class="macro-rows">
+                    <li
+                      v-for="macro in macros"
+                      :key="macro.macroId"
+                      class="macro-row"
+                      :class="{ selected: pickedIds.includes(macro.macroId) }"
+                      tabindex="0"
+                      role="checkbox"
+                      :aria-checked="pickedIds.includes(macro.macroId)"
+                      @click="togglePick(macro.macroId)"
+                      @keydown.enter.prevent="togglePick(macro.macroId)"
+                      @keydown.space.prevent="togglePick(macro.macroId)"
+                    >
+                      <span class="row-check" aria-hidden="true" />
+                      <span class="row-main">
+                        <span class="row-name">{{ macro.name }}</span>
+                      </span>
+                      <span class="row-meta">
+                        {{ tr("{count} 步", { count: macro.steps.length }) }} · v{{ macro.version }}
+                      </span>
+                    </li>
+                  </ul>
+                </template>
 
-              <Notice v-else-if="format === 'single'" kind="warning">
-                {{ tr("单文件导入会整库替换当前宏库。") }}
-              </Notice>
-              <Notice v-else kind="info">
-                {{ tr("多文件导入会按宏合并：同 ID 同版本跳过，同 ID 新版本覆盖，新 ID 追加。") }}
-              </Notice>
+                <template v-else>
+                  <div class="pane-head">
+                    <p class="pane-label">{{ tr("本机宏库") }}</p>
+                    <span class="pane-count">{{ macros.length }} {{ tr("个宏") }}</span>
+                  </div>
+                  <div class="import-hint">
+                    <Notice v-if="format === 'single'" kind="warning">
+                      {{ tr("单文件导入会整库替换当前宏库。") }}
+                    </Notice>
+                    <Notice v-else kind="info">
+                      {{
+                        tr("多文件导入会按宏合并：同 ID 同版本跳过，同 ID 新版本覆盖，新 ID 追加。")
+                      }}
+                    </Notice>
+                  </div>
+                </template>
+              </div>
+
+              <div class="option-pane">
+                <div class="pane-head">
+                  <p class="pane-label">{{ tr("文件个数") }}</p>
+                </div>
+                <div class="format-seg" role="radiogroup" :aria-label="tr('文件个数')">
+                  <button
+                    type="button"
+                    role="radio"
+                    :aria-checked="format === 'single'"
+                    class="format-option"
+                    :class="{ selected: format === 'single' }"
+                    @click="format = 'single'"
+                  >
+                    <FileJson :size="15" aria-hidden="true" />
+                    <span class="format-name">{{ tr("单文件") }}</span>
+                    <span class="format-hint">{{ tr("整个宏库打包成一个 JSON") }}</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="radio"
+                    :aria-checked="format === 'multi'"
+                    class="format-option"
+                    :class="{ selected: format === 'multi' }"
+                    @click="format = 'multi'"
+                  >
+                    <FolderOpen :size="15" aria-hidden="true" />
+                    <span class="format-name">{{ tr("多文件") }}</span>
+                    <span class="format-hint">{{ tr("每个宏一个 JSON，按条推进") }}</span>
+                  </button>
+                </div>
+                <p class="option-note">
+                  {{
+                    format === "single"
+                      ? tr("一个 JSON，适合整库备份与迁移。")
+                      : tr("按宏拆分，适合只带走或只合并某几个宏。")
+                  }}
+                </p>
+              </div>
             </div>
           </template>
 
@@ -464,7 +485,7 @@ onUnmounted(() => {
 .transfer-dialog {
   display: flex;
   flex-direction: column;
-  width: min(760px, calc(100vw - 48px));
+  width: min(920px, calc(100vw - 48px));
   max-height: calc(100vh - 40px);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-xl);
@@ -574,13 +595,40 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-.macro-pane {
-  display: flex;
+.transfer-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
   flex: 1 1 auto;
-  flex-direction: column;
   min-height: 0;
+}
+
+.macro-list-pane {
+  display: flex;
+  flex-direction: column;
   gap: var(--space-2);
+  min-height: 0;
   padding: var(--space-3) 0 0;
+}
+
+.option-pane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 0;
+  border-left: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-subtle) 55%, transparent);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+
+.option-note {
+  margin: var(--space-2) 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-2xs);
+  line-height: 1.6;
+}
+
+.import-hint {
+  padding: 0 var(--space-4);
 }
 
 .pane-head {
@@ -629,9 +677,8 @@ onUnmounted(() => {
 
 .format-seg {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
-  padding: 0 var(--space-4);
 }
 
 .format-option {
