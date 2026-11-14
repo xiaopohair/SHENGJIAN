@@ -33,7 +33,6 @@ import type { AudioEndpoint, SettingsDocument } from "../lib/types";
 import PageHeader from "../components/PageHeader.vue";
 import Button from "../components/ui/Button.vue";
 import Card from "../components/ui/Card.vue";
-import Checkbox from "../components/ui/Checkbox.vue";
 import EmptyState from "../components/ui/EmptyState.vue";
 import DeviceSettingsDrawer from "../components/DeviceSettingsDrawer.vue";
 import IconButton from "../components/ui/IconButton.vue";
@@ -61,7 +60,6 @@ const connectedAt = shallowRef<number | null>(null);
 const nowTick = shallowRef(Date.now());
 
 const { catalog: voiceToolCatalog, load: loadVoiceToolCatalog } = useVoiceToolCatalog();
-const rc003Capture = shallowRef(false);
 const rc003HelperInstalled = shallowRef(false);
 const settingsDocument = ref<SettingsDocument | null>(null);
 const settingsDeviceId = shallowRef<string | null>(null);
@@ -75,10 +73,6 @@ const lastRemoteId = ref(localStorage.getItem(lastRemoteKey) ?? "");
 const currentRemoteId = computed(() => store.snapshot?.connection.remote?.remoteId ?? null);
 const deviceId = computed(() => store.snapshot?.connection.remote?.deviceId ?? null);
 const deviceName = computed(() => store.snapshot?.connection.remote?.name ?? tr("未连接设备"));
-/** 三款小米遥控器都支持按键增强服务。 */
-const supportsKeyEnhancementCapture = computed(
-  () => deviceId.value !== null && supportsKeyEnhancement(remoteModel.value),
-);
 const remoteModel = computed(() => store.snapshot?.connection.remote?.model ?? null);
 /** 卡片标题：用户起的名字优先，否则退回广播名。 */
 const displayDeviceName = computed(() => deviceNickname.value.trim() || deviceName.value);
@@ -211,7 +205,6 @@ async function loadDeviceSettings() {
     settingsDocument.value = settings;
     settingsDeviceId.value = deviceId.value;
     endpoints.value = await listAudioEndpoints();
-    rc003Capture.value = settings.global.rc003_capture_enabled ?? false;
     rc003HelperInstalled.value = await getRc003HelperInstalled();
     applyDeviceOverride(settings);
     applyTopbarVoiceInputTool();
@@ -267,12 +260,9 @@ async function saveConnectionSettings() {
         delete devices[id];
       }
     }
+    // 按键增强开关统一在「设置 → 音频及语音」里管理，这里不再改写该字段。
     const next: SettingsDocument = {
       ...latest,
-      global: {
-        ...latest.global,
-        rc003_capture_enabled: rc003Capture.value,
-      },
       devices,
     };
     await saveSettings(next);
@@ -291,7 +281,7 @@ function scheduleConnectionSave() {
   }, 250);
 }
 
-watch([rc003Capture, deviceGain, deviceEndpointId, deviceNickname], scheduleConnectionSave);
+watch([deviceGain, deviceEndpointId, deviceNickname], scheduleConnectionSave);
 
 /** 连上时记下时刻、断开清空；每 30 秒刷新一次「已连接 N 分钟」。 */
 watch(
@@ -643,19 +633,6 @@ onUnmounted(() => {
       :can-override-audio="Boolean(store.isConnected && deviceId)"
       @close="deviceSettingsOpen = false"
     />
-
-    <Card v-if="supportsKeyEnhancementCapture" class="stack">
-      <SectionHeader title="增强捕获" hint="返回键、音量键" />
-      <Checkbox v-model="rc003Capture">
-        {{ tr("启用按键增强") }}
-      </Checkbox>
-
-      <p class="helper-description">
-        {{
-          tr("返回键、音量键需要按键增强服务；安装、更新与卸载在「设置 → 音频及语音」中统一管理。")
-        }}
-      </p>
-    </Card>
   </section>
 </template>
 
@@ -882,12 +859,6 @@ onUnmounted(() => {
 .helper-name {
   font-size: var(--text-sm);
   font-weight: 650;
-}
-
-.helper-description {
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-  line-height: 1.6;
 }
 
 /* Layout stays multi-column down to the app minimum window width (1200px);
