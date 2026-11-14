@@ -489,7 +489,14 @@ onUnmounted(() => {
         </div>
 
         <div class="hero-main">
-          <h2 class="hero-name">{{ store.isConnected ? displayDeviceName : tr("未连接") }}</h2>
+          <div class="hero-title-row">
+            <h2 class="hero-name">{{ store.isConnected ? displayDeviceName : tr("未连接") }}</h2>
+            <StatusPill
+              :label="trDynamic(store.isConnected ? '使用中' : '未连接')"
+              :tone="store.isConnected ? 'success' : 'neutral'"
+              dot
+            />
+          </div>
           <p class="hero-sub">
             {{ store.isConnected ? heroSubtitle : tr("扫描附近遥控器后连接") }}
           </p>
@@ -509,47 +516,41 @@ onUnmounted(() => {
               {{ deviceStatus?.firmwareVersion ?? tr("未知") }}
             </span>
           </div>
-          <div class="hero-chips">
-            <span class="hero-chip" :class="{ offline: !store.isConnected }">
-              <i aria-hidden="true" />
-              {{ store.isConnected ? tr("蓝牙 · 已连接") : tr("蓝牙 · 未连接") }}
-            </span>
-            <span class="hero-chip"
-              ><Mic :size="13" aria-hidden="true" />{{ tr("语音") }} · {{ voiceChipLabel }}</span
-            >
-            <span class="hero-chip">
-              <Wrench :size="13" aria-hidden="true" />
-              {{ rc003ChipVisible ? tr("按键增强 · 已安装") : tr("按键增强 · 未安装") }}
-            </span>
-          </div>
-        </div>
-
-        <div class="hero-side">
-          <StatusPill
-            :label="trDynamic(store.isConnected ? '使用中' : '未连接')"
-            :tone="store.isConnected ? 'success' : 'neutral'"
-            dot
-          />
-          <div class="hero-actions">
-            <Button
-              v-if="store.isConnected"
-              size="sm"
-              :disabled="store.connecting"
-              @click="disconnect"
-            >
-              {{ tr("断开") }}
-            </Button>
-            <Button v-else size="sm" :disabled="store.scanning" @click="refresh">
-              {{ trDynamic(store.scanning ? "扫描中" : "扫描设备") }}
-            </Button>
-            <IconButton
-              v-if="store.isConnected"
-              size="sm"
-              :label="tr('设置')"
-              @click="focusOverrides"
-            >
-              <SlidersHorizontal :size="15" />
-            </IconButton>
+          <div class="hero-status-row">
+            <div class="hero-chips">
+              <span class="hero-chip" :class="{ offline: !store.isConnected }">
+                <i aria-hidden="true" />
+                {{ store.isConnected ? tr("蓝牙 · 已连接") : tr("蓝牙 · 未连接") }}
+              </span>
+              <span class="hero-chip"
+                ><Mic :size="13" aria-hidden="true" />{{ tr("语音") }} · {{ voiceChipLabel }}</span
+              >
+              <span class="hero-chip">
+                <Wrench :size="13" aria-hidden="true" />
+                {{ rc003ChipVisible ? tr("按键增强 · 已安装") : tr("按键增强 · 未安装") }}
+              </span>
+            </div>
+            <div class="hero-actions">
+              <Button
+                v-if="store.isConnected"
+                size="sm"
+                :disabled="store.connecting"
+                @click="disconnect"
+              >
+                {{ tr("断开") }}
+              </Button>
+              <Button v-else size="sm" :disabled="store.scanning" @click="refresh">
+                {{ trDynamic(store.scanning ? "扫描中" : "扫描设备") }}
+              </Button>
+              <IconButton
+                v-if="store.isConnected"
+                size="sm"
+                :label="tr('设置')"
+                @click="focusOverrides"
+              >
+                <SlidersHorizontal :size="15" />
+              </IconButton>
+            </div>
           </div>
         </div>
       </div>
@@ -959,7 +960,7 @@ onUnmounted(() => {
 
 .hero-body {
   display: grid;
-  grid-template-columns: 96px minmax(0, 1fr) auto;
+  grid-template-columns: 96px minmax(0, 1fr);
   /* 产品图与右侧信息区按中心线对齐；状态栏单独贴顶（见 .hero-side） */
   align-items: center;
   gap: var(--space-5);
@@ -1000,6 +1001,13 @@ onUnmounted(() => {
   flex-direction: column;
   gap: var(--space-2);
   min-width: 0;
+}
+
+.hero-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
 }
 
 .hero-name {
@@ -1073,22 +1081,19 @@ onUnmounted(() => {
   color: var(--text-muted);
 }
 
-.hero-side {
+.hero-status-row {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  align-self: start;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-3);
-  /* 与标题行对齐：网格里这几行都是顶部对齐的。 */
-  min-height: 60px;
-  padding-top: 2px;
 }
 
 .hero-actions {
   display: flex;
-  /* 按钮与文字链接底部对齐 */
-  align-items: flex-end;
-  gap: var(--space-3);
+  align-items: center;
+  gap: var(--space-2);
+  /* 胶囊靠左、按钮靠右，两者同一行自然中心对齐 */
+  margin-left: auto;
 }
 
 .hero-link {
