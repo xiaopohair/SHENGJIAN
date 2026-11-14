@@ -15,3 +15,10 @@ brand/tools/.stage/
 .dsh-uploads/
 
 __pycache__/
+
+# Agent session dirs
+.dsh-ops/
+.workbuddy/
+
+# Local verification screenshots (regenerated per session)
+apps/shengjian-desktop/e2e/_*.png
