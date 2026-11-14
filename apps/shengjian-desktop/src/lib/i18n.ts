@@ -236,6 +236,8 @@ const ENGLISH = {
   固件: "Firmware",
   蓝牙已连接: "Bluetooth connected",
   按键增强已装: "Key enhancement installed",
+  蓝牙未连接: "Bluetooth disconnected",
+  按键增强未装: "Key enhancement not installed",
   设备名称: "Device name",
   留空则用遥控器的广播名: "Leave blank to use the remote's advertised name",
   使用中: "In use",

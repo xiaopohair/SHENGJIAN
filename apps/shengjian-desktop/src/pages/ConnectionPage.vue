@@ -94,9 +94,9 @@ const voiceChipLabel = computed(() => {
   )?.label;
   return label || tr("未选择");
 });
-/** 按键增强服务装了才显示这枚状态胶囊。 */
+/** 按键增强服务状态：按最后一次连上的型号判断，断开后也照常显示。 */
 const rc003ChipVisible = computed(
-  () => supportsKeyEnhancementCapture.value && rc003HelperInstalled.value,
+  () => supportsKeyEnhancement(lastKnownModel.value) && rc003HelperInstalled.value,
 );
 const deviceProductName = computed(() => {
   const key = deviceProductNameKey(remoteModel.value);
@@ -488,22 +488,30 @@ onUnmounted(() => {
               <BatteryMedium :size="16" aria-hidden="true" />
               {{ battery === null ? tr("未知") : `${battery}%` }}
             </span>
-            <span v-if="store.isConnected" class="hero-stat">
+            <span class="hero-stat">
               <Clock3 :size="16" aria-hidden="true" />
-              {{ tr("已连接 {minutes} 分钟", { minutes: connectedMinutes }) }}
+              {{
+                store.isConnected
+                  ? tr("已连接 {minutes} 分钟", { minutes: connectedMinutes })
+                  : tr("未知")
+              }}
             </span>
             <span class="hero-stat">
               <Cpu :size="16" aria-hidden="true" />
-              {{ tr("固件") }} {{ deviceStatus?.firmwareVersion ?? tr("未知") }}
+              {{ deviceStatus?.firmwareVersion ?? tr("未知") }}
             </span>
           </div>
-          <div v-if="store.isConnected" class="hero-chips">
-            <span class="hero-chip"><i aria-hidden="true" />{{ tr("蓝牙已连接") }}</span>
+          <div class="hero-chips">
+            <span class="hero-chip" :class="{ offline: !store.isConnected }">
+              <i aria-hidden="true" />
+              {{ store.isConnected ? tr("蓝牙已连接") : tr("蓝牙未连接") }}
+            </span>
             <span class="hero-chip"
               ><Mic :size="13" aria-hidden="true" />{{ tr("语音") }} · {{ voiceChipLabel }}</span
             >
-            <span v-if="rc003ChipVisible" class="hero-chip">
-              <Wrench :size="13" aria-hidden="true" />{{ tr("按键增强已装") }}
+            <span class="hero-chip">
+              <Wrench :size="13" aria-hidden="true" />
+              {{ rc003ChipVisible ? tr("按键增强已装") : tr("按键增强未装") }}
             </span>
           </div>
         </div>
@@ -944,7 +952,8 @@ onUnmounted(() => {
 .hero-body {
   display: grid;
   grid-template-columns: 96px minmax(0, 1fr) auto;
-  align-items: start;
+  /* 产品图与右侧信息区按中心线对齐；状态栏单独贴顶（见 .hero-side） */
+  align-items: center;
   gap: var(--space-5);
   /* 连接状态切换时卡片高度保持一致，不抖动 */
   min-height: 156px;
@@ -955,6 +964,7 @@ onUnmounted(() => {
   display: grid;
   place-items: center;
   align-self: center;
+  justify-self: center;
   /* 固定槽位：连接/断开切换时图像不改变布局尺寸 */
   width: 64px;
   height: 140px;
@@ -1045,6 +1055,10 @@ onUnmounted(() => {
   background: var(--success, var(--accent));
 }
 
+.hero-chip.offline i {
+  background: var(--text-disabled);
+}
+
 .hero-chip svg {
   color: var(--text-muted);
 }
@@ -1053,6 +1067,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+  align-self: start;
   gap: var(--space-3);
   /* 与标题行对齐：网格里这几行都是顶部对齐的。 */
   min-height: 60px;
