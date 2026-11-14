@@ -1014,6 +1014,9 @@ const ENGLISH = {
     "The helper install wasn't detected; confirm the UAC prompt and check again",
   "未检测到卸载完成，请确认 UAC 已通过后重新检测。":
     "The removal wasn't detected; confirm the UAC prompt and check again",
+  选择这个方案要匹配的应用: "Choose the app this profile should match",
+  "先选一个程序：方案的键位会在它切到前台时生效。":
+    "Pick an app first: this profile's keys apply when it comes to the foreground.",
   按键增强: "Key enhancement",
   方案激活: "Profile activation",
   更多操作: "More actions",

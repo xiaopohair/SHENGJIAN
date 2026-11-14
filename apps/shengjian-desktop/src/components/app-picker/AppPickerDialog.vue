@@ -10,7 +10,7 @@ import {
   subtitleOf,
   type AppTargetMode,
 } from "../../lib/appTargets";
-import { tr } from "../../lib/i18n";
+import { tr, trDynamic } from "../../lib/i18n";
 import { RUNNABLE_EXTENSIONS } from "../../lib/runnable";
 import { pushToast } from "../../lib/toast";
 import type { AppTargetInfo, LaunchableApp } from "../../lib/types";
@@ -34,6 +34,8 @@ const props = withDefaults(
     foregroundApp?: string;
     recentTargets?: string[];
     title?: string;
+    /** 覆盖默认副标题；不同入口的用途不同（自动匹配 / 新建方案）。 */
+    description?: string;
   }>(),
   {
     mode: "launch",
@@ -41,6 +43,7 @@ const props = withDefaults(
     foregroundApp: "",
     recentTargets: () => [],
     title: "",
+    description: "",
   },
 );
 
@@ -534,9 +537,11 @@ onUnmounted(() => {
             <h2 id="app-picker-title">{{ resolvedTitle }}</h2>
             <p>
               {{
-                isMatchMode
-                  ? tr("选择用于自动匹配的应用（按可执行文件名匹配前台）")
-                  : tr("选择要启动的应用；旧目标会在这里显示问题并可修复。")
+                props.description.trim()
+                  ? trDynamic(props.description)
+                  : isMatchMode
+                    ? tr("选择用于自动匹配的应用（按可执行文件名匹配前台）")
+                    : tr("选择要启动的应用；旧目标会在这里显示问题并可修复。")
               }}
             </p>
           </div>

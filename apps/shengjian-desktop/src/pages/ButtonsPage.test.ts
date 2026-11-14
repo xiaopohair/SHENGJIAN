@@ -38,7 +38,23 @@ vi.mock("../lib/api", () => ({
   ]),
   importProfiles: vi.fn(),
   resolveAppTarget: vi.fn(async () => null),
-  listLaunchableApps: vi.fn(async () => ({ apps: [], scanned: true, scanError: null })),
+  listLaunchableApps: vi.fn(async () => ({
+    apps: [
+      {
+        appId: "preset.note",
+        displayName: "记事本",
+        target: "notepad.exe",
+        executableName: "notepad.exe",
+        kind: "path",
+        source: "preset",
+        installed: true,
+        portable: false,
+        matchable: true,
+      },
+    ],
+    scanned: true,
+    scanError: null,
+  })),
   describeAppTargets: vi.fn(async () => []),
   canonicalizeAppTarget: vi.fn(),
   appIconDataUrls: vi.fn(async () => []),
@@ -141,6 +157,22 @@ async function mountPage() {
   return wrapper;
 }
 
+/**
+ * 「添加」现在先弹应用选择器：点完「添加」要在弹窗里选一个应用才会创建方案。
+ * 弹窗用 Teleport 挂到 body，所以从 document 里找选项。
+ */
+async function createProfile(wrapper: ReturnType<typeof mount>) {
+  const addButton = wrapper.findAll(".profile-tools button").find((b) => b.text() === "添加");
+  if (addButton) await addButton.trigger("click");
+  else await wrapper.get(".ui-empty-actions button").trigger("click");
+  await flushPromises();
+  const option = document.body.querySelector<HTMLElement>(".app-picker-option");
+  if (!option) throw new Error("app picker option missing");
+  option.click();
+  await flushPromises();
+  await flushPromises();
+}
+
 function toolbarButton(wrapper: ReturnType<typeof mount>, label: string) {
   return wrapper.findAll(".profile-tools button").find((button) => button.text() === label);
 }
@@ -199,10 +231,9 @@ describe("ButtonsPage profile navigation and editor", () => {
   it("opens the edit area right after creating the first profile", async () => {
     const wrapper = await mountPage();
 
-    await wrapper.get(".ui-empty-actions button").trigger("click");
-    await flushPromises();
+    await createProfile(wrapper);
 
-    // 「添加」现在直接把空方案落盘，再按普通方案打开编辑。
+    // 「添加」先选应用，再落盘成普通方案并打开编辑。
     expect(saveButtonProfiles).toHaveBeenCalledTimes(1);
     // 编辑工具栏已删除，方案上下文由 chip + 工作台承载。
     expect(wrapper.find(".editor-toolbar").exists()).toBe(false);
@@ -231,8 +262,7 @@ describe("ButtonsPage profile navigation and editor", () => {
       .findAll(".profile-tools button")
       .find((button) => button.text() === "添加");
     expect(newButton).toBeDefined();
-    await newButton!.trigger("click");
-    await flushPromises();
+    await createProfile(wrapper);
 
     expect(saveButtonProfiles).toHaveBeenCalledTimes(1);
     expect(wrapper.find(".profile-chip.new-chip").exists()).toBe(false);
@@ -243,8 +273,7 @@ describe("ButtonsPage profile navigation and editor", () => {
   it("persists a new profile immediately and offers no cancel action", async () => {
     const wrapper = await mountPage();
 
-    await wrapper.get(".ui-empty-actions button").trigger("click");
-    await flushPromises();
+    await createProfile(wrapper);
 
     expect(wrapper.find(".profile-chips").exists()).toBe(true);
     expect(wrapper.find(".profile-workbench").exists()).toBe(true);
@@ -258,8 +287,7 @@ describe("ButtonsPage profile navigation and editor", () => {
   it("keeps the edit area open after the new profile is persisted", async () => {
     const wrapper = await mountPage();
 
-    await wrapper.get(".ui-empty-actions button").trigger("click");
-    await flushPromises();
+    await createProfile(wrapper);
 
     // 添加时就已落盘，编辑区保持打开供继续配置。
     expect(saveButtonProfiles).toHaveBeenCalledTimes(1);
@@ -285,6 +313,28 @@ describe("ButtonsPage profile navigation and editor", () => {
     expect(document.querySelector(".recommended-dialog")).not.toBeNull();
     expect(window.localStorage.getItem(RECOMMENDED_SEEN_VERSION_KEY)).toBe("2026.11.1");
     expect(wrapper.find(".recommended-update-badge").exists()).toBe(false);
+  });
+
+  it("requires picking an app before creating a profile", async () => {
+    currentDocument = documentWithProfile("已有方案");
+    const wrapper = await mountPage();
+    const chipsBefore = wrapper.findAll(".profile-chip").length;
+
+    const addButton = wrapper.findAll(".profile-tools button").find((b) => b.text() === "添加");
+    await addButton!.trigger("click");
+    await flushPromises();
+
+    // 弹窗已打开，但此时还没有创建任何方案。
+    expect(document.body.querySelector(".app-picker")).not.toBeNull();
+    expect(saveButtonProfiles).not.toHaveBeenCalled();
+    expect(wrapper.findAll(".profile-chip")).toHaveLength(chipsBefore);
+
+    // 关掉选择器 → 仍然不创建。
+    const close = document.body.querySelector<HTMLElement>(".app-picker button[aria-label='关闭']");
+    close?.click();
+    await flushPromises();
+    expect(saveButtonProfiles).not.toHaveBeenCalled();
+    expect(wrapper.findAll(".profile-chip")).toHaveLength(chipsBefore);
   });
 
   it("asks for an app target before enabling auto apply", async () => {
@@ -375,8 +425,7 @@ describe("ButtonsPage profile navigation and editor", () => {
 
   it("blocks saving a profile whose system action has no key", async () => {
     const wrapper = await mountPage();
-    await wrapper.get(".ui-empty-actions button").trigger("click");
-    await flushPromises();
+    await createProfile(wrapper);
 
     const card = wrapper
       .findAll(".binding-option")

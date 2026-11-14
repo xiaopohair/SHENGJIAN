@@ -378,13 +378,20 @@ function closeEditor() {
 }
 
 /**
- * 「添加」：直接落盘成一个空方案再进入编辑。
+ * 「添加」：先让用户选应用，选完才创建方案并进入编辑。
  *
- * 不再有「未保存的新建草稿」这个状态：方案先存下来（就是一条普通方案），
- * 用户不要就自己删掉，省掉一条额外的取消路径。
+ * 方案的意义就是「匹配某个前台应用时切到这套键位」，没有应用目标的新方案
+ * 只能靠手动激活，绝大多数用户并不需要——所以把选应用提到创建之前。
+ * 取消选择 = 不创建。
  */
 async function startNew() {
   if (!(await confirmDiscard())) return;
+  if (!profilesDocument.value) return;
+  openPickerFor("new-profile");
+}
+
+/** 用选中的应用目标创建方案并进入编辑（由应用选择器回调触发）。 */
+async function createProfileWithTarget(target: string) {
   if (!profilesDocument.value) return;
   busy.value = true;
   error.value = null;
@@ -392,7 +399,7 @@ async function startNew() {
     const created: ButtonProfile = {
       id: `profile-${crypto.randomUUID()}`,
       name: tr("新方案"),
-      appTargets: [],
+      appTargets: [target],
       autoApply: false,
       holdRepeat: null,
       holdRepeatByButton: {},
@@ -659,18 +666,56 @@ async function toggleEnhancedCapture(value: boolean) {
 }
 
 /**
- * 自动应用：方案必须至少有一个应用目标才有意义。
+ * 应用选择器：一个对话框服务两种用途。
  *
- * 打开时若还没配应用，先弹「选择用于自动匹配的应用」选择器（和方案属性里同一个
- * 对话框）；选中的应用写进方案、同时打开自动应用，用户取消则保持关闭。
+ * - `auto-apply`：开「自动应用」时方案还没有应用目标 → 选完写进方案并开启自动应用；
+ * - `new-profile`：点「添加」→ 必须先选程序，选完才创建方案。
+ *
+ * 两个用途的标题、recent targets、选中后的行为都不同，所以用 purpose 区分，
+ * 而不是开两个对话框状态。
  */
 const {
-  open: autoApplyPickerOpen,
-  openPicker: openAutoApplyPicker,
-  closePicker: closeAutoApplyPicker,
+  open: appPickerOpen,
+  openPicker: openAppPicker,
+  closePicker: closeAppPicker,
 } = useAppPicker();
-const autoApplyPickerPending = shallowRef(false);
-const autoApplyRecentTargets = computed(() => splitAppTargets(editor.value?.appTargets ?? ""));
+const appPickerPurpose = shallowRef<"auto-apply" | "new-profile" | null>(null);
+
+const appPickerTitle = computed(() =>
+  appPickerPurpose.value === "new-profile"
+    ? tr("选择这个方案要匹配的应用")
+    : tr("选择用于自动匹配的应用"),
+);
+const appPickerDescription = computed(() =>
+  appPickerPurpose.value === "new-profile"
+    ? tr("先选一个程序：方案的键位会在它切到前台时生效。")
+    : tr("选择用于自动匹配的应用（按可执行文件名匹配前台）"),
+);
+const appPickerRecentTargets = computed(() => splitAppTargets(editor.value?.appTargets ?? ""));
+
+function openPickerFor(purpose: "auto-apply" | "new-profile") {
+  appPickerPurpose.value = purpose;
+  openAppPicker();
+}
+
+function closeAppPickerAndReset() {
+  appPickerPurpose.value = null;
+  closeAppPicker();
+}
+
+async function onAppPicked(target: string) {
+  const purpose = appPickerPurpose.value;
+  appPickerPurpose.value = null;
+  closeAppPicker();
+  if (purpose === "new-profile") {
+    await createProfileWithTarget(target);
+    return;
+  }
+  if (editor.value) {
+    editor.value.appTargets = mergeAppTargetsText(editor.value.appTargets, target);
+    if (purpose === "auto-apply") editor.value.autoApply = true;
+  }
+}
 
 function toggleAutoApply(value: boolean) {
   if (!editor.value || editor.value.isDefault) return;
@@ -683,22 +728,7 @@ function toggleAutoApply(value: boolean) {
     return;
   }
   // 没配应用：先让用户选一个，选完再开启。
-  autoApplyPickerPending.value = true;
-  openAutoApplyPicker();
-}
-
-function applyAutoApplyTarget(target: string) {
-  if (editor.value) {
-    editor.value.appTargets = mergeAppTargetsText(editor.value.appTargets, target);
-    if (autoApplyPickerPending.value) editor.value.autoApply = true;
-  }
-  autoApplyPickerPending.value = false;
-  closeAutoApplyPicker();
-}
-
-function cancelAutoApplyPicker() {
-  autoApplyPickerPending.value = false;
-  closeAutoApplyPicker();
+  openPickerFor("auto-apply");
 }
 const canDeleteCurrentProfile = computed(
   () =>
@@ -1091,13 +1121,14 @@ onUnmounted(() => {
       </div>
 
       <AppPickerDialog
-        :open="autoApplyPickerOpen"
+        :open="appPickerOpen"
         mode="match"
-        :title="tr('选择用于自动匹配的应用')"
+        :title="appPickerTitle"
+        :description="appPickerDescription"
         :foreground-app="foregroundApp"
-        :recent-targets="autoApplyRecentTargets"
-        @select="applyAutoApplyTarget"
-        @close="cancelAutoApplyPicker"
+        :recent-targets="appPickerRecentTargets"
+        @select="onAppPicked"
+        @close="closeAppPickerAndReset"
       />
 
       <ProfileWorkbench
