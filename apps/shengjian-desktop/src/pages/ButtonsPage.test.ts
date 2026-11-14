@@ -142,9 +142,7 @@ async function mountPage() {
 }
 
 function toolbarButton(wrapper: ReturnType<typeof mount>, label: string) {
-  return wrapper
-    .findAll(".editor-toolbar-actions button")
-    .find((button) => button.text() === label);
+  return wrapper.findAll(".profile-tools button").find((button) => button.text() === label);
 }
 
 describe("ButtonsPage profile navigation and editor", () => {
@@ -156,14 +154,21 @@ describe("ButtonsPage profile navigation and editor", () => {
     expect(wrapper.find(".profile-chips").exists()).toBe(false);
     expect(wrapper.find(".profile-chips-hint").exists()).toBe(false);
 
-    // 工具栏只剩「新建」、竖向三点菜单与「推荐方案」；导入导出收进菜单。
+    // 编辑动作全部收在方案导航工具栏，顺序：保存、添加、更多操作、属性、推荐方案。
     const toolLabels = wrapper.findAll(".profile-tools button").map((button) => button.text());
-    expect(toolLabels).toContain("新建");
+    expect(toolLabels).toContain("保存");
+    expect(toolLabels).toContain("添加");
+    expect(toolLabels.some((label) => label.includes("推荐方案"))).toBe(true);
+    expect(toolLabels).not.toContain("取消");
     expect(toolLabels).not.toContain("导入");
     expect(toolLabels).not.toContain("导出");
     expect(wrapper.find('.profile-more [aria-label="更多操作"]').exists()).toBe(true);
+    expect(wrapper.find('.profile-tools [aria-label="属性"]').exists()).toBe(true);
     // 菜单默认收起。
     expect(wrapper.find(".profile-more-menu").exists()).toBe(false);
+    // 没有打开方案时保存/属性不可点。
+    expect(toolbarButton(wrapper, "保存")!.attributes("disabled")).toBeDefined();
+    expect(wrapper.findAll(".profile-tools button").at(-1)!.text()).toContain("推荐方案");
 
     // Nothing to switch between either.
     expect(wrapper.find(".view-switch").exists()).toBe(false);
@@ -220,7 +225,7 @@ describe("ButtonsPage profile navigation and editor", () => {
 
     const newButton = wrapper
       .findAll(".profile-tools button")
-      .find((button) => button.text() === "新建");
+      .find((button) => button.text() === "添加");
     expect(newButton).toBeDefined();
     await newButton!.trigger("click");
     await flushPromises();
@@ -230,7 +235,7 @@ describe("ButtonsPage profile navigation and editor", () => {
     expect(wrapper.find(".profile-workbench").exists()).toBe(true);
   });
 
-  it("returns to the empty state when a new draft is cancelled", async () => {
+  it("keeps a new draft open because the cancel button was removed", async () => {
     const wrapper = await mountPage();
 
     await wrapper.get(".ui-empty-actions button").trigger("click");
@@ -239,14 +244,9 @@ describe("ButtonsPage profile navigation and editor", () => {
     expect(wrapper.find(".profile-chips").exists()).toBe(true);
     expect(wrapper.find(".profile-workbench").exists()).toBe(true);
 
-    const cancelButton = toolbarButton(wrapper, "取消");
-    expect(cancelButton).toBeDefined();
-    await cancelButton!.trigger("click");
-    await flushPromises();
-
-    expect(wrapper.find(".profile-chips").exists()).toBe(false);
-    expect(wrapper.find(".profile-workbench").exists()).toBe(false);
-    expect(wrapper.find(".ui-empty").exists()).toBe(true);
+    // 取消已从工具栏移除；草稿只能靠保存（或切换方案丢弃）离开。
+    expect(toolbarButton(wrapper, "取消")).toBeUndefined();
+    expect(toolbarButton(wrapper, "保存")!.attributes("disabled")).toBeUndefined();
   });
 
   it("keeps the edit area open after the new profile is saved", async () => {

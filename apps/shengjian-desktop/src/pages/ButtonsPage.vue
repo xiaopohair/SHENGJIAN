@@ -441,11 +441,6 @@ function openDraft(profile: ButtonProfile) {
   syncBaseline();
 }
 
-async function cancelEdit() {
-  if (!(await confirmDiscard())) return;
-  closeEditor();
-}
-
 function cleanBindings(): ProfileDraft["bindings"] {
   const result: ProfileDraft["bindings"] = {};
   for (const button of PROFILE_BUTTONS) {
@@ -559,6 +554,22 @@ function toggleMoreMenu() {
 function openTransfer() {
   moreMenuOpen.value = false;
   transferOpen.value = true;
+}
+
+/** 已保存的方案才能重置/复制；新建草稿或未保存时这两项不可用。 */
+const canEditCurrentProfile = computed(
+  () => !editingNew.value && Boolean(currentProfileRecord.value),
+);
+const canDeleteCurrentProfile = computed(
+  () =>
+    Boolean(currentProfileRecord.value) &&
+    !isDefaultProfile(currentProfileRecord.value ?? { isDefault: false }),
+);
+
+/** 菜单项动作：先收起菜单再执行，避免菜单盖在确认框上。 */
+function runFromMoreMenu(action: () => void | Promise<void>) {
+  moreMenuOpen.value = false;
+  void action();
 }
 
 /** 点菜单外或按 Esc 收起，避免菜单挂在那里挡住工具栏。 */
@@ -968,9 +979,17 @@ onUnmounted(() => {
         </div>
 
         <div class="profile-tools">
-          <Button size="sm" variant="primary" :disabled="busy" @click="startNew">
+          <Button
+            size="sm"
+            variant="primary"
+            :disabled="busy || !editor || (!dirty && !editingNew)"
+            @click="saveEditor"
+          >
+            {{ tr("保存") }}
+          </Button>
+          <Button size="sm" :disabled="busy" @click="startNew">
             <Plus :size="14" />
-            {{ tr("新建") }}
+            {{ tr("添加") }}
           </Button>
           <div ref="moreMenuRef" class="profile-more">
             <IconButton
@@ -987,8 +1006,50 @@ onUnmounted(() => {
                 <ArrowLeftRight :size="14" />
                 {{ tr("导入 / 导出") }}
               </button>
+              <div class="profile-more-divider" role="separator" />
+              <button
+                type="button"
+                class="profile-more-item"
+                role="menuitem"
+                :disabled="busy || !canEditCurrentProfile"
+                @click="runFromMoreMenu(resetCurrentProfile)"
+              >
+                <RotateCcw :size="14" />
+                {{ tr("重置方案") }}
+              </button>
+              <button
+                type="button"
+                class="profile-more-item"
+                role="menuitem"
+                :disabled="busy || !canEditCurrentProfile"
+                @click="runFromMoreMenu(duplicateCurrentProfile)"
+              >
+                <Copy :size="14" />
+                {{ tr("复制方案") }}
+              </button>
+              <template v-if="canDeleteCurrentProfile">
+                <div class="profile-more-divider" role="separator" />
+                <button
+                  type="button"
+                  class="profile-more-item danger"
+                  role="menuitem"
+                  :disabled="busy"
+                  @click="runFromMoreMenu(removeCurrentProfile)"
+                >
+                  <Trash2 :size="14" />
+                  {{ tr("删除方案") }}
+                </button>
+              </template>
             </div>
           </div>
+          <IconButton
+            size="sm"
+            :label="trDynamic('属性')"
+            :disabled="busy || !editor"
+            @click="openSettings"
+          >
+            <SlidersHorizontal :size="15" />
+          </IconButton>
           <Button size="sm" :disabled="busy" @click="openRecommendedProfiles">
             <Sparkles :size="14" />
             {{ tr("推荐方案") }}
@@ -1037,49 +1098,6 @@ onUnmounted(() => {
           </span>
           <StatusPill v-if="justSaved" :label="trDynamic('已保存')" tone="accent" dot />
           <StatusPill v-if="dirty" :label="trDynamic('未保存')" tone="warning" dot />
-        </div>
-        <div class="editor-toolbar-actions">
-          <Button size="sm" :disabled="busy" @click="cancelEdit">{{ tr("取消") }}</Button>
-          <Button
-            size="sm"
-            variant="primary"
-            :disabled="busy || (!dirty && !editingNew)"
-            @click="saveEditor"
-          >
-            {{ tr("保存") }}
-          </Button>
-          <IconButton
-            v-if="!editingNew && currentProfileRecord"
-            size="sm"
-            :label="trDynamic('重置方案')"
-            :disabled="busy"
-            @click="resetCurrentProfile"
-          >
-            <RotateCcw :size="14" />
-          </IconButton>
-          <IconButton size="sm" :label="trDynamic('属性')" @click="openSettings">
-            <SlidersHorizontal :size="15" />
-          </IconButton>
-          <IconButton
-            v-if="!editingNew && currentProfileRecord"
-            size="sm"
-            :label="trDynamic('复制方案')"
-            :disabled="busy"
-            @click="duplicateCurrentProfile"
-          >
-            <Copy :size="14" />
-          </IconButton>
-
-          <IconButton
-            v-if="!editingNew && currentProfileRecord && !isDefaultProfile(currentProfileRecord)"
-            size="sm"
-            variant="danger"
-            :label="trDynamic('删除方案')"
-            :disabled="busy"
-            @click="removeCurrentProfile"
-          >
-            <Trash2 :size="14" />
-          </IconButton>
         </div>
       </div>
 
@@ -1347,9 +1365,27 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
-.profile-more-item:hover {
+.profile-more-item:hover:not(:disabled) {
   background: var(--bg-hover);
   color: var(--text);
+}
+
+.profile-more-item:disabled {
+  color: var(--text-disabled);
+  cursor: default;
+}
+
+.profile-more-item.danger {
+  color: var(--danger-text);
+}
+
+.profile-more-item.danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+}
+
+.profile-more-divider {
+  margin: var(--space-1) 0;
+  border-top: 1px solid var(--border);
 }
 
 .recommended-update-badge {
