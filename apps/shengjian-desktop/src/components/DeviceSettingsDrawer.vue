@@ -6,7 +6,6 @@ import { voiceToolOptions } from "../lib/voiceTools";
 import type { AudioEndpoint, VoiceToolInfo } from "../lib/types";
 import Button from "./ui/Button.vue";
 import Checkbox from "./ui/Checkbox.vue";
-import Field from "./ui/Field.vue";
 import RangeInput from "./ui/RangeInput.vue";
 import SelectInput from "./ui/SelectInput.vue";
 import TextInput from "./ui/TextInput.vue";
@@ -90,9 +89,14 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown, true));
         </header>
 
         <div class="device-drawer-body">
-          <Field :label="tr('设备名称')" :hint="tr('留空则用遥控器的广播名')">
-            <TextInput v-model="nickname" :maxlength="24" :placeholder="fallbackName" />
-          </Field>
+          <label class="drawer-field">
+            <span class="drawer-field-label">{{ tr("设备名称") }}</span>
+            <TextInput
+              v-model="nickname"
+              :maxlength="24"
+              :placeholder="tr('留空则用遥控器的广播名')"
+            />
+          </label>
 
           <template v-if="canOverrideAudio">
             <Checkbox v-model="useOverride">
@@ -100,21 +104,24 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown, true));
             </Checkbox>
 
             <template v-if="useOverride">
-              <Field :label="tr('设备增益')">
+              <div class="drawer-field">
+                <span class="drawer-field-label">{{ tr("设备增益") }}</span>
                 <div class="gain-row">
                   <RangeInput v-model="gain" :min="0" :max="24" :step="1" />
                   <span class="gain-value mono muted">{{ gain }} dB</span>
                 </div>
-              </Field>
-              <Field :label="tr('语音输出设备')">
+              </div>
+              <label class="drawer-field">
+                <span class="drawer-field-label">{{ tr("语音输出设备") }}</span>
                 <SelectInput v-model="endpointId">
                   <option value="">{{ tr("继承全局端点") }}</option>
                   <option v-for="endpoint in endpoints" :key="endpoint.id" :value="endpoint.id">
                     {{ endpoint.name }}{{ endpoint.recommended ? tr("（推荐）") : "" }}
                   </option>
                 </SelectInput>
-              </Field>
-              <Field :label="tr('语音输入工具')">
+              </label>
+              <label class="drawer-field">
+                <span class="drawer-field-label">{{ tr("语音输入工具") }}</span>
                 <SelectInput v-model="voiceInputTool">
                   <option value="">{{ tr("继承全局工具") }}</option>
                   <option
@@ -125,7 +132,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown, true));
                     {{ tool.label }}
                   </option>
                 </SelectInput>
-              </Field>
+              </label>
             </template>
           </template>
         </div>
@@ -225,6 +232,19 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown, true));
   gap: var(--space-4);
   overflow-y: auto;
   padding: var(--space-5);
+}
+
+.drawer-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.drawer-field-label {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.4;
 }
 
 .gain-row {
