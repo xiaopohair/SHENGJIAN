@@ -668,7 +668,6 @@ onMounted(async () => {
                 <Copy :size="14" />
                 {{ tr("复制宏") }}
               </button>
-              <div class="macro-more-divider" role="separator" />
               <button
                 type="button"
                 class="macro-more-item is-danger"
