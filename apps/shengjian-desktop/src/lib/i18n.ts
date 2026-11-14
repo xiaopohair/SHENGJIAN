@@ -143,6 +143,21 @@ const ENGLISH = {
   "已导入 {count} 个宏（整库替换）。": "Imported {count} macros (library replaced).",
   "已导入：新增 {added} 个，更新 {updated} 个，跳过 {skipped} 个。":
     "Imported: {added} added, {updated} updated, {skipped} skipped.",
+  导入与导出宏: "Import and export macros",
+  "把别的电脑上的宏带过来，先看清会覆盖还是新增。":
+    "Bring macros from another computer; you will see what gets replaced or added.",
+  "单文件是整个宏库；多文件是每个宏一个文件，可以挑着导出。":
+    "A single file is the whole library; multiple files means one JSON per macro, and you can pick which ones.",
+  "导出只读，不改动本机宏库": "Exporting is read-only; your local library stays untouched",
+  导入前先看会怎么合并: "See how they merge before importing",
+  个宏: " macros",
+  "已导出 {count} 个宏": "Exported {count} macros",
+  "已导入 {count} 个宏": "Imported {count} macros",
+  "已写出 1 个文件": "Wrote 1 file",
+  "已写出 {count} 个文件": "Wrote {count} files",
+  整库已替换: "The whole library was replaced",
+  "新增 {added} · 更新 {updated} · 跳过 {skipped}":
+    "{added} added · {updated} updated · {skipped} skipped",
   组件与许可: "Components & licenses",
   随安装包分发的开源组件: "Open-source components shipped with the app",
   "按键增强（RC003 helper）": "Key enhancement (RC003 helper)",
