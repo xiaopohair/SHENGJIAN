@@ -52,6 +52,8 @@ import {
   getThemePreference,
 } from "./lib/preferences";
 import { finishStartup } from "./lib/startup";
+import { pushToast } from "./lib/toast";
+import { shouldHintVoiceSelfForeground } from "./lib/voiceFocusHint";
 import { useEngineStore } from "./stores/engine";
 import { useStatusStore } from "./stores/status";
 import { useUpdateStore } from "./stores/update";
@@ -274,6 +276,35 @@ function showUpdatePage() {
 watch(showOnboarding, (value) => {
   if (!value) scheduleUpdateCheck();
 });
+
+/**
+ * 前台是本窗口时按语音键：平台层会跳过输入法切换（切自己的 WebView 会整页重载），
+ * 结果屏幕上什么都不发生。这里补一条说明，避免现场只表现为「语音键没反应」。
+ */
+const voiceFocusHinted = shallowRef(false);
+watch(
+  () => store.voiceState,
+  (state, previous) => {
+    if (state !== "streaming") {
+      voiceFocusHinted.value = false;
+      return;
+    }
+    if (
+      shouldHintVoiceSelfForeground({
+        voiceState: state,
+        previousVoiceState: previous,
+        onboardingOpen: showOnboarding.value,
+        windowFocused: document.hasFocus(),
+        alreadyHinted: voiceFocusHinted.value,
+      })
+    ) {
+      voiceFocusHinted.value = true;
+      pushToast(tr("声键窗口在前台，语音不会输入到本窗口；请先切换到要输入文字的应用"), "warning", {
+        durationMs: 7000,
+      });
+    }
+  },
+);
 
 function restartOnboarding() {
   localStorage.removeItem(ONBOARDING_KEY);

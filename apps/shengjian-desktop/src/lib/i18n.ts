@@ -1028,6 +1028,8 @@ const ENGLISH = {
     "Pick one; the profile's keys apply when it comes to the foreground.",
   "先选一个程序：方案的键位会在它切到前台时生效。":
     "Pick an app first: this profile's keys apply when it comes to the foreground.",
+  "声键窗口在前台，语音不会输入到本窗口；请先切换到要输入文字的应用":
+    "Shengjian is in the foreground, so voice won't be typed into it; switch to the app you want to type in first",
   按键增强: "Key enhancement",
   方案激活: "Profile activation",
   更多操作: "More actions",

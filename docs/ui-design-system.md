@@ -301,6 +301,7 @@ Toast 会自动消失，所以它是「知其发生过」的通道，不能承�
 | 按键增强：安装/卸载完成 | Toast | success | 结果 |
 | 按键增强：服务未安装 | 卡片内 Notice | warning | 常驻状态 |
 | 遥控器电量低 | Toast | warning | 不是 error |
+| 按语音键但前台是声键（平台会跳过输入法切换） | Toast | warning | 说明原因 + 下一步：切到目标应用 |
 | 发现新版本 | Toast | accent + 「查看」 | 20s，唯一带动作的 Toast |
 | 诊断包导出 / 恢复默认设置 | Toast | success | |
 | 无法加载应用列表 / 解析目标 | Toast | error | 节流 5s |
