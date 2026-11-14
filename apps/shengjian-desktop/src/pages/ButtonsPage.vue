@@ -2,9 +2,8 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import {
+  ArrowLeftRight,
   Copy,
-  FileDown,
-  FileUp,
   Keyboard,
   LayoutGrid,
   Plus,
@@ -43,7 +42,7 @@ import StatusPill from "../components/ui/StatusPill.vue";
 import Switch from "../components/ui/Switch.vue";
 import ProfileWorkbench from "../components/ProfileWorkbench.vue";
 import ProfileSettingsDrawer from "../components/ProfileSettingsDrawer.vue";
-import ExportPresetDialog, { type PresetExportRequest } from "../components/ExportPresetDialog.vue";
+import ProfileTransferDialog from "../components/ProfileTransferDialog.vue";
 import RecommendedProfilesDialog from "../components/RecommendedProfilesDialog.vue";
 import {
   activateButtonProfile,
@@ -66,7 +65,6 @@ import type {
   ButtonProfilesDocument,
   LogicalAction,
   MacroDefinition,
-  PresetExportView,
   RecommendedButtonProfile,
 } from "../lib/types";
 
@@ -536,53 +534,102 @@ async function saveEditor() {
   }
 }
 
-async function exportFile() {
-  if (!profilesDocument.value) return;
+/** 导入与导出合并成一个弹窗：选方案 → 导出一个文件或每个方案一个文件。 */
+const transferOpen = shallowRef(false);
+const transferBusy = shallowRef(false);
+
+function openTransfer() {
+  transferOpen.value = true;
+}
+
+/** 把选中的方案导出成一个可再次导入的文件。 */
+async function exportSelectedDocument(ids: string[]) {
+  if (!profilesDocument.value || ids.length === 0) return;
   error.value = null;
+  transferBusy.value = true;
   try {
     const path = await save({
       defaultPath: "button-profiles.json",
       filters: [{ name: "JSON", extensions: ["json"] }],
     });
     if (!path) return;
-    await exportProfiles(path, profilesDocument.value);
-  } catch (cause) {
-    error.value = errorMessage(cause);
-  }
-}
-
-/** 「导出为推荐方案」：应用内完成转换（后端按运行时同一套规则校验），不依赖命令行。 */
-const presetExportOpen = shallowRef(false);
-const presetExportBusy = shallowRef(false);
-
-function openPresetExport() {
-  if (!editor.value || !currentProfileRecord.value) return;
-  presetExportOpen.value = true;
-}
-
-async function submitPresetExport(request: PresetExportRequest) {
-  const profile = draftToProfile();
-  if (!profile) return;
-  presetExportBusy.value = true;
-  error.value = null;
-  try {
-    const path = await save({
-      defaultPath: `${request.presetId}.json`,
-      filters: [{ name: "JSON", extensions: ["json"] }],
+    const picked = profilesDocument.value.profiles.filter((profile) => ids.includes(profile.id));
+    await exportProfiles(path, {
+      ...profilesDocument.value,
+      profiles: picked,
+      activeManualProfileId: picked.some(
+        (profile) => profile.id === profilesDocument.value?.activeManualProfileId,
+      )
+        ? profilesDocument.value.activeManualProfileId
+        : null,
     });
-    if (!path) return;
-    const result: PresetExportView = await exportProfileAsPreset({
-      path,
-      profile,
-      presetId: request.presetId,
-      compatibleModels: request.compatibleModels,
-    });
-    presetExportOpen.value = false;
-    pushToast(tr("已导出推荐方案 {id}", { id: result.presetId }), "success");
+    transferOpen.value = false;
+    pushToast(tr("已导出 {count} 个方案", { count: picked.length }), "success");
   } catch (cause) {
     error.value = errorMessage(cause);
   } finally {
-    presetExportBusy.value = false;
+    transferBusy.value = false;
+  }
+}
+
+/** 方案名 → 标识片段：保留中英文与数字，其余折叠成连字符。 */
+function presetSlug(value: string): string {
+  const slug = value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_/\\]+/g, "-")
+    .replace(/[^a-z0-9\u4e00-\u9fa5-]/g, "")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-|-$/g, "");
+  return slug || "custom";
+}
+
+/** 生成不重复的推荐方案 id（`preset.<型号>.<名称>`）。 */
+function presetIdsFor(profiles: ButtonProfile[]): Map<string, string> {
+  const used = new Set<string>();
+  const result = new Map<string, string>();
+  for (const profile of profiles) {
+    const model = (profile.deviceModel ?? effectiveModel.value ?? "generic").trim().toLowerCase();
+    const base = `preset.${model}.${presetSlug(profile.name)}`;
+    let candidate = base;
+    let suffix = 2;
+    while (used.has(candidate)) {
+      candidate = `${base}-${suffix}`;
+      suffix += 1;
+    }
+    used.add(candidate);
+    result.set(profile.id, candidate);
+  }
+  return result;
+}
+
+/** 把选中的方案导出成推荐方案：每个方案一个文件，写进用户选的文件夹。 */
+async function exportSelectedPresets(ids: string[]) {
+  if (!profilesDocument.value || ids.length === 0) return;
+  const picked = profilesDocument.value.profiles.filter((profile) => ids.includes(profile.id));
+  if (picked.length === 0) return;
+  error.value = null;
+  transferBusy.value = true;
+  try {
+    const directory = await open({ directory: true, multiple: false });
+    if (!directory || Array.isArray(directory)) return;
+    const ids_ = presetIdsFor(picked);
+    for (const profile of picked) {
+      const presetId = ids_.get(profile.id);
+      if (!presetId) continue;
+      await exportProfileAsPreset({
+        path: `${directory}\\${presetId}.json`,
+        profile,
+        presetId,
+        compatibleModels: profile.deviceModel ? [profile.deviceModel] : [],
+      });
+    }
+    transferOpen.value = false;
+    pushToast(tr("已导出 {count} 个推荐方案", { count: picked.length }), "success");
+  } catch (cause) {
+    error.value = errorMessage(cause);
+  } finally {
+    transferBusy.value = false;
   }
 }
 
@@ -883,17 +930,9 @@ onUnmounted(() => {
         </div>
 
         <div class="profile-tools">
-          <Button size="sm" :disabled="busy" @click="importFile">
-            <FileUp :size="14" />
-            {{ tr("导入") }}
-          </Button>
-          <Button
-            size="sm"
-            :disabled="busy || !profilesDocument || !profilesDocument.profiles.length"
-            @click="exportFile"
-          >
-            <FileDown :size="14" />
-            {{ tr("导出") }}
+          <Button size="sm" :disabled="busy" @click="openTransfer">
+            <ArrowLeftRight :size="14" />
+            {{ tr("导入 / 导出") }}
           </Button>
           <Button size="sm" variant="primary" :disabled="busy" @click="startNew">
             <Plus :size="14" />
@@ -979,15 +1018,7 @@ onUnmounted(() => {
           >
             <Copy :size="14" />
           </IconButton>
-          <IconButton
-            v-if="!editingNew && currentProfileRecord"
-            size="sm"
-            :label="trDynamic('导出为推荐方案')"
-            :disabled="busy || presetExportBusy"
-            @click="openPresetExport"
-          >
-            <FileDown :size="14" />
-          </IconButton>
+
           <IconButton
             v-if="!editingNew && currentProfileRecord && !isDefaultProfile(currentProfileRecord)"
             size="sm"
@@ -1048,13 +1079,14 @@ onUnmounted(() => {
       @error="onEditorError"
     />
 
-    <ExportPresetDialog
-      :open="presetExportOpen"
-      :profile-name="editor?.name ?? ''"
-      :device-model="effectiveModel ?? null"
-      :busy="presetExportBusy"
-      @close="presetExportOpen = false"
-      @submit="submitPresetExport"
+    <ProfileTransferDialog
+      :open="transferOpen"
+      :profiles="profilesDocument?.profiles ?? []"
+      :busy="transferBusy || busy"
+      @close="transferOpen = false"
+      @import="importFile"
+      @export-document="exportSelectedDocument"
+      @export-preset="exportSelectedPresets"
     />
 
     <RecommendedProfilesDialog

@@ -981,22 +981,28 @@ const ENGLISH = {
   设备未启用: "Device disabled",
   "未检测到 VB-CABLE：遥控器语音将没有声音输出。仍可选择其他输出设备。":
     "VB-CABLE not found: remote voice will have no audio output. You can still choose another output device.",
-  // 导出为推荐方案（按键页）
-  导出为推荐方案: "Export as recommended profile",
-  "已导出推荐方案 {id}": "Exported recommended profile {id}",
+  // 导入与导出（按键页）
+  "导入 / 导出": "Import / Export",
+  导入与导出: "Import and Export",
+  导入或导出: "Import or export",
+  导出格式: "Export format",
+  方案文件: "Profile file",
+  "导出为一个文件，之后可以再导入回来。": "Exports one file that can be imported later.",
+  "每个方案单独一个文件，用于内置推荐方案。":
+    "Exports one file per profile, for built-in recommended profiles.",
+  选择方案: "Choose profiles",
+  全选: "Select all",
+  全不选: "Clear selection",
+  默认方案不可作为推荐方案: "Default profiles can't become recommended profiles",
+  还没有可导出的方案: "No profiles to export yet",
+  "从文件导入方案，会覆盖当前方案列表。": "Importing replaces the current profile list.",
+  选择文件并导入: "Choose a file and import",
+  选择文件夹并导出: "Choose a folder and export",
+  "已导出 {count} 个方案": "Exported {count} profiles",
+  "已导出 {count} 个推荐方案": "Exported {count} recommended profiles",
 
-  "id 必须以 preset. 开头": "The id must start with preset.",
-  "id 不能只有前缀": "The id can't be just the prefix",
-  "id 不能包含空格": "The id can't contain spaces",
-
-  留空表示对所有型号可见: "Leave empty to show it for every model",
-  "多个型号用逗号分隔，例如 RC003,ARN9。": "Separate multiple models with commas, e.g. RC003,ARN9.",
-
-  "当前型号：{model}": "Current model: {model}",
-  当前未连接设备: "No device connected",
   选择位置并导出: "Choose location and export",
-  推荐方案id: "Recommended profile id",
-  适配型号: "Compatible models",
+
   "已保存的语音输出设备当前不可用，请重新选择。":
     "The saved voice output device is unavailable; choose another one.",
 } as const satisfies Record<string, string>;

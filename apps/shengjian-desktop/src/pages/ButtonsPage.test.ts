@@ -156,14 +156,11 @@ describe("ButtonsPage profile navigation and editor", () => {
     expect(wrapper.find(".profile-chips").exists()).toBe(false);
     expect(wrapper.find(".profile-chips-hint").exists()).toBe(false);
 
+    // 导入与导出合并成一个入口，总可用（导入不需要先有方案）。
     const toolLabels = wrapper.findAll(".profile-tools button").map((button) => button.text());
-    expect(toolLabels).toContain("导入");
-    expect(toolLabels).toContain("导出");
+    expect(toolLabels).toContain("导入 / 导出");
     expect(toolLabels).toContain("新建");
-
-    // Nothing to export until a profile exists.
-    const exportButton = wrapper.findAll(".profile-tools button")[1];
-    expect(exportButton.attributes("disabled")).toBeDefined();
+    expect(toolLabels).not.toContain("导出");
 
     // Nothing to switch between either.
     expect(wrapper.find(".view-switch").exists()).toBe(false);
