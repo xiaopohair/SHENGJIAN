@@ -200,7 +200,6 @@ const busy = shallowRef(false);
 const loading = shallowRef(true);
 const error = shallowRef<string | null>(null);
 const editor = ref<ProfileDraft | null>(null);
-const editingNew = shallowRef(false);
 const baselineJson = shallowRef("");
 const view = ref<"workbench" | "table">("workbench");
 const settingsOpen = shallowRef(false);
@@ -372,31 +371,53 @@ function syncBaseline() {
 
 function closeEditor() {
   editor.value = null;
-  editingNew.value = false;
   baselineJson.value = "";
 }
 
-function createNewDraft() {
-  editingNew.value = true;
-  justSaved.value = false;
-  editor.value = {
-    id: `profile-${crypto.randomUUID()}`,
-    name: tr("新方案"),
-    appTargets: "",
-    autoApply: false,
-    holdRepeat: "",
-    voiceInputTool: "",
-    // 新方案归当前型号所有，这样它与别的型号互不干扰。
-    deviceModel: effectiveModel.value,
-    isDefault: false,
-    bindings: {},
-  };
-  syncBaseline();
-}
-
+/**
+ * 「添加」：直接落盘成一个空方案再进入编辑。
+ *
+ * 不再有「未保存的新建草稿」这个状态：方案先存下来（就是一条普通方案），
+ * 用户不要就自己删掉，省掉一条额外的取消路径。
+ */
 async function startNew() {
   if (!(await confirmDiscard())) return;
-  createNewDraft();
+  if (!profilesDocument.value) return;
+  busy.value = true;
+  error.value = null;
+  try {
+    const created: ButtonProfile = {
+      id: `profile-${crypto.randomUUID()}`,
+      name: tr("新方案"),
+      appTargets: [],
+      autoApply: false,
+      holdRepeat: null,
+      holdRepeatByButton: {},
+      voiceInputTool: null,
+      // 新方案归当前型号所有，这样它与别的型号互不干扰。
+      deviceModel: effectiveModel.value ?? null,
+      isDefault: false,
+      bindings: {},
+    };
+    await saveButtonProfiles({
+      ...profilesDocument.value,
+      profiles: [...profilesDocument.value.profiles, created],
+    });
+    await load();
+    const saved = profilesDocument.value?.profiles.find((item) => item.id === created.id);
+    if (saved) {
+      openDraft(saved);
+      justSaved.value = true;
+      if (savedTimer !== undefined) window.clearTimeout(savedTimer);
+      savedTimer = window.setTimeout(() => {
+        justSaved.value = false;
+      }, 2200);
+    }
+  } catch (cause) {
+    error.value = errorMessage(cause);
+  } finally {
+    busy.value = false;
+  }
 }
 
 function onProfileWheel(event: WheelEvent) {
@@ -424,7 +445,6 @@ async function editProfile(profile: ButtonProfile) {
 }
 
 function openDraft(profile: ButtonProfile) {
-  editingNew.value = false;
   justSaved.value = false;
   editor.value = {
     id: profile.id,
@@ -524,7 +544,6 @@ async function saveEditor() {
       ? profilesDocument.value.profiles.map((item) => (item.id === profile.id ? profile : item))
       : [...profilesDocument.value.profiles, profile];
     await saveButtonProfiles({ ...profilesDocument.value, profiles });
-    editingNew.value = false;
     await load();
     syncBaseline();
     justSaved.value = true;
@@ -557,9 +576,7 @@ function openTransfer() {
 }
 
 /** 已保存的方案才能重置/复制；新建草稿或未保存时这两项不可用。 */
-const canEditCurrentProfile = computed(
-  () => !editingNew.value && Boolean(currentProfileRecord.value),
-);
+const canEditCurrentProfile = computed(() => Boolean(currentProfileRecord.value));
 const canDeleteCurrentProfile = computed(
   () =>
     Boolean(currentProfileRecord.value) &&
@@ -928,22 +945,7 @@ onUnmounted(() => {
 
     <template v-else>
       <div v-if="profilesDocument" class="profile-bar">
-        <div
-          v-if="profilesDocument.profiles.length || editingNew"
-          class="profile-chips"
-          @wheel="onProfileWheel"
-        >
-          <button
-            v-if="editingNew && editor"
-            type="button"
-            class="profile-chip new-chip selected"
-            :title="editor.name || tr('新方案')"
-          >
-            <span class="profile-chip-index">+</span>
-            <span class="profile-chip-copy">
-              <strong class="text-truncate">{{ editor.name || tr("新方案") }}</strong>
-            </span>
-          </button>
+        <div v-if="profilesDocument.profiles.length" class="profile-chips" @wheel="onProfileWheel">
           <button
             v-for="(profile, index) in visibleProfiles"
             :key="profile.id"
@@ -982,7 +984,7 @@ onUnmounted(() => {
           <Button
             size="sm"
             variant="primary"
-            :disabled="busy || !editor || (!dirty && !editingNew)"
+            :disabled="busy || !editor || !dirty"
             @click="saveEditor"
           >
             {{ tr("保存") }}
@@ -1066,7 +1068,7 @@ onUnmounted(() => {
 
       <div v-if="editor" class="editor-toolbar">
         <div class="editor-context">
-          <span class="eyebrow">{{ editingNew ? tr("新建方案") : tr("编辑方案：") }}</span>
+          <span class="eyebrow">{{ tr("编辑方案：") }}</span>
           <strong class="editor-name">{{ editor.name || tr("未命名方案") }}</strong>
           <span class="editor-target text-truncate" :title="editor.appTargets">
             {{ editor.appTargets || tr("未设置应用目标") }}
@@ -1085,7 +1087,7 @@ onUnmounted(() => {
             "
           />
           <!-- 默认方案就是当前型号的基线，不存在「激活/未激活」，不显示开关。 -->
-          <span v-if="!editingNew && !editor.isDefault" class="activation-control">
+          <span v-if="!editor.isDefault" class="activation-control">
             <Switch
               :model-value="isActiveProfile(editor.id)"
               :disabled="busy || !currentProfileRecord"
@@ -1286,18 +1288,6 @@ onUnmounted(() => {
 .profile-chip.selected .profile-chip-index {
   background: var(--accent);
   color: var(--text-on-accent);
-}
-
-.profile-chip.new-chip {
-  cursor: default;
-}
-
-/* Equal specificity to `.profile-chip.selected .profile-chip-index` but later,
-   so the "+" badge keeps its accent-soft treatment on the selected new chip. */
-.profile-chip.new-chip .profile-chip-index {
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-weight: 600;
 }
 
 .profile-chip-flag {

@@ -202,14 +202,17 @@ describe("ButtonsPage profile navigation and editor", () => {
     await wrapper.get(".ui-empty-actions button").trigger("click");
     await flushPromises();
 
-    // Regression: creating the first profile used to render only the title row
-    // until the profile had been saved and re-read from disk.
+    // 「添加」现在直接把空方案落盘，再按普通方案打开编辑。
+    expect(saveButtonProfiles).toHaveBeenCalledTimes(1);
     expect(wrapper.find(".editor-toolbar").exists()).toBe(true);
-    expect(wrapper.find(".editor-toolbar").text()).toContain("新建方案");
+    expect(wrapper.find(".editor-toolbar").text()).toContain("新方案");
     expect(wrapper.find(".profile-workbench").exists()).toBe(true);
-    expect(wrapper.find(".profile-chip.new-chip").exists()).toBe(true);
+    expect(wrapper.findAll(".profile-chip")).toHaveLength(1);
+    expect(wrapper.find(".profile-chip.new-chip").exists()).toBe(false);
     expect(wrapper.find(".view-switch").exists()).toBe(true);
     expect(wrapper.find(".ui-empty").exists()).toBe(false);
+    // 刚创建时与磁盘一致，保存按钮应当不可点。
+    expect(toolbarButton(wrapper, "保存")!.attributes("disabled")).toBeDefined();
   });
 
   it("keeps existing profile chips while a new draft is being created", async () => {
@@ -230,12 +233,13 @@ describe("ButtonsPage profile navigation and editor", () => {
     await newButton!.trigger("click");
     await flushPromises();
 
-    expect(wrapper.find(".profile-chip.new-chip").exists()).toBe(true);
+    expect(saveButtonProfiles).toHaveBeenCalledTimes(1);
+    expect(wrapper.find(".profile-chip.new-chip").exists()).toBe(false);
     expect(wrapper.findAll(".profile-chip")).toHaveLength(2);
     expect(wrapper.find(".profile-workbench").exists()).toBe(true);
   });
 
-  it("keeps a new draft open because the cancel button was removed", async () => {
+  it("persists a new profile immediately and offers no cancel action", async () => {
     const wrapper = await mountPage();
 
     await wrapper.get(".ui-empty-actions button").trigger("click");
@@ -244,29 +248,23 @@ describe("ButtonsPage profile navigation and editor", () => {
     expect(wrapper.find(".profile-chips").exists()).toBe(true);
     expect(wrapper.find(".profile-workbench").exists()).toBe(true);
 
-    // 取消已从工具栏移除；草稿只能靠保存（或切换方案丢弃）离开。
+    // 取消已移除；添加的方案已经是落盘的普通方案，不要就自己删。
     expect(toolbarButton(wrapper, "取消")).toBeUndefined();
-    expect(toolbarButton(wrapper, "保存")!.attributes("disabled")).toBeUndefined();
+    expect(saveButtonProfiles).toHaveBeenCalledTimes(1);
+    expect(wrapper.findAll(".profile-chip")).toHaveLength(1);
   });
 
-  it("keeps the edit area open after the new profile is saved", async () => {
+  it("keeps the edit area open after the new profile is persisted", async () => {
     const wrapper = await mountPage();
 
     await wrapper.get(".ui-empty-actions button").trigger("click");
     await flushPromises();
 
-    // The edit area must already exist before the profile is persisted.
-    expect(wrapper.find(".profile-workbench").exists()).toBe(true);
-
-    const saveButton = toolbarButton(wrapper, "保存");
-    expect(saveButton).toBeDefined();
-    await saveButton!.trigger("click");
-    await flushPromises();
-
+    // 添加时就已落盘，编辑区保持打开供继续配置。
     expect(saveButtonProfiles).toHaveBeenCalledTimes(1);
-    expect(wrapper.find(".profile-chip.new-chip").exists()).toBe(false);
-    expect(wrapper.findAll(".profile-chip")).toHaveLength(1);
     expect(wrapper.find(".profile-workbench").exists()).toBe(true);
+    expect(wrapper.findAll(".profile-chip")).toHaveLength(1);
+    expect(wrapper.find(".ui-empty").exists()).toBe(false);
   });
 
   it("shows the recommended profiles entry with an update badge and clears it after viewing", async () => {
@@ -378,6 +376,7 @@ describe("ButtonsPage profile navigation and editor", () => {
     await flushPromises();
 
     expect(wrapper.find(".ui-notice").text()).toContain("缺少系统动作");
-    expect(saveButtonProfiles).not.toHaveBeenCalled();
+    // 只有「添加」时那一次保存；校验失败不写盘。
+    expect(saveButtonProfiles).toHaveBeenCalledTimes(1);
   });
 });
