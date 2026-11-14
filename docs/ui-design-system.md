@@ -81,6 +81,12 @@
 弹窗类界面没有独立基础组件，直接照 [`RecommendedProfilesDialog.vue`](../apps/shengjian-desktop/src/components/RecommendedProfilesDialog.vue)
 的骨架写（遮罩 + 标题栏 + 主体 + 页脚），数值见第 5 节第 19 条。
 
+组合键一律用点选面板，**不做键盘直接采集**（原因见第 5 节第 20 条）：
+
+- [`HotkeyPickerDialog.vue`](../apps/shengjian-desktop/src/components/HotkeyPickerDialog.vue)：语音热键（存 `KeyboardEvent.code` 列表，修饰键分左右）
+- [`ChordPickerDialog.vue`](../apps/shengjian-desktop/src/components/ChordPickerDialog.vue)：宏动作 / 按键动作的快捷键（存 `MacroChord`，修饰键分左右）
+- 触发入口统一是 [`ChordInput.vue`](../apps/shengjian-desktop/src/components/ui/ChordInput.vue) 的「选择」按钮
+
 ### Button
 
 `Button.vue`
@@ -365,6 +371,18 @@ Toast 位于标题栏 + 顶栏之下的顶部居中位置；容器 `pointer-even
 19. 新弹窗对齐既有骨架数值：`width: min(620px, calc(100vw - 48px))`、`--radius-xl`、
     遮罩取 §4.1 层级阶梯的「模态弹窗」层（`z-index: 300`）、头部 `1px` 分隔线 + 标题前图标 +
     字重 650、页脚 `padding: var(--space-3) var(--space-5)`。
+20. **组合键一律点选，禁止键盘直接采集**。语音热键、宏动作快捷键、按键动作快捷键，全部走弹出
+    点选面板（`HotkeyPickerDialog` / `ChordPickerDialog`），由用户点修饰键 + 主键组合；
+    不要实现「点一下然后按键盘识别」的录制模式。原因是踩过两次坑：
+    - **输入法会抢它自己的和弦**：输入法的键盘钩子先于本应用安装，只在自身是活动输入法时
+      拦截自己的语音和弦并「吞掉 + 重放」。现场表现是按下后没有任何反应，或只录到半个组合
+      （`Ctrl+Win` 是 Chatterfly 的默认和弦，实测钩子只收到 Win、Ctrl 一条边沿都没有）。
+    - **系统也会抢**：`Win` 类组合会被 Shell 先行处理，Win 键能到钩子、`Ctrl` 到不了；
+      即使钩子层能吞键（`key_gate` 的 shortcut capture），也仍然晚于上游钩子/驱动。
+    点选面板能确定地选到任意组合（含左右修饰键、F1–F12、方向键、标点），且**不会触发任何程序**；
+    上游 SayAll 最终也是把「自由录制」用 feature flag 关掉，只保留固定/点选组合。
+    「注入副本」这一层的机制说明在 `crates/shengjian-windows/src/key_gate.rs` 的
+    `injected_edge_is_passthrough` 注释里（本仓库没有 `Bugs/` 目录，别引用上游路径）。
 
 ## 6. 响应式
 
