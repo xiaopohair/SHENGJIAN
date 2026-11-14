@@ -925,9 +925,10 @@ onMounted(async () => {
   cursor: pointer;
 }
 
-.macro-more-item:hover:not(:disabled) {
-  background: var(--bg-hover);
-  color: var(--text);
+.macro-more-item:hover:not(:disabled),
+.macro-more-item:focus-visible {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .macro-more-item:disabled {
@@ -935,7 +936,8 @@ onMounted(async () => {
   cursor: default;
 }
 
-.macro-more-item.is-danger:hover:not(:disabled) {
+.macro-more-item.is-danger:hover:not(:disabled),
+.macro-more-item.is-danger:focus-visible {
   background: color-mix(in srgb, var(--danger) 10%, transparent);
   color: var(--danger);
 }
@@ -944,5 +946,9 @@ onMounted(async () => {
   height: 1px;
   margin: var(--space-1) 0;
   background: var(--border);
+}
+
+.macro-more-item svg {
+  color: currentColor;
 }
 </style>

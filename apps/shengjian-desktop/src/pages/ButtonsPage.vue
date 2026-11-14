@@ -1429,9 +1429,10 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
-.profile-more-item:hover:not(:disabled) {
-  background: var(--bg-hover);
-  color: var(--text);
+.profile-more-item:hover:not(:disabled),
+.profile-more-item:focus-visible {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .profile-more-item:disabled {
@@ -1439,12 +1440,18 @@ onUnmounted(() => {
   cursor: default;
 }
 
+.profile-more-item svg {
+  color: currentColor;
+}
+
 .profile-more-item.danger {
   color: var(--danger-text);
 }
 
-.profile-more-item.danger:hover:not(:disabled) {
+.profile-more-item.danger:hover:not(:disabled),
+.profile-more-item.danger:focus-visible {
   background: var(--danger-soft);
+  color: var(--danger-text);
 }
 
 .profile-more-divider {
