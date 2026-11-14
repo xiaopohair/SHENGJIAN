@@ -241,6 +241,9 @@ const ENGLISH = {
   "蓝牙 · 未连接": "Bluetooth · disconnected",
   "按键增强 · 已安装": "Key enhancement · installed",
   "按键增强 · 未安装": "Key enhancement · not installed",
+  设备设置: "Device settings",
+  "只对这台遥控器生效；音频设置不勾选时沿用全局。":
+    "Applies to this remote only; audio settings fall back to global unless enabled.",
   设备名称: "Device name",
   留空则用遥控器的广播名: "Leave blank to use the remote's advertised name",
   使用中: "In use",

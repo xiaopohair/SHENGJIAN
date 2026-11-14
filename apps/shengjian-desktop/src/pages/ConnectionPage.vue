@@ -35,13 +35,10 @@ import Button from "../components/ui/Button.vue";
 import Card from "../components/ui/Card.vue";
 import Checkbox from "../components/ui/Checkbox.vue";
 import EmptyState from "../components/ui/EmptyState.vue";
-import Field from "../components/ui/Field.vue";
+import DeviceSettingsDrawer from "../components/DeviceSettingsDrawer.vue";
 import IconButton from "../components/ui/IconButton.vue";
 import Notice from "../components/ui/Notice.vue";
-import RangeInput from "../components/ui/RangeInput.vue";
 import SectionHeader from "../components/ui/SectionHeader.vue";
-import SelectInput from "../components/ui/SelectInput.vue";
-import TextInput from "../components/ui/TextInput.vue";
 import StatusPill from "../components/ui/StatusPill.vue";
 import { pushToast } from "../lib/toast";
 import { useEngineStore } from "../stores/engine";
@@ -62,7 +59,7 @@ const deviceNickname = shallowRef("");
 /** 本次连接开始的时刻，用于「已连接 N 分钟」。 */
 const connectedAt = shallowRef<number | null>(null);
 const nowTick = shallowRef(Date.now());
-const overridesRef = ref<HTMLElement | null>(null);
+
 const { catalog: voiceToolCatalog, load: loadVoiceToolCatalog } = useVoiceToolCatalog();
 const rc003Capture = shallowRef(false);
 const rc003HelperInstalled = shallowRef(false);
@@ -310,9 +307,11 @@ const minutesTimer = window.setInterval(() => {
 }, 30000);
 onUnmounted(() => window.clearInterval(minutesTimer));
 
-/** 「设置」跳到本设备的覆盖区（同一页下方的卡片）。 */
-function focusOverrides() {
-  overridesRef.value?.scrollIntoView({ behavior: "smooth", block: "center" });
+/** 「设置」打开右侧的设备设置抽屉。 */
+const deviceSettingsOpen = shallowRef(false);
+
+function openDeviceSettings() {
+  deviceSettingsOpen.value = true;
 }
 
 watch(useDeviceOverride, () => {
@@ -546,7 +545,7 @@ onUnmounted(() => {
                 v-if="store.isConnected"
                 size="sm"
                 :label="tr('设置')"
-                @click="focusOverrides"
+                @click="openDeviceSettings"
               >
                 <SlidersHorizontal :size="15" />
               </IconButton>
@@ -630,43 +629,20 @@ onUnmounted(() => {
     </Card>
 
     <!-- Only offer per-device overrides while a device is actually connected. -->
-    <Card v-if="store.isConnected && deviceId" ref="overridesRef" class="stack">
-      <SectionHeader title="当前设备覆盖" :hint="deviceProductName" />
-      <Field :label="tr('设备名称')" hint="留空则用遥控器的广播名">
-        <TextInput v-model="deviceNickname" :maxlength="24" :placeholder="deviceName" />
-      </Field>
-      <Checkbox v-model="useDeviceOverride">
-        {{ tr("为此设备使用独立音频设置") }}
-      </Checkbox>
-      <template v-if="useDeviceOverride">
-        <Field label="设备增益">
-          <div class="gain-row">
-            <RangeInput v-model="deviceGain" :min="0" :max="24" :step="1" />
-            <span class="gain-value mono muted">{{ deviceGain }} dB</span>
-          </div>
-        </Field>
-        <Field label="语音输出设备">
-          <SelectInput v-model="deviceEndpointId">
-            <option value="">{{ tr("继承全局端点") }}</option>
-            <option v-for="endpoint in endpoints" :key="endpoint.id" :value="endpoint.id">
-              {{ endpoint.name }}{{ endpoint.recommended ? tr("（推荐）") : "" }}
-            </option>
-          </SelectInput>
-        </Field>
-        <Field label="语音输入工具">
-          <SelectInput v-model="deviceVoiceInputTool">
-            <option value="">{{ tr("继承全局工具") }}</option>
-            <option
-              v-for="tool in voiceToolOptions(voiceToolCatalog, deviceVoiceInputTool)"
-              :key="tool.id"
-              :value="tool.id"
-            >
-              {{ tool.label }}
-            </option>
-          </SelectInput>
-        </Field>
-      </template>
-    </Card>
+
+    <DeviceSettingsDrawer
+      v-model:nickname="deviceNickname"
+      v-model:use-override="useDeviceOverride"
+      v-model:gain="deviceGain"
+      v-model:endpoint-id="deviceEndpointId"
+      v-model:voice-input-tool="deviceVoiceInputTool"
+      :open="deviceSettingsOpen"
+      :fallback-name="deviceName"
+      :endpoints="endpoints"
+      :voice-tools="voiceToolCatalog"
+      :can-override-audio="Boolean(store.isConnected && deviceId)"
+      @close="deviceSettingsOpen = false"
+    />
 
     <Card v-if="supportsKeyEnhancementCapture" class="stack">
       <SectionHeader title="增强捕获" hint="返回键、音量键" />
