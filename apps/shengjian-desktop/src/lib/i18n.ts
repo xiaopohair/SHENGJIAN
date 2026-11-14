@@ -990,7 +990,7 @@ const ENGLISH = {
   从文件导入方案: "Import profiles from a file",
   "选择之前导出的方案文件，导入会覆盖当前方案列表。":
     "Pick a profile file you exported earlier; importing replaces the current profile list.",
-  "已选 {count} 个方案": "{count} profiles selected",
+
   导入与导出: "Import and Export",
   导入或导出: "Import or export",
   导出格式: "Export format",

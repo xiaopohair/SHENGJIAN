@@ -105,6 +105,6 @@ describe("ProfileTransferDialog", () => {
     await clear.trigger("click");
 
     expect(primaryButton(wrapper).attributes("disabled")).toBeDefined();
-    expect(wrapper.find(".transfer-foot-summary").text()).toContain("0");
+    expect(wrapper.find(".transfer-count").text()).toContain("0/3");
   });
 });

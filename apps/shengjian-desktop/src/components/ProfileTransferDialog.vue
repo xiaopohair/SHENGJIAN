@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, useTemplateRef, watch } from "vue";
-import { ArrowLeftRight, FileDown, FileUp, FolderOpen, X } from "lucide-vue-next";
+import { ArrowLeftRight, FileDown, FileUp, X } from "lucide-vue-next";
 import { tr, type TranslationKey } from "../lib/i18n";
 import type { ButtonProfile } from "../lib/types";
 import Button from "./ui/Button.vue";
@@ -252,11 +252,6 @@ function onWindowKeydown(event: KeyboardEvent) {
         </div>
 
         <footer class="transfer-foot">
-          <span v-if="mode === 'export'" class="transfer-foot-summary">
-            <FolderOpen :size="14" aria-hidden="true" />
-            {{ tr("已选 {count} 个方案", { count: selectedCount }) }}
-          </span>
-          <span v-else class="transfer-foot-summary" />
           <Button size="sm" variant="ghost" @click="close">{{ tr("取消") }}</Button>
           <Button size="sm" variant="primary" :disabled="primaryDisabled" @click="submit">
             {{ primaryLabel }}
@@ -440,15 +435,16 @@ function onWindowKeydown(event: KeyboardEvent) {
   list-style: none;
 }
 
+/* 未选中的行不加底色（只用描边勾勒），悬停时才轻微上色。 */
 .transfer-item {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--bg);
   padding: var(--space-2) var(--space-3);
 }
 
 .transfer-item:hover {
   border-color: var(--border-strong);
+  background: var(--bg-hover);
 }
 
 .transfer-item-copy {
@@ -530,14 +526,5 @@ function onWindowKeydown(event: KeyboardEvent) {
   gap: var(--space-2);
   border-top: 1px solid var(--border);
   padding: var(--space-3) var(--space-5);
-}
-
-.transfer-foot-summary {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-right: auto;
-  color: var(--text-muted);
-  font-size: var(--text-2xs);
 }
 </style>
