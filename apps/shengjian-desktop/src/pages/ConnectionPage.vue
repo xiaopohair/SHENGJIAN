@@ -484,19 +484,17 @@ onUnmounted(() => {
             {{ store.isConnected ? heroSubtitle : tr("扫描附近遥控器后连接") }}
           </p>
           <div class="hero-stats">
-            <span class="hero-stat">
+            <span class="hero-stat" :title="tr('遥控器剩余电量，来自设备的电量通知')">
               <BatteryMedium :size="16" aria-hidden="true" />
               {{ battery === null ? tr("未知") : `${battery}%` }}
             </span>
-            <span class="hero-stat">
+            <span class="hero-stat" :title="tr('本次连接已经持续的时间')">
               <Clock3 :size="16" aria-hidden="true" />
               {{
-                store.isConnected
-                  ? tr("已连接 {minutes} 分钟", { minutes: connectedMinutes })
-                  : tr("未知")
+                store.isConnected ? tr("{minutes} 分钟", { minutes: connectedMinutes }) : tr("未知")
               }}
             </span>
-            <span class="hero-stat">
+            <span class="hero-stat" :title="tr('遥控器上报的固件版本')">
               <Cpu :size="16" aria-hidden="true" />
               {{ deviceStatus?.firmwareVersion ?? tr("未知") }}
             </span>

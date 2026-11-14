@@ -232,7 +232,10 @@ const ENGLISH = {
   "在语音页开启语音记录后，使用语音键。":
     "Enable voice recordings on the Voice page, then use the voice key.",
   扫描附近遥控器后连接: "Scan nearby remotes, then connect",
-  "已连接 {minutes} 分钟": "Connected for {minutes} min",
+  "{minutes} 分钟": "{minutes} min",
+  "遥控器剩余电量，来自设备的电量通知": "Remaining battery reported by the remote",
+  本次连接已经持续的时间: "How long the current connection has lasted",
+  遥控器上报的固件版本: "Firmware version reported by the remote",
   固件: "Firmware",
   "蓝牙 · 已连接": "Bluetooth · connected",
   "蓝牙 · 未连接": "Bluetooth · disconnected",
