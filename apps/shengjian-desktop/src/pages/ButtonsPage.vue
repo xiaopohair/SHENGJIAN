@@ -637,21 +637,32 @@ async function waitForHelperInstalled(timeoutMs = 60_000): Promise<boolean> {
  * 用户取消 UAC 就保持关闭并提示。关闭只撤销增强捕获、不卸载服务——
  * 卸载同样需要管理员权限，而关掉后 helper 不接管任何按键，没必要折腾。
  */
+/** 按键增强安装的长流程提示（等 UAC / 等轮询）：按 §4.1 用页内 Notice，不用 Toast。 */
+const helperNotice = shallowRef<{ text: string; kind: "info" | "warning" } | null>(null);
+
 async function toggleEnhancedCapture(value: boolean) {
   if (busy.value) return;
   if (value && !enhancedCaptureInstalled.value) {
     busy.value = true;
-    pushToast(tr("开启按键增强需要管理员授权，请在弹窗中确认"), "info");
+    helperNotice.value = {
+      text: tr("开启按键增强需要管理员授权，请在弹窗中确认"),
+      kind: "info",
+    };
     try {
       await installRc003Helper();
       const installed = await waitForHelperInstalled();
       if (!installed) {
-        pushToast(tr("没有完成按键增强服务安装，开关已保持关闭"), "warning");
+        helperNotice.value = {
+          text: tr("没有完成按键增强服务安装，开关已保持关闭"),
+          kind: "warning",
+        };
         return;
       }
       enhancedCaptureInstalled.value = true;
+      helperNotice.value = null;
       pushToast(tr("按键增强服务已安装"), "success");
     } catch (cause) {
+      helperNotice.value = null;
       error.value = errorMessage(cause);
       return;
     } finally {
@@ -670,6 +681,7 @@ async function toggleEnhancedCapture(value: boolean) {
     };
     await saveSettings(next);
     settingsDocument.value = next;
+    helperNotice.value = null;
     if (!value) pushToast(tr("已关闭按键增强，服务保留可随时再开启"), "info");
   } catch (cause) {
     enhancedCapture.value = previous;
@@ -993,6 +1005,7 @@ onUnmounted(() => {
       </template>
     </PageHeader>
 
+    <Notice v-if="helperNotice" :kind="helperNotice.kind">{{ helperNotice.text }}</Notice>
     <Notice v-if="error" kind="error">
       <span class="error-notice-action">
         {{ error }}

@@ -56,7 +56,9 @@ const ICONS = {
      既不遮挡窗口按钮和顶栏状态，又比右下角更容易被注意到。 */
   top: calc(var(--titlebar-height) + 64px);
   left: 50%;
-  z-index: 130;
+  /* 顶层：必须高于所有弹层（模态弹窗 300、抽屉 240、标题栏 200），
+     否则用户在弹窗里看不到错误提示。层级阶梯见 docs/ui-design-system.md §4.1。 */
+  z-index: 400;
   display: flex;
   flex-direction: column;
   align-items: center;

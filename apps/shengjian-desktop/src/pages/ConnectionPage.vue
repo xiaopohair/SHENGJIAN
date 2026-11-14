@@ -130,7 +130,8 @@ async function toggleDevice(remoteId: string) {
 
 watch(lowBattery, (low) => {
   if (low && battery.value !== null) {
-    pushToast(tr("遥控器电量低：{level}%", { level: battery.value }), "error");
+    // 电量低是环境预警，不是操作失败（标准：§4.1 的 kind 语义）。
+    pushToast(tr("遥控器电量低：{level}%", { level: battery.value }), "warning");
   }
 });
 
