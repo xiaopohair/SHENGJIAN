@@ -984,17 +984,14 @@ const ENGLISH = {
   // 导出为推荐方案（按键页）
   导出为推荐方案: "Export as recommended profile",
   "已导出推荐方案 {id}": "Exported recommended profile {id}",
-  "把当前方案转成推荐方案条目：去掉默认方案标记与时间戳，id 改用 preset. 前缀。":
-    "Convert this profile into a recommended entry: drops the default flag and timestamp, and switches the id to the preset. prefix.",
+
   "id 必须以 preset. 开头": "The id must start with preset.",
   "id 不能只有前缀": "The id can't be just the prefix",
   "id 不能包含空格": "The id can't contain spaces",
-  "文件名就是 {id}.json，写进 config/button-profiles/ 后聚合生效；建议用英文或拼音。":
-    "The file name is {id}.json; put it in config/button-profiles/ and rebuild. Prefer ASCII ids.",
+
   留空表示对所有型号可见: "Leave empty to show it for every model",
   "多个型号用逗号分隔，例如 RC003,ARN9。": "Separate multiple models with commas, e.g. RC003,ARN9.",
-  "导出后把文件放进仓库 config/button-profiles/，运行 pnpm config:build 即生效。":
-    "After exporting, move the file into config/button-profiles/ and run pnpm config:build.",
+
   "当前型号：{model}": "Current model: {model}",
   当前未连接设备: "No device connected",
   选择位置并导出: "Choose location and export",

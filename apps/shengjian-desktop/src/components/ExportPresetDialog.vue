@@ -31,15 +31,17 @@ const models = ref("");
 let previousFocus: HTMLElement | null = null;
 
 /**
- * 方案名 → id 片段：只保留 ASCII 字母与数字（仓库里的配置文件名保持 ASCII），
- * 其余折叠成单个连字符；中文名会退化成 `custom`，由用户改成英文/拼音。
+ * 方案名 → id 片段：保留中英文与数字，其余折叠成单个连字符。
+ *
+ * 保留中文是为了默认值可读且不撞车（去掉中文会让所有中文名都退化成 `custom`，
+ * 第二次导出就重名）。用户可以改成英文/拼音。
  */
 function slugify(value: string): string {
   const slug = value
     .trim()
     .toLowerCase()
     .replace(/[\s_/\\]+/g, "-")
-    .replace(/[^a-z0-9-]/g, "")
+    .replace(/[^a-z0-9\u4e00-\u9fa5-]/g, "")
     .replace(/-{2,}/g, "-")
     .replace(/^-|-$/g, "");
   return slug || "custom";
@@ -119,11 +121,6 @@ function onKeydown(event: KeyboardEvent) {
               <FileDown :size="17" aria-hidden="true" />
               {{ tr("导出为推荐方案") }}
             </h2>
-            <p>
-              {{
-                tr("把当前方案转成推荐方案条目：去掉默认方案标记与时间戳，id 改用 preset. 前缀。")
-              }}
-            </p>
           </div>
           <button type="button" class="preset-close" :aria-label="tr('关闭')" @click="close">
             <X :size="16" />
@@ -134,14 +131,6 @@ function onKeydown(event: KeyboardEvent) {
           <Field label="推荐方案 id">
             <TextInput v-model="presetId" class="preset-id-input" :maxlength="120" />
             <span v-if="idError" class="preset-error">{{ idError }}</span>
-            <span v-else class="preset-help">
-              {{
-                tr(
-                  "文件名就是 {id}.json，写进 config/button-profiles/ 后聚合生效；建议用英文或拼音。",
-                  { id: trimmedId },
-                )
-              }}
-            </span>
           </Field>
 
           <Field label="适配型号">
@@ -150,12 +139,6 @@ function onKeydown(event: KeyboardEvent) {
               {{ tr("多个型号用逗号分隔，例如 RC003,ARN9。") }}
             </span>
           </Field>
-
-          <p class="preset-note">
-            {{
-              tr("导出后把文件放进仓库 config/button-profiles/，运行 pnpm config:build 即生效。")
-            }}
-          </p>
         </div>
 
         <footer class="preset-foot">
@@ -217,13 +200,6 @@ function onKeydown(event: KeyboardEvent) {
   letter-spacing: -0.02em;
 }
 
-.preset-head p {
-  margin: 6px 0 0;
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-  line-height: 1.5;
-}
-
 .preset-close {
   display: grid;
   flex: 0 0 30px;
@@ -270,16 +246,6 @@ function onKeydown(event: KeyboardEvent) {
 .preset-error {
   color: var(--danger);
   font-size: var(--text-2xs);
-}
-
-.preset-note {
-  margin: 0;
-  border-radius: var(--radius-sm);
-  background: var(--bg-sunken);
-  padding: var(--space-3);
-  color: var(--text-muted);
-  font-size: var(--text-2xs);
-  line-height: 1.6;
 }
 
 .preset-foot {

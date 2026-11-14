@@ -216,15 +216,19 @@ if (!(await confirmAction({
 4. 页面级 scoped CSS 只保留该页独有的布局（列表行、矩阵、步骤卡、日志预览等），控件样式必须来自共享组件。
 5. 不允许出现裸 `window.confirm`、裸 `<select>`/`<input>` 样式（矩阵内的高密度控件除外，可使用共享 `.ui-input` 风格类；但优先用组件）。
 6. 面向用户不显示 UUID、`macroId`、`profile id`、`control n`、`versions=1`、原始错误码。ID 放进“详情/复制”二级操作。
-7. 快捷键统一显示 `Ctrl + N`、`Win + Shift + S`；不再出现 `control n`。
-8. 日期时间使用 `Intl.DateTimeFormat(uiLocale.value, ...)`。
-9. 错误提示优先用 `Notice`；瞬时成功/失败用 `pushToast`。
-10. 破坏性操作一律 `confirmAction({ danger: true })`。
-11. 所有 icon-only 按钮必须有 `aria-label`（`IconButton` 已处理）。
-12. 文案：中文源文案 + `tr()`；不要新造硬编码英文（技术字段除外）。
-13. 不修改 `lib/i18n.ts`。需要新 key 时在交付消息里列出“中文原文 + 英文建议”，由 Lead 统一补。
-14. 不修改 `styles/tokens.css`、`styles/global.css`、`App.vue`、`components/ui/*`、`lib/*`。页面只改自己的 `.vue` 文件。
-15. 保留现有脚本业务逻辑（Tauri invoke、自动保存、轮询、录音、事件监听），只调整模板、样式、展示文案和必要的只读展示逻辑。
+   例外：确实需要用户填写/核对标识的编辑弹窗可显示该字段本身（如推荐方案 id），但不要附带实现说明。
+7. **界面里不写开发流程**：不出现仓库路径（`config/button-profiles/`）、命令（`pnpm config:build`）、
+   JSON 字段名、“去掉默认标记与时间戳”这类实现解释、以及任何“给开发者看的”提示。
+   面向用户只说用户能做的动作和结果（导出到哪里、之后能用来做什么）。
+8. 快捷键统一显示 `Ctrl + N`、`Win + Shift + S`；不再出现 `control n`。
+9. 日期时间使用 `Intl.DateTimeFormat(uiLocale.value, ...)`。
+10. 错误提示优先用 `Notice`；瞬时成功/失败用 `pushToast`。
+11. 破坏性操作一律 `confirmAction({ danger: true })`。
+12. 所有 icon-only 按钮必须有 `aria-label`（`IconButton` 已处理）。
+13. 文案：中文源文案 + `tr()`；不要新造硬编码英文（技术字段除外）。
+14. 不修改 `lib/i18n.ts`。需要新 key 时在交付消息里列出“中文原文 + 英文建议”，由 Lead 统一补。
+15. 不修改 `styles/tokens.css`、`styles/global.css`、`App.vue`、`components/ui/*`、`lib/*`。页面只改自己的 `.vue` 文件。
+16. 保留现有脚本业务逻辑（Tauri invoke、自动保存、轮询、录音、事件监听），只调整模板、样式、展示文案和必要的只读展示逻辑。
 
 ## 6. 响应式
 
