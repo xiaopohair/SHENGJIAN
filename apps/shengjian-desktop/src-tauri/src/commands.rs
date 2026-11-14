@@ -301,6 +301,37 @@ pub fn install_rc003_helper(
     state.host.install_helper(&app).map_err(CommandError::from)
 }
 
+/// 组合键录入开始：把录入窗口线程的输入区域临时让位到非 IME 布局。
+///
+/// 输入法（豆包/微信/Chatterfly）的钩子先于本应用安装，且只在自身为活动输入法时
+/// 拦截自己的语音和弦——不让位的话，用户按的 ControlLeft 会被输入法直接吃掉，
+/// 前端连 `keydown` 都收不到（现场：只录到 ControlRight）。必须在主线程执行
+/// （输入区域按线程生效）。
+#[tauri::command]
+pub fn begin_shortcut_capture(app: tauri::AppHandle) -> Result<(), CommandError> {
+    app.run_on_main_thread(|| {
+        #[cfg(windows)]
+        let outcome = shengjian_windows::suspend_input_method_for_capture();
+        #[cfg(not(windows))]
+        let outcome = "capture_ime_yield outcome=unsupported".to_owned();
+        shengjian_windows::gatt_note(outcome);
+    })
+    .map_err(|error| CommandError::new("shortcut-capture", &error.to_string(), true))
+}
+
+/// 组合键录入结束：恢复录入前的输入法布局。
+#[tauri::command]
+pub fn end_shortcut_capture(app: tauri::AppHandle) -> Result<(), CommandError> {
+    app.run_on_main_thread(|| {
+        #[cfg(windows)]
+        let outcome = shengjian_windows::restore_input_method_after_capture();
+        #[cfg(not(windows))]
+        let outcome = "capture_ime_restore outcome=unsupported".to_owned();
+        shengjian_windows::gatt_note(outcome);
+    })
+    .map_err(|error| CommandError::new("shortcut-capture", &error.to_string(), true))
+}
+
 /// 卸载按键增强服务：提权移除计划任务（会弹一次 UAC）。
 ///
 /// 只是移除服务；`rc003_capture_enabled` 由调用方（设置/连接页）一并置 false。

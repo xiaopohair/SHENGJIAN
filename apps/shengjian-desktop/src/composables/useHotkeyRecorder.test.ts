@@ -3,6 +3,13 @@ import { describe, expect, it, vi } from "vitest";
 import { defineComponent, h, ref } from "vue";
 import { mount } from "@vue/test-utils";
 import { useHotkeyRecorder } from "./useHotkeyRecorder";
+
+const beginShortcutCapture = vi.fn(async () => undefined);
+const endShortcutCapture = vi.fn(async () => undefined);
+vi.mock("../lib/api", () => ({
+  beginShortcutCapture: () => beginShortcutCapture(),
+  endShortcutCapture: () => endShortcutCapture(),
+}));
 import { setLanguagePreference } from "../lib/i18n";
 
 setLanguagePreference("zh-Hans");
@@ -119,6 +126,28 @@ describe("useHotkeyRecorder", () => {
     keyEvent("keydown", "Escape");
     expect(api.recording.value).toBe(false);
     expect(hotkey.value).toEqual(["AltRight"]);
+    wrapper.unmount();
+  });
+
+  it("yields the input method while recording and restores it after", () => {
+    const { wrapper, api } = mountRecorder();
+    beginShortcutCapture.mockClear();
+    endShortcutCapture.mockClear();
+    api.toggle();
+    expect(beginShortcutCapture).toHaveBeenCalledTimes(1);
+    api.toggle();
+    expect(endShortcutCapture).toHaveBeenCalledTimes(1);
+    wrapper.unmount();
+  });
+
+  it("restores the input method when recording settles", () => {
+    const { wrapper, api } = mountRecorder();
+    endShortcutCapture.mockClear();
+    api.toggle();
+    keyEvent("keydown", "ControlLeft");
+    keyEvent("keydown", "KeyM");
+    expect(api.recording.value).toBe(false);
+    expect(endShortcutCapture).toHaveBeenCalledTimes(1);
     wrapper.unmount();
   });
 

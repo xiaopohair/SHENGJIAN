@@ -165,6 +165,16 @@ export async function uninstallRc003Helper(): Promise<void> {
   return invoke<void>("uninstall_rc003_helper");
 }
 
+/** 组合键录入开始：让输入法临时让位，避免它把按键吃掉。 */
+export async function beginShortcutCapture(): Promise<void> {
+  return invoke<void>("begin_shortcut_capture");
+}
+
+/** 组合键录入结束：恢复原本的输入法布局。 */
+export async function endShortcutCapture(): Promise<void> {
+  return invoke<void>("end_shortcut_capture");
+}
+
 export async function listAudioEndpoints(): Promise<AudioEndpoint[]> {
   return invoke<AudioEndpoint[]>("list_audio_endpoints");
 }

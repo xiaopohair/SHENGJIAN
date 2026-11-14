@@ -1,5 +1,6 @@
 import { computed, onUnmounted, shallowRef, type Ref } from "vue";
 import { tr, trDynamic } from "../lib/i18n";
+import { beginShortcutCapture, endShortcutCapture } from "../lib/api";
 
 /** Keys that only modify a chord; recording keeps waiting for a real key. */
 const MODIFIER_CODES = new Set([
@@ -121,6 +122,8 @@ export interface HotkeyRecorderOptions {
  */
 export function useHotkeyRecorder(options: HotkeyRecorderOptions) {
   const recording = shallowRef(false);
+  /** 录入期是否已经把输入法让位出去（用来保证成对恢复）。 */
+  let imeYielded = false;
   let pressed = new Set<string>();
   let captured: string[] = [];
 
@@ -200,10 +203,32 @@ export function useHotkeyRecorder(options: HotkeyRecorderOptions) {
     }
   }
 
+  /**
+   * 录入期让输入法让位。
+   *
+   * 输入法的键盘钩子先于本应用安装，只在自身是活动输入法时拦截语音和弦——不让位的
+   * 话用户按的修饰键会被它直接吃掉，前端连 keydown 都收不到（现场：Ctrl+右Ctrl
+   * 只录到右 Ctrl）。平台侧会把录入窗口线程的输入区域切到非 IME 布局，恢复时切回。
+   */
+  function yieldInputMethod() {
+    if (imeYielded) return;
+    imeYielded = true;
+    void beginShortcutCapture().catch(() => {
+      imeYielded = false;
+    });
+  }
+
+  function restoreInputMethod() {
+    if (!imeYielded) return;
+    imeYielded = false;
+    void endShortcutCapture().catch(() => undefined);
+  }
+
   function start() {
     recording.value = true;
     pressed = new Set();
     captured = [];
+    yieldInputMethod();
     window.addEventListener("keydown", onKeydown, true);
     window.addEventListener("keyup", onKeyup, true);
     window.addEventListener("blur", onWindowBlur);
@@ -217,6 +242,7 @@ export function useHotkeyRecorder(options: HotkeyRecorderOptions) {
     window.removeEventListener("keydown", onKeydown, true);
     window.removeEventListener("keyup", onKeyup, true);
     window.removeEventListener("blur", onWindowBlur);
+    restoreInputMethod();
   }
 
   function toggle() {

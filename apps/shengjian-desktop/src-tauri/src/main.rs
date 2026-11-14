@@ -205,6 +205,8 @@ fn main() {
             commands::rc003_helper_installed,
             commands::install_rc003_helper,
             commands::uninstall_rc003_helper,
+            commands::begin_shortcut_capture,
+            commands::end_shortcut_capture,
             commands::host_capabilities,
             commands::remote_battery,
             commands::voice_level,
