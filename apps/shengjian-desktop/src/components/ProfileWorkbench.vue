@@ -362,7 +362,7 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
             class="toolbar-toggle"
             :title="
               enhancedCaptureInstalled
-                ? tr('使用 RC003 增强捕获（返回键、音量键）')
+                ? tr('使用按键增强（返回键、音量键）')
                 : tr('开启需要管理员授权安装按键增强服务')
             "
           >

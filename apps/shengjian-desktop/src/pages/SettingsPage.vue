@@ -991,7 +991,7 @@ onMounted(async () => {
             <div class="settings-rows">
               <SettingRow
                 label="运行健康检查"
-                hint="检查平台、RC003 增强服务、音频、连接、电量和前台应用识别"
+                hint="检查平台、按键增强服务、音频、连接、电量和前台应用识别"
               >
                 <Button size="sm" :disabled="healthBusy" @click="runHealthCheck">
                   {{ trDynamic(healthBusy ? "检查中" : "运行") }}

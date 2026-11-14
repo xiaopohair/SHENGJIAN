@@ -32,6 +32,7 @@ import {
 } from "../lib/audioDependency";
 import { PROFILE_BUTTONS } from "../lib/buttons";
 import { deviceProductNameKey } from "../lib/deviceProduct";
+import { supportsKeyEnhancement } from "../lib/keyEnhancement";
 import { statusLabel, tr, trDynamic } from "../lib/i18n";
 import { voiceToolOptions } from "../lib/voiceTools";
 import { useVoiceToolCatalog } from "../composables/useVoiceToolCatalog";
@@ -92,7 +93,9 @@ function remoteProductName(remote: { name: string; model: string | null }): stri
   const key = deviceProductNameKey(remote.model);
   return key ? trDynamic(key) : remote.name;
 }
-const isRc003 = computed(() => store.snapshot?.connection.remote?.model === "RC003");
+const supportsKeyEnhancementCapture = computed(() =>
+  supportsKeyEnhancement(store.snapshot?.connection.remote?.model),
+);
 const detectedCount = computed(() => detectedButtons.value.length);
 const buttonChecklist = computed(() =>
   PROFILE_BUTTONS.map((button) => ({
@@ -306,7 +309,7 @@ async function installHelper() {
       rc003HelperInstalled.value = await getRc003HelperInstalled();
       if (rc003HelperInstalled.value) {
         window.clearInterval(helperPoll);
-        helperMessage.value = tr("RC003 增强捕获服务已安装。");
+        helperMessage.value = tr("按键增强服务已安装。");
       }
     }, 2000);
   } catch (cause) {
@@ -565,7 +568,7 @@ onUnmounted(() => {
             </li>
           </ul>
 
-          <div v-if="isRc003" class="capture-setting">
+          <div v-if="supportsKeyEnhancementCapture" class="capture-setting">
             <div class="capture-heading">
               <Checkbox v-model="rc003Capture">{{ tr("启用按键增强服务") }}</Checkbox>
               <div v-if="rc003Capture" class="capture-actions">

@@ -35,6 +35,7 @@ import { statusLabel, tr, trDynamic } from "../lib/i18n";
 import { confirmAction } from "../lib/confirm";
 import { pushToast } from "../lib/toast";
 import { mergeAppTargetsText, splitAppTargets } from "../lib/appTargets";
+import { supportsKeyEnhancement } from "../lib/keyEnhancement";
 import { useAppPicker } from "../composables/useAppPicker";
 import AppPickerDialog from "../components/app-picker/AppPickerDialog.vue";
 import {
@@ -583,7 +584,8 @@ const canEditCurrentProfile = computed(() => Boolean(currentProfileRecord.value)
 const enhancedCapture = shallowRef(false);
 const enhancedCaptureInstalled = shallowRef(false);
 const settingsDocument = shallowRef<SettingsDocument | null>(null);
-const isRc003 = computed(() => (remoteModel.value ?? "").trim().toUpperCase() === "RC003");
+/** 三款小米遥控器都支持按键增强，型号未知时不支持。 */
+const supportsEnhancement = computed(() => supportsKeyEnhancement(remoteModel.value));
 
 async function loadSettingsDocument() {
   try {
@@ -1112,7 +1114,7 @@ onUnmounted(() => {
         :remote-model="remoteModel"
         :remote-name="remoteName"
         :enhanced-capture="enhancedCapture"
-        :enhanced-capture-enabled="isRc003"
+        :enhanced-capture-enabled="supportsEnhancement"
         :enhanced-capture-installed="enhancedCaptureInstalled"
         :auto-apply="editor.autoApply"
         :auto-apply-enabled="!editor.isDefault"

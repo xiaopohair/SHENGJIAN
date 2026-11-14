@@ -18,6 +18,7 @@ import {
   type PendingDeviceOperation,
 } from "../lib/connection";
 import { deviceProductNameKey } from "../lib/deviceProduct";
+import { supportsKeyEnhancement } from "../lib/keyEnhancement";
 import { deviceLineArt } from "../lib/deviceArt";
 import type { AudioEndpoint, SettingsDocument } from "../lib/types";
 import PageHeader from "../components/PageHeader.vue";
@@ -60,8 +61,9 @@ const lastRemoteId = ref(localStorage.getItem(lastRemoteKey) ?? "");
 const currentRemoteId = computed(() => store.snapshot?.connection.remote?.remoteId ?? null);
 const deviceId = computed(() => store.snapshot?.connection.remote?.deviceId ?? null);
 const deviceName = computed(() => store.snapshot?.connection.remote?.name ?? tr("未连接设备"));
-const supportsRc003Capture = computed(
-  () => deviceId.value !== null && store.snapshot?.connection.remote?.model === "RC003",
+/** 三款小米遥控器都支持按键增强服务。 */
+const supportsKeyEnhancementCapture = computed(
+  () => deviceId.value !== null && supportsKeyEnhancement(remoteModel.value),
 );
 const remoteModel = computed(() => store.snapshot?.connection.remote?.model ?? null);
 const deviceProductName = computed(() => {
@@ -549,10 +551,10 @@ onUnmounted(() => {
       </template>
     </Card>
 
-    <Card v-if="supportsRc003Capture" class="stack">
+    <Card v-if="supportsKeyEnhancementCapture" class="stack">
       <SectionHeader title="增强捕获" hint="返回键、音量键" />
       <Checkbox v-model="rc003Capture">
-        {{ tr("启用 RC003 增强捕获") }}
+        {{ tr("启用按键增强") }}
       </Checkbox>
 
       <p class="helper-description">

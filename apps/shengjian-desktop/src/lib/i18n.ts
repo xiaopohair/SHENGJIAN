@@ -210,9 +210,8 @@ const ENGLISH = {
   输入法: "Input method",
   热键: "Hotkey",
   "返回键、音量键": "Back/Volume keys",
-  "RC003 增强捕获": "RC003 enhanced capture",
   增强捕获: "Enhanced capture",
-  "RC003 增强捕获服务": "RC003 enhanced capture service",
+  按键增强服务: "Key enhancement service",
   "返回键和音量键需要增强捕获组件；首次安装会请求管理员授权。":
     "The Back and Volume keys require the enhanced capture component; the first install asks for administrator approval.",
   安装: "Install",
@@ -542,7 +541,7 @@ const ENGLISH = {
   启用按键增强服务: "Enable key enhancement service",
   "返回键和音量键需要安装按键增强服务并开启才能使用；首次安装会请求管理员授权。":
     "Back and volume keys require the key enhancement service to be installed and enabled; the first install asks for administrator permission.",
-  "启用 RC003 增强捕获": "Enable RC003 enhanced capture",
+  启用按键增强: "Enable key enhancement",
   "保存语音记录（只存文字，不存音频）": "Save voice recordings (text only, no audio)",
   "安装/更新 helper": "Install/update helper",
   当前设备覆盖: "Current device overrides",
@@ -658,7 +657,6 @@ const ENGLISH = {
   近期错误行: "Recent error lines",
   未识别: "Not detected",
   日志中暂无: "Not in log",
-  按键增强服务: "Key enhancement service",
   新方案: "New profile",
   新宏: "New macro",
   新建宏: "New macro",
@@ -829,10 +827,10 @@ const ENGLISH = {
   已检测: "Detected",
   待检测: "Not detected",
   全部按键可用: "All buttons work",
-  "返回键、音量键需要启用 RC003 增强捕获并安装服务后才能检测。":
+  "返回键、音量键需要安装按键增强服务并启用后才能检测。":
     "Back and volume keys require RC003 enhanced capture with the service installed before they can be detected.",
   安装中: "Installing",
-  "RC003 增强捕获服务已安装。": "RC003 enhanced capture service installed.",
+  "按键增强服务已安装。": "Key enhancement service installed.",
   配置完成: "Setup complete",
   "你可以在按键页管理键位方案、在设置页调整音频和启动行为。向导可以随时重新运行。":
     "Manage key mappings on the Buttons page and audio/startup behavior in Settings. You can rerun this wizard at any time.",
@@ -986,7 +984,7 @@ const ENGLISH = {
   前台应用匹配时自动切换到本方案:
     "Switch to this profile automatically when the foreground app matches",
   手动切换到本方案: "Switch to this profile manually",
-  "使用 RC003 增强捕获（返回键、音量键）": "Use RC003 enhanced capture (back and volume keys)",
+  "使用按键增强（返回键、音量键）": "Use key enhancement (back and volume keys)",
 
   开启需要管理员授权安装按键增强服务:
     "Turning this on installs the key enhancement service and asks for administrator permission",
