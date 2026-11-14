@@ -321,6 +321,15 @@ export async function exportMacroLibrary(
   return invoke<void>("export_macro_library", { path, document });
 }
 
+/**
+ * 只读预览宏库文件：解析但不落盘。
+ *
+ * 多文件导入要先把每个文件读进来合并，再统一保存；不能直接用
+ * `importMacroLibrary`（它每个文件都会整库覆盖一次）。
+ */
+export async function previewImportMacroLibrary(path: string): Promise<MacroLibraryDocument> {
+  return invoke<MacroLibraryDocument>("preview_import_macro_library", { path });
+}
 export async function importMacroLibrary(path: string): Promise<MacroLibraryDocument> {
   return invoke<MacroLibraryDocument>("import_macro_library", { path });
 }

@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, shallowRef, useTemplateRef, watch } from "vue";
-import { open, save } from "@tauri-apps/plugin-dialog";
-import { Command, FileDown, FileUp, Plus } from "lucide-vue-next";
-import { errorMessage, exportMacroLibrary, importMacroLibrary, saveMacroLibrary } from "../lib/api";
+import { Command, FileJson, Plus } from "lucide-vue-next";
+import { errorMessage, saveMacroLibrary } from "../lib/api";
 import { createMacroStep, type MacroDraft } from "../lib/macros";
 import { statusLabel, tr, trDynamic } from "../lib/i18n";
 import { confirmAction } from "../lib/confirm";
@@ -16,8 +15,9 @@ import EmptyState from "../components/ui/EmptyState.vue";
 import LoadingState from "../components/ui/LoadingState.vue";
 import Notice from "../components/ui/Notice.vue";
 import MacroEditor from "../components/MacroEditor.vue";
+import MacroTransferDialog from "../components/MacroTransferDialog.vue";
 import MacroSettingsDrawer from "../components/macro-editor/MacroSettingsDrawer.vue";
-import type { MacroChord, MacroDefinition, MacroStep } from "../lib/types";
+import type { MacroChord, MacroDefinition, MacroLibraryDocument, MacroStep } from "../lib/types";
 
 const editor = ref<MacroDraft | null>(null);
 const editingNew = shallowRef(false);
@@ -27,6 +27,7 @@ const saveError = shallowRef<string | null>(null);
 const editorHost = useTemplateRef<HTMLElement>("editorHost");
 const macroTabs = useTemplateRef<HTMLElement>("macroTabs");
 const baselineJson = shallowRef("");
+const transferOpen = shallowRef(false);
 
 const reportError = (cause: unknown) => {
   const message = macroErrorMessage(cause);
@@ -419,39 +420,23 @@ async function removeMacro(definition: MacroDefinition) {
   }
 }
 
-async function exportFile() {
+/**
+ * 打开导入/导出面板（单文件或多文件都在同一个面板里选）。
+ *
+ * 面板里读写文件、算进度；落盘与刷新仍由本页负责，避免两处各写一遍。
+ */
+async function openTransfer() {
   if (!macroDocument.value) return;
-  error.value = null;
-  try {
-    const path = await save({
-      defaultPath: "macros.json",
-      filters: [{ name: "JSON", extensions: ["json"] }],
-    });
-    if (!path) return;
-    await exportMacroLibrary(path, macroDocument.value);
-  } catch (cause) {
-    error.value = macroErrorMessage(cause);
-  }
-}
-
-async function importFile() {
   if (!(await confirmDiscard())) return;
   error.value = null;
-  busy.value = true;
-  try {
-    const path = await open({
-      multiple: false,
-      filters: [{ name: "JSON", extensions: ["json"] }],
-    });
-    if (!path || Array.isArray(path)) return;
-    macroDocument.value = await importMacroLibrary(path);
-    closeEditor();
-    await refreshRunStates();
-  } catch (cause) {
-    error.value = macroErrorMessage(cause);
-  } finally {
-    busy.value = false;
-  }
+  transferOpen.value = true;
+}
+
+/** 导入完成：面板已经把新库保存到磁盘，这里只同步内存与运行状态。 */
+async function applyTransfer(document: MacroLibraryDocument) {
+  macroDocument.value = document;
+  closeEditor();
+  await refreshRunStates();
 }
 
 watch(editor, async (value) => {
@@ -535,13 +520,9 @@ onMounted(async () => {
         </div>
       </div>
       <div class="macro-toolbar-actions">
-        <Button size="sm" :disabled="busy" @click="importFile">
-          <FileUp :size="14" />
-          {{ tr("导入") }}
-        </Button>
-        <Button size="sm" :disabled="busy || !macroDocument" @click="exportFile">
-          <FileDown :size="14" />
-          {{ tr("导出") }}
+        <Button size="sm" :disabled="busy || !macroDocument" @click="openTransfer">
+          <FileJson :size="14" />
+          {{ tr("导入 / 导出") }}
         </Button>
         <Button size="sm" variant="primary" :disabled="busy" @click="openNew">
           <Plus :size="14" />
@@ -605,6 +586,13 @@ onMounted(async () => {
       @close="macroSettingsOpen = false"
     />
   </section>
+
+  <MacroTransferDialog
+    :open="transferOpen"
+    :document="macroDocument"
+    @applied="applyTransfer"
+    @close="transferOpen = false"
+  />
 </template>
 
 <style scoped>

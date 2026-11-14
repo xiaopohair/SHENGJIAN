@@ -201,6 +201,7 @@ fn main() {
             commands::macro_run_status,
             commands::export_macro_library,
             commands::import_macro_library,
+            commands::preview_import_macro_library,
             commands::get_autostart_enabled,
             commands::set_autostart_enabled,
             commands::rc003_helper_installed,

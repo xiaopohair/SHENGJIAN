@@ -1078,6 +1078,15 @@ pub fn import_macro_library(
     Ok(saved)
 }
 
+/// 只读预览宏库文件：解析但不落盘，供导入前选择/合并用。
+#[tauri::command]
+pub fn preview_import_macro_library(path: String) -> Result<MacroLibraryDocument, CommandError> {
+    let contents = std::fs::read_to_string(&path)
+        .map_err(|_| CommandError::new("macro-import", "cannot read macro library", true))?;
+    serde_json::from_str::<MacroLibraryDocument>(&contents)
+        .map_err(|_| CommandError::new("macro-import", "invalid macro library", false))
+}
+
 #[tauri::command]
 pub fn clear_button_profile_activation(state: State<'_, AppState>) {
     state.engine.clear_button_profile_activation();

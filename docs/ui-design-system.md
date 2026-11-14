@@ -88,6 +88,8 @@
 
 - [`HotkeyPickerDialog.vue`](../apps/shengjian-desktop/src/components/HotkeyPickerDialog.vue)：语音热键（存 `KeyboardEvent.code` 列表，修饰键分左右）
 - [`ChordPickerDialog.vue`](../apps/shengjian-desktop/src/components/ChordPickerDialog.vue)：宏动作 / 按键动作的快捷键（存 `MacroChord`，修饰键分左右）
+- [`ui/TransferProgress.vue`](../apps/shengjian-desktop/src/components/ui/TransferProgress.vue)：导入/导出的进度反馈（能按条计数才给百分比，否则不定态）
+- [`MacroTransferDialog.vue`](../apps/shengjian-desktop/src/components/MacroTransferDialog.vue)：宏库导入/导出（单文件整库 / 多文件每宏一个，导入按 ID+版本合并）
 - 触发入口统一是 [`ChordInput.vue`](../apps/shengjian-desktop/src/components/ui/ChordInput.vue) 的「选择」按钮
 
 ### Button
@@ -325,6 +327,8 @@ Toast 会自动消失，所以它是「知其发生过」的通道，不能承�
 |---|---|---|
 | 保存校验失败（缺程序 / 缺快捷键 / 缺宏） | error | 停在页面上直到修好，可内联动作按钮 |
 | 导入方案成功 / 有冲突 | success / warning | 弹窗内展示，弹窗开着时不用 Toast |
+| 导入/导出进行中（方案、宏库、配置备份、诊断包） | — | 用 `ui/TransferProgress`：能按条计数（逐文件/逐条）才给百分比 + `done/total`，单次调用只给不定态 |
+| 宏库导入完成（多文件合并） | — | 面板内结果：新增 / 更新 / 跳过 三个计数，不弹 Toast |
 | 推荐方案、导入导出弹窗加载失败 | error | 弹窗内 + 「重试」按钮 |
 | 按键增强：请求 UAC、等待轮询（按键页 / 设置页 / 首次向导） | info | 长流程，必须常驻 |
 | 按键增强：服务未安装 / 安装未完成 | warning | 常驻状态提醒 |
