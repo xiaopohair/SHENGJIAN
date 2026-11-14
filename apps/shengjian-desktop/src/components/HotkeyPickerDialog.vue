@@ -5,7 +5,6 @@ import { tr, trDynamic } from "../lib/i18n";
 import {
   MAIN_KEY_GROUPS,
   MODIFIER_OPTIONS,
-  formatHotkey,
   hotkeyKeyLabel,
   normalizeHotkey,
   sameHotkey,
@@ -48,7 +47,8 @@ let previousFocus: HTMLElement | null = null;
 const selected = computed(() =>
   normalizeHotkey([...modifiers.value, ...(mainKey.value ? [mainKey.value] : [])]),
 );
-const preview = computed(() => (selected.value.length ? formatHotkey(selected.value) : ""));
+/** 预览逐个按键展示成键帽，与输入框里的展示一致（不再拼成一整串）。 */
+const previewParts = computed(() => selected.value.map(hotkeyKeyLabel));
 const canConfirm = computed(() => selected.value.length > 0);
 
 /** 选中的组合正好是当前输入法自己的语音和弦：运行时很可能被它抢先响应。 */
@@ -135,9 +135,9 @@ onUnmounted(() => {
           <div class="hotkey-heading">
             <h2 id="hotkey-picker-title">
               <Keyboard :size="17" aria-hidden="true" />
-              {{ tr("选择语音热键") }}
+              {{ tr("选择热键") }}
             </h2>
-            <p>{{ tr("按下遥控器语音键时注入的组合键。点击下方按键来组合，不用真的按键盘。") }}</p>
+            <p>{{ tr("点选修饰键与主键即可组合，不用在键盘上按下。") }}</p>
           </div>
           <IconButton size="sm" :label="tr('关闭')" @click="close">
             <X :size="16" />
@@ -183,9 +183,12 @@ onUnmounted(() => {
         <footer class="hotkey-foot">
           <div class="hotkey-preview" aria-live="polite">
             <span class="hotkey-preview-label">{{ tr("当前组合") }}</span>
-            <kbd class="hotkey-preview-value" :class="{ empty: !preview }">
-              {{ preview || tr("尚未选择") }}
-            </kbd>
+            <span v-if="previewParts.length" class="hotkey-preview-keys">
+              <kbd v-for="(part, index) in previewParts" :key="`${part}-${index}`">
+                {{ part }}
+              </kbd>
+            </span>
+            <span v-else class="hotkey-preview-empty">{{ tr("尚未选择") }}</span>
           </div>
           <div class="hotkey-actions">
             <Button variant="ghost" @click="close">{{ tr("取消") }}</Button>
@@ -308,8 +311,17 @@ onUnmounted(() => {
 }
 
 .hotkey-key {
+  /* 键帽观感：等宽、底边加重、抬起的浅底，与输入框里的键帽一致。 */
   min-width: 40px;
-  padding: 6px 10px;
+  border-bottom-width: 2px;
+  border-bottom-color: var(--border-strong);
+  border-radius: 5px;
+  background: var(--bg-raised);
+  padding: 3px 8px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  line-height: 20px;
 }
 
 .hotkey-chip:hover,
@@ -347,19 +359,27 @@ onUnmounted(() => {
   font-size: var(--text-2xs);
 }
 
-.hotkey-preview-value {
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-xs);
-  background: var(--bg-subtle);
-  padding: 3px 8px;
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  white-space: nowrap;
+.hotkey-preview-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
-.hotkey-preview-value.empty {
+.hotkey-preview-keys kbd {
+  border: 1px solid var(--border);
+  border-bottom-color: var(--border-strong);
+  border-radius: 4px;
+  background: var(--bg-raised);
+  padding: 0 6px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 20px;
+}
+
+.hotkey-preview-empty {
   color: var(--text-disabled);
+  font-size: var(--text-xs);
 }
 
 .hotkey-actions {

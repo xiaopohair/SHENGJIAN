@@ -40,7 +40,8 @@ const selected = computed<MacroChord>(() => ({
   ),
   key: mainKey.value,
 }));
-const preview = computed(() => chordParts(selected.value).join(" + "));
+/** 预览逐个按键展示成键帽，与输入框里的展示一致（不再拼成一整串）。 */
+const previewParts = computed(() => chordParts(selected.value));
 const canConfirm = computed(() => mainKey.value.trim().length > 0);
 
 function resetFromModel() {
@@ -162,9 +163,12 @@ onUnmounted(() => {
         <footer class="chord-foot">
           <div class="chord-preview" aria-live="polite">
             <span class="chord-preview-label">{{ tr("当前组合") }}</span>
-            <kbd class="chord-preview-value" :class="{ empty: !preview }">
-              {{ preview || tr("尚未选择") }}
-            </kbd>
+            <span v-if="previewParts.length" class="chord-preview-keys">
+              <kbd v-for="(part, index) in previewParts" :key="`${part}-${index}`">
+                {{ part }}
+              </kbd>
+            </span>
+            <span v-else class="chord-preview-empty">{{ tr("尚未选择") }}</span>
           </div>
           <div class="chord-actions">
             <Button variant="ghost" @click="close">{{ tr("取消") }}</Button>
@@ -279,8 +283,17 @@ onUnmounted(() => {
 }
 
 .chord-key {
+  /* 键帽观感：等宽、底边加重、抬起的浅底，与输入框里的键帽一致。 */
   min-width: 40px;
-  padding: 6px 10px;
+  border-bottom-width: 2px;
+  border-bottom-color: var(--border-strong);
+  border-radius: 5px;
+  background: var(--bg-raised);
+  padding: 3px 8px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  line-height: 20px;
 }
 
 .chord-chip:hover,
@@ -318,19 +331,27 @@ onUnmounted(() => {
   font-size: var(--text-2xs);
 }
 
-.chord-preview-value {
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-xs);
-  background: var(--bg-subtle);
-  padding: 3px 8px;
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  white-space: nowrap;
+.chord-preview-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
-.chord-preview-value.empty {
+.chord-preview-keys kbd {
+  border: 1px solid var(--border);
+  border-bottom-color: var(--border-strong);
+  border-radius: 4px;
+  background: var(--bg-raised);
+  padding: 0 6px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 20px;
+}
+
+.chord-preview-empty {
   color: var(--text-disabled);
+  font-size: var(--text-xs);
 }
 
 .chord-actions {
