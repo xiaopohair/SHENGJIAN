@@ -17,11 +17,11 @@ vi.mock("@tauri-apps/api/window", () => ({
 }));
 
 describe("TitleBar", () => {
-  it("shows the brand mark and product name on the left", () => {
+  it("leaves the brand to the sidebar and keeps only window controls", () => {
     const wrapper = mount(TitleBar);
 
-    expect(wrapper.find(".titlebar-brand .brand-mark").exists()).toBe(true);
-    expect(wrapper.find(".titlebar-name").text()).toBe("声键");
-    expect(wrapper.find(".titlebar-brand").attributes("data-tauri-drag-region")).toBeDefined();
+    expect(wrapper.find(".titlebar-brand").exists()).toBe(false);
+    expect(wrapper.find(".titlebar-name").exists()).toBe(false);
+    expect(wrapper.find(".titlebar-drag").attributes("data-tauri-drag-region")).toBeDefined();
   });
 });
