@@ -48,6 +48,9 @@ jobs:
       - name: Frontend build
         working-directory: apps/shengjian-desktop
         run: pnpm build
+      - name: Validate config catalogs
+        working-directory: apps/shengjian-desktop
+        run: pnpm config:check
       - name: Build helper
         working-directory: helper/rc003
         run: cargo build --release

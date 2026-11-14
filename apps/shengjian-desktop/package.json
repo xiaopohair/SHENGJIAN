@@ -17,7 +17,9 @@
     "build:installer": "tauri build && powershell -NoProfile -ExecutionPolicy Bypass -File ../../scripts/normalize-installer-name.ps1",
     "build:portable": "powershell -NoProfile -ExecutionPolicy Bypass -File ../../scripts/build-portable.ps1",
     "prepare:helper": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-helper.ps1",
-    "prepare:config": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-config.ps1"
+    "prepare:config": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-config.ps1",
+    "config:check": "node ../../scripts/profile-to-preset.mjs --check",
+    "config:import-profile": "node ../../scripts/profile-to-preset.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",

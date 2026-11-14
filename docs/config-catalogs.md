@@ -241,6 +241,47 @@ Get-WinUserLanguageList | Select-Object LanguageTag, InputMethodTips
 - 复制：生成 `preset-copy-<源id>-<毫秒>` 的普通方案，名称加「（我的）」，
   保留绑定/应用目标/重复设置；用户在前端保存后才会落盘并激活
 
+### 用脚本把「我的方案」转成推荐方案
+
+应用导出的 `button-profiles.json` 是**用户方案库**（`schemaVersion: 5` + `activeManualProfileId`），
+和推荐目录不是同一个结构：id 前缀、`isDefault`、`compatibleModels`、`bundleVersion` 都不一样。
+手动搬字段容易漏掉 `isDefault`（一条就会让整份目录被拒），因此提供转换脚本：
+
+```powershell
+cd apps/shengjian-desktop
+
+# 1) 在应用「按键」页做好方案、真机验证后点「导出」；先看看文件里有哪些方案
+pnpm config:import-profile --list --input "%USERPROFILE%\Desktop\button-profiles.json"
+
+# 2) 预览转换结果（不写盘）
+pnpm config:import-profile --input "%USERPROFILE%\Desktop\button-profiles.json" `
+  --profile "豆包语音输入（我的）" --id preset.rc003.doubao --models RC003 --dry-run
+
+# 3) 正式写入 config/button-profiles.json（同名 id 会替换，并自动递增 bundleVersion）
+pnpm config:import-profile --input "%USERPROFILE%\Desktop\button-profiles.json" `
+  --profile "豆包语音输入（我的）" --id preset.rc003.doubao --models RC003
+
+# 4) 校验四个配置文件（脚本会按 Rust 侧同样的规则检查）
+pnpm config:check
+```
+
+脚本做这些事：
+
+- 自动剔除 `isDefault` / `createdAt`，补 `compatibleModels` 与 `bundleVersion`
+- 按 `--id` 生成 `preset.` 前缀 id；同名 id 视为替换，不会重复追加
+- 写盘前跑一遍与 `button_presets::validate_catalog` 等价的校验（id 前缀/重复、
+  `isDefault`、空 name、不可编辑按键、`run-macro` 引用是否存在、动作类型等），
+  不合法直接报原因并**不写盘**
+- `--check` 同时检查 `app-presets.json` / `voice-tools.json` / `recommended-macros.json`
+  的结构性问题；CI 也会跑 `pnpm config:check`
+
+已安装的机器想直接试效果，把 `--out` 指向安装目录即可（改完重启程序生效）：
+
+```powershell
+pnpm config:import-profile --input ... --id preset.xxx `
+  --out "$env:LOCALAPPDATA\声键\resources\config\button-profiles.json"
+```
+
 ## `recommended-macros.json`（推荐宏）
 
 ```jsonc
