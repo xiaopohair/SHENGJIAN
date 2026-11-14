@@ -80,12 +80,10 @@ const connectedMinutes = computed(() => {
   if (!connectedAt.value) return 0;
   return Math.max(0, Math.floor((nowTick.value - connectedAt.value) / 60000));
 });
-/** 副标题：有昵称时显示「产品名 · 型号」；没有昵称时标题已是广播名，只补型号。 */
-const heroSubtitle = computed(() => {
-  const model = modelLabel(remoteModel.value);
-  if (deviceNickname.value.trim()) return `${deviceProductName.value} · ${model}`;
-  return model;
-});
+/** 副标题固定为「产品正式名 · 型号」，型号代码前永远有产品名字。 */
+const heroSubtitle = computed(
+  () => `${deviceProductName.value} · ${modelLabel(remoteModel.value)}`,
+);
 /** 语音胶囊：设备覆盖优先，否则用全局工具名。 */
 const voiceChipLabel = computed(() => {
   const toolId =
@@ -499,18 +497,14 @@ onUnmounted(() => {
 
         <div class="hero-side">
           <StatusPill v-if="store.isConnected" :label="trDynamic('使用中')" tone="success" dot />
-          <Button
-            v-if="store.isConnected"
-            size="sm"
-            :variant="'secondary'"
-            :disabled="store.connecting"
-            @click="disconnect"
-          >
-            {{ tr("断开") }}
-          </Button>
-          <button v-if="store.isConnected" type="button" class="hero-link" @click="focusOverrides">
-            {{ tr("设置") }}
-          </button>
+          <div v-if="store.isConnected" class="hero-actions">
+            <Button size="sm" :disabled="store.connecting" @click="disconnect">
+              {{ tr("断开") }}
+            </Button>
+            <button type="button" class="hero-link" @click="focusOverrides">
+              {{ tr("设置") }}
+            </button>
+          </div>
         </div>
       </div>
     </Card>
@@ -919,8 +913,8 @@ onUnmounted(() => {
 
 .hero-body {
   display: grid;
-  grid-template-columns: 120px minmax(0, 1fr) auto;
-  align-items: center;
+  grid-template-columns: 96px minmax(0, 1fr) auto;
+  align-items: start;
   gap: var(--space-5);
   min-width: 0;
 }
@@ -928,15 +922,16 @@ onUnmounted(() => {
 .hero-visual {
   display: grid;
   place-items: center;
-  max-height: 220px;
+  align-self: center;
+  max-height: 150px;
   min-width: 0;
 }
 
 .hero-visual .device-line-art,
 .hero-visual img {
   width: auto;
-  max-width: 96px;
-  max-height: 200px;
+  max-width: 64px;
+  max-height: 140px;
   height: 100%;
   object-fit: contain;
 }
@@ -1024,7 +1019,15 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: var(--space-2);
+  gap: var(--space-3);
+  /* 与标题行对齐：网格里这几行都是顶部对齐的。 */
+  padding-top: 2px;
+}
+
+.hero-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
 }
 
 .hero-link {
