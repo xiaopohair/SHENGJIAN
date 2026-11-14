@@ -30,6 +30,25 @@ const dragFrom = shallowRef<number | null>(null);
 const dragOver = shallowRef<number | null>(null);
 const dragHandle = ref<HTMLElement | null>(null);
 let dragPointerId: number | null = null;
+
+/** 拖动时跟着指针走的鬼影（显示被拖步骤的序号与名称）。 */
+const ghost = shallowRef<{ index: number; label: string } | null>(null);
+const ghostPos = ref({ x: 0, y: 0 });
+
+/**
+ * 插入指示线要画在哪两行之间（null = 不显示）。
+ *
+ * 与 `emit("reorder", from, to)` 的语义对齐：向下拖时落在目标行**之后**，
+ * 向上拖时落在目标行**之前**，所以两者分别对应 `to + 1` 与 `to`。
+ */
+const insertionIndex = computed(() => {
+  const from = dragFrom.value;
+  const to = dragOver.value;
+  if (from === null || to === null || from === to) return null;
+  return to > from ? to + 1 : to;
+});
+
+const draggingActive = computed(() => dragFrom.value !== null);
 const runByIndex = computed(() => {
   const map = new Map<number, MacroStepReport>();
   for (const step of props.runSteps) map.set(step.index, step);
@@ -56,8 +75,20 @@ function rowIndexAt(clientY: number): number | null {
 }
 
 function onPointerMove(event: PointerEvent) {
+  ghostPos.value = { x: event.clientX, y: event.clientY };
   const index = rowIndexAt(event.clientY);
   if (index !== null) dragOver.value = index;
+  autoScroll(event.clientY);
+}
+
+/** 指针靠近列表上下边缘时自动滚动，长列表也能拖到看不见的行。 */
+function autoScroll(clientY: number) {
+  const list = listRef.value;
+  if (!list) return;
+  const rect = list.getBoundingClientRect();
+  const margin = 28;
+  if (clientY < rect.top + margin) list.scrollTop -= 12;
+  else if (clientY > rect.bottom - margin) list.scrollTop += 12;
 }
 
 function stopDrag(commit: boolean) {
@@ -73,6 +104,7 @@ function stopDrag(commit: boolean) {
   }
   dragHandle.value = null;
   dragPointerId = null;
+  ghost.value = null;
   const from = dragFrom.value;
   const to = dragOver.value;
   dragFrom.value = null;
@@ -90,22 +122,42 @@ function onPointerCancel() {
   stopDrag(false);
 }
 
+/**
+ * 整行按下即可拖动（抓手保留，方便识别）。
+ *
+ * 行内真正的可交互控件（插入按钮、输入框等）不抢拖拽；注意行自身也是
+ * `role="button"`，所以要把它排除掉，否则永远拖不起来。
+ */
+function onRowPointerDown(index: number, event: PointerEvent) {
+  const rowEl = event.currentTarget as HTMLElement | null;
+  const target = event.target;
+  if (target instanceof HTMLElement) {
+    const interactive = target.closest<HTMLElement>(
+      "button, input, textarea, select, a, .drag-handle, [role='button']",
+    );
+    if (interactive && interactive !== rowEl) return;
+  }
+  startDrag(index, event);
+}
+
 function startDrag(index: number, event: PointerEvent) {
   if (event.button !== 0) return;
   event.preventDefault();
   event.stopPropagation();
   dragFrom.value = index;
   dragOver.value = index;
-  const handle = event.currentTarget as HTMLElement | null;
-  if (handle) {
-    dragHandle.value = handle;
-    dragPointerId = event.pointerId;
-    try {
-      handle.setPointerCapture(event.pointerId);
-    } catch {
-      // Capture is an optimization; window listeners still track the drag.
-    }
-  }
+  ghostPos.value = { x: event.clientX, y: event.clientY };
+  const row = props.rows.find((item) => item.index === index);
+  ghost.value = row
+    ? {
+        index: index + 1,
+        label: `${actionLabel(row.step.action)}${row.summary ? ` · ${row.summary}` : ""}`,
+      }
+    : null;
+  // 不做 setPointerCapture：行整体可拖之后，捕获会把 pointermove 重定向到行元素，
+  // 反而拿不到稳定的坐标序列；window 上的监听已经足够跟踪整段拖动。
+  dragHandle.value = event.currentTarget as HTMLElement | null;
+  dragPointerId = event.pointerId;
   window.addEventListener("pointermove", onPointerMove);
   window.addEventListener("pointerup", onPointerUp);
   window.addEventListener("pointercancel", onPointerCancel);
@@ -144,8 +196,9 @@ onBeforeUnmount(() => stopDrag(false));
       </div>
     </div>
 
-    <div ref="listRef" class="step-list">
+    <div ref="listRef" class="step-list" :class="{ 'is-dragging': draggingActive }">
       <template v-for="row in rows" :key="row.step.stepId">
+        <div v-if="insertionIndex === row.index" class="step-drop-line" aria-hidden="true" />
         <div
           class="step-row"
           :class="{
@@ -159,6 +212,7 @@ onBeforeUnmount(() => stopDrag(false));
           :data-index="row.index"
           :aria-pressed="selectedStepId === row.step.stepId"
           :aria-label="`${trDynamic('步骤')} ${row.index + 1}: ${actionLabel(row.step.action)}, ${row.summary}`"
+          @pointerdown="onRowPointerDown(row.index, $event)"
           @click="emit('select', row.index)"
           @keydown.enter.prevent="emit('select', row.index)"
           @keydown.space.prevent="emit('select', row.index)"
@@ -205,7 +259,20 @@ onBeforeUnmount(() => stopDrag(false));
           </button>
         </div>
       </template>
+      <div v-if="insertionIndex === rows.length" class="step-drop-line" aria-hidden="true" />
     </div>
+
+    <Teleport to="body">
+      <div
+        v-if="ghost"
+        class="step-ghost"
+        :style="{ transform: `translate3d(${ghostPos.x + 14}px, ${ghostPos.y - 20}px, 0)` }"
+        aria-hidden="true"
+      >
+        <kbd class="step-ghost-key">{{ ghost.index }}</kbd>
+        <span class="step-ghost-label">{{ ghost.label }}</span>
+      </div>
+    </Teleport>
   </section>
 </template>
 
@@ -269,7 +336,60 @@ onBeforeUnmount(() => stopDrag(false));
   border-color: var(--warning);
 }
 .step-row.dragging {
-  opacity: 0.5;
+  opacity: 0.45;
+  border-style: dashed;
+}
+
+.step-list.is-dragging {
+  user-select: none;
+}
+
+/* 插入位置的强调色细线：拖动过程中明确指出这一步会落在哪里 */
+.step-drop-line {
+  height: 2px;
+  margin: 2px 0;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+/* 跟随指针的鬼影：拖动过程中的主要反馈 */
+.step-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 320px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-lg);
+  padding: 6px 10px;
+  color: var(--text);
+  font-size: var(--text-xs);
+  pointer-events: none;
+}
+
+.step-ghost-key {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--accent-soft-strong);
+  border-radius: 5px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.step-ghost-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .step-row.drag-over {
   border-color: var(--accent);
