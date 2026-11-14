@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, useTemplateRef, watch } from "vue";
-import { FileDown, FileUp, FolderOpen, X } from "lucide-vue-next";
+import { ArrowLeftRight, FileDown, FileUp, FolderOpen, X } from "lucide-vue-next";
 import { tr, type TranslationKey } from "../lib/i18n";
 import type { ButtonProfile } from "../lib/types";
 import Button from "./ui/Button.vue";
@@ -159,7 +159,10 @@ function onWindowKeydown(event: KeyboardEvent) {
       >
         <header class="transfer-head">
           <div class="transfer-heading">
-            <h2 id="transfer-title">{{ tr("导入与导出") }}</h2>
+            <h2 id="transfer-title">
+              <ArrowLeftRight :size="17" aria-hidden="true" />
+              {{ tr("导入与导出") }}
+            </h2>
             <p>{{ tr("备份、迁移当前按键方案，或把方案整理成内置推荐方案。") }}</p>
           </div>
           <IconButton size="sm" :label="tr('关闭')" @click="close">
@@ -179,7 +182,7 @@ function onWindowKeydown(event: KeyboardEvent) {
         <div class="transfer-body">
           <template v-if="mode === 'export'">
             <section class="transfer-section">
-              <p class="transfer-group-label">{{ tr("导出格式") }}</p>
+              <p class="transfer-caption">{{ tr("导出格式") }}</p>
               <div class="transfer-formats" role="radiogroup" :aria-label="tr('导出格式')">
                 <button
                   v-for="format in FORMAT_ITEMS"
@@ -202,7 +205,7 @@ function onWindowKeydown(event: KeyboardEvent) {
 
             <section class="transfer-section transfer-section-grow">
               <div class="transfer-list-head">
-                <p class="transfer-group-label">{{ tr("选择方案") }}</p>
+                <p class="transfer-caption">{{ tr("选择方案") }}</p>
                 <div class="transfer-list-actions">
                   <span class="transfer-count">
                     {{
@@ -265,13 +268,15 @@ function onWindowKeydown(event: KeyboardEvent) {
 </template>
 
 <style scoped>
+/* 与 RecommendedProfilesDialog 同一套弹窗骨架：遮罩、圆角、头部有分隔线、
+   列表项是独立描边卡片、页脚右对齐。这里不再另造一套视觉语言。 */
 .transfer-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 260;
+  z-index: 300;
   display: grid;
   place-items: center;
-  padding: var(--space-4);
+  padding: var(--space-5);
   background: var(--overlay);
   backdrop-filter: blur(4px);
 }
@@ -279,10 +284,10 @@ function onWindowKeydown(event: KeyboardEvent) {
 .transfer-dialog {
   display: flex;
   flex-direction: column;
-  width: min(560px, calc(100vw - 32px));
-  max-height: min(680px, calc(100vh - 48px));
+  width: min(620px, calc(100vw - 48px));
+  max-height: min(720px, calc(100vh - 48px));
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   background: var(--bg-raised);
   box-shadow: var(--shadow-lg);
 }
@@ -292,34 +297,44 @@ function onWindowKeydown(event: KeyboardEvent) {
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: var(--space-5) var(--space-5) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  padding: var(--space-4) var(--space-5);
+}
+
+.transfer-heading {
+  min-width: 0;
 }
 
 .transfer-heading h2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin: 0;
   font-size: var(--text-lg);
+  font-weight: 650;
   letter-spacing: -0.02em;
 }
 
 .transfer-heading p {
-  margin: 5px 0 0;
+  margin: 4px 0 0;
   color: var(--text-muted);
   font-size: var(--text-xs);
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
-/* 模式切换单独一行、与主体同内边距，避免和下面两组区块挤在一起。 */
+/* 模式切换：与头部同内边距，跟主体之间留出固定间距。 */
 .transfer-switch {
-  padding: 0 var(--space-5) var(--space-4);
+  padding: var(--space-4) var(--space-5) 0;
 }
 
 .transfer-body {
   display: flex;
-  flex: 1;
+  flex: 1 1 auto;
   flex-direction: column;
-  gap: var(--space-5);
-  overflow: auto;
-  padding: var(--space-4) var(--space-5) var(--space-5);
+  gap: var(--space-4);
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-4) var(--space-5);
 }
 
 .transfer-section {
@@ -332,37 +347,34 @@ function onWindowKeydown(event: KeyboardEvent) {
   min-height: 0;
 }
 
-.transfer-group-label {
+/* 区块说明：普通 muted 小字，不做大写/字距处理（弹窗里没有这种排版）。 */
+.transfer-caption {
   margin: 0;
   color: var(--text-muted);
-  font-size: var(--text-2xs);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: var(--text-xs);
 }
 
-/* 导出格式：两张可选卡片，比「标签 + 开关」更像一组并列选项。 */
+/* 导出格式：与推荐方案列表同一款描边卡片，选中用主色描边 + 浅底。 */
 .transfer-formats {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-2);
-  grid-template-columns: 1fr 1fr;
 }
 
 .transfer-format {
   display: flex;
   align-items: flex-start;
-  gap: var(--space-2);
+  gap: var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: transparent;
-  padding: var(--space-3);
+  background: var(--bg);
+  padding: var(--space-3) var(--space-4);
   color: var(--text-muted);
   text-align: left;
   cursor: pointer;
   transition:
     border-color var(--duration-fast) ease,
-    background var(--duration-fast) ease,
-    color var(--duration-fast) ease;
+    background var(--duration-fast) ease;
 }
 
 .transfer-format:hover {
@@ -373,7 +385,6 @@ function onWindowKeydown(event: KeyboardEvent) {
 .transfer-format.active {
   border-color: var(--accent);
   background: var(--accent-soft);
-  color: var(--accent);
 }
 
 .transfer-format-copy {
@@ -386,11 +397,7 @@ function onWindowKeydown(event: KeyboardEvent) {
 .transfer-format-copy strong {
   color: var(--text);
   font-size: var(--text-sm);
-  font-weight: 600;
-}
-
-.transfer-format.active .transfer-format-copy strong {
-  color: var(--accent);
+  font-weight: 650;
 }
 
 .transfer-format-copy span {
@@ -418,33 +425,32 @@ function onWindowKeydown(event: KeyboardEvent) {
   font-variant-numeric: tabular-nums;
 }
 
-/* 方案列表：一张带边框的容器，行间用发丝线分隔，滚动发生在容器内部。 */
+/* 方案列表：每行一张描边卡片，和推荐方案列表一致；滚动发生在列表容器上。 */
 .transfer-list {
   display: flex;
   flex-direction: column;
+  gap: var(--space-2);
   min-height: 0;
-  max-height: 260px;
+  /* 按整行高度封顶（5 行 × 约 46px + 4 个 8px 间隔 = 262px）并滚动：
+     常见的 5 条以内全部可见，更多时滚动，且不会切出半行。 */
+  max-height: 262px;
+  overflow-y: auto;
   margin: 0;
   padding: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  overflow-y: auto;
   list-style: none;
 }
 
 .transfer-item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
   padding: var(--space-2) var(--space-3);
 }
 
-.transfer-item + .transfer-item {
-  border-top: 1px solid var(--border);
-}
-
 .transfer-item:hover {
-  background: var(--bg-hover);
+  border-color: var(--border-strong);
 }
 
-/* 名称、型号徽标与禁用原因排成一行，行高压到单行。 */
 .transfer-item-copy {
   display: flex;
   flex-wrap: wrap;
@@ -458,11 +464,14 @@ function onWindowKeydown(event: KeyboardEvent) {
 }
 
 .transfer-model {
+  border: 1px solid var(--border);
   border-radius: var(--radius-pill);
   background: var(--bg-subtle);
-  padding: 1px var(--space-2);
+  padding: 1px 7px;
   color: var(--text-secondary);
   font-size: var(--text-2xs);
+  font-weight: 650;
+  white-space: nowrap;
 }
 
 .transfer-note {
@@ -470,16 +479,7 @@ function onWindowKeydown(event: KeyboardEvent) {
   font-size: var(--text-2xs);
 }
 
-.transfer-empty {
-  margin: 0;
-  border: 1px dashed var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-5);
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-  text-align: center;
-}
-
+/* 导入说明：与推荐方案弹窗的状态条同款（浅底 + 描边）。 */
 .transfer-import {
   display: flex;
   align-items: flex-start;
@@ -487,15 +487,15 @@ function onWindowKeydown(event: KeyboardEvent) {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--bg-subtle);
-  padding: var(--space-4);
+  padding: var(--space-3) var(--space-4);
 }
 
 .transfer-import-icon {
   display: grid;
-  flex: 0 0 34px;
+  flex: 0 0 28px;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   border-radius: var(--radius-sm);
   background: var(--bg-raised);
   color: var(--text-secondary);
@@ -504,27 +504,38 @@ function onWindowKeydown(event: KeyboardEvent) {
 .transfer-import strong {
   color: var(--text);
   font-size: var(--text-sm);
+  font-weight: 650;
 }
 
 .transfer-import p {
-  margin: 4px 0 0;
+  margin: 3px 0 0;
   color: var(--text-muted);
   font-size: var(--text-xs);
-  line-height: 1.5;
+  line-height: 1.45;
+}
+
+.transfer-empty {
+  margin: 0;
+  padding: var(--space-6) var(--space-5);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  text-align: center;
 }
 
 .transfer-foot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--space-2);
   border-top: 1px solid var(--border);
-  padding: var(--space-4) var(--space-5);
+  padding: var(--space-3) var(--space-5);
 }
 
 .transfer-foot-summary {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: 6px;
   margin-right: auto;
   color: var(--text-muted);
   font-size: var(--text-2xs);
