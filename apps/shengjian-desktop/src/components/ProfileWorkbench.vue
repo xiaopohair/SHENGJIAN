@@ -309,9 +309,36 @@ const visibleButtons = computed(() => {
   });
 });
 
+/**
+ * 依赖「按键增强」的三个键：返回、音量±。
+ *
+ * 增强捕获没开时，这三键被系统/其它途径吃掉，应用根本收不到边沿，
+ * 设了动作也永远不会触发——所以直接不让选、不让配。
+ */
+const CAPTURE_ONLY_BUTTONS: LogicalButton[] = ["back", "volume-up", "volume-down"];
+
+function isCaptureOnly(button: LogicalButton): boolean {
+  return CAPTURE_ONLY_BUTTONS.includes(button);
+}
+
+/** 增强捕获真的可用：机型支持 + 服务已安装 + 开关已打开。 */
+const captureReady = computed(
+  () => props.enhancedCapture && props.enhancedCaptureEnabled && props.enhancedCaptureInstalled,
+);
+
+function buttonLocked(button: LogicalButton): boolean {
+  return isCaptureOnly(button) && !captureReady.value;
+}
+
 function selectButton(button: LogicalButton) {
+  if (buttonLocked(button)) return;
   selectedButton.value = button;
 }
+
+// 关掉按键增强后，如果当前正停在被锁的键上，切回主页键避免编辑区对着不可用的键。
+watch(captureReady, (ready) => {
+  if (!ready && buttonLocked(selectedButton.value)) selectedButton.value = "home";
+});
 
 function selectTrigger(trigger: ProfileTrigger) {
   selectedTrigger.value = trigger;
@@ -377,15 +404,26 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
               :key="hotspot.id"
               type="button"
               class="remote-hotspot"
-              :class="[hotspot.shape, { selected: selectedButton === hotspot.id }]"
+              :class="[
+                hotspot.shape,
+                { selected: selectedButton === hotspot.id, locked: buttonLocked(hotspot.id) },
+              ]"
               :style="hotspotStyle(hotspot)"
+              :disabled="buttonLocked(hotspot.id)"
               :aria-label="trDynamic(labelFor(hotspot.id))"
               :aria-pressed="selectedButton === hotspot.id"
-              :title="trDynamic(labelFor(hotspot.id))"
+              :title="
+                buttonLocked(hotspot.id)
+                  ? tr('需要开启按键增强后才能设置此键')
+                  : trDynamic(labelFor(hotspot.id))
+              "
               @click="selectButton(hotspot.id)"
             />
           </div>
           <p class="product-note">{{ productNote }}</p>
+          <p v-if="!captureReady" class="product-locked-note">
+            {{ tr("返回键、音量键需开启按键增强") }}
+          </p>
         </div>
         <div class="remote-footer">
           <span>{{ tr("点击按键查看绑定") }}</span>
@@ -476,7 +514,11 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
                   <button
                     type="button"
                     class="matrix-key"
-                    :class="{ configured: hasBinding(button.id) }"
+                    :class="{ configured: hasBinding(button.id), locked: buttonLocked(button.id) }"
+                    :disabled="buttonLocked(button.id)"
+                    :title="
+                      buttonLocked(button.id) ? tr('需要开启按键增强后才能设置此键') : undefined
+                    "
                     @click="selectButton(button.id)"
                   >
                     <span class="key-cap">{{ CAPS[button.id] }}</span>
@@ -721,6 +763,33 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
     0 0 16px rgba(15, 122, 99, 0.45);
   content: "";
   pointer-events: none;
+}
+
+/*
+ * 被锁定的热点（返回/音量）：热点本身是透明覆盖层，只调 opacity 看不出来，
+ * 必须给它盖一层浅色遮罩才能让底下的实体按键看起来是灰的。
+ */
+.remote-hotspot.locked {
+  cursor: not-allowed;
+  background: color-mix(in srgb, var(--bg) 76%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border-strong) 55%, transparent);
+}
+
+.remote-hotspot.locked:hover {
+  outline: none;
+}
+
+.product-locked-note {
+  margin: var(--space-1) 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-2xs);
+  line-height: 1.4;
+  text-align: center;
+}
+
+.matrix-key.locked {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .product-note {

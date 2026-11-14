@@ -1007,6 +1007,9 @@ const ENGLISH = {
   "未检测到卸载完成，请确认 UAC 已通过后点“刷新”。":
     "Removal wasn't detected; confirm the UAC prompt and click Refresh",
   卸载: "Uninstall",
+  需要开启按键增强后才能设置此键: "Turn on key enhancement before configuring this key",
+
+  "返回键、音量键需开启按键增强": "Back and volume keys need key enhancement",
   按键增强: "Key enhancement",
   方案激活: "Profile activation",
   更多操作: "More actions",
