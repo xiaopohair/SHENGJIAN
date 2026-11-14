@@ -934,21 +934,24 @@ onUnmounted(() => {
   position: relative;
   overflow: hidden;
   padding: var(--space-5);
-  /* 立体感：顶部一道高光 + 顶部向内过渡的淡阴影 */
+  /* 立体感：顶部一道内高光，让卡片从背景里"抬"起来 */
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, #ffffff 72%, transparent),
     var(--shadow-sm);
 }
 
+/* 顶部边框用强调色渐变：左侧最实、向右淡出，形成一条带方向的立体边 */
 .device-hero::before {
   position: absolute;
   inset: 0 0 auto 0;
-  height: 22px;
+  height: 2px;
   border-radius: inherit;
   background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--shadow) 42%, transparent),
-    transparent
+    90deg,
+    color-mix(in srgb, var(--accent) 72%, transparent) 0%,
+    color-mix(in srgb, var(--accent) 34%, transparent) 38%,
+    color-mix(in srgb, var(--accent) 10%, transparent) 68%,
+    transparent 92%
   );
   content: "";
   pointer-events: none;
