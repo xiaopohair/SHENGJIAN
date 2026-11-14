@@ -4,27 +4,17 @@ import type { MacroDefinition, MacroRunStatus } from "../lib/types";
 import type { MacroDraft } from "../lib/macros";
 import { useMacroDraftEditor } from "../composables/useMacroDraftEditor";
 import MacroActionPanel from "./macro-editor/MacroActionPanel.vue";
-import MacroEditorHeader from "./macro-editor/MacroEditorHeader.vue";
 import MacroStepList from "./macro-editor/MacroStepList.vue";
 
+/**
+ * 宏编辑器主体：步骤列表 + 动作面板。
+ *
+ * 编辑工具栏（保存/试运行/属性/复制/删除/取消）已整体删除，这些动作统一在
+ * 页面导航栏（宏页工具栏）里，避免同一批按钮出现在两处。
+ */
 const props = defineProps<{
-  editingNew: boolean;
-  busy: boolean;
-  dirty: boolean;
   otherMacros: MacroDefinition[];
   runStatus?: MacroRunStatus | null;
-  draftTesting?: boolean;
-  saveError?: string | null;
-}>();
-
-const emit = defineEmits<{
-  save: [];
-  cancel: [];
-  "test-draft": [];
-  "cancel-draft": [];
-  "duplicate-macro": [];
-  "delete-macro": [];
-  "open-settings": [];
 }>();
 
 const draft = defineModel<MacroDraft>("draft", { required: true });
@@ -35,9 +25,6 @@ const {
   selectedStepIndex,
   stepRows,
   issues,
-  canTest,
-  setName,
-  setSummary,
   selectStep,
   addStep,
   insertStep,
@@ -69,27 +56,6 @@ function removeSelected() {
 
 <template>
   <div class="macro-editor">
-    <MacroEditorHeader
-      :name="draft.name"
-      :summary="draft.summary"
-      :editing-new="editingNew"
-      :busy="busy"
-      :dirty="dirty"
-      :run-status="runStatus"
-      :draft-testing="draftTesting"
-      :save-error="saveError ?? null"
-      :can-test="canTest"
-      @update:name="setName"
-      @update:summary="setSummary"
-      @save="emit('save')"
-      @cancel="emit('cancel')"
-      @test-draft="emit('test-draft')"
-      @cancel-draft="emit('cancel-draft')"
-      @duplicate-macro="emit('duplicate-macro')"
-      @delete-macro="emit('delete-macro')"
-      @open-settings="emit('open-settings')"
-    />
-
     <div class="editor-grid">
       <MacroStepList
         :rows="stepRows"

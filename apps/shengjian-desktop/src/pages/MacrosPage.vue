@@ -1,6 +1,25 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, shallowRef, useTemplateRef, watch } from "vue";
-import { Command, FileJson, Plus } from "lucide-vue-next";
+import {
+  computed,
+  nextTick,
+  onMounted,
+  onUnmounted,
+  ref,
+  shallowRef,
+  useTemplateRef,
+  watch,
+} from "vue";
+import {
+  ArrowLeftRight,
+  Command,
+  Copy,
+  MoreVertical,
+  Play,
+  Plus,
+  SlidersHorizontal,
+  Square,
+  Trash2,
+} from "lucide-vue-next";
 import { errorMessage, saveMacroLibrary } from "../lib/api";
 import { createMacroStep, type MacroDraft } from "../lib/macros";
 import { statusLabel, tr, trDynamic } from "../lib/i18n";
@@ -10,10 +29,12 @@ import { useMacroLibrary, useMacroRunStates } from "../composables/useMacroLibra
 import { useMacroDraftTestRun } from "../composables/useMacroDraftTestRun";
 import PageHeader from "../components/PageHeader.vue";
 import Button from "../components/ui/Button.vue";
+import IconButton from "../components/ui/IconButton.vue";
 import Card from "../components/ui/Card.vue";
 import EmptyState from "../components/ui/EmptyState.vue";
 import LoadingState from "../components/ui/LoadingState.vue";
 import Notice from "../components/ui/Notice.vue";
+import StatusPill from "../components/ui/StatusPill.vue";
 import MacroEditor from "../components/MacroEditor.vue";
 import MacroTransferDialog from "../components/MacroTransferDialog.vue";
 import MacroSettingsDrawer from "../components/macro-editor/MacroSettingsDrawer.vue";
@@ -28,6 +49,34 @@ const editorHost = useTemplateRef<HTMLElement>("editorHost");
 const macroTabs = useTemplateRef<HTMLElement>("macroTabs");
 const baselineJson = shallowRef("");
 const transferOpen = shallowRef(false);
+const moreMenuOpen = shallowRef(false);
+const moreMenuRef = useTemplateRef<HTMLElement>("moreMenuRef");
+
+function toggleMoreMenu() {
+  moreMenuOpen.value = !moreMenuOpen.value;
+}
+
+/** 点菜单外或按 Esc 收起菜单。 */
+function onDocumentClick(event: MouseEvent) {
+  if (!moreMenuOpen.value) return;
+  const target = event.target as Node | null;
+  if (target && moreMenuRef.value?.contains(target)) return;
+  moreMenuOpen.value = false;
+}
+
+onMounted(() => document.addEventListener("click", onDocumentClick));
+onUnmounted(() => document.removeEventListener("click", onDocumentClick));
+
+/** 菜单里的动作：先收起菜单再执行，避免菜单挡住后续界面。 */
+function runFromMoreMenu(action: () => void | Promise<void>) {
+  moreMenuOpen.value = false;
+  void action();
+}
+
+function openTransferFromMenu() {
+  moreMenuOpen.value = false;
+  void openTransfer();
+}
 
 const reportError = (cause: unknown) => {
   const message = macroErrorMessage(cause);
@@ -106,6 +155,9 @@ function syncBaseline() {
   baselineJson.value = editor.value ? JSON.stringify(editor.value) : "";
 }
 
+/** 工具栏的「试运行」是否可用：草稿必须通过校验（与保存同一套规则）。 */
+const canTestDraft = computed(() => Boolean(editor.value) && !validateDraft());
+
 function closeEditor() {
   closeDraftRun();
   editor.value = null;
@@ -114,18 +166,46 @@ function closeEditor() {
   saveError.value = null;
 }
 
+/**
+ * 新建宏：**直接落盘成草稿**，宏库与标签栏里马上就能看到这一条。
+ *
+ * 首步用「切到前台应用」—— 它是唯一不需要必填参数的动作，所以刚建出来的草稿
+ * 能通过后端的宏校验；之后用户改了什么却没保存，离开时再提示。
+ */
 async function openNew() {
   if (!(await confirmDiscard())) return;
+  if (!macroDocument.value) return;
   resetDraftRun();
   saveError.value = null;
-  editingNew.value = true;
-  editor.value = {
+  const draft: MacroDraft = {
     macroId: `macro-${crypto.randomUUID()}`,
     name: tr("新宏"),
     summary: "",
     version: "1.0.0",
-    steps: [createMacroStep()],
+    steps: [createMacroStep("focus_frontmost")],
   };
+  busy.value = true;
+  try {
+    const definition: MacroDefinition = {
+      schemaVersion: "0.1",
+      macroId: draft.macroId,
+      version: draft.version,
+      name: draft.name,
+      summary: null,
+      steps: draft.steps,
+    };
+    macroDocument.value = await saveMacroLibrary({
+      ...macroDocument.value,
+      definitions: [...macroDocument.value.definitions, definition],
+    });
+  } catch (cause) {
+    reportError(cause);
+    return;
+  } finally {
+    busy.value = false;
+  }
+  editingNew.value = true;
+  editor.value = draft;
   syncBaseline();
 }
 
@@ -238,11 +318,6 @@ watch(
 async function editLatest(definition: MacroDefinition) {
   if (editor.value?.macroId === definition.macroId && !editingNew.value) return;
   await openEdit(definition);
-}
-
-async function cancelEdit() {
-  if (!(await confirmDiscard())) return;
-  closeEditor();
 }
 
 function chord(step: MacroStep): MacroChord {
@@ -520,14 +595,93 @@ onMounted(async () => {
         </div>
       </div>
       <div class="macro-toolbar-actions">
-        <Button size="sm" :disabled="busy || !macroDocument" @click="openTransfer">
-          <FileJson :size="14" />
-          {{ tr("导入 / 导出") }}
-        </Button>
-        <Button size="sm" variant="primary" :disabled="busy" @click="openNew">
+        <StatusPill v-if="editor && dirty" :label="trDynamic('未保存')" tone="warning" dot />
+        <template v-if="editor">
+          <Button
+            v-if="draftRunStatus?.running"
+            size="sm"
+            variant="danger"
+            :disabled="busy"
+            @click="stopDraft"
+          >
+            <Square :size="13" />
+            {{ tr("停止") }}
+          </Button>
+          <Button
+            v-else
+            size="sm"
+            variant="secondary"
+            :disabled="busy || !canTestDraft"
+            @click="testDraft"
+          >
+            <Play :size="14" />
+            {{ draftTesting ? tr("启动中…") : tr("试运行") }}
+          </Button>
+          <Button size="sm" variant="primary" :loading="busy" @click="saveEditor">
+            {{ tr("保存") }}
+          </Button>
+        </template>
+        <Button size="sm" :disabled="busy || !macroDocument" @click="openNew">
           <Plus :size="14" />
-          {{ tr("新建") }}
+          {{ tr("添加") }}
         </Button>
+        <template v-if="editor">
+          <IconButton
+            size="sm"
+            :label="tr('属性')"
+            :disabled="busy"
+            @click="macroSettingsOpen = true"
+          >
+            <SlidersHorizontal :size="14" />
+          </IconButton>
+        </template>
+        <div ref="moreMenuRef" class="macro-more">
+          <IconButton
+            size="sm"
+            :label="tr('更多操作')"
+            :aria-expanded="moreMenuOpen"
+            aria-haspopup="menu"
+            @click="toggleMoreMenu"
+          >
+            <MoreVertical :size="15" />
+          </IconButton>
+          <div v-if="moreMenuOpen" class="macro-more-menu" role="menu">
+            <button
+              type="button"
+              class="macro-more-item"
+              role="menuitem"
+              :disabled="busy || !macroDocument"
+              @click="openTransferFromMenu"
+            >
+              <ArrowLeftRight :size="14" />
+              {{ tr("导入 / 导出") }}
+            </button>
+            <template v-if="editor && !editingNew">
+              <div class="macro-more-divider" role="separator" />
+              <button
+                type="button"
+                class="macro-more-item"
+                role="menuitem"
+                :disabled="busy"
+                @click="runFromMoreMenu(duplicateCurrent)"
+              >
+                <Copy :size="14" />
+                {{ tr("复制宏") }}
+              </button>
+              <div class="macro-more-divider" role="separator" />
+              <button
+                type="button"
+                class="macro-more-item is-danger"
+                role="menuitem"
+                :disabled="busy"
+                @click="runFromMoreMenu(deleteCurrent)"
+              >
+                <Trash2 :size="14" />
+                {{ tr("删除宏") }}
+              </button>
+            </template>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -549,24 +703,14 @@ onMounted(async () => {
       ref="editorHost"
       class="editor-host"
     >
-      <MacroEditor
-        v-if="editor"
-        v-model:draft="editor"
-        :editing-new="editingNew"
-        :busy="busy"
-        :dirty="dirty"
-        :save-error="saveError"
-        :other-macros="otherMacros"
-        :run-status="draftRunStatus"
-        :draft-testing="draftTesting"
-        @save="saveEditor"
-        @cancel="cancelEdit"
-        @test-draft="testDraft"
-        @cancel-draft="stopDraft"
-        @duplicate-macro="duplicateCurrent"
-        @delete-macro="deleteCurrent"
-        @open-settings="macroSettingsOpen = true"
-      />
+      <div v-if="editor" class="macro-editor-shell">
+        <p v-if="saveError" class="macro-save-error" role="alert">{{ saveError }}</p>
+        <MacroEditor
+          v-model:draft="editor"
+          :other-macros="otherMacros"
+          :run-status="draftRunStatus"
+        />
+      </div>
 
       <Card v-else class="editor-placeholder">
         <EmptyState title="选择一个宏开始编辑" description="从顶部宏库选择，或新建一个宏。">
@@ -729,5 +873,76 @@ onMounted(async () => {
 .editor-host {
   min-width: 0;
   scroll-margin-top: var(--space-4);
+}
+
+.macro-editor-shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.macro-save-error {
+  margin: 0;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  padding: var(--space-2) var(--space-3);
+  color: var(--danger);
+  font-size: var(--text-xs);
+}
+
+.macro-more {
+  position: relative;
+  display: flex;
+}
+
+.macro-more-menu {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: 40;
+  min-width: 168px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-1);
+}
+
+.macro-more-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  padding: var(--space-2) var(--space-3);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.macro-more-item:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.macro-more-item:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.macro-more-item.is-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  color: var(--danger);
+}
+
+.macro-more-divider {
+  height: 1px;
+  margin: var(--space-1) 0;
+  background: var(--border);
 }
 </style>

@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import { setLanguagePreference } from "../../lib/i18n";
 import { mount } from "@vue/test-utils";
 import MacroActionPanel from "./MacroActionPanel.vue";
-import MacroEditorHeader from "./MacroEditorHeader.vue";
 import MacroSettingsDrawer from "./MacroSettingsDrawer.vue";
 import MacroStepList from "./MacroStepList.vue";
 import type { MacroStep } from "../../lib/types";
@@ -221,28 +220,6 @@ describe("Macro editor panels", () => {
     expect(results[1].classes()).toContain("danger");
     wrapper.unmount();
   });
-  it("labels the title with 编辑宏 and hides the inline description", () => {
-    const wrapper = mount(MacroEditorHeader, {
-      props: {
-        name: "测试宏",
-        summary: "说明文字",
-        editingNew: false,
-        busy: false,
-        dirty: false,
-        canTest: true,
-      },
-    });
-
-    expect(wrapper.find(".eyebrow").text()).toBe("编辑宏：");
-    // The summary now lives in the properties drawer, not inline.
-    expect(wrapper.find(".desc-input").exists()).toBe(false);
-    expect(wrapper.text()).not.toContain("说明文字");
-    // Editing an existing macro: the title is display-only (rename via 属性).
-    expect(wrapper.find(".name-input").exists()).toBe(false);
-    expect(wrapper.find(".name-display").text()).toBe("测试宏");
-    wrapper.unmount();
-  });
-
   it("opens the properties drawer and edits name and summary", async () => {
     const name = "旧名称";
     const summary = "旧说明";
