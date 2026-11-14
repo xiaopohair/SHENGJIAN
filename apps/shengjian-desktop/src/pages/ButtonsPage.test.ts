@@ -287,6 +287,21 @@ describe("ButtonsPage profile navigation and editor", () => {
     expect(wrapper.find(".recommended-update-badge").exists()).toBe(false);
   });
 
+  it("asks for an app target before enabling auto apply", async () => {
+    currentDocument = documentWithProfile("没有应用目标");
+    const wrapper = await mountPage();
+
+    // 开关顺序：按键增强、自动应用、方案激活。
+    const switches = wrapper.findAll('.remote-toolbar [role="switch"]');
+    expect(switches).toHaveLength(3);
+    await switches[1].trigger("click");
+    await flushPromises();
+
+    // 没配应用目标 → 先弹应用选择器，自动应用保持关闭。
+    expect(document.querySelector(".app-picker")).not.toBeNull();
+    expect(switches[1].attributes("aria-checked")).toBe("false");
+  });
+
   it("copies a recommended profile, activates it and opens it for editing", async () => {
     getRecommendedButtonProfiles.mockResolvedValue({
       bundleVersion: "2026.11.1",

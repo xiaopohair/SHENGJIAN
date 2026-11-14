@@ -34,6 +34,9 @@ import {
 import { statusLabel, tr, trDynamic } from "../lib/i18n";
 import { confirmAction } from "../lib/confirm";
 import { pushToast } from "../lib/toast";
+import { mergeAppTargetsText, splitAppTargets } from "../lib/appTargets";
+import { useAppPicker } from "../composables/useAppPicker";
+import AppPickerDialog from "../components/app-picker/AppPickerDialog.vue";
 import {
   hasRecommendedUpdate,
   recommendedSeenVersion,
@@ -653,10 +656,47 @@ async function toggleEnhancedCapture(value: boolean) {
   }
 }
 
-/** 自动应用是方案自身的字段，改动走正常的「未保存 → 保存」。 */
+/**
+ * 自动应用：方案必须至少有一个应用目标才有意义。
+ *
+ * 打开时若还没配应用，先弹「选择用于自动匹配的应用」选择器（和方案属性里同一个
+ * 对话框）；选中的应用写进方案、同时打开自动应用，用户取消则保持关闭。
+ */
+const {
+  open: autoApplyPickerOpen,
+  openPicker: openAutoApplyPicker,
+  closePicker: closeAutoApplyPicker,
+} = useAppPicker();
+const autoApplyPickerPending = shallowRef(false);
+const autoApplyRecentTargets = computed(() => splitAppTargets(editor.value?.appTargets ?? ""));
+
 function toggleAutoApply(value: boolean) {
   if (!editor.value || editor.value.isDefault) return;
-  editor.value.autoApply = value;
+  if (!value) {
+    editor.value.autoApply = false;
+    return;
+  }
+  if (splitAppTargets(editor.value.appTargets).length > 0) {
+    editor.value.autoApply = true;
+    return;
+  }
+  // 没配应用：先让用户选一个，选完再开启。
+  autoApplyPickerPending.value = true;
+  openAutoApplyPicker();
+}
+
+function applyAutoApplyTarget(target: string) {
+  if (editor.value) {
+    editor.value.appTargets = mergeAppTargetsText(editor.value.appTargets, target);
+    if (autoApplyPickerPending.value) editor.value.autoApply = true;
+  }
+  autoApplyPickerPending.value = false;
+  closeAutoApplyPicker();
+}
+
+function cancelAutoApplyPicker() {
+  autoApplyPickerPending.value = false;
+  closeAutoApplyPicker();
 }
 const canDeleteCurrentProfile = computed(
   () =>
@@ -1047,6 +1087,16 @@ onUnmounted(() => {
           </Button>
         </div>
       </div>
+
+      <AppPickerDialog
+        :open="autoApplyPickerOpen"
+        mode="match"
+        :title="tr('选择用于自动匹配的应用')"
+        :foreground-app="foregroundApp"
+        :recent-targets="autoApplyRecentTargets"
+        @select="applyAutoApplyTarget"
+        @close="cancelAutoApplyPicker"
+      />
 
       <ProfileWorkbench
         v-if="editor"
