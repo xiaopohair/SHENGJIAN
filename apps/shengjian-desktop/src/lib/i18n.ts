@@ -983,15 +983,13 @@ const ENGLISH = {
     "VB-CABLE not found: remote voice will have no audio output. You can still choose another output device.",
   // 导入与导出（按键页）
   "导入 / 导出": "Import / Export",
-  "仅 RC003 支持按键增强": "Only RC003 supports key enhancement",
   前台应用匹配时自动切换到本方案:
     "Switch to this profile automatically when the foreground app matches",
   手动切换到本方案: "Switch to this profile manually",
   "使用 RC003 增强捕获（返回键、音量键）": "Use RC003 enhanced capture (back and volume keys)",
   "未安装按键增强服务，请到连接页安装":
     "Key enhancement service isn't installed; install it from the Connection page",
-  "前台应用匹配时自动切换到本方案（不会启动该应用）":
-    "Switch to this profile automatically when the foreground app matches (doesn't launch the app)",
+
   按键增强: "Key enhancement",
   方案激活: "Profile activation",
   更多操作: "More actions",

@@ -348,10 +348,7 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
               @update:model-value="emit('toggleEnhancedCapture', $event)"
             />
           </span>
-          <span
-            class="toolbar-toggle"
-            :title="tr('前台应用匹配时自动切换到本方案（不会启动该应用）')"
-          >
+          <span class="toolbar-toggle" :title="tr('前台应用匹配时自动切换到本方案')">
             <span class="toolbar-toggle-label">{{ tr("自动应用") }}</span>
             <Switch
               size="sm"
