@@ -453,7 +453,7 @@ static CAPTURE_EDGES_SENT: AtomicU64 = AtomicU64::new(0);
 /// （注入副本缺失、驱动层吃掉 UP 等），旧逻辑会让 `PREHELD_PENDING_COUNT`
 /// 永久 >0，从而**整段录入零边沿**。超过这个时间就强制武装，宁可放弃
 /// "等 preheld 松开"的保护，也不能让用户完全录不到。
-const CAPTURE_ARM_GRACE_MS: u64 = 1500;
+const CAPTURE_ARM_GRACE_MS: u64 = 600;
 
 /// 录入开始时刻（强制武装判定用）。
 static CAPTURE_ARMED_AT_MS: AtomicU64 = AtomicU64::new(0);
@@ -1144,6 +1144,14 @@ static CAPTURE_LAST_EDGE: std::sync::Mutex<Option<(crate::send_input::KeyCode, b
             let mut pending = 0usize;
             for vk in 0x08u32..=0xFF {
                 if !super::is_hook_reported_vk(vk) {
+                    continue;
+                }
+                // F5（0x74）是语音键标记，由抑制器/注入侧维护；实测录入开始时
+                // `GetAsyncKeyState(0x74)` 常处于"半按"残留态，把它算进 preheld
+                // 会让录入一直等它松开（日志：preheld=[116] → edges=0）。
+                const VOICE_MARKER_VK: u32 = 0x74; // F5
+                if vk == VOICE_MARKER_VK {
+                    SHORTCUT_CAPTURE_PREHELD[vk as usize].store(false, Ordering::Relaxed);
                     continue;
                 }
                 let down = unsafe { GetAsyncKeyState(vk as i32) } < 0;
