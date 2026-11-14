@@ -931,7 +931,27 @@ onUnmounted(() => {
 }
 
 .device-hero {
+  position: relative;
+  overflow: hidden;
   padding: var(--space-5);
+  /* 立体感：顶部一道高光 + 顶部向内过渡的淡阴影 */
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 72%, transparent),
+    var(--shadow-sm);
+}
+
+.device-hero::before {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 22px;
+  border-radius: inherit;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--shadow) 42%, transparent),
+    transparent
+  );
+  content: "";
+  pointer-events: none;
 }
 
 .hero-body {
