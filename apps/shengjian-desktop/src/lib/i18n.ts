@@ -41,6 +41,7 @@ const ENGLISH = {
   命令面板: "Command palette",
   搜索命令: "Search commands",
   搜索命令或页面: "Search commands or pages",
+  "按 Ctrl+K": "Press Ctrl+K",
   "搜索命令或页面…": "Search commands or pages…",
   "输入命令或搜索页面…": "Type a command or search pages…",
   没有匹配的命令: "No matching commands",

@@ -108,11 +108,14 @@ defineExpose({ open });
       type="button"
       class="topbar-search-toggle"
       :aria-label="trDynamic('搜索命令或页面')"
+      :title="trDynamic('搜索命令或页面')"
       aria-keyshortcuts="Control+K Meta+K"
       :aria-expanded="false"
       @click="open"
     >
-      <Search :size="16" />
+      <Search :size="14" aria-hidden="true" />
+      <span class="topbar-search-hint">{{ tr("按 Ctrl+K") }}</span>
+      <kbd class="topbar-search-kbd">Ctrl K</kbd>
     </button>
 
     <template v-else>
@@ -180,25 +183,31 @@ defineExpose({ open });
 <style scoped>
 .topbar-search {
   position: relative;
-  flex: 0 0 32px;
-  width: 32px;
+  flex: 0 0 auto;
+  width: 200px;
   height: 32px;
 }
 
 .topbar-search.expanded {
   z-index: 90;
+  width: 320px;
 }
 
 .topbar-search-toggle {
-  display: grid;
-  place-items: center;
-  width: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
   height: 32px;
-  border: 1px solid transparent;
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: transparent;
+  background: var(--bg-subtle);
+  padding: 0 8px;
   color: var(--text-muted);
-  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-xs);
+  text-align: left;
+  cursor: text;
   transition:
     background var(--duration-fast) ease,
     border-color var(--duration-fast) ease,
@@ -206,9 +215,29 @@ defineExpose({ open });
 }
 
 .topbar-search-toggle:hover {
-  border-color: var(--border);
-  background: var(--bg-hover);
-  color: var(--text);
+  border-color: var(--border-strong);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+}
+
+.topbar-search-hint {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar-search-kbd {
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--bg-raised);
+  padding: 0 5px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 16px;
 }
 
 .topbar-search-toggle:focus-visible {
