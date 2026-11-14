@@ -42,6 +42,8 @@ const props = defineProps<{
   enhancedCapture: boolean;
   /** 机型是否支持按键增强（仅 RC003）。 */
   enhancedCaptureEnabled: boolean;
+  /** 按键增强服务（RC003 helper）是否已安装；未安装时开关不可用。 */
+  enhancedCaptureInstalled: boolean;
   /** 当前方案是否自动应用。 */
   autoApply: boolean;
   /** 默认方案不能自动应用。 */
@@ -329,17 +331,27 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
              名称本身就说明了这是当前遥控器，省下的宽度让长名称能单行放下。 -->
         <!-- 产品图上方工具栏：按键增强 / 自动应用 / 方案激活，三个开关。 -->
         <div class="panel-head remote-toolbar">
-          <span class="toolbar-toggle" :title="tr('仅 RC003 支持按键增强')">
+          <span
+            class="toolbar-toggle"
+            :title="
+              enhancedCaptureInstalled
+                ? tr('使用 RC003 增强捕获（返回键、音量键）')
+                : tr('未安装按键增强服务，请到连接页安装')
+            "
+          >
             <span class="toolbar-toggle-label">{{ tr("按键增强") }}</span>
             <Switch
               size="sm"
               :model-value="enhancedCapture"
-              :disabled="!enhancedCaptureEnabled || toggleDisabled"
+              :disabled="!enhancedCaptureEnabled || !enhancedCaptureInstalled || toggleDisabled"
               :label="tr('按键增强')"
               @update:model-value="emit('toggleEnhancedCapture', $event)"
             />
           </span>
-          <span class="toolbar-toggle" :title="tr('前台应用匹配时自动切换到本方案')">
+          <span
+            class="toolbar-toggle"
+            :title="tr('前台应用匹配时自动切换到本方案（不会启动该应用）')"
+          >
             <span class="toolbar-toggle-label">{{ tr("自动应用") }}</span>
             <Switch
               size="sm"
@@ -590,7 +602,8 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
   min-width: 0;
   /* 组间距比组内间距大一点，三组不至于糊在一起。 */
   gap: var(--space-3);
-  padding-bottom: 0;
+  /* 上下内边距一致，开关行在工具栏里垂直居中（原来是上 24 / 下 0，贴底）。 */
+  padding: var(--space-4);
 }
 
 /* 左右结构：标签在左、开关在右；标签与开关都用紧凑尺寸，250px 宽也放得下三组。 */

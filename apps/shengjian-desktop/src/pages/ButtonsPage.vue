@@ -62,6 +62,7 @@ import {
   getMacroLibrary,
   getRecommendedButtonProfiles,
   getSettings,
+  getRc003HelperInstalled,
   getRecommendedMacros,
   saveButtonProfiles,
   saveSettings,
@@ -574,15 +575,21 @@ function openTransfer() {
 /** 已保存的方案才能重置/复制；新建草稿或未保存时这两项不可用。 */
 const canEditCurrentProfile = computed(() => Boolean(currentProfileRecord.value));
 
-/** 按键增强（RC003 增强捕获）来自全局设置，随页面加载并立即保存。 */
+/** 按键增强（RC003 helper 的增强捕获）来自全局设置，随页面加载并立即保存。 */
 const enhancedCapture = shallowRef(false);
+const enhancedCaptureInstalled = shallowRef(false);
 const settingsDocument = shallowRef<SettingsDocument | null>(null);
 const isRc003 = computed(() => (remoteModel.value ?? "").trim().toUpperCase() === "RC003");
 
 async function loadSettingsDocument() {
   try {
-    settingsDocument.value = await getSettings();
-    enhancedCapture.value = settingsDocument.value.global.rc003_capture_enabled ?? false;
+    const [settings, helperInstalled] = await Promise.all([
+      getSettings(),
+      getRc003HelperInstalled(),
+    ]);
+    settingsDocument.value = settings;
+    enhancedCapture.value = settings.global.rc003_capture_enabled ?? false;
+    enhancedCaptureInstalled.value = helperInstalled;
   } catch (cause) {
     error.value = errorMessage(cause);
   }
@@ -1015,6 +1022,7 @@ onUnmounted(() => {
         :remote-name="remoteName"
         :enhanced-capture="enhancedCapture"
         :enhanced-capture-enabled="isRc003"
+        :enhanced-capture-installed="enhancedCaptureInstalled"
         :auto-apply="editor.autoApply"
         :auto-apply-enabled="!editor.isDefault"
         :activation-active="isActiveProfile(editor.id)"
