@@ -30,10 +30,14 @@ export interface ModifierOption {
 }
 
 export const MODIFIER_OPTIONS: ModifierOption[] = [
-  { code: "ControlLeft", label: "Ctrl", aliases: ["ControlLeft", "ControlRight"] },
-  { code: "ShiftLeft", label: "Shift", aliases: ["ShiftLeft", "ShiftRight"] },
-  { code: "AltLeft", label: "Alt", aliases: ["AltLeft", "AltRight"] },
-  { code: "MetaLeft", label: "Win", aliases: ["MetaLeft", "MetaRight"] },
+  { code: "ControlLeft", label: "左 Ctrl", aliases: ["ControlLeft"] },
+  { code: "ControlRight", label: "右 Ctrl", aliases: ["ControlRight"] },
+  { code: "ShiftLeft", label: "左 Shift", aliases: ["ShiftLeft"] },
+  { code: "ShiftRight", label: "右 Shift", aliases: ["ShiftRight"] },
+  { code: "AltLeft", label: "左 Alt", aliases: ["AltLeft"] },
+  { code: "AltRight", label: "右 Alt", aliases: ["AltRight"] },
+  { code: "MetaLeft", label: "左 Win", aliases: ["MetaLeft"] },
+  { code: "MetaRight", label: "右 Win", aliases: ["MetaRight"] },
 ];
 
 /** 点选面板里的主键。 */
@@ -123,17 +127,14 @@ export function normalizeHotkey(keys: readonly string[]): string[] {
   return [...modifiers, ...others];
 }
 
-/** 两份热键是否等效（忽略顺序与左右修饰键差异）。 */
+/**
+ * 两份热键是否等效（忽略顺序）。
+ *
+ * 左右修饰键是**不同的键**（后端按 LeftControl/RightControl 分别注入），
+ * 所以这里不做左右合并。
+ */
 export function sameHotkey(a: readonly string[], b: readonly string[]): boolean {
-  const expand = (keys: readonly string[]) =>
-    keys
-      .map((code) => {
-        const option = MODIFIER_OPTIONS.find((item) => item.aliases.includes(code));
-        return option ? option.code : code;
-      })
-      .sort()
-      .join(",");
-  return expand(a) === expand(b);
+  return [...a].sort().join(",") === [...b].sort().join(",");
 }
 
 /** 把已存储的按键拆成「修饰键选择」+「主键」，供点选面板回填。 */

@@ -39,9 +39,9 @@ describe("ChordInput", () => {
       attachTo: document.body,
     });
     await wrapper.find("button").trigger("click");
-    // 修饰键 Ctrl + 主键 K
+    // 修饰键「左 Ctrl」+ 主键 K（修饰键区分左右）
     const chips = [...document.body.querySelectorAll<HTMLElement>(".chord-chip")];
-    chips.find((chip) => chip.textContent?.trim() === "Ctrl")?.click();
+    chips.find((chip) => chip.textContent?.trim() === "左 Ctrl")?.click();
     const keys = [...document.body.querySelectorAll<HTMLElement>(".chord-key")];
     keys.find((key) => key.textContent?.trim() === "K")?.click();
     await wrapper.vm.$nextTick();
@@ -50,7 +50,7 @@ describe("ChordInput", () => {
       ?.click();
     await wrapper.vm.$nextTick();
     expect(wrapper.emitted("update:modelValue")?.[0]?.[0]).toEqual({
-      modifiers: ["control"],
+      modifiers: ["leftctrl"],
       key: "k",
     });
     wrapper.unmount();

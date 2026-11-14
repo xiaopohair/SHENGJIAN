@@ -28,7 +28,20 @@ import SystemActionGrid from "./ui/SystemActionGrid.vue";
 import TextInput from "./ui/TextInput.vue";
 import ChordInput from "./ui/ChordInput.vue";
 
-const MODIFIER_IDS = new Set(["control", "alt", "shift", "win"]);
+const MODIFIER_IDS = new Set([
+  "control",
+  "leftctrl",
+  "rightctrl",
+  "alt",
+  "leftalt",
+  "rightalt",
+  "shift",
+  "leftshift",
+  "rightshift",
+  "win",
+  "leftwin",
+  "rightwin",
+]);
 
 const props = defineProps<{
   buttonId: LogicalButton;

@@ -17,7 +17,7 @@ describe("hotkey helpers", () => {
   });
 
   it("treats left and right variants of a modifier as the same chord", () => {
-    expect(sameHotkey(["ControlLeft", "MetaLeft"], ["ControlRight", "MetaLeft"])).toBe(true);
+    expect(sameHotkey(["ControlLeft", "MetaLeft"], ["ControlRight", "MetaLeft"])).toBe(false);
     expect(sameHotkey(["ControlLeft"], ["ControlLeft", "KeyA"])).toBe(false);
   });
 
@@ -26,7 +26,7 @@ describe("hotkey helpers", () => {
       modifiers: ["ControlLeft", "MetaLeft"],
       mainKey: "",
     });
-    expect(splitHotkey(["AltRight"])).toEqual({ modifiers: ["AltLeft"], mainKey: "" });
+    expect(splitHotkey(["AltRight"])).toEqual({ modifiers: ["AltRight"], mainKey: "" });
     expect(splitHotkey(["ShiftLeft", "KeyA"])).toEqual({
       modifiers: ["ShiftLeft"],
       mainKey: "KeyA",
