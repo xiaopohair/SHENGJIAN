@@ -1021,7 +1021,9 @@ onUnmounted(() => {
   align-items: center;
   gap: 6px;
   color: var(--text-secondary);
-  font-size: var(--text-sm);
+  /* 三项统一字号：中文「已连接 42 分钟」与纯数字项视觉大小才对得上 */
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
 }
 
 .hero-stat svg {
@@ -1076,8 +1078,13 @@ onUnmounted(() => {
 
 .hero-actions {
   display: flex;
-  align-items: center;
+  /* 按钮与文字链接底部对齐 */
+  align-items: flex-end;
   gap: var(--space-3);
+}
+
+.hero-actions .hero-link {
+  padding-bottom: 1px;
 }
 
 .hero-link {
