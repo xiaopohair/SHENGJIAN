@@ -5,7 +5,7 @@
 <h1 align="center">SHENGJIAN (声键) · Voice Remote for Windows</h1>
 
 <p align="center">
-  简体中文 | <strong>English</strong>
+  <a href="README.md">简体中文</a> | <strong>English</strong>
 </p>
 
 <p align="center">
