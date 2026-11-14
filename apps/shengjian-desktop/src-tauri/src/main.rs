@@ -184,6 +184,7 @@ fn main() {
             commands::save_button_profiles,
             commands::recommended_button_profiles,
             commands::copy_recommended_button_profile,
+            commands::export_profile_as_preset,
             commands::export_profiles,
             commands::import_profiles,
             commands::clear_button_profile_activation,

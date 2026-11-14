@@ -25,6 +25,7 @@ import {
 } from "../lib/buttons";
 import { statusLabel, tr, trDynamic } from "../lib/i18n";
 import { confirmAction } from "../lib/confirm";
+import { pushToast } from "../lib/toast";
 import {
   hasRecommendedUpdate,
   recommendedSeenVersion,
@@ -42,12 +43,14 @@ import StatusPill from "../components/ui/StatusPill.vue";
 import Switch from "../components/ui/Switch.vue";
 import ProfileWorkbench from "../components/ProfileWorkbench.vue";
 import ProfileSettingsDrawer from "../components/ProfileSettingsDrawer.vue";
+import ExportPresetDialog, { type PresetExportRequest } from "../components/ExportPresetDialog.vue";
 import RecommendedProfilesDialog from "../components/RecommendedProfilesDialog.vue";
 import {
   activateButtonProfile,
   clearButtonProfileActivation,
   copyRecommendedButtonProfile,
   errorMessage,
+  exportProfileAsPreset,
   exportProfiles,
   getButtonProfileState,
   getForegroundExecutable,
@@ -63,6 +66,7 @@ import type {
   ButtonProfilesDocument,
   LogicalAction,
   MacroDefinition,
+  PresetExportView,
   RecommendedButtonProfile,
 } from "../lib/types";
 
@@ -481,6 +485,26 @@ function onEditorError(message: string) {
   error.value = message;
 }
 
+/** 把当前编辑草稿转成方案对象（保存与「导出为推荐方案」共用同一份构造逻辑）。 */
+function draftToProfile(): ButtonProfile | null {
+  if (!editor.value) return null;
+  return {
+    id: editor.value.id,
+    name: editor.value.name,
+    appTargets: editor.value.appTargets
+      .split(",")
+      .map((target) => target.trim())
+      .filter(Boolean),
+    autoApply: editor.value.autoApply,
+    holdRepeat: editor.value.holdRepeat || null,
+    holdRepeatByButton: repeatSettingsForSave(editor.value),
+    voiceInputTool: editor.value.voiceInputTool || null,
+    deviceModel: editor.value.deviceModel ?? effectiveModel.value ?? null,
+    isDefault: Boolean(editor.value.isDefault),
+    bindings: cleanBindings(),
+  };
+}
+
 async function saveEditor() {
   if (!editor.value || !profilesDocument.value) return;
   const validation = validateProfileDraft();
@@ -491,21 +515,8 @@ async function saveEditor() {
   busy.value = true;
   error.value = null;
   try {
-    const profile: ButtonProfile = {
-      id: editor.value.id,
-      name: editor.value.name,
-      appTargets: editor.value.appTargets
-        .split(",")
-        .map((target) => target.trim())
-        .filter(Boolean),
-      autoApply: editor.value.autoApply,
-      holdRepeat: editor.value.holdRepeat || null,
-      holdRepeatByButton: repeatSettingsForSave(editor.value),
-      voiceInputTool: editor.value.voiceInputTool || null,
-      deviceModel: editor.value.deviceModel ?? effectiveModel.value ?? null,
-      isDefault: Boolean(editor.value.isDefault),
-      bindings: cleanBindings(),
-    };
+    const profile = draftToProfile();
+    if (!profile) return;
     const profiles = profilesDocument.value.profiles.some((item) => item.id === profile.id)
       ? profilesDocument.value.profiles.map((item) => (item.id === profile.id ? profile : item))
       : [...profilesDocument.value.profiles, profile];
@@ -537,6 +548,41 @@ async function exportFile() {
     await exportProfiles(path, profilesDocument.value);
   } catch (cause) {
     error.value = errorMessage(cause);
+  }
+}
+
+/** 「导出为推荐方案」：应用内完成转换（后端按运行时同一套规则校验），不依赖命令行。 */
+const presetExportOpen = shallowRef(false);
+const presetExportBusy = shallowRef(false);
+
+function openPresetExport() {
+  if (!editor.value || !currentProfileRecord.value) return;
+  presetExportOpen.value = true;
+}
+
+async function submitPresetExport(request: PresetExportRequest) {
+  const profile = draftToProfile();
+  if (!profile) return;
+  presetExportBusy.value = true;
+  error.value = null;
+  try {
+    const path = await save({
+      defaultPath: `${request.presetId}.json`,
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    if (!path) return;
+    const result: PresetExportView = await exportProfileAsPreset({
+      path,
+      profile,
+      presetId: request.presetId,
+      compatibleModels: request.compatibleModels,
+    });
+    presetExportOpen.value = false;
+    pushToast(tr("已导出推荐方案 {id}", { id: result.presetId }), "success");
+  } catch (cause) {
+    error.value = errorMessage(cause);
+  } finally {
+    presetExportBusy.value = false;
   }
 }
 
@@ -934,6 +980,15 @@ onUnmounted(() => {
             <Copy :size="14" />
           </IconButton>
           <IconButton
+            v-if="!editingNew && currentProfileRecord"
+            size="sm"
+            :label="trDynamic('导出为推荐方案')"
+            :disabled="busy || presetExportBusy"
+            @click="openPresetExport"
+          >
+            <FileDown :size="14" />
+          </IconButton>
+          <IconButton
             v-if="!editingNew && currentProfileRecord && !isDefaultProfile(currentProfileRecord)"
             size="sm"
             variant="danger"
@@ -991,6 +1046,15 @@ onUnmounted(() => {
       :foreground-app="foregroundApp"
       @close="settingsOpen = false"
       @error="onEditorError"
+    />
+
+    <ExportPresetDialog
+      :open="presetExportOpen"
+      :profile-name="editor?.name ?? ''"
+      :device-model="effectiveModel ?? null"
+      :busy="presetExportBusy"
+      @close="presetExportOpen = false"
+      @submit="submitPresetExport"
     />
 
     <RecommendedProfilesDialog

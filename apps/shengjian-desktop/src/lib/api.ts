@@ -20,6 +20,7 @@ import type {
   MacroLibraryDocument,
   MacroHistoryEntry,
   MacroRunStatus,
+  PresetExportView,
   RecommendedButtonProfilesBundle,
   RemoteCandidate,
   SettingsDocument,
@@ -218,6 +219,26 @@ export async function copyRecommendedButtonProfile(
   model: string | null,
 ): Promise<ButtonProfile> {
   return invoke<ButtonProfile>("copy_recommended_button_profile", { id, model });
+}
+
+/**
+ * 把当前方案直接导出成推荐方案文件（在应用内完成，不需要命令行）。
+ *
+ * 后端会按与运行时相同的规则校验并归一化（型号大写、目标小写等），
+ * 写出的文件可直接放进仓库 `config/button-profiles/` 后跑 `pnpm config:build`。
+ */
+export async function exportProfileAsPreset(params: {
+  path: string;
+  profile: ButtonProfile;
+  presetId: string;
+  compatibleModels: string[];
+}): Promise<PresetExportView> {
+  return invoke<PresetExportView>("export_profile_as_preset", {
+    path: params.path,
+    profile: params.profile,
+    presetId: params.presetId,
+    compatibleModels: params.compatibleModels,
+  });
 }
 
 export async function getMacroLibrary(): Promise<MacroLibraryDocument> {

@@ -630,6 +630,122 @@ pub fn copy_recommended_button_profile(
     ))
 }
 
+/// 把一条用户方案导出成推荐方案文件（`config/button-profiles/<id>.json`）。
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PresetExportView {
+    pub path: String,
+    pub preset_id: String,
+    pub compatible_models: Vec<String>,
+    pub bind_count: usize,
+    pub json: String,
+}
+
+/// 在应用内直接把当前方案转成推荐方案条目并写盘。
+///
+/// 与命令行工具 `scripts/profile-to-preset.mjs` 等价，但由 Rust 侧做同一套校验
+/// （`button_presets::validate_catalog`），因此不依赖开发者本地装 Node。
+/// 写出的文件可直接放进仓库 `config/button-profiles/`，跑 `pnpm config:build` 聚合。
+#[tauri::command]
+pub fn export_profile_as_preset(
+    path: String,
+    profile: ButtonProfile,
+    preset_id: String,
+    compatible_models: Vec<String>,
+) -> Result<PresetExportView, CommandError> {
+    let preset_id = preset_id.trim().to_owned();
+    const PREFIX: &str = "preset.";
+    if !preset_id.starts_with(PREFIX) || preset_id.len() == PREFIX.len() {
+        return Err(CommandError::new(
+            "preset-id-invalid",
+            "推荐方案 id 必须以 \"preset.\" 开头且后面还有内容",
+            false,
+        ));
+    }
+
+    // 推荐方案是只读模板：清掉默认方案标记与时间戳，id 用用户指定的稳定 id。
+    let mut profile = profile;
+    profile.id = preset_id.clone();
+    profile.is_default = false;
+    profile.created_at = 0;
+    let bind_count = profile.bound_button_count();
+    let preset = shengjian_domain::button_presets::ButtonPreset {
+        profile,
+        compatible_models,
+    };
+
+    // 走与运行时完全相同的 parse → validate 流程：顺带归一化型号（`rc003` → `RC003`）
+    // 与应用目标，不合法时返回与启动日志同源的拒绝原因（不写盘）。
+    let preset_value = serde_json::to_value(&preset)
+        .map_err(|_| CommandError::new("preset-export", "cannot encode preset", false))?;
+    let catalog_json = serde_json::json!({
+        "schemaVersion": 1,
+        "bundleVersion": "1",
+        "profiles": [preset_value],
+    });
+    let catalog = shengjian_domain::button_presets::parse_catalog(&catalog_json.to_string())
+        .map_err(|issues| CommandError::new("preset-invalid", &issues, false))?;
+    shengjian_domain::button_presets::validate_catalog(
+        &catalog,
+        shengjian_domain::recommended_macros::contains_macro,
+    )
+    .map_err(|issues| CommandError::new("preset-invalid", &issues.join("; "), false))?;
+    let preset = catalog
+        .profiles
+        .into_iter()
+        .next()
+        .ok_or_else(|| CommandError::new("preset-invalid", "preset catalog is empty", false))?;
+
+    let json = preset_file_json(&preset)?;
+    std::fs::write(&path, &json)
+        .map_err(|_| CommandError::new("preset-export", "cannot write preset file", true))?;
+
+    Ok(PresetExportView {
+        path,
+        preset_id,
+        compatible_models: preset.compatible_models.clone(),
+        bind_count,
+        json,
+    })
+}
+
+/// 序列化单条推荐方案，并去掉默认值字段，保持与手写文件一致的可读性。
+fn preset_file_json(
+    preset: &shengjian_domain::button_presets::ButtonPreset,
+) -> Result<String, CommandError> {
+    let mut value = serde_json::to_value(preset)
+        .map_err(|_| CommandError::new("preset-export", "cannot encode preset", false))?;
+    if let Some(object) = value.as_object_mut() {
+        let drop_if = |object: &mut serde_json::Map<String, serde_json::Value>,
+                       key: &str,
+                       should_drop: bool| {
+            if should_drop {
+                object.remove(key);
+            }
+        };
+        drop_if(object, "createdAt", object.get("createdAt") == Some(&serde_json::json!(0)));
+        drop_if(object, "isDefault", object.get("isDefault") == Some(&serde_json::json!(false)));
+        drop_if(object, "holdRepeat", object.get("holdRepeat") == Some(&serde_json::Value::Null));
+        drop_if(
+            object,
+            "voiceInputTool",
+            object.get("voiceInputTool") == Some(&serde_json::Value::Null),
+        );
+        drop_if(
+            object,
+            "holdRepeatByButton",
+            object
+                .get("holdRepeatByButton")
+                .and_then(|value| value.as_object())
+                .map(|map| map.is_empty())
+                .unwrap_or(false),
+        );
+    }
+    let text = serde_json::to_string_pretty(&value)
+        .map_err(|_| CommandError::new("preset-export", "cannot encode preset", false))?;
+    Ok(format!("{text}\n"))
+}
+
 #[cfg(test)]
 mod recommended_profiles_tests {
     use super::*;
@@ -655,6 +771,103 @@ mod recommended_profiles_tests {
         let arn9 = recommended_button_profiles(Some("ARN9".to_owned()));
         assert_eq!(arn9.profiles.len(), 1);
         assert_eq!(arn9.profiles[0].id, "preset.desktop.shortcuts");
+    }
+
+    /// 前台导出：把用户方案写成推荐方案文件，产出可直接放进
+    /// `config/button-profiles/` 的单条 JSON（无 isDefault / createdAt 噪音）。
+    #[test]
+    fn export_profile_as_preset_writes_clean_preset_file() {
+        let path = std::env::temp_dir().join("shengjian-preset-export-test.json");
+        let _ = std::fs::remove_file(&path);
+        let profile: ButtonProfile = serde_json::from_str(
+            r#"{
+                "id": "preset-copy-1700000000000",
+                "name": "豆包语音输入（我的）",
+                "createdAt": 1700000001,
+                "appTargets": ["doubao"],
+                "autoApply": true,
+                "holdRepeat": "long",
+                "holdRepeatByButton": {},
+                "voiceInputTool": null,
+                "deviceModel": "RC003",
+                "isDefault": false,
+                "bindings": {
+                    "home": { "single": { "type": "shortcut", "label": "资源管理器",
+                                          "keys": ["left_windows", "e"] } }
+                }
+            }"#,
+        )
+        .expect("profile fixture");
+
+        let view = export_profile_as_preset(
+            path.to_string_lossy().into_owned(),
+            profile,
+            "preset.rc003.doubao".to_owned(),
+            vec!["rc003".to_owned()],
+        )
+        .expect("export preset");
+
+        assert_eq!(view.preset_id, "preset.rc003.doubao");
+        assert_eq!(view.compatible_models, vec!["RC003".to_owned()]);
+        assert_eq!(view.bind_count, 1);
+
+        let written = std::fs::read_to_string(&path).expect("read exported preset");
+        let value: serde_json::Value = serde_json::from_str(&written).expect("valid json");
+        assert_eq!(value["id"], "preset.rc003.doubao");
+        assert_eq!(value["holdRepeat"], "long");
+        // 默认值字段被裁掉，保持和手写文件一致的可读性。
+        assert!(value.get("isDefault").is_none(), "isDefault 应被裁掉");
+        assert!(value.get("createdAt").is_none(), "createdAt 应被裁掉");
+        assert!(
+            value.get("holdRepeatByButton").is_none(),
+            "空的 holdRepeatByButton 应被裁掉"
+        );
+        assert!(value.get("voiceInputTool").is_none(), "null voiceInputTool 应被裁掉");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// id 前缀不合法时直接拒绝，不落盘。
+    #[test]
+    fn export_profile_as_preset_rejects_invalid_id() {
+        let profile: ButtonProfile =
+            serde_json::from_str(r#"{ "id": "x", "name": "x", "bindings": {} }"#)
+                .expect("profile fixture");
+        let error = export_profile_as_preset(
+            std::env::temp_dir()
+                .join("shengjian-preset-export-should-not-exist.json")
+                .to_string_lossy()
+                .into_owned(),
+            profile,
+            "rc003.no-prefix".to_owned(),
+            vec![],
+        )
+        .expect_err("invalid preset id must be rejected");
+        assert_eq!(error.code, "preset-id-invalid");
+    }
+
+    /// 引用了不存在的推荐宏时，按运行时同一套规则拒绝。
+    #[test]
+    fn export_profile_as_preset_rejects_unknown_macro_reference() {
+        let profile: ButtonProfile = serde_json::from_str(
+            r#"{
+                "id": "x", "name": "x",
+                "bindings": { "home": { "single": { "type": "run-macro",
+                                                    "macro_id": "macro.not-in-catalog" } } }
+            }"#,
+        )
+        .expect("profile fixture");
+        let error = export_profile_as_preset(
+            std::env::temp_dir()
+                .join("shengjian-preset-export-should-not-exist-2.json")
+                .to_string_lossy()
+                .into_owned(),
+            profile,
+            "preset.test.macro".to_owned(),
+            vec![],
+        )
+        .expect_err("unknown recommended macro must be rejected");
+        assert_eq!(error.code, "preset-invalid");
+        assert!(error.message.contains("macro.not-in-catalog"));
     }
 
     /// 推荐宏只读命令：返回 `MacroDefinition[]`（与 `get_macro_library` 的

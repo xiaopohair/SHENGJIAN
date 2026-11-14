@@ -194,6 +194,18 @@ export interface ButtonProfile {
   bindings: Record<string, Record<string, LogicalAction>>;
 }
 
+/**
+ * 「导出为推荐方案」的结果：后端已经把方案转成推荐条目格式并写盘。
+ * `json` 是写出的内容，方便界面上做预览或复制。
+ */
+export interface PresetExportView {
+  path: string;
+  presetId: string;
+  compatibleModels: string[];
+  bindCount: number;
+  json: string;
+}
+
 export interface ButtonProfilesDocument {
   schemaVersion: number;
   profiles: ButtonProfile[];
