@@ -723,9 +723,21 @@ fn preset_file_json(
                 object.remove(key);
             }
         };
-        drop_if(object, "createdAt", object.get("createdAt") == Some(&serde_json::json!(0)));
-        drop_if(object, "isDefault", object.get("isDefault") == Some(&serde_json::json!(false)));
-        drop_if(object, "holdRepeat", object.get("holdRepeat") == Some(&serde_json::Value::Null));
+        drop_if(
+            object,
+            "createdAt",
+            object.get("createdAt") == Some(&serde_json::json!(0)),
+        );
+        drop_if(
+            object,
+            "isDefault",
+            object.get("isDefault") == Some(&serde_json::json!(false)),
+        );
+        drop_if(
+            object,
+            "holdRepeat",
+            object.get("holdRepeat") == Some(&serde_json::Value::Null),
+        );
         drop_if(
             object,
             "voiceInputTool",
@@ -822,7 +834,10 @@ mod recommended_profiles_tests {
             value.get("holdRepeatByButton").is_none(),
             "空的 holdRepeatByButton 应被裁掉"
         );
-        assert!(value.get("voiceInputTool").is_none(), "null voiceInputTool 应被裁掉");
+        assert!(
+            value.get("voiceInputTool").is_none(),
+            "null voiceInputTool 应被裁掉"
+        );
         let _ = std::fs::remove_file(&path);
     }
 
