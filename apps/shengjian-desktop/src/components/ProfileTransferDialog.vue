@@ -219,7 +219,12 @@ function onWindowKeydown(event: KeyboardEvent) {
               </div>
 
               <ul v-if="profiles.length" class="transfer-list">
-                <li v-for="profile in profiles" :key="profile.id" class="transfer-item">
+                <li
+                  v-for="profile in profiles"
+                  :key="profile.id"
+                  class="transfer-item"
+                  :class="{ selected: selected.has(profile.id) }"
+                >
                   <Checkbox
                     :model-value="selected.has(profile.id)"
                     :disabled="exportMode === 'preset' && !isPresetEligible(profile)"
@@ -420,31 +425,40 @@ function onWindowKeydown(event: KeyboardEvent) {
   font-variant-numeric: tabular-nums;
 }
 
-/* 方案列表：每行一张描边卡片，和推荐方案列表一致；滚动发生在列表容器上。 */
+/* 方案列表是**一整块**：一个描边容器，行之间只用发丝线分隔，不做成一格一格的卡片。 */
 .transfer-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
   min-height: 0;
-  /* 按整行高度封顶（5 行 × 约 46px + 4 个 8px 间隔 = 262px）并滚动：
-     常见的 5 条以内全部可见，更多时滚动，且不会切出半行。 */
+  /* 按整行高度封顶（5 行 × 约 44px）并滚动：常见条数全部可见，更多时滚动，不切半行。 */
   max-height: 262px;
   overflow-y: auto;
   margin: 0;
   padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   list-style: none;
 }
 
-/* 未选中的行不加底色（只用描边勾勒），悬停时才轻微上色。 */
 .transfer-item {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
   padding: var(--space-2) var(--space-3);
 }
 
+.transfer-item + .transfer-item {
+  border-top: 1px solid var(--border);
+}
+
 .transfer-item:hover {
-  border-color: var(--border-strong);
   background: var(--bg-hover);
+}
+
+/* 选中：整行强调色底，勾选状态一眼可辨（不再只靠复选框）。 */
+.transfer-item.selected {
+  background: var(--accent-soft);
+}
+
+.transfer-item.selected:hover {
+  background: var(--accent-soft-strong);
 }
 
 .transfer-item-copy {
