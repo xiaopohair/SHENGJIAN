@@ -637,37 +637,6 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.device-status-body {
-  display: flex;
-  align-items: center;
-  gap: var(--space-5);
-  min-width: 0;
-}
-
-.device-visual {
-  display: grid;
-  flex: 0 0 96px;
-  width: 96px;
-  height: 192px;
-  place-items: center;
-}
-
-.device-visual.offline {
-  opacity: 0.72;
-}
-
-.device-image {
-  width: auto;
-  height: 188px;
-  max-width: 100%;
-  object-fit: contain;
-  filter: drop-shadow(var(--shadow-sm));
-}
-
-.device-image.is-line {
-  filter: invert(var(--line-art-invert)) drop-shadow(var(--shadow-sm));
-}
-
 .device-line-art {
   width: 88px;
   height: 176px;
@@ -711,48 +680,6 @@ onUnmounted(() => {
   fill: var(--bg-subtle);
   stroke: var(--border);
   stroke-width: 1.2;
-}
-
-.device-summary {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: var(--space-4);
-  min-width: 0;
-}
-
-.device-identity {
-  min-width: 0;
-}
-
-.device-product-name {
-  margin-top: 2px;
-  font-size: var(--text-lg);
-  font-weight: 650;
-  line-height: 1.3;
-  overflow-wrap: anywhere;
-}
-
-.device-metrics {
-  flex: none;
-  width: 100%;
-  min-width: 0;
-}
-
-.metric-warning {
-  color: var(--warning-text);
-}
-
-.gain-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-width: 0;
-}
-
-.gain-value {
-  flex: 0 0 auto;
-  white-space: nowrap;
 }
 
 .device-list {
@@ -820,45 +747,6 @@ onUnmounted(() => {
 
 .device-action {
   justify-self: end;
-}
-
-.helper-panel {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg-subtle);
-  padding: var(--space-4);
-}
-
-.helper-actions {
-  display: flex;
-  flex: 0 0 auto;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.helper-main {
-  display: flex;
-  flex: 1 1 320px;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-.helper-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.helper-name {
-  font-size: var(--text-sm);
-  font-weight: 650;
 }
 
 /* Layout stays multi-column down to the app minimum window width (1200px);
@@ -1064,19 +952,5 @@ onUnmounted(() => {
   gap: var(--space-2);
   /* 胶囊靠左、按钮靠右，两者同一行自然中心对齐 */
   margin-left: auto;
-}
-
-.hero-link {
-  border: 0;
-  background: transparent;
-  padding: 2px 4px;
-  color: var(--text-muted);
-  font: inherit;
-  font-size: var(--text-xs);
-  cursor: pointer;
-}
-
-.hero-link:hover {
-  color: var(--accent);
 }
 </style>
