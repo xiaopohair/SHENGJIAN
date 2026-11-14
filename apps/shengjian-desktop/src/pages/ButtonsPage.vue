@@ -1,11 +1,21 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
+import {
+  computed,
+  nextTick,
+  onMounted,
+  onUnmounted,
+  ref,
+  shallowRef,
+  useTemplateRef,
+  watch,
+} from "vue";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import {
   ArrowLeftRight,
   Copy,
   Keyboard,
   LayoutGrid,
+  MoreVertical,
   Plus,
   RotateCcw,
   SlidersHorizontal,
@@ -538,8 +548,32 @@ async function saveEditor() {
 const transferOpen = shallowRef(false);
 const transferBusy = shallowRef(false);
 
+/** 「更多」菜单（竖向三点）：导入 / 导出等低频操作收在这里。 */
+const moreMenuOpen = shallowRef(false);
+const moreMenuRef = useTemplateRef<HTMLElement>("moreMenuRef");
+
+function toggleMoreMenu() {
+  moreMenuOpen.value = !moreMenuOpen.value;
+}
+
 function openTransfer() {
+  moreMenuOpen.value = false;
   transferOpen.value = true;
+}
+
+/** 点菜单外或按 Esc 收起，避免菜单挂在那里挡住工具栏。 */
+function onMoreMenuPointerDown(event: MouseEvent) {
+  if (!moreMenuOpen.value) return;
+  const target = event.target as Node | null;
+  if (target && moreMenuRef.value?.contains(target)) return;
+  moreMenuOpen.value = false;
+}
+
+function onMoreMenuKeydown(event: KeyboardEvent) {
+  if (event.key === "Escape" && moreMenuOpen.value) {
+    event.preventDefault();
+    moreMenuOpen.value = false;
+  }
 }
 
 /** 把选中的方案导出成一个可再次导入的文件。 */
@@ -802,6 +836,8 @@ function setView(next: "workbench" | "table") {
 }
 
 onMounted(async () => {
+  window.addEventListener("pointerdown", onMoreMenuPointerDown, true);
+  window.addEventListener("keydown", onMoreMenuKeydown, true);
   await Promise.all([
     load(),
     loadMacros(),
@@ -815,6 +851,8 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  window.removeEventListener("pointerdown", onMoreMenuPointerDown, true);
+  window.removeEventListener("keydown", onMoreMenuKeydown, true);
   if (timer !== undefined) window.clearInterval(timer);
   if (savedTimer !== undefined) window.clearTimeout(savedTimer);
 });
@@ -930,14 +968,27 @@ onUnmounted(() => {
         </div>
 
         <div class="profile-tools">
-          <Button size="sm" :disabled="busy" @click="openTransfer">
-            <ArrowLeftRight :size="14" />
-            {{ tr("导入 / 导出") }}
-          </Button>
           <Button size="sm" variant="primary" :disabled="busy" @click="startNew">
             <Plus :size="14" />
             {{ tr("新建") }}
           </Button>
+          <div ref="moreMenuRef" class="profile-more">
+            <IconButton
+              size="sm"
+              :label="trDynamic('更多操作')"
+              :aria-expanded="moreMenuOpen"
+              aria-haspopup="menu"
+              @click="toggleMoreMenu"
+            >
+              <MoreVertical :size="15" />
+            </IconButton>
+            <div v-if="moreMenuOpen" class="profile-more-menu" role="menu">
+              <button type="button" class="profile-more-item" role="menuitem" @click="openTransfer">
+                <ArrowLeftRight :size="14" />
+                {{ tr("导入 / 导出") }}
+              </button>
+            </div>
+          </div>
           <Button size="sm" :disabled="busy" @click="openRecommendedProfiles">
             <Sparkles :size="14" />
             {{ tr("推荐方案") }}
@@ -1260,6 +1311,45 @@ onUnmounted(() => {
   gap: var(--space-2);
   /* Keep the actions on the right edge even when the chip strip is hidden. */
   margin-left: auto;
+}
+
+/* 竖向三点菜单：定位在按钮下方，靠右对齐，浮在工具栏之上。 */
+.profile-more {
+  position: relative;
+  display: flex;
+}
+
+.profile-more-menu {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: 40;
+  min-width: 168px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-1);
+}
+
+.profile-more-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  padding: var(--space-2) var(--space-3);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.profile-more-item:hover {
+  background: var(--bg-hover);
+  color: var(--text);
 }
 
 .recommended-update-badge {

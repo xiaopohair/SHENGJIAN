@@ -156,11 +156,14 @@ describe("ButtonsPage profile navigation and editor", () => {
     expect(wrapper.find(".profile-chips").exists()).toBe(false);
     expect(wrapper.find(".profile-chips-hint").exists()).toBe(false);
 
-    // 导入与导出合并成一个入口，总可用（导入不需要先有方案）。
+    // 工具栏只剩「新建」、竖向三点菜单与「推荐方案」；导入导出收进菜单。
     const toolLabels = wrapper.findAll(".profile-tools button").map((button) => button.text());
-    expect(toolLabels).toContain("导入 / 导出");
     expect(toolLabels).toContain("新建");
+    expect(toolLabels).not.toContain("导入");
     expect(toolLabels).not.toContain("导出");
+    expect(wrapper.find('.profile-more [aria-label="更多操作"]').exists()).toBe(true);
+    // 菜单默认收起。
+    expect(wrapper.find(".profile-more-menu").exists()).toBe(false);
 
     // Nothing to switch between either.
     expect(wrapper.find(".view-switch").exists()).toBe(false);
@@ -168,6 +171,24 @@ describe("ButtonsPage profile navigation and editor", () => {
     // Without a draft the empty state owns the workspace.
     expect(wrapper.find(".profile-workbench").exists()).toBe(false);
     expect(wrapper.find(".ui-empty").exists()).toBe(true);
+  });
+
+  it("opens import/export from the three-dot menu", async () => {
+    currentDocument = documentWithProfile("已有方案");
+    const wrapper = await mountPage();
+
+    await wrapper.get('.profile-more [aria-label="更多操作"]').trigger("click");
+    const item = wrapper
+      .findAll(".profile-more-menu button")
+      .find((button) => button.text() === "导入 / 导出");
+    expect(item).toBeDefined();
+
+    await item!.trigger("click");
+    await flushPromises();
+
+    // 弹窗用 Teleport 挂到 body；菜单收起，弹窗出现。
+    expect(wrapper.find(".profile-more-menu").exists()).toBe(false);
+    expect(document.body.querySelector(".transfer-dialog")).not.toBeNull();
   });
 
   it("opens the edit area right after creating the first profile", async () => {
@@ -193,8 +214,9 @@ describe("ButtonsPage profile navigation and editor", () => {
     expect(wrapper.find(".profile-workbench").exists()).toBe(true);
     expect(wrapper.findAll(".profile-chip")).toHaveLength(1);
     expect(wrapper.find(".view-switch").exists()).toBe(true);
-    const exportButton = wrapper.findAll(".profile-tools button")[1];
-    expect(exportButton.attributes("disabled")).toBeUndefined();
+    // 导入导出现在在「更多」菜单里，不再是独立的工具栏按钮。
+    const moreButton = wrapper.get('.profile-more [aria-label="更多操作"]');
+    expect(moreButton.attributes("disabled")).toBeUndefined();
 
     const newButton = wrapper
       .findAll(".profile-tools button")

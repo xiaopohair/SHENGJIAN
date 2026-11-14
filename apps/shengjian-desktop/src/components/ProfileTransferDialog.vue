@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, useTemplateRef, watch } from "vue";
+import { computed, nextTick, onUnmounted, ref, useTemplateRef, watch } from "vue";
 import { FileUp, X } from "lucide-vue-next";
 import { tr } from "../lib/i18n";
 import type { ButtonProfile } from "../lib/types";
@@ -61,15 +61,29 @@ watch(
       exportMode.value = "document";
       // 默认全选：常见用法是「把当前这套都导出去备份」。
       selected.value = new Set(props.profiles.map((profile) => profile.id));
+      // Esc 走 window 捕获：弹窗打开时焦点可能在触发按钮上，只挂 section 会漏。
+      window.addEventListener("keydown", onWindowKeydown, true);
       await nextTick();
       dialogRef.value?.querySelector<HTMLButtonElement>(".transfer-tab.active")?.focus();
     } else {
+      window.removeEventListener("keydown", onWindowKeydown, true);
       previousFocus?.focus();
       previousFocus = null;
     }
   },
   { immediate: true },
 );
+
+onUnmounted(() => {
+  window.removeEventListener("keydown", onWindowKeydown, true);
+});
+
+function onWindowKeydown(event: KeyboardEvent) {
+  if (event.key !== "Escape") return;
+  event.preventDefault();
+  event.stopPropagation();
+  close();
+}
 
 // 切到「推荐方案」时自动剔除默认方案，避免用户点了导出才发现导不出。
 watch(exportMode, (value) => {

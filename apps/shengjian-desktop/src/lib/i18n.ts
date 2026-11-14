@@ -983,6 +983,7 @@ const ENGLISH = {
     "VB-CABLE not found: remote voice will have no audio output. You can still choose another output device.",
   // 导入与导出（按键页）
   "导入 / 导出": "Import / Export",
+  更多操作: "More actions",
   导入与导出: "Import and Export",
   导入或导出: "Import or export",
   导出格式: "Export format",
