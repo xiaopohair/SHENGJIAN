@@ -336,14 +336,14 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
             :title="
               enhancedCaptureInstalled
                 ? tr('使用 RC003 增强捕获（返回键、音量键）')
-                : tr('未安装按键增强服务，请到连接页安装')
+                : tr('开启需要管理员授权安装按键增强服务')
             "
           >
             <span class="toolbar-toggle-label">{{ tr("按键增强") }}</span>
             <Switch
               size="sm"
               :model-value="enhancedCapture"
-              :disabled="!enhancedCaptureEnabled || !enhancedCaptureInstalled || toggleDisabled"
+              :disabled="!enhancedCaptureEnabled || toggleDisabled"
               :label="tr('按键增强')"
               @update:model-value="emit('toggleEnhancedCapture', $event)"
             />

@@ -987,9 +987,16 @@ const ENGLISH = {
     "Switch to this profile automatically when the foreground app matches",
   手动切换到本方案: "Switch to this profile manually",
   "使用 RC003 增强捕获（返回键、音量键）": "Use RC003 enhanced capture (back and volume keys)",
-  "未安装按键增强服务，请到连接页安装":
-    "Key enhancement service isn't installed; install it from the Connection page",
 
+  开启需要管理员授权安装按键增强服务:
+    "Turning this on installs the key enhancement service and asks for administrator permission",
+  "开启按键增强需要管理员授权，请在弹窗中确认":
+    "Turning on key enhancement needs administrator permission; confirm the prompt",
+  "没有完成按键增强服务安装，开关已保持关闭":
+    "The key enhancement service wasn't installed, so the switch stays off",
+  按键增强服务已安装: "Key enhancement service installed",
+  "已关闭按键增强，服务保留可随时再开启":
+    "Key enhancement is off; the service is kept so you can turn it on again anytime",
   按键增强: "Key enhancement",
   方案激活: "Profile activation",
   更多操作: "More actions",

@@ -63,6 +63,7 @@ import {
   getRecommendedButtonProfiles,
   getSettings,
   getRc003HelperInstalled,
+  installRc003Helper,
   getRecommendedMacros,
   saveButtonProfiles,
   saveSettings,
@@ -595,7 +596,46 @@ async function loadSettingsDocument() {
   }
 }
 
+/** 等服务真的出现：UAC 由用户手动确认，装完计划任务才会出现。 */
+async function waitForHelperInstalled(timeoutMs = 60_000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await getRc003HelperInstalled().catch(() => false)) return true;
+    await new Promise((resolve) => window.setTimeout(resolve, 1000));
+  }
+  return false;
+}
+
+/**
+ * 按键增强开关。
+ *
+ * 打开时如果服务没装，先走一次管理员安装（会弹 UAC）：装完再落盘设置，
+ * 用户取消 UAC 就保持关闭并提示。关闭只撤销增强捕获、不卸载服务——
+ * 卸载同样需要管理员权限，而关掉后 helper 不接管任何按键，没必要折腾。
+ */
 async function toggleEnhancedCapture(value: boolean) {
+  if (busy.value) return;
+  if (value && !enhancedCaptureInstalled.value) {
+    busy.value = true;
+    pushToast(tr("开启按键增强需要管理员授权，请在弹窗中确认"), "info");
+    try {
+      await installRc003Helper();
+      const installed = await waitForHelperInstalled();
+      if (!installed) {
+        pushToast(tr("没有完成按键增强服务安装，开关已保持关闭"), "warning");
+        return;
+      }
+      enhancedCaptureInstalled.value = true;
+      pushToast(tr("按键增强服务已安装"), "success");
+    } catch (cause) {
+      error.value = errorMessage(cause);
+      return;
+    } finally {
+      busy.value = false;
+    }
+  }
+
+  const previous = enhancedCapture.value;
   enhancedCapture.value = value;
   const current = settingsDocument.value;
   if (!current) return;
@@ -606,8 +646,9 @@ async function toggleEnhancedCapture(value: boolean) {
     };
     await saveSettings(next);
     settingsDocument.value = next;
+    if (!value) pushToast(tr("已关闭按键增强，服务保留可随时再开启"), "info");
   } catch (cause) {
-    enhancedCapture.value = !value;
+    enhancedCapture.value = previous;
     error.value = errorMessage(cause);
   }
 }
