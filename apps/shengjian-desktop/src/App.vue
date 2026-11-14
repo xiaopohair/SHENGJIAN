@@ -449,9 +449,12 @@ onUnmounted(() => {
               <span role="status" aria-live="polite">
                 <StatusPill :label="statusLabel(phase)" :tone="phaseTone" dot />
               </span>
-              <span v-if="store.isConnected" class="topbar-device" :title="remoteName">{{
-                remoteName
-              }}</span>
+              <span
+                v-if="store.isConnected"
+                class="topbar-chip topbar-device"
+                :title="remoteName"
+                >{{ remoteName }}</span
+              >
               <span
                 v-if="status.batteryLevel !== null"
                 class="topbar-chip"
@@ -788,11 +791,11 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
+/* 设备名走 .topbar-chip 的胶囊外观，这里只限制最大宽度避免把状态栏挤爆 */
 .topbar-device {
-  flex: 0 0 auto;
-  color: var(--text-secondary);
-  font-size: var(--text-xs);
-  white-space: nowrap;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .topbar-chip {
