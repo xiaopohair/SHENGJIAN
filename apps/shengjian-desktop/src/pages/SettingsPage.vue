@@ -56,7 +56,8 @@ import {
 
 import { useVoiceToolCatalog } from "../composables/useVoiceToolCatalog";
 import PageHeader from "../components/PageHeader.vue";
-import { useHotkeyRecorder } from "../composables/useHotkeyRecorder";
+import HotkeyPickerDialog from "../components/HotkeyPickerDialog.vue";
+import { formatHotkey } from "../lib/hotkey";
 import Button from "../components/ui/Button.vue";
 import Card from "../components/ui/Card.vue";
 import SettingRow from "../components/ui/SettingRow.vue";
@@ -249,17 +250,38 @@ const voiceInputTool = shallowRef("");
 const transcriptHistory = shallowRef(false);
 const voiceHotkey = ref<string[] | null>(null);
 const { catalog: voiceToolCatalog, load: loadVoiceToolCatalog } = useVoiceToolCatalog();
-const {
-  recording,
-  label: hotkeyLabel,
-  hasCustom,
-  toggle: toggleHotkey,
-  reset: resetHotkey,
-} = useHotkeyRecorder({
-  hotkey: voiceHotkey,
-  // 工具默认热键来自配置目录；旧 id 或加载失败时回退为「不注入热键」。
-  fallback: () => defaultHotkeyFor(voiceToolCatalog.value, voiceInputTool.value),
-});
+/**
+ * 语音热键只做点选，不做键盘直接采集。
+ *
+ * 直接采集要拦系统级按键，输入法会把自己的语音和弦抢先截走（Chatterfly 的
+ * Ctrl+Win 就是典型），现场表现为「按了没反应 / 只录到半个组合」。点选既能
+ * 确定地选到任意组合，也不会触发任何程序。
+ */
+const hotkeyPickerOpen = shallowRef(false);
+const toolDefaultHotkey = computed(() =>
+  defaultHotkeyFor(voiceToolCatalog.value, voiceInputTool.value),
+);
+const hotkeyLabel = computed(() => formatHotkey(voiceHotkey.value ?? toolDefaultHotkey.value));
+const hasCustom = computed(() => (voiceHotkey.value?.length ?? 0) > 0);
+const currentVoiceToolLabel = computed(
+  () =>
+    voiceToolOptions(voiceToolCatalog.value, voiceInputTool.value).find(
+      (tool) => tool.id === voiceInputTool.value,
+    )?.label ?? "",
+);
+
+function openHotkeyPicker() {
+  hotkeyPickerOpen.value = true;
+}
+
+function applyPickedHotkey(keys: string[]) {
+  voiceHotkey.value = keys.length > 0 ? keys : null;
+  hotkeyPickerOpen.value = false;
+}
+
+function resetHotkey() {
+  voiceHotkey.value = null;
+}
 
 const languageModel = computed({
   get: () => language.value,
@@ -880,17 +902,11 @@ onMounted(async () => {
 
               <SettingRow
                 label="语音热键"
-                hint="按下遥控器语音键时注入的组合键；避免用 Win 组合键（会被系统占用）"
+                hint="按下遥控器语音键时注入的组合键；用点选方式设置，避免被输入法抢走按键"
               >
                 <div class="hotkey-inline">
-                  <kbd class="hotkey-value" :class="{ recording }" aria-live="polite">
-                    <span v-if="recording" class="hotkey-recording-dot" aria-hidden="true" />
-                    {{ hotkeyLabel }}
-                  </kbd>
-                  <IconButton
-                    :label="trDynamic(recording ? '取消录制' : '录制热键')"
-                    @click="toggleHotkey"
-                  >
+                  <kbd class="hotkey-value" aria-live="polite">{{ hotkeyLabel }}</kbd>
+                  <IconButton :label="trDynamic('选择热键')" @click="openHotkeyPicker">
                     <Keyboard :size="15" />
                   </IconButton>
                   <IconButton v-if="hasCustom" :label="trDynamic('恢复默认')" @click="resetHotkey">
@@ -1046,6 +1062,15 @@ onMounted(async () => {
       </div>
     </div>
   </section>
+
+  <HotkeyPickerDialog
+    :open="hotkeyPickerOpen"
+    :model-value="voiceHotkey ?? toolDefaultHotkey"
+    :tool-default="toolDefaultHotkey"
+    :tool-label="currentVoiceToolLabel"
+    @confirm="applyPickedHotkey"
+    @close="hotkeyPickerOpen = false"
+  />
 </template>
 
 <style scoped>
@@ -1292,26 +1317,6 @@ onMounted(async () => {
     border-color var(--duration-fast) ease,
     background var(--duration-fast) ease,
     color var(--duration-fast) ease;
-}
-
-.hotkey-value.recording {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-.hotkey-recording-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent);
-  animation: hotkey-pulse 1.2s ease-in-out infinite;
-}
-
-@keyframes hotkey-pulse {
-  50% {
-    opacity: 0.25;
-  }
 }
 
 .setting-toggle-hint {

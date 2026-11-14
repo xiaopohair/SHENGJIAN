@@ -534,7 +534,7 @@ const ENGLISH = {
   橙色: "Orange",
   语音输入工具: "Voice input tool",
   取消录制: "Cancel recording",
-  录制热键: "Record hotkey",
+
   恢复默认: "Restore default",
   "请按下组合键…": "Press a key combination…",
   不注入热键: "No hotkey injected",
@@ -1032,6 +1032,23 @@ const ENGLISH = {
     "Shengjian is in the foreground, so voice won't be typed into it; switch to the app you want to type in first",
   "按下遥控器语音键时注入的组合键；避免用 Win 组合键（会被系统占用）":
     "Chord injected when the remote voice key is pressed; avoid Win chords (the system claims them)",
+  选择语音热键: "Choose voice hotkey",
+  "按下遥控器语音键时注入的组合键。点击下方按键来组合，不用真的按键盘。":
+    "Chord injected when the remote voice key is pressed. Click the keys below instead of typing them.",
+  修饰键: "Modifiers",
+  常用: "Common",
+  字母: "Letters",
+  数字: "Digits",
+  功能键: "Function keys",
+  当前组合: "Current chord",
+  尚未选择: "Nothing selected yet",
+  确定: "OK",
+  "这是 {tool} 自己的语音和弦，运行时可能被它抢先响应；建议换一个组合。":
+    "This is {tool}'s own voice chord, so it may respond first at runtime; pick another chord.",
+  "避免其他 App 使用同一个快捷键（Vokie、Chatterfly 这类语音工具会抢在输入法前面）":
+    "Avoid chords other apps already use (Vokie, Chatterfly and similar voice tools grab them before the IME)",
+  "按下遥控器语音键时注入的组合键；用点选方式设置，避免被输入法抢走按键":
+    "Chord injected when the remote voice key is pressed; pick it instead of typing it, so the IME can't steal the keys",
   按键增强: "Key enhancement",
   方案激活: "Profile activation",
   更多操作: "More actions",
