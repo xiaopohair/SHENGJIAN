@@ -854,7 +854,7 @@ onMounted(async () => {
                     :disabled="helperBusy"
                     @click="uninstallHelper"
                   >
-                    {{ tr("卸载按键增强服务") }}
+                    {{ tr("卸载") }}
                   </Button>
                 </div>
               </SettingRow>
