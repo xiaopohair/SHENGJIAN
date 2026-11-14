@@ -70,3 +70,20 @@ pub fn request_helper_task_install(app: &tauri::AppHandle) -> Result<(), String>
         .map(|_| ())
         .map_err(|error| format!("cannot start elevated helper installer: {error}"))
 }
+
+/// 提权移除计划任务（`helper --remove-task`）。和安装一样通过 RunAs 弹一次 UAC。
+pub fn request_helper_task_remove(app: &tauri::AppHandle) -> Result<(), String> {
+    let helper =
+        bundled_helper_path(app).ok_or_else(|| "bundled RC003 helper is missing".to_owned())?;
+    let helper = helper.to_string_lossy().replace('\'', "''");
+    let script =
+        format!("Start-Process -FilePath '{helper}' -ArgumentList '--remove-task' -Verb RunAs");
+    let mut command = Command::new("powershell");
+    command.args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &script]);
+    #[cfg(windows)]
+    command.creation_flags(CREATE_NO_WINDOW);
+    command
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| format!("cannot start elevated helper uninstaller: {error}"))
+}

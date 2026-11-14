@@ -333,6 +333,11 @@ impl HostPlatform for PlatformHost {
             .map_err(|message| HostError::new("rc003-helper", message))
     }
 
+    fn uninstall_helper(&self, app: &tauri::AppHandle) -> Result<(), HostError> {
+        helper::request_helper_task_remove(app)
+            .map_err(|message| HostError::new("rc003-helper", message))
+    }
+
     fn open_diagnostic_log_folder(&self) -> Result<(), HostError> {
         let path = diagnostic_log_path()
             .parent()

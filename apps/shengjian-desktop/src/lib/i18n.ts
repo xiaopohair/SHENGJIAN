@@ -997,6 +997,16 @@ const ENGLISH = {
   按键增强服务已安装: "Key enhancement service installed",
   "已关闭按键增强，服务保留可随时再开启":
     "Key enhancement is off; the service is kept so you can turn it on again anytime",
+  卸载按键增强服务: "Uninstall key enhancement service",
+  "卸载按键增强服务？": "Uninstall the key enhancement service?",
+  "会移除后台计划任务，返回键和音量键的增强捕获将失效；需要时会重新请求管理员授权。":
+    "This removes the background scheduled task; back and volume keys lose enhanced capture. You can grant administrator permission again later.",
+  "已请求管理员授权；完成 UAC 后会移除服务。":
+    "Administrator permission requested; the service is removed once the UAC prompt is accepted.",
+  "按键增强服务已卸载。": "Key enhancement service uninstalled",
+  "未检测到卸载完成，请确认 UAC 已通过后点“刷新”。":
+    "Removal wasn't detected; confirm the UAC prompt and click Refresh",
+  卸载: "Uninstall",
   按键增强: "Key enhancement",
   方案激活: "Profile activation",
   更多操作: "More actions",

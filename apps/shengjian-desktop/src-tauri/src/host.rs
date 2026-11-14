@@ -100,6 +100,7 @@ pub trait HostPlatform: Send + Sync {
     fn macro_run_status(&self, macro_id: &str) -> MacroRunStatusView;
     fn helper_installed(&self) -> bool;
     fn install_helper(&self, app: &tauri::AppHandle) -> Result<(), HostError>;
+    fn uninstall_helper(&self, app: &tauri::AppHandle) -> Result<(), HostError>;
     fn open_diagnostic_log_folder(&self) -> Result<(), HostError>;
     fn read_diagnostic_log(&self, max_bytes: usize) -> Result<String, HostError>;
     fn export_diagnostic_bundle(&self, path: &str) -> Result<(), HostError>;

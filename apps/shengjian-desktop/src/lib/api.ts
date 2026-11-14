@@ -160,6 +160,11 @@ export async function installRc003Helper(): Promise<void> {
   return invoke<void>("install_rc003_helper");
 }
 
+/** 卸载按键增强服务：提权移除计划任务（弹一次 UAC）。 */
+export async function uninstallRc003Helper(): Promise<void> {
+  return invoke<void>("uninstall_rc003_helper");
+}
+
 export async function listAudioEndpoints(): Promise<AudioEndpoint[]> {
   return invoke<AudioEndpoint[]>("list_audio_endpoints");
 }
@@ -201,6 +206,16 @@ export async function exportProfiles(
 
 export async function importProfiles(path: string): Promise<ButtonProfilesDocument> {
   return invoke<ButtonProfilesDocument>("import_profiles", { path });
+}
+
+/**
+ * 只读地解析方案文件，供导入预检（冲突、型号、条数）使用。
+ *
+ * 与 [`importProfiles`] 的区别是它**不会**写进引擎状态，
+ * 所以可以先看清楚再决定覆盖哪些；真正落地走 [`saveButtonProfiles`]。
+ */
+export async function previewImportProfiles(path: string): Promise<ButtonProfilesDocument> {
+  return invoke<ButtonProfilesDocument>("preview_import_profiles", { path });
 }
 
 /**
