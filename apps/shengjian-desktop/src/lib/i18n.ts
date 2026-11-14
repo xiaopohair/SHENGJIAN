@@ -118,6 +118,7 @@ const ENGLISH = {
   开机自启: "Start with system",
   组件与许可: "Components & licenses",
   随安装包分发的开源组件: "Open-source components shipped with the app",
+  "按键增强（RC003 helper）": "Key enhancement (RC003 helper)",
   声键核心: "Shengjian core",
   桌面宿主: "Desktop host",
   "许可全文与第三方声明随安装包分发。":

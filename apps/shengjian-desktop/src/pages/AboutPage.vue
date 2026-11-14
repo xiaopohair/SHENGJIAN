@@ -330,7 +330,7 @@ onMounted(async () => {
         <li class="about-list-row">
           <span class="about-list-name">
             <ShieldCheck :size="15" />
-            RC003 helper
+            {{ tr("按键增强（RC003 helper）") }}
           </span>
           <span class="mono muted">Frida Gadget</span>
         </li>
