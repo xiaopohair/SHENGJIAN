@@ -447,6 +447,12 @@ mod windows_impl {
     static EDGE_SINK: OnceLock<Arc<dyn Fn(ButtonEdge) + Send + Sync>> = OnceLock::new();
     static SHORTCUT_CAPTURE_SINK: OnceLock<super::ShortcutCaptureCallback> = OnceLock::new();
 
+/// 录入期投递给前端的边沿计数（收尾日志用：一眼看出"边沿到底有没有到"）。
+static CAPTURE_EDGES_SENT: AtomicU64 = AtomicU64::new(0);
+/// 最近一条投递边沿（键 / 上下 / 是否注入副本），收尾日志归因用。
+static CAPTURE_LAST_EDGE: std::sync::Mutex<Option<(crate::send_input::KeyCode, bool, bool)>> =
+    std::sync::Mutex::new(None);
+
     thread_local! {
         /// (vk, make) → 按住配对状态（true=本次按住的 DOWN 全部被吞）。
         /// 仅钩子线程读写。
@@ -640,10 +646,7 @@ mod windows_impl {
         if handle_shortcut_capture(vk_code, make_code, message, flags) {
             return true;
         }
-        if handle_keyboard(vk_code, make_code, message, flags) {
-            return true;
-        }
-        false
+        handle_keyboard(vk_code, make_code, message, flags)
     }
 
     /// 宿主进程钩子安装结果报告（key_host 读线程调用）：
@@ -731,6 +734,8 @@ mod windows_impl {
                     SHORTCUT_CAPTURE_SINK.get(),
                 ) {
                     (Some(key), Some(sink)) => {
+                        CAPTURE_EDGES_SENT.fetch_add(1, Ordering::Relaxed);
+                        *CAPTURE_LAST_EDGE.lock().unwrap() = Some((key, is_pressed, injected));
                         sink(super::ShortcutCaptureEdge {
                             key,
                             is_pressed,
@@ -1061,6 +1066,23 @@ mod windows_impl {
         )
     }
 
+    /// 录入边沿诊断：`(投递条数, 最后一条的 "键/上|下/real|injected")`。
+    pub fn shortcut_capture_stats() -> (u64, String) {
+        let last = CAPTURE_LAST_EDGE
+            .lock()
+            .ok()
+            .and_then(|guard| *guard)
+            .map(|(key, pressed, injected)| {
+                format!(
+                    "{key:?}/{} /{}",
+                    if pressed { "down" } else { "up" },
+                    if injected { "injected" } else { "real" }
+                )
+            })
+            .unwrap_or_else(|| "-".to_owned());
+        (CAPTURE_EDGES_SENT.load(Ordering::Relaxed), last)
+    }
+
     pub fn set_shortcut_capture_active(active: bool) -> bool {
         if active && !GATE_ACTIVE.load(Ordering::Relaxed) {
             return false;
@@ -1091,6 +1113,12 @@ mod windows_impl {
             }
             PREHELD_PENDING_COUNT.store(pending, Ordering::Relaxed);
             *super::PREHELD_CAPTURE_DRAIN.lock().unwrap() = preheld;
+        }
+        if active {
+            CAPTURE_EDGES_SENT.store(0, Ordering::Relaxed);
+            if let Ok(mut last) = CAPTURE_LAST_EDGE.lock() {
+                *last = None;
+            }
         }
         SHORTCUT_CAPTURE_ACTIVE.store(active, Ordering::Relaxed);
         true
@@ -1243,7 +1271,8 @@ pub use windows_impl::{
     is_gate_thread_alive, leaked_down_count, listener_active, observed_keys, observed_last_vk,
     persistent_swallow_total, phrase_panel_mask, set_edge_sink, set_enhanced_owned_mask,
     set_listener_active, set_persistent_mask, set_phrase_panel_mask, set_remote_connected,
-    set_shortcut_capture_active, set_shortcut_capture_sink, set_voice_synth_active,
+    set_shortcut_capture_active, set_shortcut_capture_sink, shortcut_capture_stats,
+    set_voice_synth_active,
     swallowed_edge_count, voice_synth_active, KeyGate, HOLD_LEAKED, HOLD_NONE, HOLD_SWALLOWED_ALL,
 };
 

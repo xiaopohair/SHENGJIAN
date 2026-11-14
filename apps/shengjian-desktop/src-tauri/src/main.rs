@@ -67,6 +67,15 @@ fn main() {
                 eprintln!("key host unavailable; voice F5 suppression disabled");
             }
             spawn_key_host_supervisor();
+            // 组合键录入通道：录入期钩子吞下物理边沿，在这里转成前端事件。
+            // 输入法「吞掉 + 重放」的注入副本也经由这里补回缺失的那半个组合。
+            #[cfg(windows)]
+            {
+                let capture_app = app.handle().clone();
+                shengjian_windows::key_gate::set_shortcut_capture_sink(Arc::new(move |edge| {
+                    let _ = capture_app.emit("shortcut-capture", edge);
+                }));
+            }
             let transcript_app = app.handle().clone();
             host.configure_transcript_capture(Arc::new(move |record| {
                 let _ = transcript_history::append(record.clone());

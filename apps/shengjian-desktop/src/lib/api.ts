@@ -165,9 +165,14 @@ export async function uninstallRc003Helper(): Promise<void> {
   return invoke<void>("uninstall_rc003_helper");
 }
 
-/** 组合键录入开始：让输入法临时让位，避免它把按键吃掉。 */
-export async function beginShortcutCapture(): Promise<void> {
-  return invoke<void>("begin_shortcut_capture");
+/**
+ * 组合键录入开始：打开平台钩子层录入通道并让输入法临时让位。
+ *
+ * 返回 `true` 表示钩子通道已生效——输入法「吞掉 + 重放」的副本会经
+ * `shortcut-capture` 事件补回缺失的那半个组合；`false` 时前端退回 DOM 事件。
+ */
+export async function beginShortcutCapture(): Promise<boolean> {
+  return invoke<boolean>("begin_shortcut_capture");
 }
 
 /** 组合键录入结束：恢复原本的输入法布局。 */

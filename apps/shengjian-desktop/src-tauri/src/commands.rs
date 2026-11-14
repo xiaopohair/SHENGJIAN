@@ -308,7 +308,12 @@ pub fn install_rc003_helper(
 /// 前端连 `keydown` 都收不到（现场：只录到 ControlRight）。必须在主线程执行
 /// （输入区域按线程生效）。
 #[tauri::command]
-pub fn begin_shortcut_capture(app: tauri::AppHandle) -> Result<(), CommandError> {
+pub fn begin_shortcut_capture(app: tauri::AppHandle) -> Result<bool, CommandError> {
+    // 钩子层录入通道：吞下物理边沿并把每一条（含输入法重放的注入副本）发到前端。
+    #[cfg(windows)]
+    let os_capture = shengjian_windows::key_gate::set_shortcut_capture_active(true);
+    #[cfg(not(windows))]
+    let os_capture = false;
     app.run_on_main_thread(|| {
         #[cfg(windows)]
         let outcome = shengjian_windows::suspend_input_method_for_capture();
@@ -316,12 +321,24 @@ pub fn begin_shortcut_capture(app: tauri::AppHandle) -> Result<(), CommandError>
         let outcome = "capture_ime_yield outcome=unsupported".to_owned();
         shengjian_windows::gatt_note(outcome);
     })
-    .map_err(|error| CommandError::new("shortcut-capture", &error.to_string(), true))
+    .map_err(|error| CommandError::new("shortcut-capture", &error.to_string(), true))?;
+    shengjian_windows::gatt_note(format!(
+        "shortcut_capture action=begin os_capture={os_capture}"
+    ));
+    Ok(os_capture)
 }
 
 /// 组合键录入结束：恢复录入前的输入法布局。
 #[tauri::command]
 pub fn end_shortcut_capture(app: tauri::AppHandle) -> Result<(), CommandError> {
+    #[cfg(windows)]
+    {
+        let (edges, last) = shengjian_windows::key_gate::shortcut_capture_stats();
+        shengjian_windows::gatt_note(format!(
+            "shortcut_capture action=end edges={edges} last={last}"
+        ));
+        shengjian_windows::key_gate::set_shortcut_capture_active(false);
+    }
     app.run_on_main_thread(|| {
         #[cfg(windows)]
         let outcome = shengjian_windows::restore_input_method_after_capture();

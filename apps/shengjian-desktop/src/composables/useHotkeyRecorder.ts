@@ -1,6 +1,7 @@
 import { computed, onUnmounted, shallowRef, type Ref } from "vue";
 import { tr, trDynamic } from "../lib/i18n";
 import { beginShortcutCapture, endShortcutCapture } from "../lib/api";
+import { listenShortcutCapture } from "../lib/captureBridge";
 
 /** Keys that only modify a chord; recording keeps waiting for a real key. */
 const MODIFIER_CODES = new Set([
@@ -124,6 +125,9 @@ export function useHotkeyRecorder(options: HotkeyRecorderOptions) {
   const recording = shallowRef(false);
   /** 录入期是否已经把输入法让位出去（用来保证成对恢复）。 */
   let imeYielded = false;
+  /** 平台钩子层录入通道是否生效（生效时以它为准，DOM 事件不再参与）。 */
+  let osCapture = false;
+  let unlistenHook: (() => void) | undefined;
   let pressed = new Set<string>();
   let captured: string[] = [];
 
@@ -170,29 +174,23 @@ export function useHotkeyRecorder(options: HotkeyRecorderOptions) {
     settle(true);
   }
 
-  function onKeydown(event: KeyboardEvent) {
+  /** 一条按键边沿（DOM 与钩子层共用）。 */
+  function handleKey(code: string, isDown: boolean) {
     if (!recording.value) return;
-    // 输入法组字期间不采集：这些键是给输入法的，抢过来只会打架。
-    if (event.isComposing) return;
-    event.preventDefault();
-    event.stopPropagation();
-    if (event.code === "Escape") {
-      settle(false);
+    if (isDown) {
+      if (code === "Escape") {
+        settle(false);
+        return;
+      }
+      if (!isSupportedHotkeyCode(code)) return;
+      // 又来新键了：取消上一次「纯修饰键待结算」，并进同一个组合。
+      clearCommitTimer();
+      pressed.add(code);
+      if (!captured.includes(code)) captured.push(code);
+      if (!MODIFIER_CODES.has(code)) finish();
       return;
     }
-    if (event.repeat || !isSupportedHotkeyCode(event.code)) return;
-    // 又来新键了：取消上一次「纯修饰键待结算」，并进同一个组合。
-    clearCommitTimer();
-    pressed.add(event.code);
-    if (!captured.includes(event.code)) captured.push(event.code);
-    if (!MODIFIER_CODES.has(event.code)) finish();
-  }
-
-  function onKeyup(event: KeyboardEvent) {
-    if (!recording.value) return;
-    event.preventDefault();
-    event.stopPropagation();
-    pressed.delete(event.code);
+    pressed.delete(code);
     // 纯修饰键组合：等一小段宽限再结算，期间按下别的修饰键会并进同一组合。
     if (pressed.size === 0 && captured.length > 0 && captured.every((c) => MODIFIER_CODES.has(c))) {
       clearCommitTimer();
@@ -203,6 +201,26 @@ export function useHotkeyRecorder(options: HotkeyRecorderOptions) {
     }
   }
 
+  function onKeydown(event: KeyboardEvent) {
+    if (!recording.value) return;
+    // 钩子层通道生效时以它为准：输入法吞掉的那半个组合只在那里可见。
+    if (osCapture) return;
+    // 输入法组字期间不采集：这些键是给输入法的，抢过来只会打架。
+    if (event.isComposing) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.repeat) return;
+    handleKey(event.code, true);
+  }
+
+  function onKeyup(event: KeyboardEvent) {
+    if (!recording.value) return;
+    if (osCapture) return;
+    event.preventDefault();
+    event.stopPropagation();
+    handleKey(event.code, false);
+  }
+
   /**
    * 录入期让输入法让位。
    *
@@ -210,15 +228,25 @@ export function useHotkeyRecorder(options: HotkeyRecorderOptions) {
    * 话用户按的修饰键会被它直接吃掉，前端连 keydown 都收不到（现场：Ctrl+右Ctrl
    * 只录到右 Ctrl）。平台侧会把录入窗口线程的输入区域切到非 IME 布局，恢复时切回。
    */
-  function yieldInputMethod() {
+  async function yieldInputMethod() {
     if (imeYielded) return;
     imeYielded = true;
-    void beginShortcutCapture().catch(() => {
+    try {
+      // 先订阅边沿，再打开吞键：反过来的话最早几条边沿会丢。
+      unlistenHook = await listenShortcutCapture((code, isDown) => handleKey(code, isDown));
+      osCapture = await beginShortcutCapture();
+    } catch {
+      unlistenHook?.();
+      unlistenHook = undefined;
+      osCapture = false;
       imeYielded = false;
-    });
+    }
   }
 
   function restoreInputMethod() {
+    unlistenHook?.();
+    unlistenHook = undefined;
+    osCapture = false;
     if (!imeYielded) return;
     imeYielded = false;
     void endShortcutCapture().catch(() => undefined);
@@ -228,7 +256,7 @@ export function useHotkeyRecorder(options: HotkeyRecorderOptions) {
     recording.value = true;
     pressed = new Set();
     captured = [];
-    yieldInputMethod();
+    void yieldInputMethod();
     window.addEventListener("keydown", onKeydown, true);
     window.addEventListener("keyup", onKeyup, true);
     window.addEventListener("blur", onWindowBlur);

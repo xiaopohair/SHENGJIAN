@@ -1,11 +1,15 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it, vi } from "vitest";
 import { defineComponent, h, ref } from "vue";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import { useHotkeyRecorder } from "./useHotkeyRecorder";
 
-const beginShortcutCapture = vi.fn(async () => undefined);
+const beginShortcutCapture = vi.fn(async (): Promise<boolean> => false);
 const endShortcutCapture = vi.fn(async () => undefined);
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: vi.fn(async () => () => undefined),
+}));
+
 vi.mock("../lib/api", () => ({
   beginShortcutCapture: () => beginShortcutCapture(),
   endShortcutCapture: () => endShortcutCapture(),
@@ -129,21 +133,26 @@ describe("useHotkeyRecorder", () => {
     wrapper.unmount();
   });
 
-  it("yields the input method while recording and restores it after", () => {
+  it("yields the input method while recording and restores it after", async () => {
     const { wrapper, api } = mountRecorder();
     beginShortcutCapture.mockClear();
     endShortcutCapture.mockClear();
+    beginShortcutCapture.mockResolvedValueOnce(false);
     api.toggle();
+    // 订阅钩子通道是异步的：先 await listen 再打开吞键。
+    await flushPromises();
     expect(beginShortcutCapture).toHaveBeenCalledTimes(1);
     api.toggle();
     expect(endShortcutCapture).toHaveBeenCalledTimes(1);
     wrapper.unmount();
   });
 
-  it("restores the input method when recording settles", () => {
+  it("restores the input method when recording settles", async () => {
     const { wrapper, api } = mountRecorder();
     endShortcutCapture.mockClear();
+    beginShortcutCapture.mockResolvedValueOnce(false);
     api.toggle();
+    await flushPromises();
     keyEvent("keydown", "ControlLeft");
     keyEvent("keydown", "KeyM");
     expect(api.recording.value).toBe(false);
