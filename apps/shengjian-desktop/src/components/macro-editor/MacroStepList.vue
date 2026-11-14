@@ -315,14 +315,17 @@ onBeforeUnmount(() => stopDrag(false));
   gap: 8px;
   align-items: center;
   min-height: 48px;
-  border: 1px solid var(--border);
+  /* 行要能被一眼数出来：实色描边 + 抬起的浅底，而不是靠留白猜边界 */
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
+  background: var(--bg-raised);
   padding: 8px;
+  box-shadow: var(--shadow-sm);
   cursor: pointer;
 }
 .step-row:hover {
-  border-color: var(--border-strong);
-  background: var(--bg-subtle);
+  border-color: var(--accent);
+  background: var(--bg-raised);
 }
 .step-row:focus-visible {
   outline: 2px solid var(--accent);
