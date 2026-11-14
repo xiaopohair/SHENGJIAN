@@ -1,6 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
-import { BatteryMedium, Bluetooth, Clock3, Cpu, Mic, RefreshCw, Wrench } from "lucide-vue-next";
+import {
+  BatteryMedium,
+  Bluetooth,
+  Clock3,
+  Cpu,
+  Mic,
+  RefreshCw,
+  SlidersHorizontal,
+  Wrench,
+} from "lucide-vue-next";
 import {
   errorMessage,
   getRc003HelperInstalled,
@@ -27,6 +36,7 @@ import Card from "../components/ui/Card.vue";
 import Checkbox from "../components/ui/Checkbox.vue";
 import EmptyState from "../components/ui/EmptyState.vue";
 import Field from "../components/ui/Field.vue";
+import IconButton from "../components/ui/IconButton.vue";
 import Notice from "../components/ui/Notice.vue";
 import RangeInput from "../components/ui/RangeInput.vue";
 import SectionHeader from "../components/ui/SectionHeader.vue";
@@ -532,14 +542,14 @@ onUnmounted(() => {
             <Button v-else size="sm" :disabled="store.scanning" @click="refresh">
               {{ trDynamic(store.scanning ? "扫描中" : "扫描设备") }}
             </Button>
-            <button
+            <IconButton
               v-if="store.isConnected"
-              type="button"
-              class="hero-link"
+              size="sm"
+              :label="tr('设置')"
               @click="focusOverrides"
             >
-              {{ tr("设置") }}
-            </button>
+              <SlidersHorizontal :size="15" />
+            </IconButton>
           </div>
         </div>
       </div>
@@ -1079,10 +1089,6 @@ onUnmounted(() => {
   /* 按钮与文字链接底部对齐 */
   align-items: flex-end;
   gap: var(--space-3);
-}
-
-.hero-actions .hero-link {
-  padding-bottom: 1px;
 }
 
 .hero-link {
