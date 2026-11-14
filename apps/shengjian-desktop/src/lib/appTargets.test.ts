@@ -10,6 +10,7 @@ import {
   mergeAppTargetsText,
   splitAppTargets,
   subtitleOf,
+  defaultProfileName,
 } from "./appTargets";
 import { hasTranslation } from "./i18n";
 import type { AppTargetInfo } from "./types";
@@ -184,5 +185,23 @@ describe("app target status", () => {
     for (const issue of [...issues, null]) {
       expect(hasTranslation(issueBadgeKey(issue))).toBe(true);
     }
+  });
+});
+
+describe("defaultProfileName", () => {
+  it("prefers the display name from the picker", () => {
+    expect(defaultProfileName("workbuddy.exe", "WorkBuddy")).toBe("WorkBuddy");
+  });
+
+  it("derives a readable name from the target when there is no display name", () => {
+    expect(defaultProfileName("workbuddy.exe")).toBe("Workbuddy");
+    expect(defaultProfileName("C:/Apps/WeChat.exe")).toBe("WeChat");
+    expect(defaultProfileName("Notepad.exe")).toBe("Notepad");
+  });
+
+  it("keeps preset ids and returns empty for blank input", () => {
+    expect(defaultProfileName("netease_music")).toBe("Netease_music");
+    expect(defaultProfileName("", "  ")).toBe("");
+    expect(defaultProfileName("   ")).toBe("");
   });
 });

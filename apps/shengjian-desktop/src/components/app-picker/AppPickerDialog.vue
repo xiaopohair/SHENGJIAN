@@ -48,7 +48,8 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-  select: [target: string];
+  /** 选中目标；第二个参数是显示名（新方案默认拿它当名字）。 */
+  select: [target: string, displayName?: string];
   close: [];
 }>();
 
@@ -315,7 +316,7 @@ function choose(option: PickerOption | undefined) {
   if (!option || option.disabled) return;
   const value = isMatchMode.value ? option.matchTarget : option.target;
   if (!value) return;
-  emit("select", value);
+  emit("select", value, option.displayName);
   requestClose();
 }
 
@@ -423,7 +424,7 @@ async function browse() {
         pushUnmatchable();
         return;
       }
-      emit("select", name);
+      emit("select", name, info?.displayName ?? name);
       requestClose();
       return;
     }
@@ -438,7 +439,7 @@ async function browse() {
       pushUnavailable(infoDetail(info));
       return;
     }
-    emit("select", info.target);
+    emit("select", info.target, info.displayName ?? undefined);
     requestClose();
   } catch (cause) {
     pushUnavailable(errorMessage(cause));
@@ -509,9 +510,9 @@ function confirmManual() {
   if (isMatchMode.value) {
     const name = info.executableName?.trim();
     if (!name) return;
-    emit("select", name);
+    emit("select", name, info.displayName ?? name);
   } else {
-    emit("select", info.target);
+    emit("select", info.target, info.displayName ?? undefined);
   }
   requestClose();
 }

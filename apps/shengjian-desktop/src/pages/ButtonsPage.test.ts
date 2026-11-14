@@ -237,7 +237,8 @@ describe("ButtonsPage profile navigation and editor", () => {
     expect(saveButtonProfiles).toHaveBeenCalledTimes(1);
     // 编辑工具栏已删除，方案上下文由 chip + 工作台承载。
     expect(wrapper.find(".editor-toolbar").exists()).toBe(false);
-    expect(wrapper.find(".profile-chip").text()).toContain("新方案");
+    // 方案名默认取所选程序的显示名（用户没指定名字时不再叫「新方案」）。
+    expect(wrapper.find(".profile-chip").text()).toContain("记事本");
     expect(wrapper.find(".profile-workbench").exists()).toBe(true);
     expect(wrapper.findAll(".profile-chip")).toHaveLength(1);
     expect(wrapper.find(".profile-chip.new-chip").exists()).toBe(false);

@@ -36,6 +36,27 @@ export function mergeAppTarget(targets: readonly string[], next: string): string
   return [...merged, candidate];
 }
 
+/**
+ * 新方案的默认名字：优先用选择器给的显示名（如 `WorkBuddy`），
+ * 否则从目标里推出一个可读名（去掉目录与 `.exe`，首字母大写）。
+ *
+ * 用户没指定名字时用它，比一律叫「新方案」更容易认。
+ */
+export function defaultProfileName(target: string, displayName?: string | null): string {
+  const given = (displayName ?? "").trim();
+  if (given) return given;
+  const raw = (target ?? "").trim();
+  if (!raw) return "";
+  const base = raw
+    .replace(/^.*[\\/]/, "")
+    .replace(/\.(exe|bat|cmd|lnk|msc)$/i, "")
+    .trim();
+  if (!base) return "";
+  // 已带空格或大写（prose 名）就原样用，否则首字母大写便于阅读。
+  if (/[\sA-Z]/.test(base)) return base;
+  return base.charAt(0).toUpperCase() + base.slice(1);
+}
+
 /** `mergeAppTarget` 的文本字段版本，直接写回 `draft.appTargets`。 */
 export function mergeAppTargetsText(current: string, next: string): string {
   return joinAppTargets(mergeAppTarget(splitAppTargets(current), next));

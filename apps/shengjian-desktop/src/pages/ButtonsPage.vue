@@ -34,7 +34,7 @@ import {
 import { statusLabel, tr, trDynamic } from "../lib/i18n";
 import { confirmAction } from "../lib/confirm";
 import { pushToast } from "../lib/toast";
-import { mergeAppTargetsText, splitAppTargets } from "../lib/appTargets";
+import { defaultProfileName, mergeAppTargetsText, splitAppTargets } from "../lib/appTargets";
 import { supportsKeyEnhancement } from "../lib/keyEnhancement";
 import { useAppPicker } from "../composables/useAppPicker";
 import AppPickerDialog from "../components/app-picker/AppPickerDialog.vue";
@@ -390,15 +390,19 @@ async function startNew() {
   openPickerFor("new-profile");
 }
 
-/** 用选中的应用目标创建方案并进入编辑（由应用选择器回调触发）。 */
-async function createProfileWithTarget(target: string) {
+/**
+ * 用选中的应用目标创建方案并进入编辑（由应用选择器回调触发）。
+ *
+ * 名字默认取程序名（用户没特别指定时，比「新方案」更好认）；用户可在属性里改。
+ */
+async function createProfileWithTarget(target: string, displayName?: string) {
   if (!profilesDocument.value) return;
   busy.value = true;
   error.value = null;
   try {
     const created: ButtonProfile = {
       id: `profile-${crypto.randomUUID()}`,
-      name: tr("新方案"),
+      name: defaultProfileName(target, displayName) || tr("新方案"),
       appTargets: [target],
       autoApply: false,
       holdRepeat: null,
@@ -727,12 +731,12 @@ function closeAppPickerAndReset() {
   closeAppPicker();
 }
 
-async function onAppPicked(target: string) {
+async function onAppPicked(target: string, displayName?: string) {
   const purpose = appPickerPurpose.value;
   appPickerPurpose.value = null;
   closeAppPicker();
   if (purpose === "new-profile") {
-    await createProfileWithTarget(target);
+    await createProfileWithTarget(target, displayName);
     return;
   }
   if (editor.value) {

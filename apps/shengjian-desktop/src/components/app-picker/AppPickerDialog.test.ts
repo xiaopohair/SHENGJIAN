@@ -225,7 +225,7 @@ describe("AppPickerDialog", () => {
     input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     await flushPromises();
 
-    expect(wrapper.emitted("select")?.[0]).toEqual(["wechat"]);
+    expect(wrapper.emitted("select")?.[0]?.[0]).toBe("wechat");
     expect(wrapper.emitted("close")).toHaveLength(1);
   });
 
@@ -239,7 +239,7 @@ describe("AppPickerDialog", () => {
     input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     await flushPromises();
 
-    expect(wrapper.emitted("select")?.[0]).toEqual(["C:\\Windows\\notepad.exe"]);
+    expect(wrapper.emitted("select")?.[0]?.[0]).toBe("C:\\Windows\\notepad.exe");
   });
 
   it("emits the executable name in match mode and disables unmatched apps", async () => {
@@ -248,7 +248,7 @@ describe("AppPickerDialog", () => {
 
     optionByText("微信").click();
     await flushPromises();
-    expect(wrapper.emitted("select")?.[0]).toEqual(["WeChat.exe"]);
+    expect(wrapper.emitted("select")?.[0]?.[0]).toBe("WeChat.exe");
 
     const calculator = optionByText("计算器");
     expect(calculator.getAttribute("aria-disabled")).toBe("true");
@@ -325,7 +325,7 @@ describe("AppPickerDialog", () => {
     confirm!.click();
     await flushPromises();
 
-    expect(wrapper.emitted("select")?.[0]).toEqual(["chrome"]);
+    expect(wrapper.emitted("select")?.[0]?.[0]).toBe("chrome");
   });
 
   it("keeps confirm disabled when the manual target cannot be launched", async () => {
@@ -363,6 +363,6 @@ describe("AppPickerDialog", () => {
     await flushPromises();
 
     expect(openDialog).toHaveBeenCalledTimes(1);
-    expect(wrapper.emitted("select")?.[0]).toEqual(["chrome"]);
+    expect(wrapper.emitted("select")?.[0]?.[0]).toBe("chrome");
   });
 });
