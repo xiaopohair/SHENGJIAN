@@ -29,6 +29,7 @@ import {
   getRemoteBattery,
   getSettings,
   importConfiguration,
+  installRc003Helper,
   listAudioEndpoints,
   openDiagnosticLogFolder,
   openExternalUrl,
@@ -37,6 +38,7 @@ import {
   saveSettings,
   setAutostartEnabled,
   setTrayLanguage,
+  uninstallRc003Helper,
 } from "../lib/api";
 import { ONBOARDING_KEY, ACCENT_KEY, applyAccent, applyTheme } from "../lib/preferences";
 import { confirmAction } from "../lib/confirm";
@@ -149,6 +151,87 @@ const activeSection = ref<SectionId>("appearance");
 const busy = shallowRef(false);
 const loading = shallowRef(true);
 const error = shallowRef<string | null>(null);
+
+/** 按键增强服务（RC003 helper）：安装 / 更新 / 卸载都在设置里统一管理。 */
+const rc003HelperInstalled = shallowRef(false);
+const helperBusy = shallowRef(false);
+const helperMessage = shallowRef<string | null>(null);
+let helperPoll: number | undefined;
+
+async function refreshHelperInstalled(): Promise<boolean> {
+  rc003HelperInstalled.value = await getRc003HelperInstalled().catch(() => false);
+  return rc003HelperInstalled.value;
+}
+
+async function installHelper() {
+  if (helperBusy.value) return;
+  helperBusy.value = true;
+  helperMessage.value = null;
+  error.value = null;
+  window.clearInterval(helperPoll);
+  try {
+    await installRc003Helper();
+    helperMessage.value = tr("已请求管理员授权；完成 UAC 后会自动刷新状态。");
+    let attempts = 0;
+    helperPoll = window.setInterval(async () => {
+      attempts += 1;
+      if (await refreshHelperInstalled()) {
+        window.clearInterval(helperPoll);
+        helperMessage.value = tr("helper 已安装；计划任务会自动启动。");
+      } else if (attempts >= 15) {
+        window.clearInterval(helperPoll);
+        helperMessage.value = tr("未检测到 helper 安装完成，请确认 UAC 已通过后重新检测。");
+      }
+    }, 2000);
+  } catch (cause) {
+    error.value = errorMessage(cause);
+  } finally {
+    helperBusy.value = false;
+  }
+}
+
+async function uninstallHelper() {
+  if (helperBusy.value) return;
+  const confirmed = await confirmAction({
+    title: tr("卸载按键增强服务？"),
+    message: tr("会移除后台计划任务，返回键和音量键的增强捕获将失效；需要时会重新请求管理员授权。"),
+    confirmLabel: tr("卸载"),
+    danger: true,
+  });
+  if (!confirmed) return;
+  helperBusy.value = true;
+  helperMessage.value = null;
+  error.value = null;
+  window.clearInterval(helperPoll);
+  try {
+    await uninstallRc003Helper();
+    helperMessage.value = tr("已请求管理员授权；完成 UAC 后会移除服务。");
+    // 顺手关掉增强捕获，避免留下「开关开着但服务没了」的状态。
+    if (settingsDocument.value?.global.rc003_capture_enabled) {
+      const next: SettingsDocument = {
+        ...settingsDocument.value,
+        global: { ...settingsDocument.value.global, rc003_capture_enabled: false },
+      };
+      await saveSettings(next);
+      settingsDocument.value = next;
+    }
+    let attempts = 0;
+    helperPoll = window.setInterval(async () => {
+      attempts += 1;
+      if (!(await refreshHelperInstalled())) {
+        window.clearInterval(helperPoll);
+        helperMessage.value = tr("按键增强服务已卸载。");
+      } else if (attempts >= 15) {
+        window.clearInterval(helperPoll);
+        helperMessage.value = tr("未检测到卸载完成，请确认 UAC 已通过后重新检测。");
+      }
+    }, 2000);
+  } catch (cause) {
+    error.value = errorMessage(cause);
+  } finally {
+    helperBusy.value = false;
+  }
+}
 
 let saveTimer: number | undefined;
 let loadingSettings = false;
@@ -282,6 +365,7 @@ async function load() {
     language.value = String(settings.global.application_language ?? "system");
     setLanguagePreference(language.value);
     endpoints.value = await listAudioEndpoints();
+    await refreshHelperInstalled();
   } catch (cause) {
     error.value = errorMessage(cause);
     activeSection.value = "diagnostics";
@@ -363,6 +447,7 @@ watch(
 );
 
 onBeforeUnmount(() => {
+  window.clearInterval(helperPoll);
   if (saveTimer === undefined) return;
   window.clearTimeout(saveTimer);
   saveTimer = undefined;
@@ -741,6 +826,42 @@ onMounted(async () => {
             </div>
           </Card>
 
+          <p class="settings-group-label">{{ tr("按键增强") }}</p>
+          <Card>
+            <div class="settings-rows">
+              <SettingRow
+                label="按键增强服务"
+                hint="返回键和音量键需要增强捕获组件；首次安装会请求管理员授权。"
+              >
+                <div class="helper-control">
+                  <StatusPill
+                    :label="trDynamic(rc003HelperInstalled ? '已安装' : '未安装')"
+                    :tone="rc003HelperInstalled ? 'success' : 'warning'"
+                    dot
+                  />
+                  <Button
+                    size="sm"
+                    :variant="rc003HelperInstalled ? 'secondary' : 'primary'"
+                    :disabled="helperBusy"
+                    @click="installHelper"
+                  >
+                    {{ trDynamic(rc003HelperInstalled ? "更新" : "安装") }}
+                  </Button>
+                  <Button
+                    v-if="rc003HelperInstalled"
+                    size="sm"
+                    variant="danger"
+                    :disabled="helperBusy"
+                    @click="uninstallHelper"
+                  >
+                    {{ tr("卸载按键增强服务") }}
+                  </Button>
+                </div>
+              </SettingRow>
+              <Notice v-if="helperMessage" kind="info">{{ helperMessage }}</Notice>
+            </div>
+          </Card>
+
           <p class="settings-group-label">{{ tr("语音") }}</p>
           <Card v-if="settingsDocument">
             <div class="settings-rows">
@@ -1051,6 +1172,13 @@ onMounted(async () => {
 
 .settings-inline-note.warning {
   color: var(--warning-text);
+}
+
+.helper-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .settings-inline-warning {

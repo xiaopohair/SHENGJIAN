@@ -1010,6 +1010,12 @@ const ENGLISH = {
   需要开启按键增强后才能设置此键: "Turn on key enhancement before configuring this key",
 
   "返回键、音量键需开启按键增强": "Back and volume keys need key enhancement",
+  "返回键、音量键需要按键增强服务；安装、更新与卸载在「设置 → 音频及语音」中统一管理。":
+    "Back and volume keys need the key enhancement service; install, update and uninstall it under Settings → Audio & voice.",
+  "未检测到 helper 安装完成，请确认 UAC 已通过后重新检测。":
+    "The helper install wasn't detected; confirm the UAC prompt and check again",
+  "未检测到卸载完成，请确认 UAC 已通过后重新检测。":
+    "The removal wasn't detected; confirm the UAC prompt and check again",
   按键增强: "Key enhancement",
   方案激活: "Profile activation",
   更多操作: "More actions",

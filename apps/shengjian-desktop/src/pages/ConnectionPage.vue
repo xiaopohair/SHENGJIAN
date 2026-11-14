@@ -5,8 +5,6 @@ import {
   errorMessage,
   getRc003HelperInstalled,
   getSettings,
-  installRc003Helper,
-  uninstallRc003Helper,
   listAudioEndpoints,
   saveSettings,
 } from "../lib/api";
@@ -34,7 +32,6 @@ import SectionHeader from "../components/ui/SectionHeader.vue";
 import SelectInput from "../components/ui/SelectInput.vue";
 import StatusPill from "../components/ui/StatusPill.vue";
 import { pushToast } from "../lib/toast";
-import { confirmAction } from "../lib/confirm";
 import { useEngineStore } from "../stores/engine";
 import { useStatusStore } from "../stores/status";
 
@@ -51,7 +48,6 @@ const deviceVoiceInputTool = shallowRef("");
 const { catalog: voiceToolCatalog, load: loadVoiceToolCatalog } = useVoiceToolCatalog();
 const rc003Capture = shallowRef(false);
 const rc003HelperInstalled = shallowRef(false);
-const helperMessage = shallowRef<string | null>(null);
 const settingsDocument = ref<SettingsDocument | null>(null);
 const settingsDeviceId = shallowRef<string | null>(null);
 let saveTimer: number | undefined;
@@ -246,64 +242,6 @@ watch(deviceId, () => {
     statusStore.setVoiceInputTool(String(settingsDocument.value?.global.voice_input_tool ?? ""));
   }
 });
-
-async function installHelper() {
-  settingsError.value = null;
-  helperMessage.value = null;
-  try {
-    await installRc003Helper();
-    helperMessage.value = tr("已请求管理员授权；完成 UAC 后会自动刷新状态。");
-    let attempts = 0;
-    window.clearInterval(helperPoll);
-    helperPoll = window.setInterval(async () => {
-      attempts += 1;
-      rc003HelperInstalled.value = await getRc003HelperInstalled();
-      if (rc003HelperInstalled.value) {
-        window.clearInterval(helperPoll);
-        helperMessage.value = tr("helper 已安装；计划任务会自动启动。");
-      } else if (attempts >= 15) {
-        window.clearInterval(helperPoll);
-        helperMessage.value = tr("未检测到 helper 安装完成，请确认 UAC 已通过后点“刷新”。");
-      }
-    }, 2000);
-  } catch (cause) {
-    settingsError.value = errorMessage(cause);
-  }
-}
-
-/** 卸载按键增强服务：确认 → 提权移除计划任务 → 顺手关掉增强捕获开关。 */
-async function uninstallHelper() {
-  const confirmed = await confirmAction({
-    title: tr("卸载按键增强服务？"),
-    message: tr("会移除后台计划任务，返回键和音量键的增强捕获将失效；需要时会重新请求管理员授权。"),
-    confirmLabel: tr("卸载"),
-    danger: true,
-  });
-  if (!confirmed) return;
-  settingsError.value = null;
-  helperMessage.value = null;
-  try {
-    await uninstallRc003Helper();
-    helperMessage.value = tr("已请求管理员授权；完成 UAC 后会移除服务。");
-    // 顺手关掉增强捕获，避免留下「开关开着但服务没了」的状态。
-    if (rc003Capture.value) rc003Capture.value = false;
-    let attempts = 0;
-    window.clearInterval(helperPoll);
-    helperPoll = window.setInterval(async () => {
-      attempts += 1;
-      rc003HelperInstalled.value = await getRc003HelperInstalled();
-      if (!rc003HelperInstalled.value) {
-        window.clearInterval(helperPoll);
-        helperMessage.value = tr("按键增强服务已卸载。");
-      } else if (attempts >= 15) {
-        window.clearInterval(helperPoll);
-        helperMessage.value = tr("未检测到卸载完成，请确认 UAC 已通过后点“刷新”。");
-      }
-    }, 2000);
-  } catch (cause) {
-    settingsError.value = errorMessage(cause);
-  }
-}
 
 async function refresh() {
   autoConnectFailed.value = false;
@@ -617,31 +555,11 @@ onUnmounted(() => {
         {{ tr("启用 RC003 增强捕获") }}
       </Checkbox>
 
-      <div v-if="rc003Capture" class="helper-panel">
-        <div class="helper-main">
-          <div class="helper-head">
-            <span class="helper-name">{{ tr("RC003 增强捕获服务") }}</span>
-            <StatusPill
-              :label="trDynamic(rc003HelperInstalled ? '已安装' : '未安装')"
-              :tone="rc003HelperInstalled ? 'success' : 'warning'"
-            />
-          </div>
-          <p class="helper-description">
-            {{ tr("返回键和音量键需要增强捕获组件；首次安装会请求管理员授权。") }}
-          </p>
-          <Notice v-if="helperMessage" :kind="rc003HelperInstalled ? 'success' : 'info'">
-            {{ helperMessage }}
-          </Notice>
-        </div>
-        <div class="helper-actions">
-          <Button :variant="rc003HelperInstalled ? 'secondary' : 'primary'" @click="installHelper">
-            {{ trDynamic(rc003HelperInstalled ? "更新" : "安装") }}
-          </Button>
-          <Button v-if="rc003HelperInstalled" variant="danger" @click="uninstallHelper">
-            {{ tr("卸载按键增强服务") }}
-          </Button>
-        </div>
-      </div>
+      <p class="helper-description">
+        {{
+          tr("返回键、音量键需要按键增强服务；安装、更新与卸载在「设置 → 音频及语音」中统一管理。")
+        }}
+      </p>
     </Card>
   </section>
 </template>
