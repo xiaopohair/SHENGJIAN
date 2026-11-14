@@ -504,14 +504,14 @@ onUnmounted(() => {
           <div class="hero-chips">
             <span class="hero-chip" :class="{ offline: !store.isConnected }">
               <i aria-hidden="true" />
-              {{ store.isConnected ? tr("蓝牙已连接") : tr("蓝牙未连接") }}
+              {{ store.isConnected ? tr("蓝牙 · 已连接") : tr("蓝牙 · 未连接") }}
             </span>
             <span class="hero-chip"
               ><Mic :size="13" aria-hidden="true" />{{ tr("语音") }} · {{ voiceChipLabel }}</span
             >
             <span class="hero-chip">
               <Wrench :size="13" aria-hidden="true" />
-              {{ rc003ChipVisible ? tr("按键增强已装") : tr("按键增强未装") }}
+              {{ rc003ChipVisible ? tr("按键增强 · 已安装") : tr("按键增强 · 未安装") }}
             </span>
           </div>
         </div>
