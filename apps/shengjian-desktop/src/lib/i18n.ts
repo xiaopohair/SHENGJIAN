@@ -1032,6 +1032,11 @@ const ENGLISH = {
     "Shengjian is in the foreground, so voice won't be typed into it; switch to the app you want to type in first",
   "按下遥控器语音键时注入的组合键；避免用 Win 组合键（会被系统占用）":
     "Chord injected when the remote voice key is pressed; avoid Win chords (the system claims them)",
+  安全录入模式: "Safe capture mode",
+  "先点下面的修饰键，再按一次主键": "Pick the modifiers below first, then press the main key once",
+  选择组合键: "Choose chord",
+  "点选修饰键与主键即可组合，不用在键盘上按下。":
+    "Pick modifiers and a main key below instead of pressing them on the keyboard.",
   选择语音热键: "Choose voice hotkey",
   "按下遥控器语音键时注入的组合键。点击下方按键来组合，不用真的按键盘。":
     "Chord injected when the remote voice key is pressed. Click the keys below instead of typing them.",

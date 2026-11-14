@@ -447,27 +447,6 @@ mod windows_impl {
     static EDGE_SINK: OnceLock<Arc<dyn Fn(ButtonEdge) + Send + Sync>> = OnceLock::new();
     static SHORTCUT_CAPTURE_SINK: OnceLock<super::ShortcutCaptureCallback> = OnceLock::new();
 
-/// 录入期投递给前端的边沿计数（收尾日志用：一眼看出"边沿到底有没有到"）。
-static CAPTURE_EDGES_SENT: AtomicU64 = AtomicU64::new(0);
-/// 录入武装宽限（毫秒）：preheld 里有"按下却永远等不到释放沿"的键时
-/// （注入副本缺失、驱动层吃掉 UP 等），旧逻辑会让 `PREHELD_PENDING_COUNT`
-/// 永久 >0，从而**整段录入零边沿**。超过这个时间就强制武装，宁可放弃
-/// "等 preheld 松开"的保护，也不能让用户完全录不到。
-const CAPTURE_ARM_GRACE_MS: u64 = 600;
-
-/// 录入开始时刻（强制武装判定用）。
-static CAPTURE_ARMED_AT_MS: AtomicU64 = AtomicU64::new(0);
-
-/// 录入期原始事件跟踪（最多 40 条，收尾日志一次性打出）。
-///
-/// 只为定位"某些组合录不到"的现场：能区分边沿没到钩子、到了但没映射、
-/// 或被吞掉却没投递。常态不产生开销（仅录入期写入）。
-static CAPTURE_TRACE: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
-
-/// 最近一条投递边沿（键 / 上下 / 是否注入副本），收尾日志归因用。
-static CAPTURE_LAST_EDGE: std::sync::Mutex<Option<(crate::send_input::KeyCode, bool, bool)>> =
-    std::sync::Mutex::new(None);
-
     thread_local! {
         /// (vk, make) → 按住配对状态（true=本次按住的 DOWN 全部被吞）。
         /// 仅钩子线程读写。
@@ -658,24 +637,13 @@ static CAPTURE_LAST_EDGE: std::sync::Mutex<Option<(crate::send_input::KeyCode, b
         }
         // WM_KEYDOWN=0x0100 / WM_KEYUP=0x0101（SYS 变体语义相同：仅上下沿区分）。
         let message = if is_key_down { 0x0100 } else { 0x0101 };
-        if SHORTCUT_CAPTURE_ACTIVE.load(Ordering::Relaxed) {
-            let mapped = super::capture_key_code(vk_code, make_code, flags.contains(LLKHF_EXTENDED));
-            if let Ok(mut trace) = CAPTURE_TRACE.lock() {
-                if trace.len() < 40 {
-                    trace.push(format!(
-                        "vk=0x{vk_code:02X} make=0x{make_code:02X} fl=0x{flags_raw:04X} \
-                         {} inj={} key={}",
-                        if is_key_down { "down" } else { "up" },
-                        injected,
-                        mapped.map_or_else(|| "none".to_owned(), |key| format!("{key:?}")),
-                    ));
-                }
-            }
-        }
         if handle_shortcut_capture(vk_code, make_code, message, flags) {
             return true;
         }
-        handle_keyboard(vk_code, make_code, message, flags)
+        if handle_keyboard(vk_code, make_code, message, flags) {
+            return true;
+        }
+        false
     }
 
     /// 宿主进程钩子安装结果报告（key_host 读线程调用）：
@@ -757,21 +725,12 @@ static CAPTURE_LAST_EDGE: std::sync::Mutex<Option<(crate::send_input::KeyCode, b
             // 录入未武装（仍有 preheld 键按住）：物理按键照常成对吞下，
             // 但不投递录入通道——preheld 键的边沿本就不可见，此时投递的
             // 新组合会被前端按"全部松开"截断成半截组合落盘。
-            let armed = PREHELD_PENDING_COUNT.load(Ordering::Relaxed) == 0
-                || now_ms().saturating_sub(CAPTURE_ARMED_AT_MS.load(Ordering::Relaxed))
-                    > CAPTURE_ARM_GRACE_MS;
-            if armed {
-                // 强制武装后 preheld 保护已失效，清零避免后续误判。
-                if PREHELD_PENDING_COUNT.load(Ordering::Relaxed) != 0 {
-                    PREHELD_PENDING_COUNT.store(0, Ordering::Relaxed);
-                }
+            if PREHELD_PENDING_COUNT.load(Ordering::Relaxed) == 0 {
                 match (
                     super::capture_key_code(vk_code, make_code, flags.contains(LLKHF_EXTENDED)),
                     SHORTCUT_CAPTURE_SINK.get(),
                 ) {
                     (Some(key), Some(sink)) => {
-                        CAPTURE_EDGES_SENT.fetch_add(1, Ordering::Relaxed);
-                        *CAPTURE_LAST_EDGE.lock().unwrap() = Some((key, is_pressed, injected));
                         sink(super::ShortcutCaptureEdge {
                             key,
                             is_pressed,
@@ -1102,31 +1061,6 @@ static CAPTURE_LAST_EDGE: std::sync::Mutex<Option<(crate::send_input::KeyCode, b
         )
     }
 
-    /// 录入期原始事件跟踪快照（收尾日志用）。
-    pub fn shortcut_capture_trace() -> Vec<String> {
-        CAPTURE_TRACE
-            .lock()
-            .map(|guard| guard.clone())
-            .unwrap_or_default()
-    }
-
-    /// 录入边沿诊断：`(投递条数, 最后一条的 "键/上|下/real|injected")`。
-    pub fn shortcut_capture_stats() -> (u64, String) {
-        let last = CAPTURE_LAST_EDGE
-            .lock()
-            .ok()
-            .and_then(|guard| *guard)
-            .map(|(key, pressed, injected)| {
-                format!(
-                    "{key:?}/{} /{}",
-                    if pressed { "down" } else { "up" },
-                    if injected { "injected" } else { "real" }
-                )
-            })
-            .unwrap_or_else(|| "-".to_owned());
-        (CAPTURE_EDGES_SENT.load(Ordering::Relaxed), last)
-    }
-
     pub fn set_shortcut_capture_active(active: bool) -> bool {
         if active && !GATE_ACTIVE.load(Ordering::Relaxed) {
             return false;
@@ -1146,14 +1080,6 @@ static CAPTURE_LAST_EDGE: std::sync::Mutex<Option<(crate::send_input::KeyCode, b
                 if !super::is_hook_reported_vk(vk) {
                     continue;
                 }
-                // F5（0x74）是语音键标记，由抑制器/注入侧维护；实测录入开始时
-                // `GetAsyncKeyState(0x74)` 常处于"半按"残留态，把它算进 preheld
-                // 会让录入一直等它松开（日志：preheld=[116] → edges=0）。
-                const VOICE_MARKER_VK: u32 = 0x74; // F5
-                if vk == VOICE_MARKER_VK {
-                    SHORTCUT_CAPTURE_PREHELD[vk as usize].store(false, Ordering::Relaxed);
-                    continue;
-                }
                 let down = unsafe { GetAsyncKeyState(vk as i32) } < 0;
                 SHORTCUT_CAPTURE_PREHELD[vk as usize].store(down, Ordering::Relaxed);
                 if down {
@@ -1165,26 +1091,6 @@ static CAPTURE_LAST_EDGE: std::sync::Mutex<Option<(crate::send_input::KeyCode, b
             }
             PREHELD_PENDING_COUNT.store(pending, Ordering::Relaxed);
             *super::PREHELD_CAPTURE_DRAIN.lock().unwrap() = preheld;
-        }
-        if active {
-            CAPTURE_EDGES_SENT.store(0, Ordering::Relaxed);
-            CAPTURE_ARMED_AT_MS.store(now_ms(), Ordering::Relaxed);
-            if let Ok(mut trace) = CAPTURE_TRACE.lock() {
-                trace.clear();
-            }
-            // preheld 里有键按着时录入不会武装；把它打出来，否则现场只剩
-            // "edges=0"这种无从下手的现象。
-            let held: Vec<u16> = (0x08u16..=0xFF)
-                .filter(|vk| SHORTCUT_CAPTURE_PREHELD[*vk as usize].load(Ordering::Relaxed))
-                .collect();
-            crate::ble::gatt_note(format!(
-                "shortcut_capture action=arm pending={} preheld={:?}",
-                PREHELD_PENDING_COUNT.load(Ordering::Relaxed),
-                held
-            ));
-            if let Ok(mut last) = CAPTURE_LAST_EDGE.lock() {
-                *last = None;
-            }
         }
         SHORTCUT_CAPTURE_ACTIVE.store(active, Ordering::Relaxed);
         true
@@ -1337,9 +1243,7 @@ pub use windows_impl::{
     is_gate_thread_alive, leaked_down_count, listener_active, observed_keys, observed_last_vk,
     persistent_swallow_total, phrase_panel_mask, set_edge_sink, set_enhanced_owned_mask,
     set_listener_active, set_persistent_mask, set_phrase_panel_mask, set_remote_connected,
-    set_shortcut_capture_active, set_shortcut_capture_sink, shortcut_capture_stats,
-    shortcut_capture_trace,
-    set_voice_synth_active,
+    set_shortcut_capture_active, set_shortcut_capture_sink, set_voice_synth_active,
     swallowed_edge_count, voice_synth_active, KeyGate, HOLD_LEAKED, HOLD_NONE, HOLD_SWALLOWED_ALL,
 };
 

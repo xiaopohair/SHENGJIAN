@@ -23,41 +23,36 @@ describe("ChordInput", () => {
     expect(chordFromKeyboardEvent(keyEvent({ code: "ArrowUp", key: "ArrowUp" }))?.key).toBe("up");
   });
 
-  it("ignores modifier-only presses so multi-key chords keep working", () => {
-    expect(chordFromKeyboardEvent(keyEvent({ code: "ControlLeft", key: "Control" }))).toBeNull();
-  });
-
-  it("keeps the profile editor's shortcut string format", () => {
-    // The key set produces the same "control+shift+n" string the 按键 page stores.
-    const chord = chordFromKeyboardEvent(
-      keyEvent({ code: "KeyN", key: "n", ctrlKey: true, shiftKey: true }),
-    );
-    expect([...(chord?.modifiers ?? []), chord?.key].join("+")).toBe("control+shift+n");
-  });
-
-  it("captures a chord through the input component", async () => {
+  it("opens the picker from the select button", async () => {
     const wrapper = mount(ChordInput, {
       props: { modelValue: { modifiers: [], key: "" } as MacroChord },
+      attachTo: document.body,
     });
     await wrapper.find("button").trigger("click");
-    window.dispatchEvent(keyEvent({ code: "KeyK", key: "k", ctrlKey: true }));
+    expect(document.body.querySelector(".chord-dialog")).not.toBeNull();
+    wrapper.unmount();
+  });
+
+  it("applies the picked chord", async () => {
+    const wrapper = mount(ChordInput, {
+      props: { modelValue: { modifiers: [], key: "" } as MacroChord },
+      attachTo: document.body,
+    });
+    await wrapper.find("button").trigger("click");
+    // 修饰键 Ctrl + 主键 K
+    const chips = [...document.body.querySelectorAll<HTMLElement>(".chord-chip")];
+    chips.find((chip) => chip.textContent?.trim() === "Ctrl")?.click();
+    const keys = [...document.body.querySelectorAll<HTMLElement>(".chord-key")];
+    keys.find((key) => key.textContent?.trim() === "K")?.click();
+    await wrapper.vm.$nextTick();
+    [...document.body.querySelectorAll<HTMLElement>(".chord-actions button")]
+      .find((button) => button.textContent?.includes("确定"))
+      ?.click();
     await wrapper.vm.$nextTick();
     expect(wrapper.emitted("update:modelValue")?.[0]?.[0]).toEqual({
       modifiers: ["control"],
       key: "k",
     });
-    wrapper.unmount();
-  });
-
-  it("cancels capture on Escape without emitting", async () => {
-    const wrapper = mount(ChordInput, {
-      props: { modelValue: { modifiers: ["control"], key: "n" } as MacroChord },
-    });
-    await wrapper.find("button").trigger("click");
-    window.dispatchEvent(keyEvent({ code: "Escape", key: "Escape" }));
-    await wrapper.vm.$nextTick();
-    expect(wrapper.emitted("update:modelValue")).toBeUndefined();
-    expect(wrapper.find(".chord-hint").exists()).toBe(false);
     wrapper.unmount();
   });
 

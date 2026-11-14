@@ -315,53 +315,6 @@ pub fn uninstall_rc003_helper(
         .map_err(CommandError::from)
 }
 
-/// 组合键录入开始：打开钩子层录入通道，并让输入法临时让位。
-///
-/// 返回 `true` 表示钩子通道已生效：物理边沿与输入法「吞掉 + 重放」的注入副本
-/// 都会以 `shortcut-capture` 事件发到前端；`false` 时前端退回 DOM 事件。
-///
-/// 输入法让位必须在主线程（输入区域按线程生效）。
-#[tauri::command]
-pub fn begin_shortcut_capture(app: tauri::AppHandle) -> Result<bool, CommandError> {
-    #[cfg(windows)]
-    let os_capture = shengjian_windows::key_gate::set_shortcut_capture_active(true);
-    #[cfg(not(windows))]
-    let os_capture = false;
-    app.run_on_main_thread(|| {
-        #[cfg(windows)]
-        let outcome = shengjian_windows::suspend_input_method_for_capture();
-        #[cfg(not(windows))]
-        let outcome = "capture_ime_yield outcome=unsupported".to_owned();
-        shengjian_windows::gatt_note(outcome);
-    })
-    .map_err(|error| CommandError::new("shortcut-capture", &error.to_string(), true))?;
-    shengjian_windows::gatt_note(format!(
-        "shortcut_capture action=begin os_capture={os_capture}"
-    ));
-    Ok(os_capture)
-}
-
-/// 组合键录入结束：关闭钩子层录入通道并恢复输入法布局。
-#[tauri::command]
-pub fn end_shortcut_capture(app: tauri::AppHandle) -> Result<(), CommandError> {
-    #[cfg(windows)]
-    {
-        let (edges, last) = shengjian_windows::key_gate::shortcut_capture_stats();
-        shengjian_windows::gatt_note(format!(
-            "shortcut_capture action=end edges={edges} last={last}"
-        ));
-        shengjian_windows::key_gate::set_shortcut_capture_active(false);
-    }
-    app.run_on_main_thread(|| {
-        #[cfg(windows)]
-        let outcome = shengjian_windows::restore_input_method_after_capture();
-        #[cfg(not(windows))]
-        let outcome = "capture_ime_restore outcome=unsupported".to_owned();
-        shengjian_windows::gatt_note(outcome);
-    })
-    .map_err(|error| CommandError::new("shortcut-capture", &error.to_string(), true))
-}
-
 #[tauri::command]
 pub fn host_capabilities(state: State<'_, AppState>) -> HostCapabilities {
     state.host.capabilities()
