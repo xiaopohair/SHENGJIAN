@@ -118,6 +118,8 @@ export interface MacroHistoryEntry {
 }
 
 export interface DeviceSettingsOverride {
+  /** 用户给这台遥控器起的名字（如「客厅遥控器」）；空表示用广播名。 */
+  name?: string | null;
   gainDb?: number;
   audioEndpointId?: string | null;
   audioEndpointName?: string | null;

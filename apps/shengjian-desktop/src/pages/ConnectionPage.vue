@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
-import { Bluetooth, RefreshCw } from "lucide-vue-next";
+import { BatteryMedium, Bluetooth, Clock3, Cpu, Mic, RefreshCw, Wrench } from "lucide-vue-next";
 import {
   errorMessage,
   getRc003HelperInstalled,
@@ -31,6 +31,7 @@ import Notice from "../components/ui/Notice.vue";
 import RangeInput from "../components/ui/RangeInput.vue";
 import SectionHeader from "../components/ui/SectionHeader.vue";
 import SelectInput from "../components/ui/SelectInput.vue";
+import TextInput from "../components/ui/TextInput.vue";
 import StatusPill from "../components/ui/StatusPill.vue";
 import { pushToast } from "../lib/toast";
 import { useEngineStore } from "../stores/engine";
@@ -46,6 +47,12 @@ const useDeviceOverride = shallowRef(false);
 const deviceGain = shallowRef(0);
 const deviceEndpointId = shallowRef("");
 const deviceVoiceInputTool = shallowRef("");
+/** 用户给当前遥控器起的名字；空串表示沿用广播名。 */
+const deviceNickname = shallowRef("");
+/** 本次连接开始的时刻，用于「已连接 N 分钟」。 */
+const connectedAt = shallowRef<number | null>(null);
+const nowTick = shallowRef(Date.now());
+const overridesRef = ref<HTMLElement | null>(null);
 const { catalog: voiceToolCatalog, load: loadVoiceToolCatalog } = useVoiceToolCatalog();
 const rc003Capture = shallowRef(false);
 const rc003HelperInstalled = shallowRef(false);
@@ -66,6 +73,33 @@ const supportsKeyEnhancementCapture = computed(
   () => deviceId.value !== null && supportsKeyEnhancement(remoteModel.value),
 );
 const remoteModel = computed(() => store.snapshot?.connection.remote?.model ?? null);
+/** 卡片标题：用户起的名字优先，否则退回广播名。 */
+const displayDeviceName = computed(() => deviceNickname.value.trim() || deviceName.value);
+/** 已连接时长（分钟）；刚连上显示 0 分钟。 */
+const connectedMinutes = computed(() => {
+  if (!connectedAt.value) return 0;
+  return Math.max(0, Math.floor((nowTick.value - connectedAt.value) / 60000));
+});
+/** 副标题：有昵称时显示「产品名 · 型号」；没有昵称时标题已是广播名，只补型号。 */
+const heroSubtitle = computed(() => {
+  const model = modelLabel(remoteModel.value);
+  if (deviceNickname.value.trim()) return `${deviceProductName.value} · ${model}`;
+  return model;
+});
+/** 语音胶囊：设备覆盖优先，否则用全局工具名。 */
+const voiceChipLabel = computed(() => {
+  const toolId =
+    (useDeviceOverride.value ? deviceVoiceInputTool.value : "") ||
+    String(settingsDocument.value?.global.voice_input_tool ?? "");
+  const label = voiceToolOptions(voiceToolCatalog.value, toolId).find(
+    (tool) => tool.id === toolId,
+  )?.label;
+  return label || tr("未选择");
+});
+/** 按键增强服务装了才显示这枚状态胶囊。 */
+const rc003ChipVisible = computed(
+  () => supportsKeyEnhancementCapture.value && rc003HelperInstalled.value,
+);
 const deviceProductName = computed(() => {
   const key = deviceProductNameKey(remoteModel.value);
   return key ? trDynamic(key) : deviceName.value;
@@ -142,6 +176,7 @@ function applyDeviceOverride(settings: SettingsDocument) {
   deviceGain.value = override?.gainDb ?? Math.round(settings.global.gain_db);
   deviceEndpointId.value = override?.audioEndpointId ?? settings.global.audio_endpoint_id ?? "";
   deviceVoiceInputTool.value = String(override?.voiceInputTool ?? "");
+  deviceNickname.value = override?.name ?? "";
 }
 
 function applyTopbarVoiceInputTool() {
@@ -176,8 +211,15 @@ async function saveConnectionSettings() {
     const devices = JSON.parse(JSON.stringify(latest.devices)) as SettingsDocument["devices"];
     if (id) {
       const platforms = devices[id] ?? {};
+      const override = { ...(platforms.windows ?? {}) };
+      // 昵称是设备属性，跟「独立音频设置」开关无关：关掉音频覆盖也要保留名字。
+      const nickname = deviceNickname.value.trim();
+      if (nickname) {
+        override.name = nickname;
+      } else {
+        delete override.name;
+      }
       if (useDeviceOverride.value) {
-        const override = { ...(platforms.windows ?? {}) };
         override.gainDb = Math.round(deviceGain.value);
         if (deviceEndpointId.value) {
           override.audioEndpointId = deviceEndpointId.value;
@@ -191,7 +233,15 @@ async function saveConnectionSettings() {
         }
         platforms.windows = override;
       } else {
-        delete platforms.windows;
+        // 只撤掉音频覆盖字段，昵称仍留在覆盖对象里。
+        delete override.gainDb;
+        delete override.audioEndpointId;
+        delete override.voiceInputTool;
+        if (Object.keys(override).length > 0) {
+          platforms.windows = override;
+        } else {
+          delete platforms.windows;
+        }
       }
       if (Object.keys(platforms).length > 0) {
         devices[id] = platforms;
@@ -223,7 +273,26 @@ function scheduleConnectionSave() {
   }, 250);
 }
 
-watch([rc003Capture, deviceGain, deviceEndpointId], scheduleConnectionSave);
+watch([rc003Capture, deviceGain, deviceEndpointId, deviceNickname], scheduleConnectionSave);
+
+/** 连上时记下时刻、断开清空；每 30 秒刷新一次「已连接 N 分钟」。 */
+watch(
+  () => store.isConnected,
+  (connected) => {
+    connectedAt.value = connected ? Date.now() : null;
+    nowTick.value = Date.now();
+  },
+  { immediate: true },
+);
+const minutesTimer = window.setInterval(() => {
+  if (connectedAt.value) nowTick.value = Date.now();
+}, 30000);
+onUnmounted(() => window.clearInterval(minutesTimer));
+
+/** 「设置」跳到本设备的覆盖区（同一页下方的卡片）。 */
+function focusOverrides() {
+  overridesRef.value?.scrollIntoView({ behavior: "smooth", block: "center" });
+}
 
 watch(useDeviceOverride, () => {
   if (loadingSettings) return;
@@ -363,15 +432,14 @@ onUnmounted(() => {
       <Notice v-if="settingsError" kind="error">{{ settingsError }}</Notice>
     </div>
 
-    <Card class="stack">
-      <SectionHeader title="设备状态" />
-      <div class="device-status-body">
-        <div class="device-visual" :class="{ offline: !store.isConnected }">
+    <Card class="device-hero">
+      <div class="hero-body">
+        <div class="hero-visual" :class="{ offline: !store.isConnected }">
           <img
             v-if="deviceArtwork"
             :src="deviceArtwork"
-            :alt="store.snapshot?.connection.remote?.name ?? tr('遥控器')"
-            class="device-image is-line"
+            :alt="displayDeviceName"
+            class="hero-image"
             draggable="false"
           />
           <svg
@@ -398,47 +466,51 @@ onUnmounted(() => {
             <rect x="46" y="198" width="28" height="10" rx="5" class="remote-key" />
           </svg>
         </div>
-        <div class="device-summary">
-          <div class="device-identity">
-            <p class="metric-label">{{ tr("遥控器") }}</p>
-            <p class="device-product-name">
-              {{ store.isConnected ? deviceProductName : tr("未连接") }}
-            </p>
+
+        <div class="hero-main">
+          <h2 class="hero-name">{{ store.isConnected ? displayDeviceName : tr("未连接") }}</h2>
+          <p class="hero-sub">
+            {{ store.isConnected ? heroSubtitle : tr("扫描附近遥控器后连接") }}
+          </p>
+          <div class="hero-stats">
+            <span class="hero-stat">
+              <BatteryMedium :size="16" aria-hidden="true" />
+              {{ battery === null ? tr("未知") : `${battery}%` }}
+            </span>
+            <span v-if="store.isConnected" class="hero-stat">
+              <Clock3 :size="16" aria-hidden="true" />
+              {{ tr("已连接 {minutes} 分钟", { minutes: connectedMinutes }) }}
+            </span>
+            <span class="hero-stat">
+              <Cpu :size="16" aria-hidden="true" />
+              {{ tr("固件") }} {{ deviceStatus?.firmwareVersion ?? tr("未知") }}
+            </span>
           </div>
-          <div class="metric-grid device-metrics">
-            <div class="metric">
-              <p class="metric-label">{{ tr("型号") }}</p>
-              <p class="metric-value">
-                {{ modelLabel(store.snapshot?.connection.remote?.model ?? null) }}
-              </p>
-            </div>
-            <div class="metric">
-              <p class="metric-label">{{ tr("固件版本") }}</p>
-              <p class="metric-value">
-                {{ store.isConnected ? (deviceStatus?.firmwareVersion ?? tr("未知")) : tr("未知") }}
-              </p>
-            </div>
-            <div class="metric">
-              <p class="metric-label">{{ tr("电量") }}</p>
-              <p class="metric-value" :class="{ 'metric-warning': lowBattery }">
-                {{ battery === null ? tr("未知") : `${battery}%` }}
-              </p>
-            </div>
-            <div class="metric">
-              <p class="metric-label">{{ tr("重连次数") }}</p>
-              <p class="metric-value">{{ deviceStatus?.reconnectAttempt ?? 0 }}</p>
-            </div>
-            <div class="metric">
-              <p class="metric-label">{{ tr("电源通知") }}</p>
-              <p class="metric-value">
-                {{
-                  store.isConnected && deviceStatus
-                    ? trDynamic(deviceStatus.powerNotificationsAvailable ? "可用" : "不可用")
-                    : tr("未知")
-                }}
-              </p>
-            </div>
+          <div v-if="store.isConnected" class="hero-chips">
+            <span class="hero-chip"><i aria-hidden="true" />{{ tr("蓝牙已连接") }}</span>
+            <span class="hero-chip"
+              ><Mic :size="13" aria-hidden="true" />{{ tr("语音") }} · {{ voiceChipLabel }}</span
+            >
+            <span v-if="rc003ChipVisible" class="hero-chip">
+              <Wrench :size="13" aria-hidden="true" />{{ tr("按键增强已装") }}
+            </span>
           </div>
+        </div>
+
+        <div class="hero-side">
+          <StatusPill v-if="store.isConnected" :label="trDynamic('使用中')" tone="success" dot />
+          <Button
+            v-if="store.isConnected"
+            size="sm"
+            :variant="'secondary'"
+            :disabled="store.connecting"
+            @click="disconnect"
+          >
+            {{ tr("断开") }}
+          </Button>
+          <button v-if="store.isConnected" type="button" class="hero-link" @click="focusOverrides">
+            {{ tr("设置") }}
+          </button>
         </div>
       </div>
     </Card>
@@ -517,8 +589,11 @@ onUnmounted(() => {
     </Card>
 
     <!-- Only offer per-device overrides while a device is actually connected. -->
-    <Card v-if="store.isConnected && deviceId" class="stack">
+    <Card v-if="store.isConnected && deviceId" ref="overridesRef" class="stack">
       <SectionHeader title="当前设备覆盖" :hint="deviceProductName" />
+      <Field :label="tr('设备名称')" hint="留空则用遥控器的广播名">
+        <TextInput v-model="deviceNickname" :maxlength="24" :placeholder="deviceName" />
+      </Field>
       <Checkbox v-model="useDeviceOverride">
         {{ tr("为此设备使用独立音频设置") }}
       </Checkbox>
@@ -836,5 +911,133 @@ onUnmounted(() => {
     flex-direction: column;
     align-items: stretch;
   }
+}
+
+.device-hero {
+  padding: var(--space-5);
+}
+
+.hero-body {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.hero-visual {
+  display: grid;
+  place-items: center;
+  max-height: 220px;
+  min-width: 0;
+}
+
+.hero-visual .device-line-art,
+.hero-visual img {
+  width: auto;
+  max-width: 96px;
+  max-height: 200px;
+  height: 100%;
+  object-fit: contain;
+}
+
+.hero-visual.offline {
+  opacity: 0.45;
+}
+
+.hero-image {
+  user-select: none;
+}
+
+.hero-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.hero-name {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-xl);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.hero-sub {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.hero-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: 2px;
+}
+
+.hero-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.hero-stat svg {
+  color: var(--text-muted);
+}
+
+.hero-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: 2px;
+}
+
+.hero-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--bg-raised);
+  padding: 3px 12px;
+  color: var(--text-secondary);
+  font-size: var(--text-2xs);
+}
+
+.hero-chip i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success, var(--accent));
+}
+
+.hero-chip svg {
+  color: var(--text-muted);
+}
+
+.hero-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.hero-link {
+  border: 0;
+  background: transparent;
+  padding: 2px 4px;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.hero-link:hover {
+  color: var(--accent);
 }
 </style>
