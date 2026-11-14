@@ -301,6 +301,20 @@ pub fn install_rc003_helper(
     state.host.install_helper(&app).map_err(CommandError::from)
 }
 
+/// 卸载按键增强服务：提权移除计划任务（会弹一次 UAC）。
+///
+/// 只是移除服务；`rc003_capture_enabled` 由调用方（设置/连接页）一并置 false。
+#[tauri::command]
+pub fn uninstall_rc003_helper(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), CommandError> {
+    state
+        .host
+        .uninstall_helper(&app)
+        .map_err(CommandError::from)
+}
+
 #[tauri::command]
 pub fn host_capabilities(state: State<'_, AppState>) -> HostCapabilities {
     state.host.capabilities()
@@ -939,6 +953,18 @@ pub fn import_profiles(
         .map_err(|_| CommandError::new("profile-import", "invalid profiles file", false))?;
     state.engine.set_button_profiles(document);
     Ok(state.engine.button_profiles())
+}
+
+/// 只读解析方案文件：导入预检用，不改动引擎状态。
+///
+/// `import_profiles` 会直接把文件写进引擎，界面就没机会先显示冲突；
+/// 预检走这条命令，用户确认后再用 `save_button_profiles` 落地。
+#[tauri::command]
+pub fn preview_import_profiles(path: String) -> Result<ButtonProfilesDocument, CommandError> {
+    let contents = std::fs::read_to_string(&path)
+        .map_err(|_| CommandError::new("profile-import", "cannot read profiles file", true))?;
+    serde_json::from_str::<ButtonProfilesDocument>(&contents)
+        .map_err(|_| CommandError::new("profile-import", "invalid profiles file", false))
 }
 
 #[tauri::command]

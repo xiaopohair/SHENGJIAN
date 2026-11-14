@@ -6,6 +6,7 @@ import {
   getRc003HelperInstalled,
   getSettings,
   installRc003Helper,
+  uninstallRc003Helper,
   listAudioEndpoints,
   saveSettings,
 } from "../lib/api";
@@ -19,10 +20,8 @@ import {
   type PendingDeviceOperation,
 } from "../lib/connection";
 import { deviceProductNameKey } from "../lib/deviceProduct";
+import { deviceLineArt } from "../lib/deviceArt";
 import type { AudioEndpoint, SettingsDocument } from "../lib/types";
-import rc001Line from "../assets/devices/xiaomi-rc001-line.png";
-import rc003Line from "../assets/devices/xiaomi-rc003-line.png";
-import arn9Line from "../assets/devices/xiaomi-arn9-line.png";
 import PageHeader from "../components/PageHeader.vue";
 import Button from "../components/ui/Button.vue";
 import Card from "../components/ui/Card.vue";
@@ -35,6 +34,7 @@ import SectionHeader from "../components/ui/SectionHeader.vue";
 import SelectInput from "../components/ui/SelectInput.vue";
 import StatusPill from "../components/ui/StatusPill.vue";
 import { pushToast } from "../lib/toast";
+import { confirmAction } from "../lib/confirm";
 import { useEngineStore } from "../stores/engine";
 import { useStatusStore } from "../stores/status";
 
@@ -68,16 +68,12 @@ const supportsRc003Capture = computed(
   () => deviceId.value !== null && store.snapshot?.connection.remote?.model === "RC003",
 );
 const remoteModel = computed(() => store.snapshot?.connection.remote?.model ?? null);
-const isRc001 = computed(() => remoteModel.value === "RC001");
 const deviceProductName = computed(() => {
   const key = deviceProductNameKey(remoteModel.value);
   return key ? trDynamic(key) : deviceName.value;
 });
-const deviceArtwork = computed(() => {
-  if (!store.isConnected) return null;
-  if (remoteModel.value === "ARN9") return arn9Line;
-  return isRc001.value ? rc001Line : rc003Line;
-});
+/** 型号 → 产品线稿只在 `lib/deviceArt` 里维护一份，导入/导出弹窗共用同一套资源。 */
+const deviceArtwork = computed(() => (store.isConnected ? deviceLineArt(remoteModel.value) : null));
 const autoConnecting = shallowRef(false);
 const autoConnectFailed = shallowRef(false);
 const connectionError = computed(() => (store.error ? errorMessage(store.error) : null));
@@ -268,6 +264,40 @@ async function installHelper() {
       } else if (attempts >= 15) {
         window.clearInterval(helperPoll);
         helperMessage.value = tr("未检测到 helper 安装完成，请确认 UAC 已通过后点“刷新”。");
+      }
+    }, 2000);
+  } catch (cause) {
+    settingsError.value = errorMessage(cause);
+  }
+}
+
+/** 卸载按键增强服务：确认 → 提权移除计划任务 → 顺手关掉增强捕获开关。 */
+async function uninstallHelper() {
+  const confirmed = await confirmAction({
+    title: tr("卸载按键增强服务？"),
+    message: tr("会移除后台计划任务，返回键和音量键的增强捕获将失效；需要时会重新请求管理员授权。"),
+    confirmLabel: tr("卸载"),
+    danger: true,
+  });
+  if (!confirmed) return;
+  settingsError.value = null;
+  helperMessage.value = null;
+  try {
+    await uninstallRc003Helper();
+    helperMessage.value = tr("已请求管理员授权；完成 UAC 后会移除服务。");
+    // 顺手关掉增强捕获，避免留下「开关开着但服务没了」的状态。
+    if (rc003Capture.value) rc003Capture.value = false;
+    let attempts = 0;
+    window.clearInterval(helperPoll);
+    helperPoll = window.setInterval(async () => {
+      attempts += 1;
+      rc003HelperInstalled.value = await getRc003HelperInstalled();
+      if (!rc003HelperInstalled.value) {
+        window.clearInterval(helperPoll);
+        helperMessage.value = tr("按键增强服务已卸载。");
+      } else if (attempts >= 15) {
+        window.clearInterval(helperPoll);
+        helperMessage.value = tr("未检测到卸载完成，请确认 UAC 已通过后点“刷新”。");
       }
     }, 2000);
   } catch (cause) {
@@ -603,9 +633,14 @@ onUnmounted(() => {
             {{ helperMessage }}
           </Notice>
         </div>
-        <Button :variant="rc003HelperInstalled ? 'secondary' : 'primary'" @click="installHelper">
-          {{ trDynamic(rc003HelperInstalled ? "更新" : "安装") }}
-        </Button>
+        <div class="helper-actions">
+          <Button :variant="rc003HelperInstalled ? 'secondary' : 'primary'" @click="installHelper">
+            {{ trDynamic(rc003HelperInstalled ? "更新" : "安装") }}
+          </Button>
+          <Button v-if="rc003HelperInstalled" variant="danger" @click="uninstallHelper">
+            {{ tr("卸载按键增强服务") }}
+          </Button>
+        </div>
       </div>
     </Card>
   </section>
@@ -807,6 +842,13 @@ onUnmounted(() => {
   border-radius: var(--radius-md);
   background: var(--bg-subtle);
   padding: var(--space-4);
+}
+
+.helper-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 .helper-main {
