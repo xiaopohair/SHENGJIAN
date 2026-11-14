@@ -516,6 +516,14 @@ function validateProfileDraft(): string | null {
   return null;
 }
 
+/** 保存被「缺少程序」拦下时，错误提示旁边给一个直接去选程序的入口。 */
+const missingProgramOnSave = shallowRef(false);
+
+function pickProgramForSave() {
+  missingProgramOnSave.value = false;
+  openPickerFor("save-program");
+}
+
 function onEditorError(message: string) {
   error.value = message;
 }
@@ -545,8 +553,10 @@ async function saveEditor() {
   const validation = validateProfileDraft();
   if (validation) {
     error.value = validation;
+    missingProgramOnSave.value = validation === tr("请先为方案选择一个程序");
     return;
   }
+  missingProgramOnSave.value = false;
   busy.value = true;
   error.value = null;
   try {
@@ -681,21 +691,21 @@ const {
   openPicker: openAppPicker,
   closePicker: closeAppPicker,
 } = useAppPicker();
-const appPickerPurpose = shallowRef<"auto-apply" | "new-profile" | null>(null);
+const appPickerPurpose = shallowRef<"auto-apply" | "new-profile" | "save-program" | null>(null);
 
 const appPickerTitle = computed(() =>
-  appPickerPurpose.value === "new-profile"
-    ? tr("选择这个方案要匹配的应用")
-    : tr("选择用于自动匹配的应用"),
+  appPickerPurpose.value === "auto-apply"
+    ? tr("选择用于自动匹配的应用")
+    : tr("选择这个方案要匹配的应用"),
 );
 const appPickerDescription = computed(() =>
-  appPickerPurpose.value === "new-profile"
-    ? tr("先选一个程序：方案的键位会在它切到前台时生效。")
-    : tr("选择用于自动匹配的应用（按可执行文件名匹配前台）"),
+  appPickerPurpose.value === "auto-apply"
+    ? tr("选择用于自动匹配的应用（按可执行文件名匹配前台）")
+    : tr("先选一个程序：方案的键位会在它切到前台时生效。"),
 );
 const appPickerRecentTargets = computed(() => splitAppTargets(editor.value?.appTargets ?? ""));
 
-function openPickerFor(purpose: "auto-apply" | "new-profile") {
+function openPickerFor(purpose: "auto-apply" | "new-profile" | "save-program") {
   appPickerPurpose.value = purpose;
   openAppPicker();
 }
@@ -983,7 +993,14 @@ onUnmounted(() => {
       </template>
     </PageHeader>
 
-    <Notice v-if="error" kind="error">{{ error }}</Notice>
+    <Notice v-if="error" kind="error">
+      <span class="error-notice-action">
+        {{ error }}
+        <Button v-if="missingProgramOnSave" size="sm" :disabled="busy" @click="pickProgramForSave">
+          {{ tr("选择程序") }}
+        </Button>
+      </span>
+    </Notice>
     <Notice v-if="autoProfileConflicts.length" kind="warning">
       <strong>{{ tr("自动方案冲突：") }}</strong>
       <span v-for="conflict in autoProfileConflicts" :key="conflict.target">
@@ -1427,6 +1444,14 @@ onUnmounted(() => {
   font-weight: 700;
   white-space: nowrap;
 }
+/* 错误提示里的行内动作（如「选择程序」）：文案与按钮同一行，窄时换行。 */
+.error-notice-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .empty-workspace {
   padding-top: var(--space-2);
 }

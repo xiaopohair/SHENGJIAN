@@ -158,13 +158,6 @@ onUnmounted(() => window.removeEventListener("keydown", onKeydown, true));
             <span v-if="programTargets.length > 1" class="settings-help">
               {{ tr("另外还匹配：{names}", { names: programLabel }) }}
             </span>
-            <span v-else class="settings-help">
-              {{
-                tr(
-                  "这是方案用来匹配前台的程序。只有开启「前台匹配时自动应用」时才会自动切换，否则需要手动激活。",
-                )
-              }}
-            </span>
           </Field>
 
           <div class="settings-action-row">
