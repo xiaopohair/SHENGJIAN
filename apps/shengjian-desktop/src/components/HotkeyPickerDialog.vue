@@ -305,9 +305,18 @@ onUnmounted(() => {
 }
 
 .hotkey-chip {
+  /* 修饰键也用键帽观感（与主键一致）：等宽、底边加重、抬起浅底。 */
   min-width: 68px;
-  padding: 6px 14px;
+  border-bottom-width: 2px;
+  border-bottom-color: var(--border-strong);
+  border-radius: 5px;
+  background: var(--bg-raised);
+  padding: 3px 14px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
   font-weight: 600;
+  line-height: 20px;
 }
 
 .hotkey-key {
