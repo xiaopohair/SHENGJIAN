@@ -57,7 +57,7 @@ import {
 import { useVoiceToolCatalog } from "../composables/useVoiceToolCatalog";
 import PageHeader from "../components/PageHeader.vue";
 import HotkeyPickerDialog from "../components/HotkeyPickerDialog.vue";
-import { formatHotkey } from "../lib/hotkey";
+import { hotkeyKeyLabel } from "../lib/hotkey";
 import Button from "../components/ui/Button.vue";
 import Card from "../components/ui/Card.vue";
 import SettingRow from "../components/ui/SettingRow.vue";
@@ -261,7 +261,10 @@ const hotkeyPickerOpen = shallowRef(false);
 const toolDefaultHotkey = computed(() =>
   defaultHotkeyFor(voiceToolCatalog.value, voiceInputTool.value),
 );
-const hotkeyLabel = computed(() => formatHotkey(voiceHotkey.value ?? toolDefaultHotkey.value));
+/** 当前生效的热键按「键帽」拆开显示（与按键方案里的快捷键录入同一套展示）。 */
+const hotkeyParts = computed(() =>
+  (voiceHotkey.value ?? toolDefaultHotkey.value).map(hotkeyKeyLabel),
+);
 const hasCustom = computed(() => (voiceHotkey.value?.length ?? 0) > 0);
 const currentVoiceToolLabel = computed(
   () =>
@@ -848,7 +851,7 @@ onMounted(async () => {
             </div>
           </Card>
 
-          <p class="settings-group-label">{{ tr("按键增强") }}</p>
+          <p class="settings-group-label">{{ tr("遥控器") }}</p>
           <Card>
             <div class="settings-rows">
               <SettingRow
@@ -905,10 +908,16 @@ onMounted(async () => {
                 hint="按下遥控器语音键时注入的组合键；用点选方式设置，避免被输入法抢走按键"
               >
                 <div class="hotkey-inline">
-                  <kbd class="hotkey-value" aria-live="polite">{{ hotkeyLabel }}</kbd>
-                  <IconButton :label="trDynamic('选择热键')" @click="openHotkeyPicker">
-                    <Keyboard :size="15" />
-                  </IconButton>
+                  <span v-if="hotkeyParts.length" class="hotkey-keys" aria-live="polite">
+                    <kbd v-for="(part, index) in hotkeyParts" :key="`${part}-${index}`">
+                      {{ part }}
+                    </kbd>
+                  </span>
+                  <span v-else class="hotkey-empty">{{ tr("未设置快捷键") }}</span>
+                  <Button size="sm" @click="openHotkeyPicker">
+                    <Keyboard :size="14" />
+                    {{ tr("配置") }}
+                  </Button>
                   <IconButton v-if="hasCustom" :label="trDynamic('恢复默认')" @click="resetHotkey">
                     <RotateCcw :size="15" />
                   </IconButton>
@@ -1295,28 +1304,31 @@ onMounted(async () => {
   min-width: 0;
 }
 
-.hotkey-value {
-  display: inline-flex;
+/* 热键展示：与按键方案的快捷键录入同款键帽，不再是"输入框" */
+.hotkey-keys {
+  display: flex;
   flex: 1 1 auto;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
+  flex-wrap: wrap;
+  gap: 4px;
   min-width: 0;
-  min-height: 34px;
-  overflow: hidden;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--bg-subtle);
-  padding: 0 var(--space-2);
-  color: var(--text);
+}
+
+.hotkey-keys kbd {
+  border: 1px solid var(--border);
+  border-bottom-color: var(--border-strong);
+  border-radius: 4px;
+  background: var(--bg-raised);
+  padding: 0 6px;
+  color: var(--text-secondary);
   font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 20px;
+}
+
+.hotkey-empty {
+  flex: 1 1 auto;
+  color: var(--text-muted);
   font-size: var(--text-xs);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  transition:
-    border-color var(--duration-fast) ease,
-    background var(--duration-fast) ease,
-    color var(--duration-fast) ease;
 }
 
 .setting-toggle-hint {

@@ -1037,6 +1037,7 @@ const ENGLISH = {
   选择组合键: "Choose chord",
   "点选修饰键与主键即可组合，不用在键盘上按下。":
     "Pick modifiers and a main key below instead of pressing them on the keyboard.",
+  配置: "Configure",
   选择语音热键: "Choose voice hotkey",
   "按下遥控器语音键时注入的组合键。点击下方按键来组合，不用真的按键盘。":
     "Chord injected when the remote voice key is pressed. Click the keys below instead of typing them.",
