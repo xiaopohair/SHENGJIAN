@@ -59,6 +59,34 @@ const MAIN_HOTKEY_CODES = new Set(
 
 const MAX_HOTKEY_KEYS = 8;
 
+/**
+ * 纯修饰键组合的结算宽限（毫秒）。
+ *
+ * 现场：先按 ControlLeft、松手，再按 ControlRight —— 松开第一个修饰键的瞬间
+ * "没有按键按着了"，旧实现立刻结算成 `Ctrl`，第二个 Ctrl 永远进不来。
+ * 留一段宽限：期间再按修饰键就并进同一个组合；没人接着按才真正结算。
+ */
+const MODIFIER_COMMIT_DELAY_MS = 320;
+
+/** 修饰键规范顺序：同一组按键不论先后都得到相同结果。 */
+const MODIFIER_ORDER = [
+  "ControlLeft",
+  "ControlRight",
+  "ShiftLeft",
+  "ShiftRight",
+  "AltLeft",
+  "AltRight",
+  "MetaLeft",
+  "MetaRight",
+];
+
+/** 把捕获到的按键排成稳定顺序：修饰键按规范次序，其余保持按下顺序。 */
+function normalizeHotkey(keys: string[]): string[] {
+  const modifiers = MODIFIER_ORDER.filter((code) => keys.includes(code));
+  const others = keys.filter((code) => !MODIFIER_ORDER.includes(code));
+  return [...modifiers, ...others];
+}
+
 function isSupportedHotkeyCode(code: string): boolean {
   return (
     MODIFIER_CODES.has(code) ||
@@ -105,10 +133,19 @@ export function useHotkeyRecorder(options: HotkeyRecorderOptions) {
     return keys.map(hotkeyKeyLabel).join(" + ");
   }
 
+  let commitTimer: number | undefined;
+
+  function clearCommitTimer() {
+    if (commitTimer === undefined) return;
+    window.clearTimeout(commitTimer);
+    commitTimer = undefined;
+  }
+
   /** 用已捕获的按键结算并结束录制；`commit=false` 表示丢弃。 */
   function settle(commit: boolean) {
+    clearCommitTimer();
     if (commit && captured.length > 0) {
-      options.hotkey.value = captured.slice(0, MAX_HOTKEY_KEYS);
+      options.hotkey.value = normalizeHotkey(captured).slice(0, MAX_HOTKEY_KEYS);
     }
     stop();
   }
@@ -141,6 +178,8 @@ export function useHotkeyRecorder(options: HotkeyRecorderOptions) {
       return;
     }
     if (event.repeat || !isSupportedHotkeyCode(event.code)) return;
+    // 又来新键了：取消上一次「纯修饰键待结算」，并进同一个组合。
+    clearCommitTimer();
     pressed.add(event.code);
     if (!captured.includes(event.code)) captured.push(event.code);
     if (!MODIFIER_CODES.has(event.code)) finish();
@@ -151,9 +190,13 @@ export function useHotkeyRecorder(options: HotkeyRecorderOptions) {
     event.preventDefault();
     event.stopPropagation();
     pressed.delete(event.code);
-    // A chord of modifiers only commits once every modifier is released.
+    // 纯修饰键组合：等一小段宽限再结算，期间按下别的修饰键会并进同一组合。
     if (pressed.size === 0 && captured.length > 0 && captured.every((c) => MODIFIER_CODES.has(c))) {
-      finish();
+      clearCommitTimer();
+      commitTimer = window.setTimeout(() => {
+        commitTimer = undefined;
+        finish();
+      }, MODIFIER_COMMIT_DELAY_MS);
     }
   }
 
@@ -168,6 +211,7 @@ export function useHotkeyRecorder(options: HotkeyRecorderOptions) {
 
   function stop() {
     recording.value = false;
+    clearCommitTimer();
     pressed = new Set();
     captured = [];
     window.removeEventListener("keydown", onKeydown, true);

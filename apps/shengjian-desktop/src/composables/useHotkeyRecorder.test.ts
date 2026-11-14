@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { defineComponent, h, ref } from "vue";
 import { mount } from "@vue/test-utils";
 import { useHotkeyRecorder } from "./useHotkeyRecorder";
@@ -43,16 +43,50 @@ describe("useHotkeyRecorder", () => {
     wrapper.unmount();
   });
 
-  it("waits for modifiers-only chords until they are released", () => {
+  it("commits a modifiers-only chord after the grace window", () => {
+    vi.useFakeTimers();
     const { wrapper, hotkey, api } = mountRecorder();
     api.toggle();
     keyEvent("keydown", "ControlLeft");
     keyEvent("keydown", "MetaLeft");
     expect(hotkey.value).toBeNull();
     keyEvent("keyup", "ControlLeft");
-    expect(hotkey.value).toBeNull();
     keyEvent("keyup", "MetaLeft");
+    // 松手后不立刻结算：留宽限给「再补一个修饰键」。
+    expect(hotkey.value).toBeNull();
+    vi.advanceTimersByTime(400);
     expect(hotkey.value).toEqual(["ControlLeft", "MetaLeft"]);
+    vi.useRealTimers();
+    wrapper.unmount();
+  });
+
+  it("joins a second modifier pressed after the first was released", () => {
+    // 现场：先按 ControlLeft 松手，再按 ControlRight，旧实现只录到 Ctrl。
+    vi.useFakeTimers();
+    const { wrapper, hotkey, api } = mountRecorder();
+    api.toggle();
+    keyEvent("keydown", "ControlLeft");
+    keyEvent("keyup", "ControlLeft");
+    vi.advanceTimersByTime(100);
+    keyEvent("keydown", "ControlRight");
+    keyEvent("keyup", "ControlRight");
+    vi.advanceTimersByTime(400);
+    expect(hotkey.value).toEqual(["ControlLeft", "ControlRight"]);
+    vi.useRealTimers();
+    wrapper.unmount();
+  });
+
+  it("orders modifiers canonically regardless of press order", () => {
+    vi.useFakeTimers();
+    const { wrapper, hotkey, api } = mountRecorder();
+    api.toggle();
+    keyEvent("keydown", "ControlRight");
+    keyEvent("keydown", "ControlLeft");
+    keyEvent("keyup", "ControlRight");
+    keyEvent("keyup", "ControlLeft");
+    vi.advanceTimersByTime(400);
+    expect(hotkey.value).toEqual(["ControlLeft", "ControlRight"]);
+    vi.useRealTimers();
     wrapper.unmount();
   });
 
