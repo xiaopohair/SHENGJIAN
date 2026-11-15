@@ -2,14 +2,14 @@
   <img src="brand/logo/shengjian-app-icon.svg" width="112" alt="SHENGJIAN">
 </p>
 
-<h1 align="center">SHENGJIAN (声键) · Voice Remote for Windows</h1>
+<h1 align="center">SHENGJIAN · Voice Remote for Windows</h1>
 
 <p align="center">
   <a href="README.md">简体中文</a> | <strong>English</strong>
 </p>
 
 <p align="center">
-  <strong>Your voice is the shortcut.</strong> · <strong>声音，就是快捷键。</strong>
+  <strong>Your voice is the shortcut.</strong>
 </p>
 
 <p align="center">
@@ -43,7 +43,7 @@ Brand positioning, slogan, logo, and visual guidelines: [brand/BRAND.md](brand/B
 - UI: frameless custom title bar (brand mark and product name on the left), rounded main content panel, centered on startup, `Ctrl+K` command palette
 - Startup splash: a branded splash screen covers initialization and hands off to the main window once settings and theme are ready, avoiding a blank flash; its copy follows the in-app language setting, falling back to the system language
 - Connection page: scan, connect, disconnect, multi-device switching, remember last device, status, model, firmware version, battery, connection details, current-device audio/voice tool overrides, RC003 enhanced capture and helper
-- Tray: show/hide, open settings, open logs directory, quit; tooltip shows connection/battery; Chinese/English menus switch instantly with the language; tray icons use the light pine-green / ink variants according to taskbar light/dark
+- Tray: show/hide, open settings, open logs directory, quit; tooltip shows connection/battery; Chinese/English menus switch instantly with the language; the tray uses the dark-plate app icon, which stays readable on both light and dark taskbars
 - Voice page: voice/audio status, real-time level, voice test, voice input tool, custom voice hotkey, voice recordings toggle
 - Buttons page: profile list, edit, activate, import/export all profiles; workbench and table views with unsaved-navigation confirmation
 - Profile editor: app target (choose a program / use current foreground), fill from current foreground, hotkey capture, automatic profile conflict hints, save validation, per-button hold repeat, profile-level voice tool override, duplicate profile, 12 keys (including TV and Menu); common-phrases entry shown according to platform capability
@@ -51,7 +51,7 @@ Brand positioning, slogan, logo, and visual guidelines: [brand/BRAND.md](brand/B
 - History page: four tabs — voice events, button events, macro runs, and voice recordings; voice/button events are retained for the current run, while macro runs and voice recordings are persisted
 - Settings page: global audio, theme, accent color, application language (Chinese/English/follow system), launch at login, hide to tray on startup, close behavior, configuration backup/restore (settings, profiles, macro library, voice recordings, appearance preferences, last device), log viewing/diagnostic bundle, health check, restore defaults, sectioned tabs; Data & diagnostics are still reachable if settings fail to load
 - Accessibility: page landmarks/heading hierarchy, form labels, focus trapping for tabs/command palette/confirmation dialogs, decorative icons hidden; see `docs/ui-accessibility-report.md`
-- About page: brand mark (light pine-green / deep pine-green depending on theme), app version, platform/build/signing, runtime information, local capabilities, supported remotes and platform status, components and licenses; can open the logs directory and re-run first-run setup; checks GitHub Releases in the background at startup (24-hour limit) and surfaces updates via a toast, an About nav dot, and the tray menu, with optional pre-release filtering and no automatic download/install
+- About page: dark-plate app icon, app version, platform/build/signing, runtime information, local capabilities, supported remotes and platform status, components and licenses; can open the logs directory and re-run first-run setup; checks GitHub Releases in the background at startup (24-hour limit) and surfaces updates via a toast, an About nav dot, and the tray menu, with optional pre-release filtering and no automatic download/install
 - Pairing help: available from each supported model row in About and from the first-run scan step; shows the RC003 / RC001 key combination, Windows Bluetooth steps, and the new-remote TV initialization note
 - Tray, first-run setup wizard (including voice input tool selection), single instance
 - Profile/macro import and export (the export action covers all profiles), diagnostic log entry points

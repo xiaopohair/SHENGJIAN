@@ -18,8 +18,8 @@
 | 浅色背景 / 浅色任务栏标记 | `logo/shengjian-mark-on-light.svg`（松青·深 `#0F7A63`） |
 | 极端对比 / 单色标记（备用） | `logo/shengjian-mark-ink.svg`（墨色 `#0B0F14`） |
 | Windows 应用图标 | `logo/shengjian-app-icon.svg` + `png/app-icon-*.png` + `app-icon.ico` |
-| **深色任务栏托盘** | `logo/shengjian-tray-16-color.svg`（亮松青，16 / 32 PNG 已导出） |
-| **浅色任务栏托盘** | `logo/shengjian-tray-16-ink.svg`（墨色，16 / 32 PNG 已导出） |
+| 托盘备用（深色任务栏） | `logo/shengjian-tray-16-color.svg`（亮松青，16 / 32 PNG 已导出） |
+| 托盘备用（浅色任务栏） | `logo/shengjian-tray-16-ink.svg`（墨色，16 / 32 PNG 已导出） |
 | 托盘图标（备用） | `logo/shengjian-tray-16.svg`（白色） |
 | 字标（不含标记） | `logo/shengjian-wordmark-dark.svg` / `-light.svg` |
 | 浅色背景对比示意 | `png/light-surface-contrast.png`（亮松青 1.86:1 vs 松青·深 4.8:1） |
@@ -47,7 +47,7 @@
 - 标志四周留出约 28 单位（“键”字高度 1/3）的安全边距。
 - 声波是**透明挖空**，不是黑色填充；放在任何底色上都应显示底色。
 - 单色锁定（`*-mono`）与单色标记只用于单色印刷、水印、单色底；不要用它替代彩色主标志做品牌主视觉。
-- 托盘/任务栏跟随明暗：深色用 `tray-16-color` / `mark`，浅色用 `tray-16-deep` / `mark-on-light`；白色/墨色单色版仅作备用。
+- 应用托盘用深色底应用图标（`png/app-icon-32.png`），深浅任务栏都不换色；窗口/任务栏图标仍跟随明暗：深色用 `mark`，浅色用 `mark-on-light`；`tray-16-*` 与白色/墨色单色版仅作备用。
 
 ## 重建
 

@@ -12,7 +12,7 @@
 ## 本地发布
 
 发布前如需调整「推荐应用」或「语音输入工具」，先编辑仓库根目录的
-`config/app-presets.json` / `config/voice-tools.json`（说明见
+`config/app-presets.json` / `config/voice-tool-presets.json`（说明见
 [config-catalogs.md](config-catalogs.md)）；`pnpm tauri build` 会通过
 `prepare:config` 自动复制进安装包资源。安装目录里的
 `resources/config/*.json` 也可直接修改，重启生效。
@@ -208,7 +208,7 @@ Release 正文来自 `docs/release-notes-<version>.md`（0.3.0 为 [release-note
 - `run-macro` 实体按键
 - 返回键增强捕获
 - 品牌：安装包文件名、安装向导、开始菜单/桌面快捷方式、窗口标题、托盘提示均为「声键」
-- 品牌：深色界面/窗口图标用亮松青，浅色界面/窗口图标用松青·深（`#0F7A63`）；托盘深色任务栏用亮松青、浅色任务栏用墨色
+- 品牌：深色界面/窗口图标用亮松青，浅色界面/窗口图标用松青·深（`#0F7A63`）；托盘与侧栏使用深色底应用图标
 - 卸载后计划任务清理、数据保留
 - Release 资产齐全：安装包、便携 zip、`SHA256SUMS`、`manifest.json`、`portable-manifest.json`、许可证
 - 发布说明里**没有**硬编码的 `SHA-256` / 大小，校验信息指向 `SHA256SUMS` 资产；
