@@ -2,8 +2,6 @@ use crate::host::{
     DeviceStatus, HostCapabilities, HostError, HostPlatform, MacroRunStatusView, RawInputStatus,
     TranscriptRecord,
 };
-use shengjian_windows::common_phrases::{load_document as load_common_phrases,
-    save_document as save_common_phrases_document, CommonPhrasesDocument};
 use crate::macros;
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
@@ -13,6 +11,10 @@ use shengjian_contract::{
     EngineError, RemoteCandidate, RemoteId,
 };
 use shengjian_domain::{AppSettings, MacroLibraryDocument};
+use shengjian_windows::common_phrases::{
+    load_document as load_common_phrases, save_document as save_common_phrases_document,
+    CommonPhrasesDocument,
+};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::State;
 use tauri_plugin_autostart::ManagerExt;
@@ -1124,9 +1126,11 @@ pub fn open_voice_test_pad(
     let (tx, rx) = std::sync::mpsc::channel();
     let parent = hwnd.0 as isize;
     app.run_on_main_thread(move || {
-            let _ = tx.send(shengjian_windows::test_pad::show(parent, x, y, width, height));
-        })
-        .map_err(|error| CommandError::new("voice-test-pad", &error.to_string(), true))?;
+        let _ = tx.send(shengjian_windows::test_pad::show(
+            parent, x, y, width, height,
+        ));
+    })
+    .map_err(|error| CommandError::new("voice-test-pad", &error.to_string(), true))?;
     let result = rx
         .recv_timeout(std::time::Duration::from_secs(3))
         .map_err(|_| CommandError::new("voice-test-pad", "打开测试板超时", true))?;

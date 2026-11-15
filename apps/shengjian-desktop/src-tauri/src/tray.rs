@@ -90,7 +90,9 @@ fn tray_tooltip(
     status: Option<&TrayStatus>,
 ) -> String {
     let profile = non_empty(
-        status.map(|value| value.profile_name.as_str()).unwrap_or(""),
+        status
+            .map(|value| value.profile_name.as_str())
+            .unwrap_or(""),
         "默认",
         "Default",
         language,
@@ -102,7 +104,9 @@ fn tray_tooltip(
         language,
     );
     let input_method = non_empty(
-        status.map(|value| value.input_method.as_str()).unwrap_or(""),
+        status
+            .map(|value| value.input_method.as_str())
+            .unwrap_or(""),
         "未选择",
         "Not selected",
         language,
@@ -164,10 +168,7 @@ fn refresh_tray(app: &AppHandle) -> Result<(), String> {
         .ok_or_else(|| "tray not found".to_owned())?;
     tray.set_menu(Some(menu))
         .map_err(|error| error.to_string())?;
-    let status = TRAY_STATUS
-        .lock()
-        .ok()
-        .and_then(|value| value.clone());
+    let status = TRAY_STATUS.lock().ok().and_then(|value| value.clone());
     let tooltip = tray_tooltip(&language, update_version.as_deref(), status.as_ref());
     tray.set_tooltip(Some(tooltip.as_str()))
         .map_err(|error| error.to_string())
@@ -349,9 +350,10 @@ Remote: 小米蓝牙语音遥控器 2 Pro
 Input method: 微信输入法
 Battery: 65%"
         );
-        assert!(tray_tooltip("zh", Some("v0.3.0"), Some(&status))
-            .ends_with("
-有新版本：v0.3.0"));
+        assert!(tray_tooltip("zh", Some("v0.3.0"), Some(&status)).ends_with(
+            "
+有新版本：v0.3.0"
+        ));
     }
 
     #[test]

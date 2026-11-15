@@ -271,7 +271,10 @@ fn main() {
 
 fn tray_status_for(state: &state::AppState) -> tray::TrayStatus {
     let connection = state.engine.connection().snapshot();
-    let model = connection.remote.as_ref().and_then(|remote| remote.model.clone());
+    let model = connection
+        .remote
+        .as_ref()
+        .and_then(|remote| remote.model.clone());
     let profiles = state.engine.button_profiles();
     let profile_name = state
         .engine
