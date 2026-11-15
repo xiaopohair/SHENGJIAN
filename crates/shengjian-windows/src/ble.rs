@@ -700,8 +700,8 @@ impl BleRuntime {
 
     /// 遥控器 HID 活动触发的立即重连（断连状态下遥控器醒来按键时，
     /// 由 key_suppressor 归因回调调用；尽力而为，队列满即丢弃）。
-    pub fn wake_reconnect(&self) {
-        let _ = self.sender.send(WorkerMessage::WakeReconnect);
+    pub fn wake_reconnect(&self, address: Option<u64>) {
+        let _ = self.sender.send(WorkerMessage::WakeReconnect { address });
     }
 
     /// 遥控器 HID 接口在 PnP 中重新出现触发的立即重连（`WM_INPUT_DEVICE_CHANGE`
@@ -816,7 +816,11 @@ pub(crate) enum WorkerMessage {
     /// （清零退避），把"按下→应用恢复"的空窗从最长一个退避周期
     /// （30s）压到立即（2026-09-05 实证：遥控器沉睡 52 分钟后首按，
     /// GATT 重连耗 3 秒，期间按键全部无响应）。
-    WakeReconnect,
+    /// `address` 是按下那一支的蓝牙地址（Raw Input 路径里带出来）：
+    /// 空闲态要据此确认「按下的就是记住的那一支」再发起连接。
+    WakeReconnect {
+        address: Option<u64>,
+    },
     /// 遥控器 HID 接口重新出现（raw_input 消息线程的 `GIDC_ARRIVAL`）：
     /// 与 `WakeReconnect` 共用同一套提前重连判定——设备一回到无线电上
     /// 就立即重试，把"遥控器上线 → 应用重连"的空窗从最长一个退避周期
@@ -1182,6 +1186,10 @@ fn worker_loop(
                     capabilities_deadline = None;
                     backoff.reset();
                 }
+                // 记下「上次连上的那一支」：断连时按遥控器按键要能据此发起连接。
+                if let Some(address) = bluetooth_address_from_device_id(&device_id) {
+                    crate::remote_target::remember_device(address, &device_id);
+                }
                 preferred_device_id = Some(device_id.clone());
                 system_suspended = false;
                 reconnect_deadline = None;
@@ -1233,6 +1241,9 @@ fn worker_loop(
                 let _ = reply.send(result);
             }
             WorkerMessage::Disconnect { reply } => {
+                // 用户主动断开 = 「不想连回去」：删掉上次连接记录，之后的按键唤醒
+                // 不再自动连回来（重启后仍会尝试，那是 `Restore` 的职责）。
+                crate::remote_target::forget_device();
                 preferred_device_id = None;
                 system_suspended = false;
                 let _ = disconnect_loop.on_disconnected(Instant::now(), DisconnectCause::Shutdown);
@@ -1273,6 +1284,10 @@ fn worker_loop(
                 // 令牌在这里就带上（2026-10-13 现场：启动恢复时如果等到"连接成功"才设，
                 // 中途任何一次快照重建都会把它丢掉，界面就一直标不出"已连接"那一行）。
                 let remote_token = Some(crate::device_token(&device_id));
+                // 记下「上次连上的那一支」：断连时按遥控器按键要能据此发起连接。
+                if let Some(address) = bluetooth_address_from_device_id(&device_id) {
+                    crate::remote_target::remember_device(address, &device_id);
+                }
                 preferred_device_id = Some(device_id);
                 backoff.reset();
                 reconnect_deadline = None;
@@ -1298,10 +1313,10 @@ fn worker_loop(
                 apply_input_connection_phase(snapshot.phase);
                 let _ = reply.send(Ok(snapshot));
             }
-            WorkerMessage::WakeReconnect => {
+            WorkerMessage::WakeReconnect { address } => {
                 // 遥控器 HID 活动（正在按键）：仅当无活动会话、有首选设备、
                 // 未挂起、且已过安静窗时立即重试连接；清零退避让下一次尝试马上发生。
-                advance_reconnect(
+                let promoted = advance_reconnect(
                     &session,
                     &preferred_device_id,
                     system_suspended,
@@ -1312,6 +1327,34 @@ fn worker_loop(
                     &mut suppressed_promotions,
                     "hidi",
                 );
+                // 没有正在等待的重连可提前（应用刚启动、还没连过任何一支）：
+                // 用户按了遥控器就**发起**一次连接，而不是无视这次按键。
+                if !promoted {
+                    if let Some(device_id) = idle_start_device(
+                        session.is_some(),
+                        &preferred_device_id,
+                        system_suspended,
+                        reconnect_deadline,
+                        address,
+                        crate::remote_target::remembered_device(),
+                    ) {
+                        preferred_device_id = Some(device_id.clone());
+                        backoff.reset();
+                        reconnect_deadline = Some(Instant::now());
+                        let snapshot = ConnectionSnapshot {
+                            phase: ConnectionPhase::Reconnecting,
+                            remote_token: Some(crate::device_token(&device_id)),
+                            last_error: Some("正在唤醒并连接上次的遥控器".to_owned()),
+                            ..ConnectionSnapshot::default()
+                        };
+                        *lock(&state) = snapshot.clone();
+                        apply_input_connection_phase(snapshot.phase);
+                        gatt_note(
+                            "wake_reconnect triggered=remote_button backoff_reset=true idle_start=true"
+                                .to_owned(),
+                        );
+                    }
+                }
             }
             WorkerMessage::RemoteDeviceArrived => {
                 // 遥控器 HID 接口重新出现：判定与 `WakeReconnect` 完全一致——
@@ -2178,6 +2221,33 @@ fn should_advance_reconnect(
         && reconnect_deadline.is_some()
 }
 
+/// 空闲态「按一下遥控器就连回来」要不要**发起**连接，发起哪一支。
+///
+/// 与 [`should_advance_reconnect`] 的分工：那条只把**已有**的重连提前，要求
+/// deadline 已经在等；这条面对的是根本没有重连在等（应用刚启动、还没连过）。
+///
+/// 三条门槛都来自现场约束：
+/// - 已经有 preferred / 会话 / 挂起：重连链路已经接管，不重复发起；
+/// - 读不到「上次连上的那一支」：用户主动断开时记录被删掉了，视为不想连回去；
+/// - 记住的地址必须与**按下那一支**一致：桌上多支同型号遥控器时，
+///   不能按 B 却把 A 连回来。
+fn idle_start_device(
+    session_present: bool,
+    preferred: &Option<String>,
+    system_suspended: bool,
+    reconnect_deadline: Option<Instant>,
+    pressed_address: Option<u64>,
+    remembered: Option<crate::remote_target::RememberedDevice>,
+) -> Option<String> {
+    if session_present || preferred.is_some() || system_suspended || reconnect_deadline.is_some() {
+        return None;
+    }
+    let remembered = remembered?;
+    if pressed_address? != remembered.address {
+        return None;
+    }
+    Some(remembered.device_id)
+}
 /// 安静窗是否已过：上次连接尝试结束后至少 `PROMOTION_QUIET_WINDOW` 才允许提前。
 ///
 /// 为什么需要（2026-10-13，issue #206 第三轮）：报障人真机日志显示
@@ -5201,6 +5271,106 @@ mod tests {
         );
     }
 
+    /// 空闲态按键唤醒：只有「没会话、没 preferred、没挂起、没在等的重连、
+    /// 记住过一支、且按下的正是记住的那一支」才发起连接。
+    #[test]
+    fn idle_start_requires_remembered_and_matching_press() {
+        let address = 0x00E8_5540_E10B_C5;
+        let remembered = crate::remote_target::RememberedDevice {
+            address,
+            device_id: "bluetooth-id".to_owned(),
+        };
+        let start =
+            |session: bool,
+             preferred: Option<&str>,
+             suspended: bool,
+             deadline: bool,
+             pressed: Option<u64>,
+             remembered: Option<crate::remote_target::RememberedDevice>| {
+                idle_start_device(
+                    session,
+                    &preferred.map(str::to_owned),
+                    suspended,
+                    if deadline { Some(Instant::now()) } else { None },
+                    pressed,
+                    remembered,
+                )
+            };
+        // 正路：空闲 + 记住过 + 按下的就是那一支。
+        assert_eq!(
+            start(
+                false,
+                None,
+                false,
+                false,
+                Some(address),
+                Some(remembered.clone())
+            ),
+            Some("bluetooth-id".to_owned())
+        );
+        // 有会话 / 已有 preferred / 挂起 / 已在等待重连：交给原链路，不重复发起。
+        assert_eq!(
+            start(
+                true,
+                None,
+                false,
+                false,
+                Some(address),
+                Some(remembered.clone())
+            ),
+            None
+        );
+        assert_eq!(
+            start(
+                false,
+                Some("other"),
+                false,
+                false,
+                Some(address),
+                Some(remembered.clone())
+            ),
+            None
+        );
+        assert_eq!(
+            start(
+                false,
+                None,
+                true,
+                false,
+                Some(address),
+                Some(remembered.clone())
+            ),
+            None
+        );
+        assert_eq!(
+            start(
+                false,
+                None,
+                false,
+                true,
+                Some(address),
+                Some(remembered.clone())
+            ),
+            None
+        );
+        // 用户主动断开后没有记录；按下的不是记住的那一支；报文里没有地址。
+        assert_eq!(start(false, None, false, false, Some(address), None), None);
+        assert_eq!(
+            start(
+                false,
+                None,
+                false,
+                false,
+                Some(0x00C0_5D39_C2D9_DB),
+                Some(remembered.clone())
+            ),
+            None
+        );
+        assert_eq!(
+            start(false, None, false, false, None, Some(remembered)),
+            None
+        );
+    }
     #[test]
     fn advance_reconnect_pulls_the_deadline_forward_and_never_pushes_it_back() {
         // 核心收益：把"遥控器上线 → 应用重连"的空窗从最长一个退避周期

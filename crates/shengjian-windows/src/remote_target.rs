@@ -111,6 +111,133 @@ pub fn target_file_path() -> PathBuf {
     crate::rc003_bridge::default_bridge_dir().join(TARGET_FILE_NAME)
 }
 
+/// 「上次连上的那一支遥控器」记录文件名（与目标文件同目录）。
+///
+/// 为什么要单独记：断连时按一下遥控器希望它自己连回来，这一步需要**发起**连接，
+/// 而发起连接要 device_id。raw_input 只知道设备路径里的 12 位地址，
+/// 所以要有一份「地址 → device_id」的落盘记录可用，且重启后仍然在。
+///
+/// 为什么不并进 TARGET_FILE_NAME：那个文件的解析在提权助手里有**同源实现**
+/// （格式见 file_body），加字段等于要求两边同时升级；这里独立一个文件，
+/// 助手不读它，坏处为零。
+pub const LAST_REMOTE_FILE_NAME: &str = "last-remote.ini";
+
+/// 记录文件路径（用户主动断开时这个文件会被删掉）。
+pub fn last_remote_file_path() -> PathBuf {
+    crate::rc003_bridge::default_bridge_dir().join(LAST_REMOTE_FILE_NAME)
+}
+
+/// 上次连接的那支遥控器。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RememberedDevice {
+    /// 蓝牙地址（与 Raw Input 设备路径里的一致）。
+    pub address: u64,
+    /// 平台侧的设备 id——发起连接时原样交回给 BLE 会话。
+    pub device_id: String,
+}
+
+/// 记录文件正文：version=1 + 12 位地址 + 设备 id。
+pub fn last_remote_body(address: u64, device_id: &str) -> Option<String> {
+    if address == 0 || device_id.trim().is_empty() || device_id.contains(['\n', '\r']) {
+        return None;
+    }
+    Some(format!(
+        "version=1\naddress={}\ndevice_id={}\n",
+        address_token(address),
+        device_id.trim()
+    ))
+}
+
+/// 解析记录文件（半截 / 旧版 / 地址为 0 一律 None，不猜）。
+pub fn parse_last_remote_body(text: &str) -> Option<RememberedDevice> {
+    let mut version_ok = false;
+    let mut address: Option<u64> = None;
+    let mut device_id: Option<String> = None;
+    for line in text.lines() {
+        let line = line.trim();
+        if let Some(value) = line.strip_prefix("version=") {
+            version_ok = value.trim() == "1";
+        } else if let Some(value) = line.strip_prefix("address=") {
+            let value = value.trim();
+            if value.len() == 12 {
+                address = u64::from_str_radix(&value.to_ascii_lowercase(), 16)
+                    .ok()
+                    .filter(|value| *value != 0);
+            }
+        } else if let Some(value) = line.strip_prefix("device_id=") {
+            let value = value.trim();
+            if !value.is_empty() {
+                device_id = Some(value.to_owned());
+            }
+        }
+    }
+    match (version_ok, address, device_id) {
+        (true, Some(address), Some(device_id)) => Some(RememberedDevice { address, device_id }),
+        _ => None,
+    }
+}
+
+/// 落盘「上次连上的那一支」；写失败只留一行诊断，不影响连接本身。
+pub fn remember_device(address: u64, device_id: &str) {
+    let Some(body) = last_remote_body(address, device_id) else {
+        return;
+    };
+    let path = last_remote_file_path();
+    if let Some(parent) = path.parent() {
+        if std::fs::create_dir_all(parent).is_err() {
+            return;
+        }
+    }
+    if let Err(error) = std::fs::write(&path, body) {
+        note(format!(
+            "last_remote action=write phase=completed terminal_result=failed reason={error}"
+        ));
+    }
+}
+
+/// 用户主动断开时调用：删掉记录，之后按遥控器按键不再自动连回去。
+pub fn forget_device() {
+    match std::fs::remove_file(last_remote_file_path()) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => note(format!(
+            "last_remote action=forget phase=completed terminal_result=failed reason={error}"
+        )),
+    }
+}
+
+/// 运行期读记录（空闲态按键唤醒时用）。
+pub fn remembered_device() -> Option<RememberedDevice> {
+    std::fs::read_to_string(last_remote_file_path())
+        .ok()
+        .and_then(|text| parse_last_remote_body(&text))
+}
+
+/// 从 Raw Input / PnP 设备路径里取那 12 位地址。
+///
+/// 锚点用 rev&<4 hex>_<12 hex>：直接扫 12 位十六进制会把
+/// 00001812-0000-1000-8000-00805f9b34fb 里的服务段误当地址。
+pub fn address_from_device_path(path: &str) -> Option<u64> {
+    let lower = path.to_ascii_lowercase();
+    let mut search = lower.as_str();
+    while let Some(position) = search.find("rev&") {
+        let rest = &search[position + 4..];
+        let bytes = rest.as_bytes();
+        if bytes.len() >= 17 && bytes[4] == b'_' {
+            let token = &rest[5..17];
+            if token.chars().all(|value| value.is_ascii_hexdigit()) {
+                if let Ok(value) = u64::from_str_radix(token, 16) {
+                    if value != 0 {
+                        return Some(value);
+                    }
+                }
+            }
+        }
+        search = rest;
+    }
+    None
+}
+
 /// 写目标文件；`address == 0` 时删除（未知 = 没有过滤条件）。
 fn write_file(address: u64) -> Result<(), String> {
     let path = target_file_path();
@@ -160,5 +287,50 @@ mod tests {
             parse_file_body("version=1\naddress=C05D39C2D9DB\n"),
             Some(address)
         );
+    }
+
+    /// 路径里的地址锚定在 rev& 之后：GUID 服务段里的 12 位十六进制不能误命中。
+    #[test]
+    fn address_from_device_path_uses_rev_anchor() {
+        let address = 0x00E8_5540_E10B_C5;
+        let raw_input_path = r"\\?\hid#{00001812-0000-1000-8000-00805f9b34fb}_dev_vid&012717_pid&32b8_rev&00a4_e85540e10bc5#a&1fb24810&0&0000#{884b96c3-56ef-11d1-bc8c-00a0c91405dd}";
+        assert_eq!(address_from_device_path(raw_input_path), Some(address));
+        let registry = r"BTHLEDEVICE\{00001812-0000-1000-8000-00805F9B34FB}_DEV_VID&012717_PID&32B8_REV&00A4_E85540E10BC5\8&1FB24810&0&0055";
+        assert_eq!(address_from_device_path(registry), Some(address));
+        // 只有 GUID：里面虽然有 12 位十六进制段，但它不是地址。
+        assert_eq!(
+            address_from_device_path("{00001812-0000-1000-8000-00805f9b34fb}"),
+            None
+        );
+        assert_eq!(address_from_device_path("no address here"), None);
+    }
+
+    /// 记住的那一支：正文往返；半截、旧版本、地址为 0 一律不认。
+    #[test]
+    fn last_remote_round_trip_and_rejects_partial_files() {
+        let address = 0x00E8_5540_E10B_C5;
+        let device_id = "Bluetooth#Bluetooth00:e8:55:40:e1:0b:c5-8&1fb24810&0&0055";
+        let body = last_remote_body(address, device_id).expect("body");
+        assert_eq!(
+            parse_last_remote_body(&body),
+            Some(RememberedDevice {
+                address,
+                device_id: device_id.to_owned(),
+            })
+        );
+        assert_eq!(
+            parse_last_remote_body("version=1\naddress=e85540e10bc5\n"),
+            None
+        );
+        assert_eq!(
+            parse_last_remote_body("version=2\naddress=e85540e10bc5\ndevice_id=x\n"),
+            None
+        );
+        assert_eq!(
+            parse_last_remote_body("version=1\naddress=000000000000\ndevice_id=x\n"),
+            None
+        );
+        assert_eq!(last_remote_body(0, device_id), None);
+        assert_eq!(last_remote_body(address, "  "), None);
     }
 }

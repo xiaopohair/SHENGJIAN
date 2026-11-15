@@ -57,6 +57,41 @@ const AWAITING_DEVICE_MESSAGE: &str =
 static CLASS_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 /// "目标地址兜底路径"是否已经记过日志（每次监听器启动重置；2026-10-13）。
 static TARGET_PATH_ACCEPT_LOGGED: AtomicBool = AtomicBool::new(false);
+/// 断连态「按一下遥控器就连回来」的限流下限。
+///
+/// 一次按住会连发多条报文，而失败的重连尝试本身也会再触发 HID 报文；
+/// 若不限流，「唤醒」会变成重连风暴（同 2026-10-13 issue #206 的教训，
+/// 见 `ble::quiet_window_elapsed`）。2s 与那边的基础退避同量级。
+const REMOTE_WAKE_MIN_INTERVAL: Duration = Duration::from_secs(2);
+/// 上次唤醒时刻（仅监听线程读写）。
+static LAST_REMOTE_WAKE_AT: Mutex<Option<Instant>> = Mutex::new(None);
+
+/// 这次按键活动是否够格触发唤醒（纯逻辑，便于单测）。
+fn remote_wake_allowed(previous: Option<Instant>, now: Instant) -> bool {
+    previous.map_or(true, |at| {
+        now.saturating_duration_since(at) >= REMOTE_WAKE_MIN_INTERVAL
+    })
+}
+
+/// 把「遥控器按键活动」转给 BLE 侧（`lib.rs` 接线到 `BleRuntime::wake_reconnect`）。
+///
+/// 地址用于断连态判定「按下的就是记住的那一支」；限流只挡唤醒，不挡按键本身。
+fn wake_remote_activity(address: Option<u64>) {
+    let now = Instant::now();
+    let allowed = match LAST_REMOTE_WAKE_AT.lock() {
+        Ok(mut last) => {
+            let allowed = remote_wake_allowed(*last, now);
+            if allowed {
+                *last = Some(now);
+            }
+            allowed
+        }
+        Err(_) => false,
+    };
+    if allowed {
+        crate::key_suppressor::wake_remote_activity(address);
+    }
+}
 
 thread_local! {
     static THREAD_CONTEXT: RefCell<Option<ListenerContext>> = const { RefCell::new(None) };
@@ -838,12 +873,32 @@ fn handle_raw_input(handle: HRAWINPUT) -> Result<(), String> {
             crate::remote_target::get(),
             &normalized,
         );
-        if !accepted {
+        if !accepted && crate::remote_target::get().is_none()
+            && crate::raw_input::device_path_matches_xiaomi_remote(&normalized)
+        {
+            // 还没连任何一支（没有"正在使用的目标"）时，报文来源就是最可靠的依据：
+            // 把绑定改到真正在发报文的那一路。此时谈不上被别的遥控器抢——
+            // 没有目标可抢；已有目标时仍然严格拒绝（2026-10-13 现场）。
+            if normalized != context.selected_path {
+                crate::ble::gatt_note(
+                    "raw_input binding_audit action=rebound_from_report reason=no_target"
+                        .to_owned(),
+                );
+                context.selected_path = normalized.clone();
+                context.binding_present = true;
+                let mut state = context.snapshot.lock().unwrap();
+                state.phase = RawInputPhase::Ready;
+                state.last_error = None;
+            }
+            // 按键本身也照常处理：这一支刚成为绑定，它的按下就没有理由丢掉。
+        } else if !accepted {
             // 绑定失配或"不是当前那一支"：报文可能来自别的设备（物理键盘等），也可能是
             // 遥控器的 HID 接口换了实例而本地绑定还没跟上。只有后者值得计数——它是"绑定失效"
             // 的直接证据，也是把「设备根本没发报文」与「报文被路径过滤丢弃」
             // 区分开的唯一线索（2026-09-18 现场正是无法区分这两者才迟迟定不了位）。
             if crate::raw_input::device_path_matches_xiaomi_remote(&normalized) {
+                // 断连态：这支在发报文，说明用户正按它——让它有机会发起连接。
+                wake_remote_activity(crate::remote_target::address_from_device_path(&normalized));
                 let (count, first) = {
                     let mut state = context.snapshot.lock().unwrap();
                     state.stale_remote_event_count += 1;
@@ -889,6 +944,11 @@ fn handle_raw_input(handle: HRAWINPUT) -> Result<(), String> {
                 virtual_key: keyboard.VKey,
                 message: keyboard.Message,
             };
+            // 任意按键的按下沿都能唤醒断连态的重连（是否真的发起由 BLE 侧判定，
+            // 这里只负责把「用户在按这一支」这条事实送过去；限流见 wake_remote_activity）。
+            if event.is_pressed() {
+                wake_remote_activity(crate::remote_target::address_from_device_path(&normalized));
+            }
             // Raw Input 在同一进程内每种设备类只能注册一个接收窗口；由本
             // 主监听器统一把已归因的小米遥控器语音 F5 转发给抑制器与
             // BLE 立即重连逻辑，避免第二个注册窗口相互覆盖。
@@ -913,6 +973,11 @@ fn handle_raw_input(handle: HRAWINPUT) -> Result<(), String> {
                     if let Some(button) = button_for_usage(*usage) {
                         key_gate::arm_button(button, GATE_ARM_GRACE_MS);
                     }
+                }
+                if !usages.is_empty() {
+                    wake_remote_activity(crate::remote_target::address_from_device_path(
+                        &normalized,
+                    ));
                 }
                 let _ = context.engine.send(EngineMessage::HidUsages(usages));
             }
@@ -991,7 +1056,23 @@ fn record_failure(snapshot: &Arc<Mutex<RawInputSnapshot>>, error: String) {
 
 #[cfg(test)]
 mod tests {
-    use super::voice_f5_wake_edge;
+    use super::{remote_wake_allowed, voice_f5_wake_edge, REMOTE_WAKE_MIN_INTERVAL};
+    use std::time::{Duration, Instant};
+
+    /// 唤醒限流：间隔内重复报文不再唤醒；到点后可以再唤醒。
+    #[test]
+    fn remote_wake_is_rate_limited() {
+        let start = Instant::now();
+        assert!(remote_wake_allowed(None, start));
+        assert!(!remote_wake_allowed(
+            Some(start),
+            start + Duration::from_millis(1_999)
+        ));
+        assert!(remote_wake_allowed(
+            Some(start),
+            start + REMOTE_WAKE_MIN_INTERVAL
+        ));
+    }
 
     #[test]
     fn voice_f5_wakes_reconnect_once_per_physical_hold() {

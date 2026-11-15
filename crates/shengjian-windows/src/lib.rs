@@ -918,7 +918,13 @@ impl Default for WindowsPlatform {
             // 遥控器 HID 活动通知接线（断连时遥控器醒来按键 → 立即重连）。
             let wake_runtime = Arc::clone(&runtime);
             key_suppressor::set_remote_hid_activity_notify(Box::new(move || {
-                wake_runtime.wake_reconnect();
+                wake_runtime.wake_reconnect(None);
+            }));
+            // 任意遥控器按键活动（Raw Input 线程）：带上按下那一支的地址，
+            // 断连态据此发起连接（见 BleRuntime 的空闲态唤醒判定）。
+            let activity_runtime = Arc::clone(&runtime);
+            key_suppressor::set_remote_activity_notify(Box::new(move |address| {
+                activity_runtime.wake_reconnect(address);
             }));
             // 遥控器 HID 接口重新出现接线（PnP `GIDC_ARRIVAL` → 立即重连）。
             // 与上面按键触发同源同理，但更早：设备一上线就重试，不必等

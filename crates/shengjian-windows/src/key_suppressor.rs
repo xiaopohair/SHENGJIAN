@@ -62,6 +62,10 @@ mod windows_impl {
     /// 归因线程观察到遥控器键盘事件时回调。用于断连状态下遥控器醒来
     /// 按键时立即触发重连（HID 先于 GATT 可达，2026-09-05 实证）。
     static REMOTE_HID_ACTIVITY_NOTIFY: OnceLock<Box<dyn Fn() + Send + Sync>> = OnceLock::new();
+    /// 遥控器**任意按键**活动通知（lib.rs 接线到 BleRuntime::wake_reconnect）：
+    /// 与上面那条的区别是多带一个蓝牙地址，供断连态判「按下的是记住的那一支」。
+    static REMOTE_ACTIVITY_NOTIFY: OnceLock<Box<dyn Fn(Option<u64>) + Send + Sync>> =
+        OnceLock::new();
     /// 防粘键配对状态（仅钩子线程读写）：0=无按住/配对未知，1=本次按住的
     /// DOWN 沿全部被本钩子吞下，2=任一 DOWN 沿已泄漏进 OS。UP 沿只在 1 时
     /// 吞下（VVC 同款：DOWN 漏进 OS 则 UP 必放行）。
@@ -284,6 +288,21 @@ mod windows_impl {
     pub fn set_remote_hid_activity_notify(callback: Box<dyn Fn() + Send + Sync>) {
         let _ = REMOTE_HID_ACTIVITY_NOTIFY.set(callback);
     }
+    /// 注册「遥控器按键活动」回调（lib.rs 启动时接线；重复注册保持首个）。
+    ///
+    /// 与 [`set_remote_hid_activity_notify`] 的区别：那条只由遥控器语音键 F5 驱动，
+    /// 这一条由 Raw Input 线程在**任意**遥控器按键按下时触发，并把报文路径里的
+    /// 蓝牙地址一起带出来——断连态「按一下就连回来」需要它来判定按下的是哪一支。
+    pub fn set_remote_activity_notify(callback: Box<dyn Fn(Option<u64>) + Send + Sync>) {
+        let _ = REMOTE_ACTIVITY_NOTIFY.set(callback);
+    }
+
+    /// 任意遥控器按键活动：尽力而为地交给上面注册的回调（未接线时静默）。
+    pub fn wake_remote_activity(address: Option<u64>) {
+        if let Some(callback) = REMOTE_ACTIVITY_NOTIFY.get() {
+            callback(address);
+        }
+    }
 
     // 钩子线程（LL 钩子 + 消息泵 + 链头 bump）已迁至 `crate::key_host` 的宿主
     // 进程：根因见 Bugs/2026-10-04-ll-hooks-break-in-app-ime-voice.md（钩子所在
@@ -379,8 +398,8 @@ mod windows_impl {
 
 #[cfg(windows)]
 pub use windows_impl::{
-    arm_grace, observe_remote_voice_f5, set_link_guard_active, set_remote_hid_activity_notify,
-    set_session_active, VoiceKeySuppressor,
+    arm_grace, observe_remote_voice_f5, set_link_guard_active, set_remote_activity_notify,
+    set_remote_hid_activity_notify, set_session_active, wake_remote_activity, VoiceKeySuppressor,
 };
 
 #[cfg(windows)]
