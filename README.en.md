@@ -24,13 +24,13 @@ Brand positioning, slogan, logo, and visual guidelines: [brand/BRAND.md](brand/B
 
 ## Current status
 
-- Version: `0.5.1` (new "hide to system tray on startup" setting; "transcript history" copy unified as voice recordings)
-- Supported devices: RC003 (Xiaomi Bluetooth Voice Remote 2 Pro) and RC001 (Xiaomi Bluetooth Voice Remote 2); Windows x64
-- GitHub Release 0.5.1: <https://github.com/xiaopohair/SHENGJIAN/releases/tag/v0.5.1> (CI-built, unsigned); installer `shengjian_0.5.1_x64-setup.exe`; verify with the `SHA256SUMS` asset in the release
+- Version: `0.9.0` (built-in common-phrases panel and Settings table; reworked connection and settings pages; any remote key reconnects when disconnected; device test panel and top-bar listening switch; release titles are now the bare version)
+- Supported devices: RC003 (Xiaomi Bluetooth Voice Remote 2 Pro), RC001 (Xiaomi Bluetooth Voice Remote 2), ARN9 (Xiaomi Bluetooth Voice Remote); Windows x64
+- GitHub Release 0.9.0: <https://github.com/xiaopohair/SHENGJIAN/releases/tag/v0.9.0> (CI-built, unsigned); installer `shengjian_0.9.0_x64-setup.exe`; verify with the `SHA256SUMS` asset in the release
 - Code signing: integrated with **SignPath Foundation** free open-source signing (built into the release workflow; enables automatically once configured); see [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md) and [docs/signing.md](docs/signing.md)
-- Verified on a physical RC003: connection, voice, button gestures, automatic profile switching, Run macro (`run-macro`), and enhanced Back-key capture
-- Local release manifest: `release/0.5.1/manifest.json` (records the local build; the release asset is authoritative)
-- Release notes: `docs/release-notes-0.5.1.md`
+- Verified on physical devices: RC003 (connection, voice, button gestures, automatic profile switching, Run macro, enhanced Back-key capture); ARN9 (connection, ATVV voice link, navigation keys, volume/Back capture); RC001 (GATT identity, 12-key layout incl. TV, two live voice sessions, TV key opens the common-phrases panel)
+- Local release manifest: `release/<version>/manifest.json` (produced by a local build; the release asset is authoritative)
+- Release notes: `docs/release-notes-0.9.0.md`
 - GitHub repository: <https://github.com/xiaopohair/SHENGJIAN>; releases are produced by the Release workflow triggered by `v*` tags
 - No auto-updater
 
@@ -248,7 +248,6 @@ The repository has been pushed to <https://github.com/xiaopohair/SHENGJIAN>; rel
 - Release packages are unsigned; CI signing requires the repository to be public and pass SignPath review
 - No auto-update
 - First helper installation requires UAC
-- RC003 / ARN9 / RC001 all passed on-device verification and take part in runtime model matching (RC001 confirmed on 2026-11-15, including its 12-key layout); see [docs/device-identity.md](docs/device-identity.md) for the probing workflow for new models
 - The common-phrases overlay only selects and inserts: phrases and their order are edited on the Settings page, not inside the panel; it is an in-app overlay that never takes focus, so it does not replace the system IME candidate window
 - No second-client IPC; the desktop host is in-process
 

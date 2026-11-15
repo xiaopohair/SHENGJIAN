@@ -28,7 +28,7 @@
 - 已支持设备：RC003（小米蓝牙语音遥控器 2 Pro）、RC001（小米蓝牙语音遥控器 2）、ARN9（小米蓝牙语音遥控器）；Windows x64
 - GitHub Release 0.9.0：<https://github.com/xiaopohair/SHENGJIAN/releases/tag/v0.9.0>（CI 构建、未签名），安装包 `shengjian_0.9.0_x64-setup.exe`；校验值以 Release 内的 `SHA256SUMS` 为准
 - 代码签名：已接入 **SignPath Foundation** 免费开源签名（release workflow 内置，配置后自动启用）；见 [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md) 与 [docs/signing.md](docs/signing.md)
-- 真机已验证：RC003（连接、语音、按键手势、方案自动切换、运行宏、返回键增强捕获）；ARN9（连接、ATVV 语音链路、导航键、音量/返回增强捕获）
+- 真机已验证：RC003（连接、语音、按键手势、方案自动切换、运行宏、返回键增强捕获）；ARN9（连接、ATVV 语音链路、导航键、音量/返回增强捕获）；RC001（GATT 身份、12 键布局含 TV、两次真实语音会话、TV 键唤起常用语面板）
 - 本地发布清单：`release/<version>/manifest.json`（本地构建时生成，线上资产以 Release 为准）
 - 发布说明：`docs/release-notes-0.9.0.md`
 - GitHub 仓库已创建并推送：<https://github.com/xiaopohair/SHENGJIAN>；发布由 `v*` tag 触发的 Release workflow 生成
@@ -253,7 +253,6 @@ signed=false
 - 发布包未签名；CI 签名需仓库公开并通过 SignPath 审核
 - 无自动更新
 - helper 首次安装需要 UAC
-- RC003 / ARN9 / RC001 三款均已真机验收并进入运行时型号匹配（RC001 于 2026-11-15 确认身份与 12 键布局）；新机型的探测流程见 [docs/device-identity.md](docs/device-identity.md)
 - 常用语面板只做「选择 + 插入」：文案与顺序在设置页维护，面板内不能编辑；面板是应用内浮层，不抢焦点，因此也不会替代系统的输入法候选框
 - 无第二个客户端 IPC；桌面宿主为 in-process
 

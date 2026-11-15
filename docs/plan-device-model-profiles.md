@@ -188,7 +188,7 @@ pub fn current_device_model(&self) -> Option<String>;
 
 ## 不在本次范围（下一步）
 
-- RC001 的按键布局与方案（型号识别仍为 `research`，未验证）。
+- ~~RC001 的按键布局与方案（型号识别仍为 `research`，未验证）。~~ 已于 2026-11-15 完成：型号识别转 `implemented`，12 键（含 TV）布局真机确认。
 - `profiles/xiaomi-arn9.json` 独立设备档案（当前与 RC003 共用）。
 - RC001 / ARN9 / 通用三套产品图与热区坐标标定（当前仍是 RC003 图）。
 - HID product string / report descriptor 层面的身份校验。
