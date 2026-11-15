@@ -1,0 +1,102 @@
+{
+  "id": "preset.codex",
+  "name": "Codex 按键",
+  "deviceModel": null,
+  "compatibleModels": [],
+  "appTargets": [
+    "chatgpt.exe"
+  ],
+  "autoApply": true,
+  "holdRepeatByButton": {
+    "volume-up": "single",
+    "volume-down": "single"
+  },
+  "bindings": {
+    "up": {
+      "single": {
+        "type": "shortcut",
+        "label": "补充指令",
+        "keys": [
+          "left_control",
+          "enter"
+        ]
+      }
+    },
+    "down": {
+      "single": {
+        "type": "disabled"
+      }
+    },
+    "home": {
+      "single": {
+        "type": "disabled"
+      }
+    },
+    "left": {
+      "single": {
+        "type": "shortcut",
+        "label": "上一个会话",
+        "keys": [
+          "left_control",
+          "left_shift",
+          "tab"
+        ]
+      }
+    },
+    "right": {
+      "single": {
+        "type": "shortcut",
+        "label": "下一个会话",
+        "keys": [
+          "left_control",
+          "tab"
+        ]
+      }
+    },
+    "ok": {
+      "single": {
+        "type": "shortcut",
+        "label": "提交 / 确认",
+        "keys": [
+          "enter"
+        ]
+      }
+    },
+    "back": {
+      "single": {
+        "type": "shortcut",
+        "label": "删除字符",
+        "keys": [
+          "backspace"
+        ]
+      }
+    },
+    "volume-up": {
+      "single": {
+        "type": "shortcut",
+        "label": "向上翻页",
+        "keys": [
+          "pageup"
+        ]
+      }
+    },
+    "volume-down": {
+      "single": {
+        "type": "shortcut",
+        "label": "向下翻页",
+        "keys": [
+          "pagedown"
+        ]
+      }
+    },
+    "power": {
+      "single": {
+        "type": "shortcut",
+        "label": "停止 / 取消",
+        "keys": [
+          "escape"
+        ]
+      }
+    }
+  }
+}

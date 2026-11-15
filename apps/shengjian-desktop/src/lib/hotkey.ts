@@ -4,7 +4,7 @@ import { tr, trDynamic } from "./i18n";
  * 语音热键的展示与规范化。
  *
  * 存储格式是前端 `KeyboardEvent.code` 列表（`ControlLeft`、`KeyA`…），
- * 与 `config/voice-tools.json` 的 `defaultHotkey` 同一套词表。
+ * 与 `config/voice-tool-presets.json` 的 `defaultHotkey` 同一套词表。
  */
 
 /** 只修饰组合的键：选主键时不列它们。 */

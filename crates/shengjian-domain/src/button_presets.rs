@@ -371,18 +371,14 @@ mod tests {
         false
     }
 
-    /// 内嵌配置（Lead 下发）合法：2 条示例、bundleVersion 正确。
+    /// 内嵌配置合法：bundleVersion 与首尾 id 正确。
     #[test]
     fn embedded_catalog_is_valid() {
         let catalog = parse_catalog(DEFAULT_BUTTON_PRESETS_JSON).expect("embedded presets");
-        assert_eq!(catalog.bundle_version, "2026.11.1");
-        assert_eq!(catalog.profiles.len(), 2);
-        assert_eq!(catalog.profiles[0].profile.id, "preset.desktop.shortcuts");
-        assert_eq!(catalog.profiles[1].profile.id, "preset.netease.controls");
-        assert_eq!(
-            catalog.profiles[1].compatible_models,
-            vec!["RC003".to_owned()]
-        );
+        assert_eq!(catalog.bundle_version, "2026.11.4");
+        assert_eq!(catalog.profiles.len(), 5);
+        assert_eq!(catalog.profiles[0].profile.id, "preset.claude-code");
+        assert_eq!(catalog.profiles[4].profile.id, "preset.wps.presentation");
         validate_catalog(&catalog, no_macros).expect("embedded config must validate");
     }
 
@@ -390,7 +386,15 @@ mod tests {
     /// 型号未知时只列通用方案。
     #[test]
     fn filters_presets_by_model() {
-        let catalog = parse_catalog(DEFAULT_BUTTON_PRESETS_JSON).expect("embedded presets");
+        let json = r#"{
+            "schemaVersion": 1,
+            "bundleVersion": "test",
+            "profiles": [
+                { "id": "preset.generic", "name": "通用", "compatibleModels": [], "bindings": {} },
+                { "id": "preset.rc003", "name": "仅 RC003", "compatibleModels": ["RC003"], "bindings": {} }
+            ]
+        }"#;
+        let catalog = parse_catalog(json).expect("parse");
         let ids_for = |model: Option<&str>| -> Vec<&str> {
             catalog
                 .profiles_for_model(model)
@@ -400,15 +404,15 @@ mod tests {
         };
         assert_eq!(
             ids_for(Some("rc003")),
-            vec!["preset.desktop.shortcuts", "preset.netease.controls"],
+            vec!["preset.generic", "preset.rc003"],
             "型号归一化后 RC003 两条都可见"
         );
         assert_eq!(
             ids_for(Some("ARN9")),
-            vec!["preset.desktop.shortcuts"],
+            vec!["preset.generic"],
             "仅 RC003 适配的方案不应出现在 ARN9 下"
         );
-        assert_eq!(ids_for(None), vec!["preset.desktop.shortcuts"]);
+        assert_eq!(ids_for(None), vec!["preset.generic"]);
     }
 
     /// 归一化：型号大写去空白、compatibleModels/appTargets 去重、名称 trim。
@@ -559,11 +563,11 @@ mod tests {
     #[test]
     fn install_defaults_exposes_read_only_catalog() {
         install_defaults().expect("install embedded presets");
-        assert_eq!(bundle_version(), "2026.11.1");
+        assert_eq!(bundle_version(), "2026.11.4");
         let rc003 = profiles_for_model(Some("RC003"));
-        assert_eq!(rc003.len(), 2);
-        let found = profile("preset.netease.controls").expect("preset lookup");
-        assert_eq!(found.profile.name, "网易云音乐按键");
+        assert_eq!(rc003.len(), 5);
+        let found = profile("preset.wechat").expect("preset lookup");
+        assert_eq!(found.profile.name, "微信按键");
         assert!(profile("preset.missing").is_none());
     }
 }

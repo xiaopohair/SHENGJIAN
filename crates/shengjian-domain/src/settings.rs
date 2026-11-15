@@ -91,13 +91,13 @@ pub struct AppSettings {
     pub audio_endpoint_name: Option<String>,
     pub gain_db: f32,
     pub voice_trigger_mode: VoiceTriggerMode,
-    /// 连接页选择的输入工具 id（`config/voice-tools.json` 里的 `id`，如 `wechat`）。
+    /// 连接页选择的输入工具 id（`config/voice-tool-presets.json` 里的 `id`，如 `wechat`）。
     ///
     /// `None` = 用户从未选择过（老配置）：前端按当前快捷键推断一次后落存，
     /// 不在这里猜——推断规则只属于界面，Rust 侧只做持久化。
     ///
     /// 值是配置目录里的稳定 id，不在这里枚举：列表/名称/默认热键都由
-    /// `config/voice-tools.json` 维护（见 `crate::voice_tools`），Windows 专属行为
+    /// `config/voice-tool-presets.json` 维护（见 `crate::voice_tools`），Windows 专属行为
     /// 按配置里的 `kind` 在 `shengjian-windows` 里选择。旧版本写下的
     /// `wechat` / `doubao` / `vokie` / `other` 是同名字符串，读回语义不变。
     pub voice_input_tool: Option<String>,

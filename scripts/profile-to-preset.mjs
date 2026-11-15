@@ -2,9 +2,9 @@
 // 推荐按键方案的源文件管理 + 转换 + 聚合 + 校验。
 //
 // 源码侧是**一方案一文件**（便于 review / 减少冲突）：
-//   config/button-profiles/catalog.json              { schemaVersion, bundleVersion }
-//   config/button-profiles/preset.desktop.shortcuts.json
-//   config/button-profiles/preset.netease.controls.json
+//   config/recommended-button-profiles/catalog.json              { schemaVersion, bundleVersion }
+//   config/recommended-button-profiles/preset.wechat.json
+//   config/recommended-button-profiles/preset.wps.presentation.json
 //
 // 运行时/安装包仍然只认单个聚合文件（`include_str!` 内嵌兜底 + 资源文件）：
 //   config/button-profiles.json   { schemaVersion, bundleVersion, profiles: [...] }
@@ -29,7 +29,7 @@ const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(SCRIPT_DIR, "..");
 const CONFIG_DIR = resolve(REPO_ROOT, "config");
 /** 一方案一文件的源目录。 */
-const PROFILE_DIR = resolve(CONFIG_DIR, "button-profiles");
+const PROFILE_DIR = resolve(CONFIG_DIR, "recommended-button-profiles");
 /** 源目录里的版本清单（文件名固定，不当方案解析）。 */
 const DIR_MANIFEST = "catalog.json";
 /** 聚合产物：运行时与安装包唯一读取的文件。 */
@@ -69,8 +69,8 @@ const ACTION_TYPES = [
 const USAGE = `推荐按键方案：一方案一文件的源目录 → 聚合文件，兼做「我的方案」转换。
 
 目录结构（源码侧，手工编辑这里是主要入口）：
-  config/button-profiles/catalog.json            { schemaVersion, bundleVersion }
-  config/button-profiles/<方案 id>.json          一个文件一条推荐方案
+  config/recommended-button-profiles/catalog.json     { schemaVersion, bundleVersion }
+  config/recommended-button-profiles/<方案 id>.json   一个文件一条推荐方案
 聚合产物（不要手改，由 --build 生成；运行时与安装包只认它）：
   config/button-profiles.json                    { schemaVersion, bundleVersion, profiles }
 
@@ -90,7 +90,7 @@ const USAGE = `推荐按键方案：一方案一文件的源目录 → 聚合文
   --device-model <M>    复制后的归属型号（默认 null = 通用）
 
 输出与选项：
-  --dir <dir>           源目录（默认 config/button-profiles）
+  --dir <dir>           源目录（默认 config/recommended-button-profiles）
   --out <file>          只把聚合结果写到指定文件（用于已安装机器，例如
                         <安装目录>/resources/config/button-profiles.json）
   --bundle-version <v>  指定版本号（默认把 catalog.json 里的末段 +1）
@@ -720,7 +720,7 @@ const CATALOGS = {
     validate: validateAppPresets,
     summarize: (catalog) => `应用=${catalog.apps?.length ?? 0}`,
   },
-  "voice-tools.json": {
+  "voice-tool-presets.json": {
     label: "语音输入工具",
     validate: validateVoiceTools,
     summarize: (catalog) => `工具=${catalog.tools?.length ?? 0}`,
@@ -782,7 +782,7 @@ function checkRepository() {
     console.log(`  与源目录一致  方案数=${aggregate?.profiles.length ?? 0}`);
   }
 
-  // 3) 其余三个目录文件（button-profiles 已由上面两步覆盖）
+  // 3) 其余三个目录文件（button-profiles.json 已由上面两步覆盖）
   for (const fileName of Object.keys(CATALOGS)) {
     if (fileName === "button-profiles.json") continue;
     const path = resolve(CONFIG_DIR, fileName);

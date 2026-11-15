@@ -1,6 +1,6 @@
 //! Bundled, editable voice-input tool catalog.
 //!
-//! The authoritative data lives in `config/voice-tools.json` at the repository root
+//! The authoritative data lives in `config/voice-tool-presets.json` at the repository root
 //! (copied into the installer resources by `scripts/prepare-config.ps1`). The same
 //! file is embedded here as a fallback for tests and `tauri dev`.
 //!
@@ -12,8 +12,8 @@
 use serde::{Deserialize, Serialize};
 use std::sync::{OnceLock, RwLock};
 
-/// Embedded fallback copy of `config/voice-tools.json`.
-pub const DEFAULT_VOICE_TOOLS_JSON: &str = include_str!("../../../config/voice-tools.json");
+/// Embedded fallback copy of `config/voice-tool-presets.json`.
+pub const DEFAULT_VOICE_TOOLS_JSON: &str = include_str!("../../../config/voice-tool-presets.json");
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -128,7 +128,7 @@ fn parse_catalog(json: &str) -> Result<Vec<VoiceToolConfig>, String> {
     Ok(catalog.tools)
 }
 
-/// Replace the runtime catalog from JSON (editable `config/voice-tools.json`).
+/// Replace the runtime catalog from JSON (editable `config/voice-tool-presets.json`).
 pub fn install_from_json(json: &str) -> Result<(), String> {
     let tools = parse_catalog(json)?;
     let mut slot = catalog_slot()

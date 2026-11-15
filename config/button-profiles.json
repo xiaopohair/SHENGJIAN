@@ -1,60 +1,399 @@
 {
   "schemaVersion": 1,
-  "bundleVersion": "2026.11.1",
+  "bundleVersion": "2026.11.4",
   "profiles": [
     {
-      "id": "preset.desktop.shortcuts",
-      "name": "桌面快捷键",
+      "id": "preset.claude-code",
+      "name": "Claude Code 按键",
       "deviceModel": null,
       "compatibleModels": [],
-      "appTargets": [],
-      "autoApply": false,
+      "appTargets": ["claude.exe"],
+      "autoApply": true,
+      "holdRepeatByButton": {
+        "volume-up": "single",
+        "volume-down": "single"
+      },
       "bindings": {
-        "home": {
+        "up": {
           "single": {
-            "type": "shortcut",
-            "label": "资源管理器",
-            "keys": ["left_windows", "e"]
+            "type": "disabled"
           }
         },
-        "menu": {
+        "down": {
+          "single": {
+            "type": "disabled"
+          }
+        },
+        "home": {
+          "single": {
+            "type": "disabled"
+          }
+        },
+        "left": {
           "single": {
             "type": "shortcut",
-            "label": "任务视图",
-            "keys": ["left_windows", "tab"]
+            "label": "上一个会话",
+            "keys": ["left_control", "left_shift", "tab"]
+          }
+        },
+        "right": {
+          "single": {
+            "type": "shortcut",
+            "label": "下一个会话",
+            "keys": ["left_control", "tab"]
+          }
+        },
+        "ok": {
+          "single": {
+            "type": "shortcut",
+            "label": "提交 / 确认",
+            "keys": ["enter"]
+          }
+        },
+        "back": {
+          "single": {
+            "type": "shortcut",
+            "label": "删除字符",
+            "keys": ["backspace"]
+          }
+        },
+        "volume-up": {
+          "single": {
+            "type": "shortcut",
+            "label": "向上翻页",
+            "keys": ["pageup"]
+          }
+        },
+        "volume-down": {
+          "single": {
+            "type": "shortcut",
+            "label": "向下翻页",
+            "keys": ["pagedown"]
+          }
+        },
+        "power": {
+          "single": {
+            "type": "shortcut",
+            "label": "停止回复",
+            "keys": ["escape"]
           }
         }
       }
     },
     {
-      "id": "preset.netease.controls",
-      "name": "网易云音乐按键",
+      "id": "preset.codex",
+      "name": "Codex 按键",
       "deviceModel": null,
-      "compatibleModels": ["RC003"],
-      "appTargets": ["netease_music"],
+      "compatibleModels": [],
+      "appTargets": ["chatgpt.exe"],
       "autoApply": true,
-      "holdRepeat": "long",
+      "holdRepeatByButton": {
+        "volume-up": "single",
+        "volume-down": "single"
+      },
       "bindings": {
         "up": {
           "single": {
             "type": "shortcut",
-            "label": "音量 +",
-            "keys": ["volume_up"]
+            "label": "补充指令",
+            "keys": ["left_control", "enter"]
+          }
+        },
+        "down": {
+          "single": {
+            "type": "disabled"
+          }
+        },
+        "home": {
+          "single": {
+            "type": "disabled"
+          }
+        },
+        "left": {
+          "single": {
+            "type": "shortcut",
+            "label": "上一个会话",
+            "keys": ["left_control", "left_shift", "tab"]
+          }
+        },
+        "right": {
+          "single": {
+            "type": "shortcut",
+            "label": "下一个会话",
+            "keys": ["left_control", "tab"]
+          }
+        },
+        "ok": {
+          "single": {
+            "type": "shortcut",
+            "label": "提交 / 确认",
+            "keys": ["enter"]
+          }
+        },
+        "back": {
+          "single": {
+            "type": "shortcut",
+            "label": "删除字符",
+            "keys": ["backspace"]
+          }
+        },
+        "volume-up": {
+          "single": {
+            "type": "shortcut",
+            "label": "向上翻页",
+            "keys": ["pageup"]
+          }
+        },
+        "volume-down": {
+          "single": {
+            "type": "shortcut",
+            "label": "向下翻页",
+            "keys": ["pagedown"]
+          }
+        },
+        "power": {
+          "single": {
+            "type": "shortcut",
+            "label": "停止 / 取消",
+            "keys": ["escape"]
+          }
+        }
+      }
+    },
+    {
+      "id": "preset.wechat",
+      "name": "微信按键",
+      "deviceModel": null,
+      "compatibleModels": [],
+      "appTargets": ["wechat.exe", "weixin.exe"],
+      "autoApply": true,
+      "holdRepeatByButton": {
+        "up": "single",
+        "down": "single",
+        "volume-up": "single",
+        "volume-down": "single"
+      },
+      "bindings": {
+        "up": {
+          "single": {
+            "type": "shortcut",
+            "label": "光标上移 / 列表上一项",
+            "keys": ["up"]
           }
         },
         "down": {
           "single": {
             "type": "shortcut",
-            "label": "音量 -",
-            "keys": ["volume_down"]
+            "label": "光标下移 / 列表下一项",
+            "keys": ["down"]
+          }
+        },
+        "left": {
+          "single": {
+            "type": "shortcut",
+            "label": "光标左移",
+            "keys": ["left"]
+          }
+        },
+        "right": {
+          "single": {
+            "type": "shortcut",
+            "label": "光标右移",
+            "keys": ["right"]
           }
         },
         "ok": {
           "single": {
-            "type": "mouse",
-            "kind": "click",
-            "direction": null,
-            "amount": 1
+            "type": "system-action",
+            "key": "enter"
+          }
+        },
+        "back": {
+          "single": {
+            "type": "shortcut",
+            "label": "删除字符",
+            "keys": ["backspace"]
+          }
+        },
+        "home": {
+          "single": {
+            "type": "disabled"
+          }
+        },
+        "volume-up": {
+          "single": {
+            "type": "shortcut",
+            "label": "向上翻页",
+            "keys": ["pageup"]
+          }
+        },
+        "volume-down": {
+          "single": {
+            "type": "shortcut",
+            "label": "向下翻页",
+            "keys": ["pagedown"]
+          }
+        },
+        "power": {
+          "single": {
+            "type": "system-action",
+            "key": "show_desktop"
+          }
+        }
+      }
+    },
+    {
+      "id": "preset.workbuddy",
+      "name": "WorkBuddy 按键",
+      "deviceModel": null,
+      "compatibleModels": [],
+      "appTargets": ["workbuddy.exe"],
+      "autoApply": true,
+      "holdRepeatByButton": {
+        "volume-up": "single",
+        "volume-down": "single"
+      },
+      "bindings": {
+        "up": {
+          "single": {
+            "type": "disabled"
+          }
+        },
+        "down": {
+          "single": {
+            "type": "disabled"
+          }
+        },
+        "home": {
+          "single": {
+            "type": "disabled"
+          }
+        },
+        "left": {
+          "single": {
+            "type": "shortcut",
+            "label": "上一个任务",
+            "keys": ["left_control", "["]
+          }
+        },
+        "right": {
+          "single": {
+            "type": "shortcut",
+            "label": "下一个任务",
+            "keys": ["left_control", "]"]
+          }
+        },
+        "ok": {
+          "single": {
+            "type": "shortcut",
+            "label": "提交 / 确认",
+            "keys": ["enter"]
+          }
+        },
+        "back": {
+          "single": {
+            "type": "shortcut",
+            "label": "删除字符",
+            "keys": ["backspace"]
+          }
+        },
+        "volume-up": {
+          "single": {
+            "type": "shortcut",
+            "label": "向上翻页",
+            "keys": ["pageup"]
+          }
+        },
+        "volume-down": {
+          "single": {
+            "type": "shortcut",
+            "label": "向下翻页",
+            "keys": ["pagedown"]
+          }
+        },
+        "power": {
+          "single": {
+            "type": "shortcut",
+            "label": "停止生成",
+            "keys": ["escape"]
+          }
+        }
+      }
+    },
+    {
+      "id": "preset.wps.presentation",
+      "name": "WPS 演示放映",
+      "deviceModel": null,
+      "compatibleModels": [],
+      "appTargets": ["wpp.exe"],
+      "autoApply": false,
+      "bindings": {
+        "home": {
+          "single": {
+            "type": "shortcut",
+            "label": "从头放映",
+            "keys": ["f5"]
+          }
+        },
+        "ok": {
+          "single": {
+            "type": "shortcut",
+            "label": "下一页",
+            "keys": ["space"]
+          }
+        },
+        "up": {
+          "single": {
+            "type": "shortcut",
+            "label": "上一页",
+            "keys": ["up"]
+          }
+        },
+        "down": {
+          "single": {
+            "type": "shortcut",
+            "label": "下一页",
+            "keys": ["down"]
+          }
+        },
+        "left": {
+          "single": {
+            "type": "shortcut",
+            "label": "上一个窗口",
+            "keys": ["left_control", "left_shift", "tab"]
+          }
+        },
+        "right": {
+          "single": {
+            "type": "shortcut",
+            "label": "下一个窗口",
+            "keys": ["left_control", "tab"]
+          }
+        },
+        "back": {
+          "single": {
+            "type": "shortcut",
+            "label": "结束放映",
+            "keys": ["escape"]
+          }
+        },
+        "power": {
+          "single": {
+            "type": "shortcut",
+            "label": "黑屏切换",
+            "keys": ["b"]
+          }
+        },
+        "volume-up": {
+          "single": {
+            "type": "system-action",
+            "key": "volume_up"
+          }
+        },
+        "volume-down": {
+          "single": {
+            "type": "system-action",
+            "key": "volume_down"
           }
         }
       }

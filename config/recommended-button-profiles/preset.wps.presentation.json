@@ -1,0 +1,99 @@
+{
+  "id": "preset.wps.presentation",
+  "name": "WPS 演示放映",
+  "deviceModel": null,
+  "compatibleModels": [],
+  "appTargets": [
+    "wpp.exe"
+  ],
+  "autoApply": false,
+  "bindings": {
+    "home": {
+      "single": {
+        "type": "shortcut",
+        "label": "从头放映",
+        "keys": [
+          "f5"
+        ]
+      }
+    },
+    "ok": {
+      "single": {
+        "type": "shortcut",
+        "label": "下一页",
+        "keys": [
+          "space"
+        ]
+      }
+    },
+    "up": {
+      "single": {
+        "type": "shortcut",
+        "label": "上一页",
+        "keys": [
+          "up"
+        ]
+      }
+    },
+    "down": {
+      "single": {
+        "type": "shortcut",
+        "label": "下一页",
+        "keys": [
+          "down"
+        ]
+      }
+    },
+    "left": {
+      "single": {
+        "type": "shortcut",
+        "label": "上一个窗口",
+        "keys": [
+          "left_control",
+          "left_shift",
+          "tab"
+        ]
+      }
+    },
+    "right": {
+      "single": {
+        "type": "shortcut",
+        "label": "下一个窗口",
+        "keys": [
+          "left_control",
+          "tab"
+        ]
+      }
+    },
+    "back": {
+      "single": {
+        "type": "shortcut",
+        "label": "结束放映",
+        "keys": [
+          "escape"
+        ]
+      }
+    },
+    "power": {
+      "single": {
+        "type": "shortcut",
+        "label": "黑屏切换",
+        "keys": [
+          "b"
+        ]
+      }
+    },
+    "volume-up": {
+      "single": {
+        "type": "system-action",
+        "key": "volume_up"
+      }
+    },
+    "volume-down": {
+      "single": {
+        "type": "system-action",
+        "key": "volume_down"
+      }
+    }
+  }
+}

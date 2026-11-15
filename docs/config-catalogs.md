@@ -8,8 +8,8 @@
 | 文件 | 作用 |
 |---|---|
 | `config/app-presets.json` | 推荐应用（含安装探测、AUMID、默认聚焦、便携导出映射） |
-| `config/voice-tools.json` | 语音输入工具列表、名称、默认热键、行为类型 |
-| `config/button-profiles/` | 推荐按键方案的**源目录**（一方案一文件，见下） |
+| `config/voice-tool-presets.json` | 语音输入工具列表、名称、默认热键、行为类型 |
+| `config/recommended-button-profiles/` | 推荐按键方案的**源目录**（一方案一文件，见下） |
 | `config/button-profiles.json` | 推荐按键方案的**聚合产物**（生成文件，不要手改） |
 | `config/recommended-macros.json` | 推荐宏（只读；供推荐/复制方案引用，用户宏优先） |
 
@@ -58,7 +58,7 @@
 - 没有 `focus` 的条目默认 `autoComposer`（自动找输入框），与旧行为一致。
 - `id` 是持久化标识：发布后改 id 会让旧按键动作/方案匹配找不到它（不会清空配置）。
 
-## `voice-tools.json`
+## `voice-tool-presets.json`
 
 ```jsonc
 {
@@ -215,26 +215,26 @@ Get-WinUserLanguageList | Select-Object LanguageTag, InputMethodTips
 源码侧采用**一方案一文件**，方便 review、减少多人改同一文件的冲突：
 
 ```text
-config/button-profiles/
-├── catalog.json                        { "schemaVersion": 1, "bundleVersion": "2026.11.1" }
-├── preset.desktop.shortcuts.json       一个文件 = 一条推荐方案
-└── preset.netease.controls.json
+config/recommended-button-profiles/
+├── catalog.json                        { "schemaVersion": 1, "bundleVersion": "2026.11.3" }
+├── preset.wechat.json                  一个文件 = 一条推荐方案
+└── preset.wps.presentation.json
 ```
 
 单条方案文件就是方案对象本身（不带 `profiles` 外壳），文件名必须等于方案 id：
 
 ```jsonc
-// config/button-profiles/preset.netease.controls.json
+// config/recommended-button-profiles/preset.wps.presentation.json
 {
-  "id": "preset.netease.controls",     // 稳定 id，必须 preset. 前缀，且与文件名一致
-  "name": "网易云音乐按键",
+  "id": "preset.wps.presentation",     // 稳定 id，必须 preset. 前缀，且与文件名一致
+  "name": "WPS 演示放映",
   "deviceModel": null,                 // 复制后归属；null = 通用
-  "compatibleModels": ["RC003"],       // 适配型号；空 = 全部
-  "appTargets": ["netease_music"],     // 前台应用匹配（预设 id / exe）
-  "autoApply": true,
+  "compatibleModels": [],              // 适配型号；空 = 全部
+  "appTargets": ["wpp.exe"],           // 前台应用匹配：exe 文件名（小写），不是应用 id
+  "autoApply": false,
   "holdRepeat": "long",                // 可选
   "bindings": {                        // 只允许可编辑按钮（is_profile_button）
-    "ok": { "single": { "type": "mouse", "kind": "click", "direction": null, "amount": 1 } }
+    "ok": { "single": { "type": "shortcut", "label": "下一页", "keys": ["space"] } }
   }
 }
 ```
@@ -287,7 +287,7 @@ pnpm config:import-profile --list --input "%USERPROFILE%\Desktop\button-profiles
 pnpm config:import-profile --input "%USERPROFILE%\Desktop\button-profiles.json" `
   --profile "豆包语音输入（我的）" --id preset.rc003.doubao --models RC003 --dry-run
 
-# 3) 写入 config/button-profiles/preset.rc003.doubao.json 并重建聚合文件
+# 3) 写入 config/recommended-button-profiles/preset.rc003.doubao.json 并重建聚合文件
 #    （同名 id 会覆盖原文件，并自动递增 catalog.json 里的 bundleVersion）
 pnpm config:import-profile --input "%USERPROFILE%\Desktop\button-profiles.json" `
   --profile "豆包语音输入（我的）" --id preset.rc003.doubao --models RC003
@@ -303,7 +303,7 @@ pnpm config:check
 - 写盘前跑一遍与 `button_presets::validate_catalog` 等价的校验（id 前缀/重复、
   `isDefault`、空 name、不可编辑按键、`run-macro` 引用是否存在、动作类型等），
   不合法直接报原因并**不写盘**
-- `--check` 同时检查聚合一致性与 `app-presets.json` / `voice-tools.json` /
+- `--check` 同时检查聚合一致性与 `app-presets.json` / `voice-tool-presets.json` /
   `recommended-macros.json` 的结构性问题；CI 也会跑 `pnpm config:check`
 
 已安装的机器想直接试效果，用 `--out` 直接写安装目录（只写聚合文件，不动源目录）：
@@ -337,7 +337,7 @@ pnpm config:import-profile --input ... --id preset.xxx `
 ## 校验与回退
 
 两个文件在启动时都会做轻量校验：非空、id 唯一、focus strategy / tool kind 合法；
-`voice-tools.json` 的 `ime` 块必须至少提供固定 GUID 对或发现名之一。
+`voice-tool-presets.json` 的 `ime` 块必须至少提供固定 GUID 对或发现名之一。
 校验失败时整体回退到内嵌默认配置（对应 `crates/shengjian-domain/src/app_catalog.rs`、
 `voice_tools.rs` 里的 `DEFAULT_*_JSON`）。单元测试覆盖了解析与拒绝非法配置。
 

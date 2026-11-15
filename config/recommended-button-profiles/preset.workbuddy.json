@@ -1,0 +1,96 @@
+{
+  "id": "preset.workbuddy",
+  "name": "WorkBuddy 按键",
+  "deviceModel": null,
+  "compatibleModels": [],
+  "appTargets": [
+    "workbuddy.exe"
+  ],
+  "autoApply": true,
+  "holdRepeatByButton": {
+    "volume-up": "single",
+    "volume-down": "single"
+  },
+  "bindings": {
+    "up": {
+      "single": {
+        "type": "disabled"
+      }
+    },
+    "down": {
+      "single": {
+        "type": "disabled"
+      }
+    },
+    "home": {
+      "single": {
+        "type": "disabled"
+      }
+    },
+    "left": {
+      "single": {
+        "type": "shortcut",
+        "label": "上一个任务",
+        "keys": [
+          "left_control",
+          "["
+        ]
+      }
+    },
+    "right": {
+      "single": {
+        "type": "shortcut",
+        "label": "下一个任务",
+        "keys": [
+          "left_control",
+          "]"
+        ]
+      }
+    },
+    "ok": {
+      "single": {
+        "type": "shortcut",
+        "label": "提交 / 确认",
+        "keys": [
+          "enter"
+        ]
+      }
+    },
+    "back": {
+      "single": {
+        "type": "shortcut",
+        "label": "删除字符",
+        "keys": [
+          "backspace"
+        ]
+      }
+    },
+    "volume-up": {
+      "single": {
+        "type": "shortcut",
+        "label": "向上翻页",
+        "keys": [
+          "pageup"
+        ]
+      }
+    },
+    "volume-down": {
+      "single": {
+        "type": "shortcut",
+        "label": "向下翻页",
+        "keys": [
+          "pagedown"
+        ]
+      }
+    },
+    "power": {
+      "single": {
+        "type": "shortcut",
+        "label": "停止生成",
+        "keys": [
+          "escape"
+        ]
+      }
+    }
+  }
+}

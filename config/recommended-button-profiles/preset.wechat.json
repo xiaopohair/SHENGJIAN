@@ -1,0 +1,99 @@
+{
+  "id": "preset.wechat",
+  "name": "微信按键",
+  "deviceModel": null,
+  "compatibleModels": [],
+  "appTargets": [
+    "wechat.exe",
+    "weixin.exe"
+  ],
+  "autoApply": true,
+  "holdRepeatByButton": {
+    "up": "single",
+    "down": "single",
+    "volume-up": "single",
+    "volume-down": "single"
+  },
+  "bindings": {
+    "up": {
+      "single": {
+        "type": "shortcut",
+        "label": "光标上移 / 列表上一项",
+        "keys": [
+          "up"
+        ]
+      }
+    },
+    "down": {
+      "single": {
+        "type": "shortcut",
+        "label": "光标下移 / 列表下一项",
+        "keys": [
+          "down"
+        ]
+      }
+    },
+    "left": {
+      "single": {
+        "type": "shortcut",
+        "label": "光标左移",
+        "keys": [
+          "left"
+        ]
+      }
+    },
+    "right": {
+      "single": {
+        "type": "shortcut",
+        "label": "光标右移",
+        "keys": [
+          "right"
+        ]
+      }
+    },
+    "ok": {
+      "single": {
+        "type": "system-action",
+        "key": "enter"
+      }
+    },
+    "back": {
+      "single": {
+        "type": "shortcut",
+        "label": "删除字符",
+        "keys": [
+          "backspace"
+        ]
+      }
+    },
+    "home": {
+      "single": {
+        "type": "disabled"
+      }
+    },
+    "volume-up": {
+      "single": {
+        "type": "shortcut",
+        "label": "向上翻页",
+        "keys": [
+          "pageup"
+        ]
+      }
+    },
+    "volume-down": {
+      "single": {
+        "type": "shortcut",
+        "label": "向下翻页",
+        "keys": [
+          "pagedown"
+        ]
+      }
+    },
+    "power": {
+      "single": {
+        "type": "system-action",
+        "key": "show_desktop"
+      }
+    }
+  }
+}

@@ -3,9 +3,9 @@
 一个文件 = 一条推荐方案，文件名必须等于方案 id（`preset.` 前缀）。
 
 ```text
-catalog.json                      { "schemaVersion": 1, "bundleVersion": "2026.11.1" }
-preset.desktop.shortcuts.json     { "id": "preset.desktop.shortcuts", ... }
-preset.netease.controls.json      { "id": "preset.netease.controls", ... }
+catalog.json                      { "schemaVersion": 1, "bundleVersion": "2026.11.3" }
+preset.wechat.json                { "id": "preset.wechat", ... }
+preset.wps.presentation.json      { "id": "preset.wps.presentation", ... }
 ```
 
 改完这里要重建聚合文件（运行时会读它，`include_str!` 内嵌兜底也用它）：

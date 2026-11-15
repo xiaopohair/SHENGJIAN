@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { defaultHotkeyFor, voiceToolLabel, voiceToolOptions } from "./voiceTools";
+import {
+  defaultHotkeyFor,
+  requiresReportLayerSynthesis,
+  voiceToolLabel,
+  voiceToolOptions,
+} from "./voiceTools";
 import type { VoiceToolInfo } from "./types";
 
 const catalog: VoiceToolInfo[] = [
@@ -9,6 +14,15 @@ const catalog: VoiceToolInfo[] = [
 ];
 
 describe("voice tool catalog helpers", () => {
+  it("flags only the IME that drops injected keys as needing report-layer synthesis", () => {
+    expect(requiresReportLayerSynthesis("doubao")).toBe(true);
+    expect(requiresReportLayerSynthesis(" DOUBAO ")).toBe(true);
+    expect(requiresReportLayerSynthesis("wechat")).toBe(false);
+    expect(requiresReportLayerSynthesis("chatterfly")).toBe(false);
+    expect(requiresReportLayerSynthesis("")).toBe(false);
+    expect(requiresReportLayerSynthesis(null)).toBe(false);
+  });
+
   it("maps catalog entries to dropdown options without translating labels", () => {
     const options = voiceToolOptions(catalog, "");
     expect(options).toEqual([

@@ -19,7 +19,7 @@ pub fn initialize(app: &tauri::AppHandle) {
     );
     install_catalog(
         resource_dir.as_deref(),
-        "voice-tools.json",
+        "voice-tool-presets.json",
         "voice tool catalog",
         shengjian_domain::voice_tools::install_from_json,
         shengjian_domain::voice_tools::install_defaults,

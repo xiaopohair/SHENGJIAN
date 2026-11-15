@@ -1,7 +1,7 @@
 /**
  * 语音输入工具目录的纯函数工具。
  *
- * 工具列表来自配置目录（`config/voice-tools.json`）：`label` 是应用自己的名字，
+ * 工具列表来自配置目录（`config/voice-tool-presets.json`）：`label` 是应用自己的名字，
  * 不做界面翻译；已保存的设置里仍然只存字符串 id。
  */
 import type { VoiceToolInfo } from "./types";
@@ -54,4 +54,15 @@ export function defaultHotkeyFor(
   if (!key) return [];
   const tool = catalog.find((entry) => entry.id === key);
   return tool?.defaultHotkey ? [...tool.defaultHotkey] : [];
+}
+
+/**
+ * 该输入法是否**丢弃程序注入的按键**（`LLKHF_INJECTED`）。
+ *
+ * 豆包按设计丢弃注入键，所以必须走"报告层合成"（全按键支持服务）；没有它，
+ * 声键用 SendInput 注入的和弦会被直接忽略，语音键看起来完全没反应。
+ * 事实来源：`ble.rs` 里 `voice_path fallback tool=doubao` 的现场记录。
+ */
+export function requiresReportLayerSynthesis(toolId: string | null | undefined): boolean {
+  return (toolId ?? "").trim().toLowerCase() === "doubao";
 }
