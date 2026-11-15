@@ -1,3 +1,4 @@
+import { trDynamic } from "./i18n";
 import type { LogicalAction, LogicalButton } from "./types";
 
 export const PROFILE_BUTTONS: Array<{ id: LogicalButton; label: string }> = [
@@ -17,6 +18,14 @@ export const PROFILE_BUTTONS: Array<{ id: LogicalButton; label: string }> = [
 
 /** 默认方案的固定显示名（后端强制，不随用户改名变化）。 */
 export const DEFAULT_PROFILE_NAME = "默认";
+
+/**
+ * 方案名的展示文案：默认方案的名字由后端固定成中文「默认」，展示时跟随界面语言；
+ * 用户自建的方案名保持原样（词典里没有对应 key 时 trDynamic 原样返回）。
+ */
+export function profileDisplayName(name: string): string {
+  return name === DEFAULT_PROFILE_NAME ? trDynamic(name) : name;
+}
 
 /** 是否为不可删除的默认方案：每个设备型号各一份，外加一份通用兜底。 */
 export function isDefaultProfile(profile: { isDefault?: boolean }): boolean {

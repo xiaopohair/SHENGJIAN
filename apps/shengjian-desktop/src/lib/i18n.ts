@@ -68,7 +68,6 @@ const ENGLISH = {
   清除: "Clear",
   清除程序: "Clear program",
   请先为方案选择一个程序: "Choose a program for this profile first",
-
   "另外还匹配：{names}": "Also matches: {names}",
   运行中: "Running",
   停止: "Stop",
@@ -118,7 +117,6 @@ const ENGLISH = {
   当前平台已启用的能力: "Capabilities enabled on this platform",
   托盘: "Tray",
   开机自启: "Start with system",
-
   "导入 / 导出宏": "Import / export macros",
   单文件: "Single file",
   多文件: "Multiple files",
@@ -167,7 +165,7 @@ const ENGLISH = {
     "Split per macro — good for taking or merging just a few.",
   组件与许可: "Components & licenses",
   随安装包分发的开源组件: "Open-source components shipped with the app",
-  "按键增强（RC003 helper）": "Key enhancement (RC003 helper)",
+  "全按键支持（RC003 helper）": "Full-key support (RC003 helper)",
   声键核心: "Shengjian core",
   桌面宿主: "Desktop host",
   "许可全文与第三方声明随安装包分发。":
@@ -177,10 +175,17 @@ const ENGLISH = {
     "Try again later, or open the log folder for diagnostics.",
   还没有扫描结果: "No scan results yet",
   "点击“扫描设备”开始扫描附近的遥控器。": "Click Scan to search for nearby remotes.",
+  "左 Ctrl": "Left Ctrl",
   "右 Ctrl": "Right Ctrl",
+  "左 Shift": "Left Shift",
   "右 Shift": "Right Shift",
+  "左 Alt": "Left Alt",
   "右 Alt": "Right Alt",
+  "左 Win": "Left Win",
   "右 Win": "Right Win",
+  空格: "Space",
+  回车: "Enter",
+  退格: "Backspace",
   断开: "Disconnect",
   未激活: "Not active",
   按键绑定: "Button bindings",
@@ -241,8 +246,8 @@ const ENGLISH = {
   固件: "Firmware",
   "蓝牙 · 已连接": "Bluetooth · connected",
   "蓝牙 · 未连接": "Bluetooth · disconnected",
-  "按键增强 · 已安装": "Key enhancement · installed",
-  "按键增强 · 未安装": "Key enhancement · not installed",
+  "全按键支持 · 已安装": "Full-key support · installed",
+  "全按键支持 · 未安装": "Full-key support · not installed",
   设备设置: "Device settings",
   "只对这台遥控器生效；音频设置不勾选时沿用全局。":
     "Applies to this remote only; audio settings fall back to global unless enabled.",
@@ -282,10 +287,55 @@ const ENGLISH = {
   输入法: "Input method",
   热键: "Hotkey",
   "返回键、音量键": "Back/Volume keys",
-  增强捕获: "Enhanced capture",
-  按键增强服务: "Key enhancement service",
-  "返回键和音量键需要增强捕获组件；首次安装会请求管理员授权。":
-    "The Back and Volume keys require the enhanced capture component; the first install asks for administrator approval.",
+  全按键支持服务: "Full-key support service",
+  按键监听暂停: "Button monitoring pause",
+  禁用或开启当前按键方案: "Disable or enable the current button profile",
+  "名称（显示在面板上）": "Name (shown on the panel)",
+  要插入的文本: "Text to insert",
+  保存常用语: "Save common phrases",
+  常用语已保存: "Common phrases saved",
+  "添加常用语；绑定「常用语」动作后，在面板中用 ↑/↓ 选择、OK 插入，返回键关闭。":
+    "Add phrases; bind the Common phrases action, then use ↑/↓ to choose and OK to insert. Back closes the panel.",
+  添加常用语: "Add phrase",
+  还没有常用语: "No phrases yet",
+  "点击下方「添加常用语」创建第一条": "Click Add phrase below to create the first one",
+  "还没有常用语，点击下方添加。": "No phrases yet. Add one below.",
+  上移: "Move up",
+  下移: "Move down",
+  预览面板: "Preview panel",
+  无法打开常用语面板: "Could not open the common phrases panel",
+  "保存中…": "Saving…",
+  "正在加载常用语…": "Loading common phrases…",
+  "与第 {index} 条名称相同": "Same name as item {index}",
+  "删除这条常用语？": "Delete this phrase?",
+  "“{name}”将从遥控器面板中移除。": "“{name}” will be removed from the remote panel.",
+  "常用语没有保存成功，请重试。": "Common phrases could not be saved. Try again.",
+  未设置: "Not set",
+  保存失败: "Couldn't save",
+  面板预览: "Panel preview",
+  "按遥控器对应按键插入；返回键关闭":
+    "Insert with the matching key on the remote; Back closes the panel",
+  "按下遥控器对应按键，在光标处插入文本；返回键关闭面板。":
+    "Press the matching remote key to insert this text at the cursor; Back closes the panel.",
+  按键位: "Key slots",
+  "固定 5 键": "Fixed five keys",
+  上键: "Up key",
+  下键: "Down key",
+  左键: "Left key",
+  右键: "Right key",
+  "OK 键": "OK key",
+  "第 {index} 位": "Slot {index}",
+  已设置: "Set",
+  内容: "Content",
+  "例如：问候": "e.g. Greeting",
+  "例如：您好，很高兴为您服务。": "e.g. Hello, happy to help.",
+  "按对应按键插入到当前输入框；换行会原样保留。":
+    "Inserted into the current field with the matching key; line breaks are kept as typed.",
+  面板上显示: "Shown on the panel",
+  未命名: "Untitled",
+  点击添加内容: "Click to add content",
+  "返回键和音量键需要全按键支持组件；首次安装会请求管理员授权。":
+    "The Back and Volume keys require the full-key support component; the first install asks for administrator approval.",
   安装: "Install",
   更新: "Update",
   启动与窗口: "Startup & window",
@@ -316,17 +366,15 @@ const ENGLISH = {
     "Connect and manage the remote; view model, firmware, battery, and reconnect status.",
   配对帮助: "Pairing help",
   "如何配对{name}": "How to pair {name}",
-  "选择型号，按步骤完成配对。": "Choose a model and follow the pairing steps.",
+  "首先选择型号，然后按步骤完成配对。": "Pick a model first, then follow the pairing steps.",
   遥控器型号: "Remote model",
   让遥控器进入配对状态: "Put the remote in pairing mode",
-  首次连接或重新配对时: "For first-time pairing or re-pairing",
   在电脑上完成连接: "Finish pairing on your PC",
-  "打开 Windows 蓝牙设置": "Open Windows Bluetooth settings",
-  "同时按住「主页键」和「菜单键」约 3 秒，直到指示灯闪烁。":
-    "Hold the Home and Menu keys together for about 3 seconds until the LED blinks.",
+  "同时按住「主页键」和「菜单键」约 3 秒。":
+    "Hold the Home and Menu keys together for about 3 seconds.",
   "打开 Windows「设置 > 蓝牙和其他设备」。": "Open Windows Settings > Bluetooth & devices.",
   "选择「添加设备 > 蓝牙」。": "Choose Add device > Bluetooth.",
-  "在列表中选择 {device}。": "Select {device} from the list.",
+  "在列表中选择「{device}」。": "Select “{device}” from the list.",
   "新遥控器请先按一次「TV」键完成初始化，再进入配对。":
     "For a new remote, press the TV key once to initialize it before pairing.",
   主页键: "Home key",
@@ -336,8 +384,7 @@ const ENGLISH = {
   确认键: "OK key",
   "发送当前输入内容。": "Send the current input.",
   "配对遇到问题？": "Pairing trouble?",
-  "让遥控器靠近电脑，换一节电池，或回到连接页重新扫描。":
-    "Move the remote closer to the PC, replace the battery, or scan again from the Connection page.",
+  "将遥控器靠近电脑或更换电池。": "Move the remote closer to the PC or replace the battery.",
   可用: "Available",
   不可用: "Unavailable",
   已安装: "Installed",
@@ -420,6 +467,33 @@ const ENGLISH = {
   "推荐 CABLE Input": "CABLE Input recommended",
   "没有可用音频端点。": "No audio endpoints available.",
   增益: "Gain",
+  实际生效的语音增益: "Effective voice gain",
+  打开设备设置: "Open device settings",
+  "实际生效的语音增益（设备独立设置优先）": "Effective voice gain (device override wins)",
+  已被设备设置覆盖: "Overridden by device settings",
+  刚刚: "Just now",
+  "{minutes} 分钟前": "{minutes} min ago",
+  "{hours} 小时前": "{hours} h ago",
+  "{days} 天前": "{days} d ago",
+  "{months} 个月前": "{months} mo ago",
+  "{years} 年前": "{years} y ago",
+  配对指南: "Pairing guide",
+  忘记: "Forget",
+  忘记设备: "Forget device",
+  设备属性: "Device properties",
+  "忘记「{name}」？": "Forget “{name}”?",
+  "这会解除它与 Windows 的配对，之后需要重新配对才能使用。":
+    "This removes its Windows pairing; pair it again to keep using it.",
+  "已忘记「{name}」": "Forgot “{name}”",
+  "当前仅支持 VB-CABLE。": "Only VB-CABLE is supported.",
+  "豆包输入法必须安装全按键支持服务，请勾选后再继续。":
+    "Doubao IME requires the key-enhancement service; tick it to continue.",
+  "豆包输入法会丢弃程序注入的按键，必须启用并安装全按键支持服务，语音键才生效。":
+    "Doubao IME drops injected keys, so the key-enhancement service must stay enabled and installed for the voice key to work.",
+  从未连接: "Never connected",
+  已连接过: "Connected before",
+  "已连接过，但没记下时间": "Connected before, time unknown",
+  "上次连接：{time}": "Last connected: {time}",
   最近语音事件: "Recent voice events",
   按一次语音键验证: "Press the voice key once to verify",
   "还没有语音事件。按住语音键说话，再松开。":
@@ -533,6 +607,7 @@ const ENGLISH = {
   长按连发: "Long repeat",
   "继承全局/设备": "Inherit global/device",
   继承基线: "Inherit base",
+  继承默认: "Inherit default",
   跟随默认: "Follow default",
   "固定间隔：返回 50ms，其他键 100ms": "Fixed interval: 50 ms for Back, 100 ms for other keys",
   单击重复触发: "Repeat single action",
@@ -600,7 +675,6 @@ const ENGLISH = {
   橙色: "Orange",
   语音输入工具: "Voice input tool",
   取消录制: "Cancel recording",
-
   恢复默认: "Restore default",
   "请按下组合键…": "Press a key combination…",
   不注入热键: "No hotkey injected",
@@ -610,10 +684,10 @@ const ENGLISH = {
   启动后隐藏到系统托盘: "Hide to system tray on startup",
   "启动时不弹出主窗口，只驻留系统托盘；需要时从托盘打开。":
     "Start without opening the main window and stay in the system tray; open it from the tray when needed.",
-  启用按键增强服务: "Enable key enhancement service",
-  "返回键和音量键需要安装按键增强服务并开启才能使用；首次安装会请求管理员授权。":
-    "Back and volume keys require the key enhancement service to be installed and enabled; the first install asks for administrator permission.",
-  启用按键增强: "Enable key enhancement",
+  启用全按键支持服务: "Enable full-key support service",
+  "返回键和音量键需要安装全按键支持服务并开启才能使用；首次安装会请求管理员授权。":
+    "Back and volume keys require the full-key support service to be installed and enabled; the first install asks for administrator permission.",
+  启用全按键支持: "Enable full-key support",
   "保存语音记录（只存文字，不存音频）": "Save voice recordings (text only, no audio)",
   "安装/更新 helper": "Install/update helper",
   当前设备覆盖: "Current device overrides",
@@ -697,10 +771,6 @@ const ENGLISH = {
     "helper: {status}; administrator approval is required on first use",
   "已请求管理员授权；完成 UAC 后会自动刷新状态。":
     "Administrator approval requested; status refreshes after UAC.",
-  "helper 已安装；计划任务会自动启动。":
-    "helper installed; the scheduled task starts automatically.",
-  "未检测到 helper 安装完成，请确认 UAC 已通过后点“刷新”。":
-    "helper installation not detected. Approve UAC, then click Refresh.",
   "配置备份已导出。": "Configuration backup exported.",
   配置备份已导出: "Configuration backup exported",
   "诊断包已导出。": "Diagnostics exported.",
@@ -712,7 +782,7 @@ const ENGLISH = {
   "恢复会覆盖当前 settings、profiles 和宏库，继续？":
     "Restore overwrites current settings, profiles, and macros. Continue?",
   搜索设置: "Search settings",
-  "全局音频 增益 端点 主题 语音输入工具 开机自启 关闭托盘 增强捕获 helper 转写 历史 设备覆盖":
+  "全局音频 增益 端点 主题 语音输入工具 开机自启 关闭托盘 全按键支持 helper 转写 历史 设备覆盖":
     "global audio gain endpoint theme voice tool startup tray capture helper transcript history device overrides",
   "配置备份 导出 恢复": "backup export restore",
   "诊断 日志 导出诊断包 首次配置": "diagnostics log export onboarding",
@@ -893,16 +963,35 @@ const ENGLISH = {
   "等待语音检测。": "Waiting for voice input.",
   跳过语音测试: "Skip voice test",
   按键测试: "Button test",
+  设备测试: "Device test",
+  "只用于测试，不会修改任何设置": "Test only; no settings are changed",
+  识别内容: "Recognized text",
+  "说完话后这里会显示识别内容。": "Recognized text appears here after you finish speaking.",
+  在应用内测试: "Test inside the app",
+  原生测试: "Native test",
+  "点一下打开原生窗口，说完话松开即可": "Click to open the native window, then speak and release",
+  语音链路正常: "Voice path is working",
+  语音链路异常: "Voice path failed",
+  正在接收语音: "Receiving voice",
+  等待语音输入: "Waiting for voice input",
+  识别结果已填入下方: "Recognized text is filled in below",
+  检查语音输入设备后再试一次: "Check the voice input device and try again",
+  说完松开即可: "Release when you finish speaking",
+  按住遥控器语音键说一句话: "Hold the remote voice key and say a sentence",
+  会话结束后自动填入: "Filled in when the session ends",
+  "打开原生测试板，在那里按语音键说话，识别结果会回到这里。":
+    "Open the native test pad, press the voice key there, and the text comes back here.",
+  "会弹出一个原生小窗口，在那里按语音键说话，识别结果会回到这里。":
+    "A native test window opens: press the voice key there and the text comes back here.",
   检测遥控器按键: "Test remote buttons",
   "请依次按下遥控器上的各个键，检测按键是否可用。":
     "Press each remote button in turn to check whether it works.",
   已检测: "Detected",
   待检测: "Not detected",
   全部按键可用: "All buttons work",
-  "返回键、音量键需要安装按键增强服务并启用后才能检测。":
-    "Back and volume keys require RC003 enhanced capture with the service installed before they can be detected.",
+  "返回键、音量键需要安装全按键支持服务并启用后才能检测。":
+    "Back and volume keys require RC003 full-key support with the service installed before they can be detected.",
   安装中: "Installing",
-  "按键增强服务已安装。": "Key enhancement service installed.",
   配置完成: "Setup complete",
   "你可以在按键页管理键位方案、在设置页调整音频和启动行为。向导可以随时重新运行。":
     "Manage key mappings on the Buttons page and audio/startup behavior in Settings. You can rerun this wizard at any time.",
@@ -932,7 +1021,6 @@ const ENGLISH = {
   宏调用存在循环: "Macro call cycle detected",
   存在重复的宏版本: "Duplicate macro version",
   宏版本冲突: "Macro version conflict",
-  // 「打开应用」选择器与目标徽标
   选择应用: "Choose app",
   选择用于自动匹配的应用: "Choose an app for automatic matching",
   "选择用于自动匹配的应用（按可执行文件名匹配前台）":
@@ -998,7 +1086,6 @@ const ENGLISH = {
   "滚轮与移动支持按住连发；点击只触发一次。":
     "Scroll and move repeat while held; clicks fire once.",
   "把光标送回当前应用的输入框。": "Moves the caret back into the current app's input box.",
-  // 推荐按键方案
   推荐方案: "Recommended profiles",
   "由配置目录下发的只读方案；复制后成为你自己的方案，可自由修改。":
     "Read-only profiles from the config bundle; copy one to make it your own and edit freely.",
@@ -1010,15 +1097,12 @@ const ENGLISH = {
   "{count} 个应用目标": "{count} app targets",
   复制并使用: "Copy & use",
   当前型号暂无推荐方案: "No recommended profiles for this model",
-
   有更新: "Update",
   推荐方案有更新: "Recommended profiles updated",
-  // 系统动作（媒体/音量键）
   Esc: "Esc",
   "点选后按下该键会发送对应的系统媒体键。":
     "Pressing that key afterwards sends the matching system media key.",
   "{position} 缺少系统动作": "{position} has no system action",
-  // VB-CABLE 远程语音输出依赖
   "已检测到 VB-CABLE": "VB-CABLE detected",
   "未检测到 VB-CABLE，远程语音将没有声音": "VB-CABLE not found; remote voice will have no sound",
   "已安装 VB-CABLE，但未找到可用的语音输出设备":
@@ -1046,46 +1130,45 @@ const ENGLISH = {
   语音输出设备: "Voice output device",
   "语音输出设备：{names}": "Voice output device: {names}",
   "语音输出设备：{name}": "Voice output device: {name}",
+  "遥控器语音输出到的设备；未设置时连接后自动选 CABLE":
+    "Device the remote's voice plays through; CABLE is selected automatically after connecting when unset.",
   虚拟音频设备: "Virtual audio device",
   未检测到: "Not found",
   设备未启用: "Device disabled",
   "未检测到 VB-CABLE：遥控器语音将没有声音输出。仍可选择其他输出设备。":
     "VB-CABLE not found: remote voice will have no audio output. You can still choose another output device.",
-  // 导入与导出（按键页）
   "导入 / 导出": "Import / Export",
   前台应用匹配时自动切换到本方案:
     "Switch to this profile automatically when the foreground app matches",
   手动切换到本方案: "Switch to this profile manually",
-  "使用按键增强（返回键、音量键）": "Use key enhancement (back and volume keys)",
-
-  开启需要管理员授权安装按键增强服务:
-    "Turning this on installs the key enhancement service and asks for administrator permission",
-  "开启按键增强需要管理员授权，请在弹窗中确认":
-    "Turning on key enhancement needs administrator permission; confirm the prompt",
-  "没有完成按键增强服务安装，开关已保持关闭":
-    "The key enhancement service wasn't installed, so the switch stays off",
-  按键增强服务已安装: "Key enhancement service installed",
-  "已关闭按键增强，服务保留可随时再开启":
-    "Key enhancement is off; the service is kept so you can turn it on again anytime",
-  卸载按键增强服务: "Uninstall key enhancement service",
-  "卸载按键增强服务？": "Uninstall the key enhancement service?",
-  "会移除后台计划任务，返回键和音量键的增强捕获将失效；需要时会重新请求管理员授权。":
-    "This removes the background scheduled task; back and volume keys lose enhanced capture. You can grant administrator permission again later.",
+  "使用全按键支持（返回键、音量键）": "Use full-key support (back and volume keys)",
+  开启需要管理员授权安装全按键支持服务:
+    "Turning this on installs the full-key support service and asks for administrator permission",
+  "开启全按键支持需要管理员授权，请在弹窗中确认":
+    "Turning on full-key support needs administrator permission; confirm the prompt",
+  "没有完成全按键支持服务安装，开关已保持关闭":
+    "The full-key support service wasn't installed, so the switch stays off",
+  全按键支持服务已安装: "Full-key support service installed",
+  "服务已安装；在「按键」页打开「全按键支持」开关后，返回键和音量键才会生效。":
+    "Service installed. Turn on full-key support on the Buttons page to make the back and volume keys work.",
+  去按键页: "Open Buttons page",
+  "已关闭全按键支持，服务保留可随时再开启":
+    "Full-key support is off; the service is kept so you can turn it on again anytime",
+  卸载全按键支持服务: "Uninstall full-key support service",
+  "卸载全按键支持服务？": "Uninstall the full-key support service?",
+  "会移除后台计划任务，返回键和音量键的全按键支持将失效；需要时会重新请求管理员授权。":
+    "This removes the background scheduled task; back and volume keys lose full-key support. You can grant administrator permission again later.",
   "已请求管理员授权；完成 UAC 后会移除服务。":
     "Administrator permission requested; the service is removed once the UAC prompt is accepted.",
-  "按键增强服务已卸载。": "Key enhancement service uninstalled",
-  "未检测到卸载完成，请确认 UAC 已通过后点“刷新”。":
-    "Removal wasn't detected; confirm the UAC prompt and click Refresh",
+  全按键支持服务已卸载: "Full-key support service uninstalled",
   卸载: "Uninstall",
-  需要开启按键增强后才能设置此键: "Turn on key enhancement before configuring this key",
-
-  "返回键、音量键需开启按键增强": "Back and volume keys need key enhancement",
-  "返回键、音量键需要按键增强服务；安装、更新与卸载在「设置 → 音频及语音」中统一管理。":
-    "Back and volume keys need the key enhancement service; install, update and uninstall it under Settings → Audio & voice.",
-  "未检测到 helper 安装完成，请确认 UAC 已通过后重新检测。":
-    "The helper install wasn't detected; confirm the UAC prompt and check again",
-  "未检测到卸载完成，请确认 UAC 已通过后重新检测。":
-    "The removal wasn't detected; confirm the UAC prompt and check again",
+  需要开启全按键支持后才能设置此键: "Turn on full-key support before configuring this key",
+  "返回键、音量键需要全按键支持服务；安装、更新与卸载在「设置 → 音频及语音」中统一管理。":
+    "Back and volume keys need the full-key support service; install, update and uninstall it under Settings → Audio & voice.",
+  "没有完成全按键支持服务安装，请确认已在弹窗中通过管理员授权后重新检测。":
+    "The full-key support service wasn't installed. Approve the administrator prompt, then check again.",
+  "没有完成全按键支持服务卸载，请确认已在弹窗中通过管理员授权后重新检测。":
+    "The full-key support service wasn't removed. Approve the administrator prompt, then check again.",
   选择这个方案要匹配的应用: "Choose the app this profile should match",
   选择或填写程序: "Choose or type a program",
   "这个程序切到前台时，方案会自动生效。":
@@ -1119,7 +1202,8 @@ const ENGLISH = {
     "Avoid chords other apps already use (Vokie, Chatterfly and similar voice tools grab them before the IME)",
   "按下遥控器语音键时注入的组合键；用点选方式设置，避免被输入法抢走按键":
     "Chord injected when the remote voice key is pressed; pick it instead of typing it, so the IME can't steal the keys",
-  按键增强: "Key enhancement",
+  全按键支持: "Full-key support",
+  全键支持: "Full-key support",
   方案激活: "Profile activation",
   更多操作: "More actions",
   "备份、迁移当前按键方案，或把方案整理成内置推荐方案。":
@@ -1128,7 +1212,6 @@ const ENGLISH = {
   从文件导入方案: "Import profiles from a file",
   "选择之前导出的方案文件，导入会覆盖当前方案列表。":
     "Pick a profile file you exported earlier; importing replaces the current profile list.",
-
   导入与导出: "Import and Export",
   导入或导出: "Import or export",
   导出格式: "Export format",
@@ -1146,13 +1229,9 @@ const ENGLISH = {
   选择文件夹并导出: "Choose a folder and export",
   "已导出 {count} 个方案": "Exported {count} profiles",
   "已导出 {count} 个推荐方案": "Exported {count} recommended profiles",
-
   选择位置并导出: "Choose location and export",
-
   "已保存的语音输出设备当前不可用，请重新选择。":
     "The saved voice output device is unavailable; choose another one.",
-
-  // 导入 / 导出（宏页 · 与按键方案同一套）
   "会删除 {count} 个本机独有的宏。": "This deletes {count} macros that only exist on this PC.",
   保留本机: "Keep local",
   保留本机版本: "Keep the local version",
@@ -1181,8 +1260,6 @@ const ENGLISH = {
   "选择宏文件（可多选）": "Choose macro files (can pick several)",
   遇到版本不同的同名宏: "Same macro, different version",
   "{count} 个宏": "{count} macros",
-
-  // 导入 / 导出（按键页 · 重设计）
   "在电脑之间搬运按键方案，或者把方案整理成推荐方案。":
     "Move key profiles between PCs, or shape them into recommended profiles.",
   "从别的电脑带过来：先看清内容、冲突和依赖，再决定放哪儿。":
@@ -1214,7 +1291,6 @@ const ENGLISH = {
   "约 {size}": "about {size}",
   个方案: "profiles",
   键位: "key bindings",
-
   选择方案文件: "Choose a profile file",
   "支持 .json 备份文件，也可以选一个推荐方案的 .json。":
     "Accepts a .json backup, or a single recommended profile .json.",
@@ -1249,7 +1325,6 @@ const ENGLISH = {
   冲突: "Conflict",
   覆盖: "Replace",
   保留: "Keep",
-
   "正在读取文件…": "Reading file…",
   "正在导出…": "Exporting…",
   "正在写入推荐方案…": "Writing recommended profiles…",
@@ -1280,6 +1355,52 @@ const ENGLISH = {
   "跳过 {count} 个": "skipped {count}",
   已禁用: "Disabled",
   鼠标操作: "Mouse",
+  视图切换: "Switch view",
+  选择一个方案开始编辑: "Choose a profile to start editing",
+  "也可以新建方案，或从模板快速创建。": "You can also create a profile, or start from a template.",
+  "从顶部宏库选择，或新建一个宏。": "Pick a macro from the library above, or create a new one.",
+  语音播放的音量增益: "Volume gain for voice playback",
+  遥控器语音转写注入的目标输入法: "Input method that remote voice transcription is typed into",
+  语音热键: "Voice hotkey",
+  "登录 Windows 后自动启动声键": "Start Shengjian automatically after Windows sign-in",
+  "启动时不弹出主窗口，只驻留系统托盘；需要时从托盘打开":
+    "Start hidden: the window stays in the system tray; open it from there when needed",
+  关闭窗口时隐藏到托盘: "Hide to tray when closing the window",
+  关闭后点窗口关闭按钮将直接退出应用: "When off, the window close button quits the app",
+  "导出为单个 JSON，含设置、方案、宏库、语音记录与上次设备":
+    "Export a single JSON with settings, profiles, macros, transcripts, and the last device",
+  "从备份文件恢复，会覆盖当前配置":
+    "Restore from a backup file; this overwrites the current configuration",
+  "诊断日志位于 %LOCALAPPDATA%\\Shengjian\\Logs":
+    "Diagnostic logs are stored in %LOCALAPPDATA%\\Shengjian\\Logs",
+  诊断日志: "Diagnostic logs",
+  "启动时加载数据失败，部分功能可能不可用。":
+    "Failed to load data at startup; some features may be unavailable.",
+  按键监听: "Button monitoring",
+  监听中: "Listening",
+  已暂停: "Paused",
+  按键监听已就绪: "Button monitoring is ready",
+  正在启动监听: "Starting button monitoring",
+  等待遥控器连接: "Waiting for the remote",
+  "监听启动失败（自动重试中）": "Monitoring failed to start (retrying)",
+  监听已停止: "Button monitoring stopped",
+  当前环境暂不支持: "Not supported in this environment",
+  正在读取状态: "Reading status",
+  停止监听: "Stop monitoring",
+  启动监听: "Start monitoring",
+  监听已启动: "Monitoring started",
+  "监听已停止；映射与高亮暂停（按住说话不受影响）":
+    "Monitoring stopped; mappings and highlights are paused (hold-to-talk is unaffected)",
+  "没能切换按键监听状态，请重试。": "Could not change button monitoring. Try again.",
+  "按键映射与按下高亮暂停；按住说话与连接不受影响":
+    "Mappings and press highlights are paused; hold-to-talk and the connection are unaffected",
+  全按键支持在暂停期间临时交还系统: "Full-key support is handed back to Windows while paused",
+  "查看最近的运行日志，不含语音内容": "View recent runtime logs; voice content is not included",
+  "检查平台、全按键支持服务、音频、连接、电量和前台应用识别":
+    "Check platform, full-key support service, audio, connection, battery, and foreground app detection",
+  重新检查遥控器连接与语音链路: "Re-check the remote connection and voice path",
+  "清除全局设置与设备覆盖，不影响方案、宏和语音记录。此操作不可恢复":
+    "Clear global settings and device overrides; profiles, macros, and transcripts are kept. This cannot be undone.",
 } as const satisfies Record<string, string>;
 
 export type TranslationKey = keyof typeof ENGLISH;
@@ -1311,9 +1432,21 @@ if (typeof document !== "undefined") {
   document.documentElement.lang = resolveLocale(preference.value);
 }
 
+const missingTranslationWarnings = new Set<string>();
+
 export function trDynamic(source: string, vars?: Record<string, string | number>): string {
-  let text =
-    uiLocale.value === "en" ? ((ENGLISH as Record<string, string>)[source] ?? source) : source;
+  const english = (ENGLISH as Record<string, string>)[source];
+  if (
+    uiLocale.value === "en" &&
+    english === undefined &&
+    /[\u4e00-\u9fff]/.test(source) &&
+    import.meta.env.DEV &&
+    !missingTranslationWarnings.has(source)
+  ) {
+    missingTranslationWarnings.add(source);
+    console.warn(`[i18n] missing English translation: ${source}`);
+  }
+  let text = uiLocale.value === "en" ? (english ?? source) : source;
   if (vars) {
     for (const [key, value] of Object.entries(vars)) {
       text = text.replaceAll(`{${key}}`, String(value));
