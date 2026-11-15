@@ -22,3 +22,6 @@ __pycache__/
 
 # Local verification screenshots (regenerated per session)
 apps/shengjian-desktop/e2e/_*.png
+
+# Design mockups and local UI screenshots (kept locally, never committed)
+design/
