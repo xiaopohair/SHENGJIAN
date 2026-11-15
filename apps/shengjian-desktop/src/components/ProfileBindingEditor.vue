@@ -347,24 +347,31 @@ const actionNote = computed(() => {
   }
 });
 
+/** 只关心鼠标动作的几个字段：避免 deep watch 在改别的字段时也整对象遍历。 */
+const mouseSnapshot = computed(() => {
+  const action = currentAction.value;
+  if (action?.type !== "mouse") return null;
+  return { kind: action.kind, amount: action.amount, direction: action.direction };
+});
+
 watch(
-  currentAction,
-  (action) => {
-    if (action?.type !== "mouse") return;
-    if (typeof action.amount === "number" && action.amount > 0) {
-      lastMouseAmount.value = action.amount;
+  mouseSnapshot,
+  (snapshot) => {
+    if (!snapshot) return;
+    if (typeof snapshot.amount === "number" && snapshot.amount > 0) {
+      lastMouseAmount.value = snapshot.amount;
     }
     if (
-      (action.kind === "scroll" || action.kind === "move") &&
-      (action.direction === "up" ||
-        action.direction === "down" ||
-        action.direction === "left" ||
-        action.direction === "right")
+      (snapshot.kind === "scroll" || snapshot.kind === "move") &&
+      (snapshot.direction === "up" ||
+        snapshot.direction === "down" ||
+        snapshot.direction === "left" ||
+        snapshot.direction === "right")
     ) {
-      lastMouseDirection.value = action.direction;
+      lastMouseDirection.value = snapshot.direction;
     }
   },
-  { deep: true, immediate: true },
+  { immediate: true },
 );
 
 function bindingsForButton(): Partial<Record<ProfileTrigger, LogicalAction>> {

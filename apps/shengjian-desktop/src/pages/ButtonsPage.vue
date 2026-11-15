@@ -28,6 +28,7 @@ import {
   PROFILE_TRIGGERS,
   isDefaultProfile,
   profileAppliesToModel,
+  profileDisplayName,
   type ProfileDraft,
   type ProfileTrigger,
 } from "../lib/buttons";
@@ -264,12 +265,12 @@ async function useRecommendedProfile(recommended: RecommendedButtonProfile) {
   error.value = null;
   try {
     const copy = await copyRecommendedButtonProfile(recommended.id, effectiveModel.value);
-    const document = profilesDocument.value;
-    if (!document) return;
-    const profiles = document.profiles.some((profile) => profile.id === copy.id)
-      ? document.profiles.map((profile) => (profile.id === copy.id ? copy : profile))
-      : [...document.profiles, copy];
-    await saveButtonProfiles({ ...document, profiles });
+    const profilesDoc = profilesDocument.value;
+    if (!profilesDoc) return;
+    const profiles = profilesDoc.profiles.some((profile) => profile.id === copy.id)
+      ? profilesDoc.profiles.map((profile) => (profile.id === copy.id ? copy : profile))
+      : [...profilesDoc.profiles, copy];
+    await saveButtonProfiles({ ...profilesDoc, profiles });
     await load();
     if (!(await activateButtonProfile(copy.id))) {
       error.value = tr("未找到该方案，可能已被删除。");
@@ -603,11 +604,11 @@ function openTransfer() {
 /** 已保存的方案才能重置/复制；新建草稿或未保存时这两项不可用。 */
 const canEditCurrentProfile = computed(() => Boolean(currentProfileRecord.value));
 
-/** 按键增强（RC003 helper 的增强捕获）来自全局设置，随页面加载并立即保存。 */
+/** 全按键支持（RC003 helper）来自全局设置，随页面加载并立即保存。 */
 const enhancedCapture = shallowRef(false);
 const enhancedCaptureInstalled = shallowRef(false);
 const settingsDocument = shallowRef<SettingsDocument | null>(null);
-/** 三款小米遥控器都支持按键增强，型号未知时不支持。 */
+/** 三款小米遥控器都支持全按键支持，型号未知时不支持。 */
 const supportsEnhancement = computed(() => supportsKeyEnhancement(remoteModel.value));
 
 async function loadSettingsDocument() {
@@ -635,13 +636,13 @@ async function waitForHelperInstalled(timeoutMs = 60_000): Promise<boolean> {
 }
 
 /**
- * 按键增强开关。
+ * 全按键支持开关。
  *
  * 打开时如果服务没装，先走一次管理员安装（会弹 UAC）：装完再落盘设置，
- * 用户取消 UAC 就保持关闭并提示。关闭只撤销增强捕获、不卸载服务——
+ * 用户取消 UAC 就保持关闭并提示。关闭只撤销全按键支持、不卸载服务——
  * 卸载同样需要管理员权限，而关掉后 helper 不接管任何按键，没必要折腾。
  */
-/** 按键增强安装的长流程提示（等 UAC / 等轮询）：按 §4.1 用页内 Notice，不用 Toast。 */
+/** 全按键支持安装的长流程提示（等 UAC / 等轮询）：按 §4.1 用页内 Notice，不用 Toast。 */
 const helperNotice = shallowRef<{ text: string; kind: "info" | "warning" } | null>(null);
 
 async function toggleEnhancedCapture(value: boolean) {
@@ -649,7 +650,7 @@ async function toggleEnhancedCapture(value: boolean) {
   if (value && !enhancedCaptureInstalled.value) {
     busy.value = true;
     helperNotice.value = {
-      text: tr("开启按键增强需要管理员授权，请在弹窗中确认"),
+      text: tr("开启全按键支持需要管理员授权，请在弹窗中确认"),
       kind: "info",
     };
     try {
@@ -657,14 +658,14 @@ async function toggleEnhancedCapture(value: boolean) {
       const installed = await waitForHelperInstalled();
       if (!installed) {
         helperNotice.value = {
-          text: tr("没有完成按键增强服务安装，开关已保持关闭"),
+          text: tr("没有完成全按键支持服务安装，开关已保持关闭"),
           kind: "warning",
         };
         return;
       }
       enhancedCaptureInstalled.value = true;
       helperNotice.value = null;
-      pushToast(tr("按键增强服务已安装"), "success");
+      pushToast(tr("全按键支持服务已安装"), "success");
     } catch (cause) {
       helperNotice.value = null;
       error.value = errorMessage(cause);
@@ -686,7 +687,7 @@ async function toggleEnhancedCapture(value: boolean) {
     await saveSettings(next);
     settingsDocument.value = next;
     helperNotice.value = null;
-    if (!value) pushToast(tr("已关闭按键增强，服务保留可随时再开启"), "info");
+    if (!value) pushToast(tr("已关闭全按键支持，服务保留可随时再开启"), "info");
   } catch (cause) {
     enhancedCapture.value = previous;
     error.value = errorMessage(cause);
@@ -801,7 +802,7 @@ async function removeProfile(profile: ButtonProfile) {
   // 默认方案是每个型号的基线，不可删除；后端归一化也会重建它。
   if (isDefaultProfile(profile)) return;
   const confirmed = await confirmAction({
-    title: tr("删除方案“{name}”？", { name: profile.name }),
+    title: tr("删除方案“{name}”？", { name: profileDisplayName(profile.name) }),
     message: tr("此操作不可恢复。"),
     confirmLabel: tr("删除"),
     danger: true,
@@ -829,7 +830,7 @@ async function duplicateProfile(profile: ButtonProfile) {
     const copy: ButtonProfile = {
       ...profile,
       id: `profile-${crypto.randomUUID()}`,
-      name: tr("{name} 副本", { name: profile.name }),
+      name: tr("{name} 副本", { name: profileDisplayName(profile.name) }),
       autoApply: false,
       // 副本永远是普通方案：默认方案每个型号只能有一份。
       isDefault: false,
@@ -973,7 +974,7 @@ onUnmounted(() => {
     <PageHeader
       eyebrow="Buttons"
       title="按键方案"
-      description="为遥控器按键绑定动作或宏，并按前台应用自动切换。"
+      description="为遥控器按键绑定动作或宏，并按前台应用自动切换方案。"
     >
       <template #actions>
         <!-- No profiles and no draft: nothing to switch between yet. -->
@@ -1046,12 +1047,14 @@ onUnmounted(() => {
               selected: editor?.id === profile.id,
             }"
             :aria-pressed="editor?.id === profile.id"
-            :title="`${profile.name} · ${profile.appTargets.join(', ') || tr('未设置应用目标')}`"
+            :title="`${profileDisplayName(profile.name)} · ${profile.appTargets.join(', ') || tr('未设置应用目标')}`"
             @click="editProfile(profile)"
           >
             <span class="profile-chip-index">{{ index + 1 }}</span>
             <span class="profile-chip-copy">
-              <strong class="text-truncate" :title="profile.name">{{ profile.name }}</strong>
+              <strong class="text-truncate" :title="profileDisplayName(profile.name)">
+                {{ profileDisplayName(profile.name) }}
+              </strong>
             </span>
             <span
               v-if="isDefaultProfile(profile)"
@@ -1083,6 +1086,14 @@ onUnmounted(() => {
             <Plus :size="14" />
             {{ tr("添加") }}
           </Button>
+          <IconButton
+            size="sm"
+            :label="trDynamic('属性')"
+            :disabled="busy || !editor"
+            @click="openSettings"
+          >
+            <SlidersHorizontal :size="15" />
+          </IconButton>
           <div ref="moreMenuRef" class="profile-more">
             <IconButton
               size="sm"
@@ -1134,14 +1145,6 @@ onUnmounted(() => {
               </template>
             </div>
           </div>
-          <IconButton
-            size="sm"
-            :label="trDynamic('属性')"
-            :disabled="busy || !editor"
-            @click="openSettings"
-          >
-            <SlidersHorizontal :size="15" />
-          </IconButton>
           <Button size="sm" :disabled="busy" @click="openRecommendedProfiles">
             <Sparkles :size="14" />
             {{ tr("推荐方案") }}

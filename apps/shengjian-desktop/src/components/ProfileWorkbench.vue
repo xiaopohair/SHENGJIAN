@@ -11,7 +11,7 @@ import {
   type ProfileDraft,
   type ProfileTrigger,
 } from "../lib/buttons";
-import { statusLabel, tr, trDynamic } from "../lib/i18n";
+import { statusLabel, tr, trDynamic, uiLocale } from "../lib/i18n";
 import { formatShortcut } from "../lib/shortcuts";
 import { systemKeyLabel } from "../lib/systemActions";
 import {
@@ -38,11 +38,11 @@ const props = defineProps<{
   remoteModel: string | null;
   /** 设备上报的蓝牙名（型号识别不出来时的兜底显示）。 */
   remoteName: string | null;
-  /** 按键增强（RC003 增强捕获）当前是否开启。 */
+  /** 全按键支持（RC003 helper）当前是否开启。 */
   enhancedCapture: boolean;
-  /** 机型是否支持按键增强（仅 RC003）。 */
+  /** 机型是否支持全按键支持（仅 RC003）。 */
   enhancedCaptureEnabled: boolean;
-  /** 按键增强服务（RC003 helper）是否已安装；未安装时开关不可用。 */
+  /** 全按键支持服务（RC003 helper）是否已安装；未安装时开关不可用。 */
   enhancedCaptureInstalled: boolean;
   /** 当前方案是否自动应用。 */
   autoApply: boolean;
@@ -310,9 +310,9 @@ const visibleButtons = computed(() => {
 });
 
 /**
- * 依赖「按键增强」的三个键：返回、音量±。
+ * 依赖「全按键支持」的三个键：返回、音量±。
  *
- * 增强捕获没开时，这三键被系统/其它途径吃掉，应用根本收不到边沿，
+ * 全按键支持没开时，这三键被系统/其它途径吃掉，应用根本收不到边沿，
  * 设了动作也永远不会触发——所以直接不让选、不让配。
  */
 const CAPTURE_ONLY_BUTTONS: LogicalButton[] = ["back", "volume-up", "volume-down"];
@@ -321,7 +321,7 @@ function isCaptureOnly(button: LogicalButton): boolean {
   return CAPTURE_ONLY_BUTTONS.includes(button);
 }
 
-/** 增强捕获真的可用：机型支持 + 服务已安装 + 开关已打开。 */
+/** 全按键支持真的可用：机型支持 + 服务已安装 + 开关已打开。 */
 const captureReady = computed(
   () => props.enhancedCapture && props.enhancedCaptureEnabled && props.enhancedCaptureInstalled,
 );
@@ -335,7 +335,7 @@ function selectButton(button: LogicalButton) {
   selectedButton.value = button;
 }
 
-// 关掉按键增强后，如果当前正停在被锁的键上，切回主页键避免编辑区对着不可用的键。
+// 关掉全按键支持后，如果当前正停在被锁的键上，切回主页键避免编辑区对着不可用的键。
 watch(captureReady, (ready) => {
   if (!ready && buttonLocked(selectedButton.value)) selectedButton.value = "home";
 });
@@ -351,27 +351,27 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
 </script>
 
 <template>
-  <div class="profile-workbench">
+  <div class="profile-workbench" :class="{ 'is-en': uiLocale === 'en' }">
     <template v-if="view === 'workbench'">
       <aside class="remote-panel panel">
         <!-- 不再单列「当前遥控器」标签：型号识别得出来时胶囊里是产品正式名，
              名称本身就说明了这是当前遥控器，省下的宽度让长名称能单行放下。 -->
-        <!-- 产品图上方工具栏：按键增强 / 自动应用 / 方案激活，三个开关。 -->
+        <!-- 产品图上方工具栏：全按键支持 / 自动应用 / 方案激活，三个开关。 -->
         <div class="panel-head remote-toolbar">
           <span
             class="toolbar-toggle"
             :title="
               enhancedCaptureInstalled
-                ? tr('使用按键增强（返回键、音量键）')
-                : tr('开启需要管理员授权安装按键增强服务')
+                ? tr('使用全按键支持（返回键、音量键）')
+                : tr('开启需要管理员授权安装全按键支持服务')
             "
           >
-            <span class="toolbar-toggle-label">{{ tr("按键增强") }}</span>
+            <span class="toolbar-toggle-label">{{ tr("全键支持") }}</span>
             <Switch
               size="sm"
               :model-value="enhancedCapture"
               :disabled="!enhancedCaptureEnabled || toggleDisabled"
-              :label="tr('按键增强')"
+              :label="tr('全键支持')"
               @update:model-value="emit('toggleEnhancedCapture', $event)"
             />
           </span>
@@ -414,16 +414,13 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
               :aria-pressed="selectedButton === hotspot.id"
               :title="
                 buttonLocked(hotspot.id)
-                  ? tr('需要开启按键增强后才能设置此键')
+                  ? tr('需要开启全按键支持后才能设置此键')
                   : trDynamic(labelFor(hotspot.id))
               "
               @click="selectButton(hotspot.id)"
             />
           </div>
           <p class="product-note">{{ productNote }}</p>
-          <p v-if="!captureReady" class="product-locked-note">
-            {{ tr("返回键、音量键需开启按键增强") }}
-          </p>
         </div>
         <div class="remote-footer">
           <span>{{ tr("点击按键查看绑定") }}</span>
@@ -517,7 +514,7 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
                     :class="{ configured: hasBinding(button.id), locked: buttonLocked(button.id) }"
                     :disabled="buttonLocked(button.id)"
                     :title="
-                      buttonLocked(button.id) ? tr('需要开启按键增强后才能设置此键') : undefined
+                      buttonLocked(button.id) ? tr('需要开启全按键支持后才能设置此键') : undefined
                     "
                     @click="selectButton(button.id)"
                   >
@@ -645,7 +642,7 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
   padding: var(--space-4);
 }
 
-/* 左右结构：标签在左、开关在右；标签与开关都用紧凑尺寸，250px 宽也放得下三组。 */
+/* 三组等宽，标签在左、开关在右；「全按键支持」四个字可单行放下。 */
 .toolbar-toggle {
   display: flex;
   flex: 1 1 0;
@@ -653,6 +650,23 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
   justify-content: space-between;
   gap: 4px;
   min-width: 0;
+}
+
+/* 英文标签（Full-key support / Profile activation）比中文长得多：面板放不下时让
+   工具栏整组换行，而不是把文字挤到开关上；中文标签短，保持一行三组。 */
+/* 英文标签长，三组并排会挤成 2+1；英文改成一行一个，开关在右侧对齐成一列。 */
+.profile-workbench.is-en .remote-toolbar {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+
+.profile-workbench.is-en .toolbar-toggle {
+  flex: 0 0 auto;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
 }
 
 .toolbar-toggle-label {
@@ -779,14 +793,6 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
   outline: none;
 }
 
-.product-locked-note {
-  margin: var(--space-1) 0 0;
-  color: var(--text-muted);
-  font-size: var(--text-2xs);
-  line-height: 1.4;
-  text-align: center;
-}
-
 .matrix-key.locked {
   cursor: not-allowed;
   opacity: 0.45;
@@ -809,9 +815,24 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
   color: var(--text-muted);
   font-size: var(--text-2xs);
 }
+/* 英文提示比中文长：英文改成上下两行、整体居中——提示在上，图例在下。 */
+.profile-workbench.is-en .remote-footer {
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.profile-workbench.is-en .remote-footer > span:first-child {
+  text-align: center;
+}
+.profile-workbench.is-en .legend {
+  justify-content: center;
+  margin-left: 0;
+}
 .legend {
   display: flex;
+  flex: 0 0 auto;
   gap: 9px;
+  margin-left: auto;
 }
 .legend span {
   display: inline-flex;

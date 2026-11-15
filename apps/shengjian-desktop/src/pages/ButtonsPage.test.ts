@@ -26,6 +26,7 @@ vi.mock("../lib/api", () => ({
   getHostCapabilities: vi.fn(async () => ({
     platform: "windows",
     enhancedCapture: true,
+  buttonListeningPause: true,
     macroRuntime: true,
     autostart: true,
     tray: true,
@@ -186,7 +187,7 @@ describe("ButtonsPage profile navigation and editor", () => {
     expect(wrapper.find(".profile-chips").exists()).toBe(false);
     expect(wrapper.find(".profile-chips-hint").exists()).toBe(false);
 
-    // 编辑动作全部收在方案导航工具栏，顺序：保存、添加、更多操作、属性、推荐方案。
+    // 编辑动作全部收在方案导航工具栏，顺序：保存、添加、属性、更多操作、推荐方案。
     const toolLabels = wrapper.findAll(".profile-tools button").map((button) => button.text());
     expect(toolLabels).toContain("保存");
     expect(toolLabels).toContain("添加");
@@ -196,6 +197,11 @@ describe("ButtonsPage profile navigation and editor", () => {
     expect(toolLabels).not.toContain("导出");
     expect(wrapper.find('.profile-more [aria-label="更多操作"]').exists()).toBe(true);
     expect(wrapper.find('.profile-tools [aria-label="属性"]').exists()).toBe(true);
+    // 「更多操作」紧跟在「属性」后面。
+    const toolOrder = wrapper
+      .findAll(".profile-tools button")
+      .map((button) => button.attributes("aria-label") ?? button.text());
+    expect(toolOrder.indexOf("更多操作")).toBe(toolOrder.indexOf("属性") + 1);
     // 菜单默认收起。
     expect(wrapper.find(".profile-more-menu").exists()).toBe(false);
     // 没有打开方案时保存/属性不可点。
@@ -342,7 +348,7 @@ describe("ButtonsPage profile navigation and editor", () => {
     currentDocument = documentWithProfile("没有应用目标");
     const wrapper = await mountPage();
 
-    // 开关顺序：按键增强、自动应用、方案激活。
+    // 开关顺序：全按键支持、自动应用、方案激活。
     const switches = wrapper.findAll('.remote-toolbar [role="switch"]');
     expect(switches).toHaveLength(3);
     await switches[1].trigger("click");
