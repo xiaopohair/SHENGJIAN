@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, nextTick, onUnmounted, ref, shallowRef, useTemplateRef, watch } from "vue";
+import { computed, ref, shallowRef, useTemplateRef, watch } from "vue";
 import { Sparkles, X } from "lucide-vue-next";
 import { errorMessage, getRecommendedButtonProfiles } from "../lib/api";
 import { tr } from "../lib/i18n";
+import { useModalFocus } from "../composables/useModalFocus";
 import type { RecommendedButtonProfile } from "../lib/types";
 import Button from "./ui/Button.vue";
 import IconButton from "./ui/IconButton.vue";
@@ -30,7 +31,6 @@ const bundleVersion = shallowRef("");
 const loading = shallowRef(false);
 const error = shallowRef<string | null>(null);
 const dialogRef = useTemplateRef<HTMLElement>("dialogRef");
-let previousFocus: HTMLElement | null = null;
 let requestSeq = 0;
 
 const versionLabel = computed(() =>
@@ -65,60 +65,22 @@ function close() {
   emit("close");
 }
 
-function focusableElements(): HTMLElement[] {
-  if (!dialogRef.value) return [];
-  return Array.from(
-    dialogRef.value.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-    ),
-  ).filter((element) => !element.hasAttribute("disabled") && element.offsetParent !== null);
-}
-
-function onKeydown(event: KeyboardEvent) {
-  if (!props.open) return;
-  if (event.key === "Escape") {
-    event.preventDefault();
-    close();
-    return;
-  }
-  if (event.key !== "Tab") return;
-  const elements = focusableElements();
-  if (elements.length === 0) return;
-  const first = elements[0];
-  const last = elements[elements.length - 1];
-  if (event.shiftKey && document.activeElement === first) {
-    event.preventDefault();
-    last.focus();
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault();
-    first.focus();
-  }
-}
-
 watch(
   () => props.open,
-  async (open) => {
-    if (open) {
-      previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-      window.addEventListener("keydown", onKeydown, true);
-      await nextTick();
-      const initial =
-        dialogRef.value?.querySelector<HTMLElement>(".recommended-use") ??
-        dialogRef.value?.querySelector<HTMLElement>(".recommended-head button");
-      initial?.focus();
-      void load();
-    } else {
-      window.removeEventListener("keydown", onKeydown, true);
-      requestSeq += 1;
-      previousFocus?.focus();
-      previousFocus = null;
-    }
+  (open) => {
+    if (open) void load();
+    else requestSeq += 1;
   },
   { immediate: true },
 );
 
-onUnmounted(() => {
-  window.removeEventListener("keydown", onKeydown, true);
+useModalFocus({
+  container: dialogRef,
+  open: () => props.open,
+  onClose: close,
+  initialFocus: () =>
+    dialogRef.value?.querySelector<HTMLElement>(".recommended-use") ??
+    dialogRef.value?.querySelector<HTMLElement>(".recommended-head button"),
 });
 </script>
 

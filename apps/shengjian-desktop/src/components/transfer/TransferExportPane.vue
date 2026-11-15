@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { TriangleAlert } from "lucide-vue-next";
 import { tr } from "../../lib/i18n";
+import { profileDisplayName } from "../../lib/buttons";
 import { profileStats, transferSummary, type TransferFormat } from "../../lib/profileTransfer";
 import type { ButtonProfile } from "../../lib/types";
 import TransferRemotePreview from "./TransferRemotePreview.vue";
@@ -117,7 +118,7 @@ const formatOptions = computed(() => [
           <span class="row-check" aria-hidden="true" />
           <span class="row-main">
             <span class="row-name">
-              {{ row.profile.name }}
+              {{ profileDisplayName(row.profile.name) }}
               <em v-if="row.profile.isDefault" class="row-tag">{{ tr("默认") }}</em>
               <em v-if="!row.selectable" class="row-tag warn">{{ tr("推荐方案不含默认") }}</em>
             </span>

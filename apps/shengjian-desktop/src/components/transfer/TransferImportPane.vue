@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { FileJson, TriangleAlert, Upload } from "lucide-vue-next";
+import { profileDisplayName } from "../../lib/buttons";
 import { tr, type TranslationKey } from "../../lib/i18n";
 import type {
   ConflictPolicy,
@@ -117,7 +118,7 @@ function showSegment(row: ResolvedImportRow): boolean {
             <span class="status-chip" :class="`status-${row.status}`">{{ statusLabel(row) }}</span>
             <span class="row-main">
               <span class="row-name">
-                {{ row.profile.name }}
+                {{ profileDisplayName(row.profile.name) }}
                 <em v-if="!row.compatible" class="row-tag warn">{{ tr("型号不符") }}</em>
               </span>
               <span class="row-meta">

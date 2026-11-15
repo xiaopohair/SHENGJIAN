@@ -11,6 +11,7 @@ import {
   type AppTargetMode,
 } from "../../lib/appTargets";
 import { tr, trDynamic } from "../../lib/i18n";
+import { useModalFocus } from "../../composables/useModalFocus";
 import { RUNNABLE_EXTENSIONS } from "../../lib/runnable";
 import { pushToast } from "../../lib/toast";
 import type { AppTargetInfo, LaunchableApp } from "../../lib/types";
@@ -98,7 +99,6 @@ const CATEGORY_ITEMS = [
 const dialogRef = useTemplateRef<HTMLElement>("dialogRef");
 const searchRef = useTemplateRef<HTMLInputElement>("searchRef");
 const optionRefs = ref<HTMLElement[]>([]);
-let previousFocus: HTMLElement | null = null;
 let manualTimer: number | undefined;
 let manualSeq = 0;
 
@@ -333,37 +333,6 @@ function onSearchKeydown(event: KeyboardEvent) {
   }
 }
 
-function focusableElements(): HTMLElement[] {
-  if (!dialogRef.value) return [];
-  return Array.from(
-    dialogRef.value.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-    ),
-  ).filter((element) => !element.hasAttribute("disabled") && element.offsetParent !== null);
-}
-
-function onKeydown(event: KeyboardEvent) {
-  if (!props.open) return;
-  if (event.key === "Escape") {
-    event.preventDefault();
-    event.stopPropagation();
-    requestClose();
-    return;
-  }
-  if (event.key !== "Tab") return;
-  const elements = focusableElements();
-  if (elements.length === 0) return;
-  const first = elements[0];
-  const last = elements[elements.length - 1];
-  if (event.shiftKey && document.activeElement === first) {
-    event.preventDefault();
-    last.focus();
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault();
-    first.focus();
-  }
-}
-
 function primeDescriptions() {
   const targets = [props.currentTarget, props.foregroundApp, ...props.recentTargets]
     .map((target) => target?.trim() ?? "")
@@ -386,24 +355,24 @@ function resetForOpen() {
 
 watch(
   () => props.open,
-  async (open) => {
+  (open) => {
     if (open) {
-      previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-      window.addEventListener("keydown", onKeydown, true);
       resetForOpen();
-      await nextTick();
-      searchRef.value?.focus();
       if (!picker.appsLoaded.value && !picker.appsLoading.value) void picker.loadApps();
       primeDescriptions();
     } else {
-      window.removeEventListener("keydown", onKeydown, true);
       window.clearTimeout(manualTimer);
-      previousFocus?.focus();
-      previousFocus = null;
     }
   },
   { immediate: true },
 );
+
+useModalFocus({
+  container: dialogRef,
+  open: () => props.open,
+  onClose: requestClose,
+  initialFocus: () => searchRef.value,
+});
 
 function refreshApps() {
   void picker.refreshApps();
@@ -518,7 +487,6 @@ function confirmManual() {
 }
 
 onUnmounted(() => {
-  window.removeEventListener("keydown", onKeydown, true);
   window.clearTimeout(manualTimer);
 });
 </script>

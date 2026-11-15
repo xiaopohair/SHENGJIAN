@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, nextTick, onUnmounted, ref, useTemplateRef, watch } from "vue";
+import { computed, ref, useTemplateRef, watch } from "vue";
 import { Keyboard, X } from "lucide-vue-next";
 import { CHORD_KEY_GROUPS, CHORD_MODIFIER_OPTIONS } from "../lib/chordOptions";
 import { tr, trDynamic } from "../lib/i18n";
 import { chordParts } from "../lib/macroEditor";
+import { useModalFocus } from "../composables/useModalFocus";
 import type { MacroChord } from "../lib/types";
 import Button from "./ui/Button.vue";
 import IconButton from "./ui/IconButton.vue";
@@ -32,7 +33,6 @@ const emit = defineEmits<{
 const dialogRef = useTemplateRef<HTMLElement>("dialogRef");
 const modifiers = ref<string[]>([]);
 const mainKey = ref("");
-let previousFocus: HTMLElement | null = null;
 
 const selected = computed<MacroChord>(() => ({
   modifiers: CHORD_MODIFIER_OPTIONS.filter((option) => modifiers.value.includes(option.code)).map(
@@ -64,39 +64,24 @@ function confirm() {
   emit("confirm", selected.value);
 }
 
-function onKeydown(event: KeyboardEvent) {
-  if (!props.open) return;
-  if (event.key === "Escape") {
-    event.preventDefault();
-    event.stopPropagation();
-    close();
-    return;
-  }
-  if (event.key === "Enter" && canConfirm.value) {
-    event.preventDefault();
-    confirm();
-  }
-}
-
 watch(
   () => props.open,
-  async (open) => {
-    if (open) {
-      resetFromModel();
-      previousFocus = document.activeElement as HTMLElement | null;
-      window.addEventListener("keydown", onKeydown, true);
-      await nextTick();
-      dialogRef.value?.focus();
-    } else {
-      window.removeEventListener("keydown", onKeydown, true);
-      previousFocus?.focus();
-      previousFocus = null;
-    }
+  (open) => {
+    if (open) resetFromModel();
   },
 );
 
-onUnmounted(() => {
-  window.removeEventListener("keydown", onKeydown, true);
+useModalFocus({
+  container: dialogRef,
+  open: () => props.open,
+  onClose: close,
+  initialFocus: () => dialogRef.value,
+  onKey: (event) => {
+    if (event.key === "Enter" && canConfirm.value) {
+      event.preventDefault();
+      confirm();
+    }
+  },
 });
 </script>
 
@@ -137,7 +122,7 @@ onUnmounted(() => {
                 :aria-pressed="modifiers.includes(option.code)"
                 @click="toggleModifier(option.code)"
               >
-                {{ option.label }}
+                {{ trDynamic(option.label) }}
               </button>
             </div>
           </div>

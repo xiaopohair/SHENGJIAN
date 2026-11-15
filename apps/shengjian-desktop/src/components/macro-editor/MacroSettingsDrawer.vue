@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { ref } from "vue";
 import { X } from "lucide-vue-next";
 import { tr } from "../../lib/i18n";
+import { useModalFocus } from "../../composables/useModalFocus";
 import Button from "../ui/Button.vue";
 import TextInput from "../ui/TextInput.vue";
 
@@ -17,36 +18,18 @@ const name = defineModel<string>("name", { required: true });
 const summary = defineModel<string>("summary", { required: true });
 
 const drawerRef = ref<HTMLElement | null>(null);
-let previousFocus: HTMLElement | null = null;
 
 function close() {
   emit("close");
 }
 
-function onKeydown(event: KeyboardEvent) {
-  if (!props.open) return;
-  if (event.key === "Escape") {
-    event.preventDefault();
-    close();
-  }
-}
-
-watch(
-  () => props.open,
-  async (openState) => {
-    if (openState) {
-      previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-      await nextTick();
-      drawerRef.value?.querySelector<HTMLElement>(".macro-settings-body input")?.focus();
-    } else {
-      previousFocus?.focus();
-      previousFocus = null;
-    }
-  },
-);
-
-onMounted(() => window.addEventListener("keydown", onKeydown, true));
-onUnmounted(() => window.removeEventListener("keydown", onKeydown, true));
+useModalFocus({
+  container: drawerRef,
+  open: () => props.open,
+  onClose: close,
+  initialFocus: () =>
+    drawerRef.value?.querySelector<HTMLElement>(".macro-settings-body input"),
+});
 </script>
 
 <template>

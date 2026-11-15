@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onUnmounted, ref, shallowRef, useTemplateRef, watch } from "vue";
+import { computed, ref, shallowRef, useTemplateRef, watch } from "vue";
 import { open as openDialog, save } from "@tauri-apps/plugin-dialog";
 import {
   ArrowLeftRight,
@@ -18,6 +18,7 @@ import {
   saveMacroLibrary,
 } from "../lib/api";
 import { tr } from "../lib/i18n";
+import { useModalFocus } from "../composables/useModalFocus";
 import {
   buildMacroImportRows,
   collectIncomingMacros,
@@ -130,7 +131,6 @@ const canSubmit = computed(() => {
   return importFiles.value.length > 0;
 });
 
-let previousFocus: HTMLElement | null = null;
 
 function resetState() {
   direction.value = "export";
@@ -309,22 +309,6 @@ function close() {
   emit("close");
 }
 
-function onKeydown(event: KeyboardEvent) {
-  if (!props.open) return;
-  if (event.key === "Escape") {
-    event.preventDefault();
-    event.stopPropagation();
-    close();
-    return;
-  }
-  if (event.key !== "Enter") return;
-  const target = event.target as HTMLElement | null;
-  if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
-  if (stage.value !== "form") return;
-  event.preventDefault();
-  submit();
-}
-
 const resultTitle = computed(() => {
   const value = result.value;
   if (!value) return "";
@@ -371,29 +355,31 @@ const importSummary = computed(() => {
 
 watch(
   () => props.open,
-  async (open) => {
-    if (open) {
-      resetState();
-      previousFocus = document.activeElement as HTMLElement | null;
-      window.addEventListener("keydown", onKeydown, true);
-      await nextTick();
-      dialogRef.value?.focus();
-    } else {
-      window.removeEventListener("keydown", onKeydown, true);
-      previousFocus?.focus();
-      previousFocus = null;
-    }
+  (open) => {
+    if (open) resetState();
   },
   { immediate: true },
 );
+
+useModalFocus({
+  container: dialogRef,
+  open: () => props.open,
+  onClose: close,
+  initialFocus: () => dialogRef.value,
+  onKey: (event) => {
+    if (event.key !== "Enter") return;
+    const target = event.target as HTMLElement | null;
+    if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+    if (stage.value !== "form") return;
+    event.preventDefault();
+    submit();
+  },
+});
 
 watch(format, (value) => {
   if (value !== "single") importMode.value = "merge";
 });
 
-onUnmounted(() => {
-  window.removeEventListener("keydown", onKeydown, true);
-});
 </script>
 
 <template>

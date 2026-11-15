@@ -3,7 +3,7 @@ import { computed } from "vue";
 import { tr } from "../../lib/i18n";
 import { deviceLineArt } from "../../lib/deviceArt";
 import { profileStats } from "../../lib/profileTransfer";
-import { PROFILE_BUTTONS } from "../../lib/buttons";
+import { PROFILE_BUTTONS, profileDisplayName } from "../../lib/buttons";
 import type { ButtonProfile, LogicalAction } from "../../lib/types";
 
 const props = defineProps<{ profile: ButtonProfile }>();
@@ -66,7 +66,7 @@ const restCount = computed(() => Math.max(0, stats.value.binds - visibleRows.val
     </span>
 
     <div class="remote-meta">
-      <strong class="remote-name">{{ profile.name }}</strong>
+      <strong class="remote-name">{{ profileDisplayName(profile.name) }}</strong>
       <p class="remote-sub">
         {{ modelLabel }} · {{ stats.binds }} {{ tr("键位") }} · {{ stats.appCount }}
         {{ tr("应用") }}

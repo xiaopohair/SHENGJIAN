@@ -1,22 +1,13 @@
 <script setup lang="ts">
-import { nextTick, onUnmounted, ref, watch } from "vue";
+import { ref } from "vue";
 import { TriangleAlert } from "lucide-vue-next";
 import { confirmState, settleConfirm } from "../../lib/confirm";
 import { trDynamic } from "../../lib/i18n";
+import { useModalFocus } from "../../composables/useModalFocus";
 import Button from "./Button.vue";
 
 const cancelButton = ref<InstanceType<typeof Button> | null>(null);
 const dialogRef = ref<HTMLElement | null>(null);
-let previousFocus: HTMLElement | null = null;
-
-function focusableElements(): HTMLElement[] {
-  if (!dialogRef.value) return [];
-  return Array.from(
-    dialogRef.value.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-    ),
-  ).filter((element) => !element.hasAttribute("disabled") && element.offsetParent !== null);
-}
 
 function cancel() {
   settleConfirm(false);
@@ -26,45 +17,11 @@ function accept() {
   settleConfirm(true);
 }
 
-function onKeydown(event: KeyboardEvent) {
-  if (!confirmState.open) return;
-  if (event.key === "Escape") {
-    event.preventDefault();
-    cancel();
-    return;
-  }
-  if (event.key !== "Tab") return;
-  const elements = focusableElements();
-  if (elements.length === 0) return;
-  const first = elements[0];
-  const last = elements[elements.length - 1];
-  if (event.shiftKey && document.activeElement === first) {
-    event.preventDefault();
-    last.focus();
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault();
-    first.focus();
-  }
-}
-
-watch(
-  () => confirmState.open,
-  async (open) => {
-    if (open) {
-      previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-      window.addEventListener("keydown", onKeydown, true);
-      await nextTick();
-      (cancelButton.value?.$el as HTMLElement | undefined)?.focus();
-    } else {
-      window.removeEventListener("keydown", onKeydown, true);
-      previousFocus?.focus();
-      previousFocus = null;
-    }
-  },
-);
-
-onUnmounted(() => {
-  window.removeEventListener("keydown", onKeydown, true);
+useModalFocus({
+  container: dialogRef,
+  open: () => confirmState.open,
+  onClose: cancel,
+  initialFocus: () => cancelButton.value?.$el as HTMLElement | undefined,
 });
 </script>
 

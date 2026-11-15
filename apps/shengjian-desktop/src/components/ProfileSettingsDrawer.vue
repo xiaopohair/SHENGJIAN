@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, useTemplateRef, watch } from "vue";
+import { computed, onMounted, useTemplateRef, watch } from "vue";
 import { X } from "lucide-vue-next";
 import { mergeAppTargetsText, splitAppTargets } from "../lib/appTargets";
 import {
@@ -9,6 +9,7 @@ import {
 } from "../composables/useAppPicker";
 import type { ProfileDraft } from "../lib/buttons";
 import { tr, trDynamic } from "../lib/i18n";
+import { useModalFocus } from "../composables/useModalFocus";
 import { voiceToolOptions } from "../lib/voiceTools";
 import { useAppPicker } from "../composables/useAppPicker";
 import { useVoiceToolCatalog } from "../composables/useVoiceToolCatalog";
@@ -57,7 +58,6 @@ watch(
   { immediate: true },
 );
 const { catalog: voiceToolCatalog, load: loadVoiceToolCatalog } = useVoiceToolCatalog();
-let previousFocus: HTMLElement | null = null;
 
 function close() {
   emit("close");
@@ -74,37 +74,21 @@ function clearProgram() {
   draft.value.autoApply = false;
 }
 
-function onKeydown(event: KeyboardEvent) {
-  if (!props.open) return;
-  // The centered app picker sits above the drawer and owns Escape while open.
-  if (appPickerOpen.value) return;
-  if (event.key === "Escape") {
-    event.preventDefault();
-    close();
-  }
-}
-
-watch(
-  () => props.open,
-  async (openState) => {
-    if (openState) {
-      previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-      await nextTick();
-      drawerRef.value
-        ?.querySelector<HTMLElement>(".settings-body input, .settings-body select")
-        ?.focus();
-    } else {
-      previousFocus?.focus();
-      previousFocus = null;
-    }
+useModalFocus({
+  container: drawerRef,
+  open: () => props.open,
+  onClose: close,
+  initialFocus: () =>
+    drawerRef.value?.querySelector<HTMLElement>(".settings-body input, .settings-body select"),
+  onKey: (event) => {
+    // 上层应用选择器打开时，Esc 归它处理，抽屉不关闭。
+    if (appPickerOpen.value && event.key === "Escape") event.preventDefault();
   },
-);
+});
 
 onMounted(() => {
-  window.addEventListener("keydown", onKeydown, true);
   void loadVoiceToolCatalog();
 });
-onUnmounted(() => window.removeEventListener("keydown", onKeydown, true));
 </script>
 
 <template>

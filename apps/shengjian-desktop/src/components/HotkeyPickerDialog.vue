@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onUnmounted, ref, useTemplateRef, watch } from "vue";
+import { computed, ref, useTemplateRef, watch } from "vue";
 import { Keyboard, X } from "lucide-vue-next";
 import { tr, trDynamic } from "../lib/i18n";
 import {
@@ -10,6 +10,7 @@ import {
   sameHotkey,
   splitHotkey,
 } from "../lib/hotkey";
+import { useModalFocus } from "../composables/useModalFocus";
 import Button from "./ui/Button.vue";
 import IconButton from "./ui/IconButton.vue";
 
@@ -41,7 +42,6 @@ const emit = defineEmits<{
 const dialogRef = useTemplateRef<HTMLElement>("dialogRef");
 const modifiers = ref<string[]>([]);
 const mainKey = ref("");
-let previousFocus: HTMLElement | null = null;
 
 /** 点选顺序不影响结果：展示与落盘都用规范顺序（Ctrl → Shift → Alt → Win → 主键）。 */
 const selected = computed(() =>
@@ -84,39 +84,24 @@ function confirm() {
   emit("confirm", selected.value);
 }
 
-function onKeydown(event: KeyboardEvent) {
-  if (!props.open) return;
-  if (event.key === "Escape") {
-    event.preventDefault();
-    event.stopPropagation();
-    close();
-    return;
-  }
-  if (event.key === "Enter") {
-    event.preventDefault();
-    confirm();
-  }
-}
-
 watch(
   () => props.open,
-  async (open) => {
-    if (open) {
-      resetFromModel();
-      previousFocus = document.activeElement as HTMLElement | null;
-      window.addEventListener("keydown", onKeydown, true);
-      await nextTick();
-      dialogRef.value?.focus();
-    } else {
-      window.removeEventListener("keydown", onKeydown, true);
-      previousFocus?.focus();
-      previousFocus = null;
-    }
+  (open) => {
+    if (open) resetFromModel();
   },
 );
 
-onUnmounted(() => {
-  window.removeEventListener("keydown", onKeydown, true);
+useModalFocus({
+  container: dialogRef,
+  open: () => props.open,
+  onClose: close,
+  initialFocus: () => dialogRef.value,
+  onKey: (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      confirm();
+    }
+  },
 });
 </script>
 
@@ -157,7 +142,7 @@ onUnmounted(() => {
                 :aria-pressed="modifiers.includes(option.code)"
                 @click="toggleModifier(option.code)"
               >
-                {{ option.label }}
+                {{ trDynamic(option.label) }}
               </button>
             </div>
           </div>

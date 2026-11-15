@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, useTemplateRef, watch } from "vue";
-import { CheckCircle2, CircleHelp, Mic, Radio, Tv, X } from "lucide-vue-next";
+import { computed, ref, watch } from "vue";
+import { CheckCircle2, CircleHelp, Mic, Tv } from "lucide-vue-next";
+import DialogShell from "./ui/DialogShell.vue";
 import { tr, trDynamic } from "../lib/i18n";
 import { normalizePairingModel, type PairingModel } from "../stores/pairing";
 import rc001Photo from "../assets/devices/xiaomi-rc001.png";
@@ -64,7 +65,7 @@ const HOME_MENU_TV_HOTSPOTS: ButtonHotspot[] = [
 const MODELS: Record<PairingModel, ModelInfo> = {
   RC003: {
     nameKey: "小米蓝牙语音遥控器 2 Pro",
-    bluetoothName: "小米蓝牙语音遥控器 2 Pro",
+    bluetoothName: "小米蓝牙语音遥控器",
     image: rc003Photo,
     width: 335,
     height: 1081,
@@ -74,7 +75,7 @@ const MODELS: Record<PairingModel, ModelInfo> = {
   },
   RC001: {
     nameKey: "小米蓝牙语音遥控器 2",
-    bluetoothName: "小米蓝牙语音遥控器 2",
+    bluetoothName: "小米蓝牙语音遥控器",
     image: rc001Photo,
     width: 335,
     height: 1081,
@@ -102,45 +103,12 @@ const activeModel = ref<PairingModel>(normalizePairingModel(props.initialModel))
 const model = computed(() => MODELS[activeModel.value]);
 const title = computed(() => tr("如何配对{name}", { name: trDynamic(model.value.nameKey) }));
 
-const dialogRef = useTemplateRef<HTMLElement>("dialogRef");
-const closeButton = useTemplateRef<HTMLElement>("closeButton");
-let previousFocus: HTMLElement | null = null;
-
 function close() {
   emit("close");
 }
 
 function selectModel(next: PairingModel) {
   activeModel.value = next;
-}
-
-function focusableElements(): HTMLElement[] {
-  if (!dialogRef.value) return [];
-  return Array.from(
-    dialogRef.value.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-    ),
-  ).filter((element) => !element.hasAttribute("disabled") && element.offsetParent !== null);
-}
-
-function onKeydown(event: KeyboardEvent) {
-  if (event.key === "Escape") {
-    event.preventDefault();
-    close();
-    return;
-  }
-  if (event.key !== "Tab") return;
-  const elements = focusableElements();
-  if (elements.length === 0) return;
-  const first = elements[0];
-  const last = elements[elements.length - 1];
-  if (event.shiftKey && document.activeElement === first) {
-    event.preventDefault();
-    last.focus();
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault();
-    first.focus();
-  }
 }
 
 watch(
@@ -150,49 +118,16 @@ watch(
   },
 );
 
-onMounted(() => {
-  previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-  window.addEventListener("keydown", onKeydown, true);
-  void nextTick(() => (closeButton.value as HTMLButtonElement | null)?.focus());
-});
-
-onUnmounted(() => {
-  window.removeEventListener("keydown", onKeydown, true);
-  previousFocus?.focus();
-  previousFocus = null;
-});
 </script>
 
 <template>
-  <Teleport to="body">
-    <div class="pairing-backdrop" @click.self="close">
-      <section
-        ref="dialogRef"
-        class="pairing-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="pairing-title"
-      >
-        <header class="pairing-head">
-          <div class="pairing-heading">
-            <p class="pairing-eyebrow">
-              <Radio :size="15" />
-              <span>Xiaomi Remote</span>
-              <span class="mono">· {{ activeModel }}</span>
-            </p>
-            <h2 id="pairing-title">{{ title }}</h2>
-            <p class="pairing-lead">{{ tr("选择型号，按步骤完成配对。") }}</p>
-          </div>
-          <button
-            ref="closeButton"
-            type="button"
-            class="pairing-close"
-            :aria-label="trDynamic('关闭')"
-            @click="close"
-          >
-            <X :size="18" />
-          </button>
-        </header>
+  <DialogShell
+    title-id="pairing-title"
+    :eyebrow="`Xiaomi Remote · ${activeModel}`"
+    :title="title"
+    :subtitle="tr('首先选择型号，然后按步骤完成配对。')"
+    @close="close"
+  >
 
         <div class="model-tabs" role="tablist" :aria-label="trDynamic('遥控器型号')">
           <button
@@ -216,7 +151,6 @@ onUnmounted(() => {
               <span class="pairing-step-index">1</span>
               <div>
                 <h3>{{ tr("让遥控器进入配对状态") }}</h3>
-                <p>{{ tr("首次连接或重新配对时") }}</p>
               </div>
             </div>
 
@@ -254,7 +188,7 @@ onUnmounted(() => {
             </div>
 
             <p class="visual-caption">
-              {{ tr("同时按住「主页键」和「菜单键」约 3 秒，直到指示灯闪烁。") }}
+              {{ tr("同时按住「主页键」和「菜单键」约 3 秒。") }}
             </p>
           </section>
 
@@ -263,7 +197,6 @@ onUnmounted(() => {
               <span class="pairing-step-index">2</span>
               <div>
                 <h3>{{ tr("在电脑上完成连接") }}</h3>
-                <p>{{ tr("打开 Windows 蓝牙设置") }}</p>
               </div>
             </div>
 
@@ -272,7 +205,7 @@ onUnmounted(() => {
               <li>{{ tr("选择「添加设备 > 蓝牙」。") }}</li>
               <li>
                 {{
-                  tr("在列表中选择 {device}。", {
+                  tr("在列表中选择「{device}」。", {
                     device: model.bluetoothName,
                   })
                 }}
@@ -306,95 +239,14 @@ onUnmounted(() => {
             <span class="tip-icon"><CircleHelp :size="17" /></span>
             <div>
               <strong>{{ tr("配对遇到问题？") }}</strong>
-              <p>{{ tr("让遥控器靠近电脑，换一节电池，或回到连接页重新扫描。") }}</p>
+              <p>{{ tr("将遥控器靠近电脑或更换电池。") }}</p>
             </div>
           </div>
         </div>
-      </section>
-    </div>
-  </Teleport>
+  </DialogShell>
 </template>
 
 <style scoped>
-.pairing-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 300;
-  display: grid;
-  place-items: center;
-  overflow-y: auto;
-  background: var(--overlay);
-  padding: var(--space-3);
-  backdrop-filter: blur(6px);
-}
-
-.pairing-dialog {
-  width: min(960px, 100%);
-  max-height: calc(100vh - 2 * var(--space-3));
-  overflow-y: auto;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-xl);
-  background: var(--bg-raised);
-  box-shadow: var(--shadow-lg);
-}
-
-.pairing-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-4);
-  padding: var(--space-5) var(--space-6) var(--space-3);
-}
-
-.pairing-eyebrow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-  font-weight: 650;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.pairing-heading h2 {
-  margin-top: var(--space-2);
-  font-size: var(--text-2xl);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
-}
-
-.pairing-lead {
-  margin-top: var(--space-2);
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-  line-height: 1.5;
-}
-
-.pairing-close {
-  display: grid;
-  flex: 0 0 32px;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border: 0;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-
-.pairing-close:hover {
-  background: var(--bg-hover);
-  color: var(--text);
-}
-
-.pairing-close:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
 .model-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -466,12 +318,6 @@ onUnmounted(() => {
   font-size: var(--text-lg);
   font-weight: 650;
   line-height: 1.3;
-}
-
-.pairing-step-head p {
-  margin-top: 2px;
-  color: var(--text-muted);
-  font-size: var(--text-xs);
 }
 
 .remote-stage {
@@ -681,11 +527,6 @@ onUnmounted(() => {
 }
 
 @media (max-width: 1100px) {
-  .pairing-backdrop {
-    padding: var(--space-2);
-  }
-
-  .pairing-head,
   .model-tabs,
   .pairing-visual,
   .pairing-connect,

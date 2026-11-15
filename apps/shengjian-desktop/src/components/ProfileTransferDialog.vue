@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, nextTick, onUnmounted, ref, shallowRef, useTemplateRef, watch } from "vue";
+import { computed, ref, shallowRef, useTemplateRef, watch } from "vue";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { ArrowLeftRight, Download, FileJson, FolderOpen, Upload, X } from "lucide-vue-next";
 import { tr } from "../lib/i18n";
+import { useModalFocus } from "../composables/useModalFocus";
 import {
   errorMessage,
   exportProfileAsPreset,
@@ -72,7 +73,6 @@ const onlyCompatible = ref(true);
 /** 导入前的文档快照：撤销时原样写回去。 */
 const previousDocument = shallowRef<ButtonProfilesDocument | null>(null);
 
-let previousFocus: HTMLElement | null = null;
 
 const profiles = computed(() => props.document?.profiles ?? []);
 
@@ -340,43 +340,28 @@ function runPrimary() {
   else void chooseImportFile();
 }
 
-function onWindowKeydown(event: KeyboardEvent) {
-  if (event.key === "Escape") {
-    event.preventDefault();
-    event.stopPropagation();
-    close();
-    return;
-  }
-  if (event.key !== "Enter") return;
-  const target = event.target as HTMLElement | null;
-  if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
-  if (stage.value !== "form") return;
-  event.preventDefault();
-  runPrimary();
-}
-
 watch(
   () => props.open,
-  async (isOpen) => {
-    if (!isOpen) {
-      window.removeEventListener("keydown", onWindowKeydown, true);
-      previousFocus?.focus();
-      previousFocus = null;
-      return;
-    }
-    previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    resetState();
-    window.addEventListener("keydown", onWindowKeydown, true);
-    await nextTick();
-    dialogRef.value
-      ?.querySelector<HTMLElement>(".transfer-seg button[aria-pressed='true']")
-      ?.focus();
+  (isOpen) => {
+    if (isOpen) resetState();
   },
   { immediate: true },
 );
 
-onUnmounted(() => {
-  window.removeEventListener("keydown", onWindowKeydown, true);
+useModalFocus({
+  container: dialogRef,
+  open: () => props.open,
+  onClose: close,
+  initialFocus: () =>
+    dialogRef.value?.querySelector<HTMLElement>(".transfer-seg button[aria-pressed='true']"),
+  onKey: (event) => {
+    if (event.key !== "Enter") return;
+    const target = event.target as HTMLElement | null;
+    if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+    if (stage.value !== "form") return;
+    event.preventDefault();
+    runPrimary();
+  },
 });
 </script>
 
