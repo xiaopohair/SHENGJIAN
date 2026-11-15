@@ -81,8 +81,15 @@
 `SectionHeader`、`Field`、`TextInput`、`SelectInput`、`Checkbox`、`Switch`、`RangeInput`、`ToggleGroup`、
 `Tabs`、`Notice`、`StatusPill`、`EmptyState`、`LoadingState`、`ConfirmDialog`、`SystemActionGrid`、`ChordInput`。
 
-弹窗类界面没有独立基础组件，直接照 [`RecommendedProfilesDialog.vue`](../apps/shengjian-desktop/src/components/RecommendedProfilesDialog.vue)
-的骨架写（遮罩 + 标题栏 + 主体 + 页脚），数值见第 5 节第 19 条。
+弹窗类界面统一走 [`ui/DialogShell.vue`](../apps/shengjian-desktop/src/components/ui/DialogShell.vue)：
+遮罩 + 卡片 + 标题区（eyebrow / subtitle）+ 关闭按钮，内容与 footer 走插槽，`width` /
+`contentHeight` 控制尺寸。焦点圈定、Esc 与遮罩关闭、关闭后还原焦点由
+[`composables/useModalFocus.ts`](../apps/shengjian-desktop/src/composables/useModalFocus.ts) 负责，
+**不要再在页面里各写一份 `focusableElements()`**；数值见第 5 节第 19 条。
+
+表格类界面同理共用骨架：按键方案页的表格视图（`ProfileWorkbench` 的 `.matrix-panel`）与设置页
+常用语表格（`CommonPhrasesSettings` 的 `.phrase-panel`）都是「1px 边框卡片 + 工具条下边框 +
+`--bg-subtle` 表头 + `td` 上的 1px 行分隔线」，序号列用键帽式徽标（`.key-cap` / `.phrase-cap`）。
 
 组合键一律用点选面板，**不做键盘直接采集**（原因见第 5 节第 20 条）：
 

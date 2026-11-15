@@ -71,6 +71,20 @@ helper/rc003
 
 便携格式的 ID/扩展名更改是有意的不兼容变更。
 
+- 常用语是**内置能力**（不再依赖构建期注入的私有组件）：`shengjian-common-phrases` 只做宿主入口，
+  面板与文本插入在 `shengjian-windows::{common_phrases, common_phrases_panel}`——一个不抢焦点的
+  `WS_EX_NOACTIVATE` 原生浮层，打开期间 ↑/↓/OK/返回/Menu 在手势识别之前被认领，不写持久绑定；
+  数据存 `%LOCALAPPDATA%\Shengjian\common-phrases.json`。`WM_DESTROY` 必须回调宿主复位
+  `panel_open` 与 `key_gate` 遮蔽掩码，否则低层键盘钩子会一直吞方向键
+- 应用内语音测试板 `shengjian-windows::test_pad`：置顶无边框原生窗口 + 标准 `EDIT`，贴在「识别内容」
+  框上；输入法切到本进程 WebView2 会整页重载，原生 `EDIT` 没有这个问题。`shengjian-windows::display`
+  由 Tauri 主窗口上报缩放与深浅色，原生浮层统一读取
+- 断连唤醒重连：`WakeReconnect { address }` 由 Raw Input 在任意遥控器按键时触发（2 秒限流）；
+  没有正在等待的重连时，`idle_start_device` 会按 `last-remote.ini`（地址 + device_id）从空闲态发起
+  连接，前提是「记住的那一支 == 按下那一支」。用户主动断开时该文件被删除，因此不会自动连回去
+- 按键监听可暂停：`RawInputStatus` + `set_button_listening(enabled, capture_enabled)` 覆盖 Raw Input、
+  按键门控与全按键支持；暂停期间设置页再打开全按键支持也不会重新接管（`listening_paused`）
+
 ## 下一步
 
 1. 复核 RC001/ARN9 设备身份，通过后再启用 profile 运行时匹配（见 `device-identity.md`）。
