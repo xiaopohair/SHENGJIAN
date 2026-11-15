@@ -201,6 +201,42 @@ Release 正文来自 `docs/release-notes-<version>.md`（0.3.0 为 [release-note
 
 ## 发布前检查
 
+### 本地校验命令（三个 Cargo workspace + 前端，一个都不能漏）
+
+仓库里有**三个独立的 Cargo workspace**：根 workspace、`apps/shengjian-desktop/src-tauri`（桌面宿主）、
+`helper/rc003`。`cargo fmt --all` / `cargo check --workspace` / `cargo test --workspace` 只覆盖**当前所在的那个**，
+在根目录跑完不代表桌面 crate 和 helper 也干净——2026-11 就因为漏跑桌面 crate 的 `cargo fmt`，
+CI 的 `Desktop Rust format` 连红三次。
+
+```powershell
+# 1) 根 workspace
+cargo fmt --all -- --check
+cargo check --workspace
+cargo test --workspace
+
+# 2) 桌面宿主（独立 workspace）
+cd apps/shengjian-desktop/src-tauri
+cargo fmt -- --check
+cargo test
+cd ../../..
+
+# 3) RC003 helper（独立 workspace）
+cd helper/rc003
+cargo test
+cargo build --release
+cd ../..
+
+# 4) 前端
+cd apps/shengjian-desktop
+pnpm lint
+pnpm format:check
+pnpm test
+pnpm build
+pnpm config:check
+```
+
+对应 CI 的三个作业：`core`（第 1 步）、`desktop`（第 2、4 步）、helper（第 3 步）。
+
 - 安装、启动、RC003 扫描/连接
 - 语音 streaming/draining/idle
 - OK single/double/long

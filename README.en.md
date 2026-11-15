@@ -248,7 +248,8 @@ The repository has been pushed to <https://github.com/xiaopohair/SHENGJIAN>; rel
 - Release packages are unsigned; CI signing requires the repository to be public and pass SignPath review
 - No auto-update
 - First helper installation requires UAC
-- RC001/ARN9 identity mapping is still deferred; see [docs/device-identity.md](docs/device-identity.md)
+- RC003 / ARN9 / RC001 all passed on-device verification and take part in runtime model matching (RC001 confirmed on 2026-11-15, including its 12-key layout); see [docs/device-identity.md](docs/device-identity.md) for the probing workflow for new models
+- The common-phrases overlay only selects and inserts: phrases and their order are edited on the Settings page, not inside the panel; it is an in-app overlay that never takes focus, so it does not replace the system IME candidate window
 - No second-client IPC; the desktop host is in-process
 
 ## Code signing policy

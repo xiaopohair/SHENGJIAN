@@ -253,7 +253,8 @@ signed=false
 - 发布包未签名；CI 签名需仓库公开并通过 SignPath 审核
 - 无自动更新
 - helper 首次安装需要 UAC
-- RC001 身份映射仍为 `research`（不进入运行时型号匹配）；ARN9 已于 2026-11-12 解冻并接入，见 [docs/device-identity.md](docs/device-identity.md)
+- RC003 / ARN9 / RC001 三款均已真机验收并进入运行时型号匹配（RC001 于 2026-11-15 确认身份与 12 键布局）；新机型的探测流程见 [docs/device-identity.md](docs/device-identity.md)
+- 常用语面板只做「选择 + 插入」：文案与顺序在设置页维护，面板内不能编辑；面板是应用内浮层，不抢焦点，因此也不会替代系统的输入法候选框
 - 无第二个客户端 IPC；桌面宿主为 in-process
 
 ## Code signing policy
