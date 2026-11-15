@@ -42,7 +42,6 @@ const LIST_BOTTOM: i32 = LIST_TOP + ROW_HEIGHT * VISIBLE_ROWS as i32;
 #[derive(Clone, Copy)]
 struct Palette {
     bg: u32,
-    surface: u32,
     border: u32,
     border_strong: u32,
     text: u32,
@@ -50,15 +49,12 @@ struct Palette {
     faint: u32,
     accent: u32,
     accent_soft: u32,
-    row_hover: u32,
     chip: u32,
-    on_accent: u32,
 }
 
 fn dark_palette() -> Palette {
     Palette {
         bg: 0x00151614,
-        surface: 0x001b1d1a,
         border: 0x002c2e2b,
         border_strong: 0x003a3d37,
         text: 0x00f3f5f2,
@@ -66,16 +62,13 @@ fn dark_palette() -> Palette {
         faint: 0x00676b66,
         accent: 0x008fd6b4,
         accent_soft: 0x00252f2a,
-        row_hover: 0x0020231f,
         chip: 0x00232622,
-        on_accent: 0x00151614,
     }
 }
 
 fn light_palette() -> Palette {
     Palette {
         bg: 0x00f4f4ef,
-        surface: 0x00ffffff,
         border: 0x00d8d6ce,
         border_strong: 0x00c4c1b7,
         text: 0x001c1e1a,
@@ -83,9 +76,7 @@ fn light_palette() -> Palette {
         faint: 0x0092968d,
         accent: 0x002f7d59,
         accent_soft: 0x00e2f0e7,
-        row_hover: 0x00efeee9,
         chip: 0x00f0efe9,
-        on_accent: 0x00ffffff,
     }
 }
 
@@ -230,21 +221,56 @@ unsafe fn draw_badge(hdc: HDC, c: Palette) {
     let _ = DeleteObject(ink.into());
 }
 
-unsafe fn draw_chip(hdc: HDC, left: i32, top: i32, label: &str, width: i32, c: Palette) -> i32 {
+/// 键帽：浅底 + 细边框 + 底部一道深色线，做出「实体按键」的立体感。
+///
+/// `primary` 给主操作（OK）用强调色描边；其余按键保持中性，和弹窗底栏的
+/// 「键帽 + 说明文字」排版一致。
+unsafe fn draw_keycap(
+    hdc: HDC,
+    left: i32,
+    top: i32,
+    label: &str,
+    width: i32,
+    primary: bool,
+    c: Palette,
+) -> i32 {
     let rect = RECT {
         left,
         top,
         right: left + width,
-        bottom: top + 26,
+        bottom: top + 24,
     };
-    round_fill(hdc, &rect, 7, c.chip);
+    round_fill(hdc, &rect, 5, if primary { c.accent_soft } else { c.chip });
+    round_stroke(
+        hdc,
+        &rect,
+        5,
+        if primary { c.accent } else { c.border_strong },
+    );
+    // 键帽下沿的暗线：比整块边框重一档，读起来像一颗立起来的键。
+    let edge = RECT {
+        left: left + 4,
+        top: rect.bottom - 3,
+        right: left + width - 4,
+        bottom: rect.bottom - 2,
+    };
+    let edge_brush = CreateSolidBrush(COLORREF(if primary { c.accent } else { c.border_strong }));
+    FillRect(hdc, &edge, edge_brush);
+    let _ = DeleteObject(edge_brush.into());
     let mut text_rect = RECT {
-        left: left + 2,
+        left,
         top,
-        right: left + width - 2,
-        bottom: top + 26,
+        right: left + width,
+        bottom: top + 23,
     };
-    draw_text(hdc, label, &mut text_rect, c.text, 12);
+    draw_text_flags(
+        hdc,
+        label,
+        &mut text_rect,
+        if primary { c.accent } else { c.text },
+        11,
+        DT_CENTER | DT_VCENTER,
+    );
     left + width
 }
 
@@ -361,52 +387,36 @@ unsafe fn paint(hwnd: HWND) {
         for (offset, slot) in slots.iter().skip(start).take(VISIBLE_ROWS).enumerate() {
             let index = start + offset;
             let top = LIST_TOP + offset as i32 * ROW_HEIGHT;
-            let card = RECT {
-                left: 20,
+            // 列表行（对齐宏导出弹窗的列表）：选中态是整行淡色底，不画卡片边框，
+            // 前面的勾选框去掉——一行就是一个可选条目，勾选语义和「当前项」重复。
+            let row = RECT {
+                left: 16,
                 top: top + 3,
-                right: client.right - 20,
-                bottom: top + 51,
+                right: client.right - 16,
+                bottom: top + ROW_HEIGHT - 3,
             };
             if index == selected {
-                round_fill(hdc, &card, 10, c.accent_soft);
-                round_stroke(hdc, &card, 10, c.accent);
-            } else {
-                round_fill(hdc, &card, 10, c.surface);
-                round_stroke(hdc, &card, 10, c.border);
+                round_fill(hdc, &row, 8, c.accent_soft);
             }
 
-            let check = RECT {
-                left: 32,
-                top: top + 15,
-                right: 50,
-                bottom: top + 33,
-            };
-            if index == selected {
-                round_fill(hdc, &check, 5, c.accent);
-                let mut check_rect = RECT {
-                    left: 32,
-                    top: top + 15,
-                    right: 50,
-                    bottom: top + 33,
+            // 行分隔线：画在行底，最后一行不画，免得列表底部多出一条。
+            if index + 1 < slots.len() {
+                let divider = RECT {
+                    left: 28,
+                    top: top + ROW_HEIGHT - 1,
+                    right: client.right - 28,
+                    bottom: top + ROW_HEIGHT,
                 };
-                draw_text_flags(
-                    hdc,
-                    "✓",
-                    &mut check_rect,
-                    c.on_accent,
-                    12,
-                    DT_CENTER | DT_VCENTER,
-                );
-            } else {
-                round_fill(hdc, &check, 5, c.surface);
-                round_stroke(hdc, &check, 5, c.border_strong);
+                let divider_brush = CreateSolidBrush(COLORREF(c.border));
+                FillRect(hdc, &divider, divider_brush);
+                let _ = DeleteObject(divider_brush.into());
             }
 
             let mut index_rect = RECT {
-                left: client.right - 58,
-                top: top + 3,
-                right: client.right - 32,
-                bottom: top + 51,
+                left: client.right - 54,
+                top: row.top,
+                right: client.right - 28,
+                bottom: row.bottom,
             };
             draw_text_flags(
                 hdc,
@@ -432,18 +442,20 @@ unsafe fn paint(hwnd: HWND) {
                 text.lines().next().unwrap_or("").chars().take(46).collect()
             };
 
+            // 行首不再有勾选框，文字直接从左边距起排（与列表行的左内边距对齐）。
+            let text_left = 30;
             let mut title_line = RECT {
-                left: 64,
-                top: top + 8,
-                right: client.right - 68,
-                bottom: top + 29,
+                left: text_left,
+                top: top + 10,
+                right: client.right - 62,
+                bottom: top + 31,
             };
             draw_text_top(hdc, &title, &mut title_line, c.text, 14);
             let mut preview_line = RECT {
-                left: 64,
-                top: top + 27,
-                right: client.right - 68,
-                bottom: top + 46,
+                left: text_left,
+                top: top + 29,
+                right: client.right - 62,
+                bottom: top + 48,
             };
             draw_text_top(hdc, &preview, &mut preview_line, c.muted, 12);
         }
@@ -490,7 +502,7 @@ unsafe fn paint(hwnd: HWND) {
     let _ = DeleteObject(footer_brush.into());
 
     let mut x = 26;
-    x = draw_chip(hdc, x, footer_top + 6, "↑↓", 32, c) + 6;
+    x = draw_keycap(hdc, x, footer_top + 6, "↑↓", 34, false, c) + 8;
     let mut label_rect = RECT {
         left: x,
         top: footer_top + 6,
@@ -499,7 +511,7 @@ unsafe fn paint(hwnd: HWND) {
     };
     draw_text(hdc, "选择", &mut label_rect, c.muted, 12);
     x += 38;
-    x = draw_chip(hdc, x, footer_top + 6, "OK", 28, c) + 6;
+    x = draw_keycap(hdc, x, footer_top + 6, "OK", 32, true, c) + 8;
     label_rect = RECT {
         left: x,
         top: footer_top + 6,
@@ -508,7 +520,7 @@ unsafe fn paint(hwnd: HWND) {
     };
     draw_text(hdc, "插入", &mut label_rect, c.muted, 12);
     x += 38;
-    x = draw_chip(hdc, x, footer_top + 6, "Menu", 44, c) + 6;
+    x = draw_keycap(hdc, x, footer_top + 6, "Menu", 48, false, c) + 8;
     label_rect = RECT {
         left: x,
         top: footer_top + 6,
