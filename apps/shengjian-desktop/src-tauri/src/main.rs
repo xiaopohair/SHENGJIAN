@@ -11,6 +11,7 @@ mod platform;
 mod splash;
 mod state;
 mod transcript_history;
+mod transcript_probe;
 mod tray;
 
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -70,6 +71,11 @@ fn main() {
 
             let transcript_app = app.handle().clone();
             host.configure_transcript_capture(Arc::new(move |record| {
+                // 测试面板打开时：只放内存槽，不写历史也不广播（测试不该产生记录）。
+                if transcript_probe::is_active() {
+                    transcript_probe::store(record);
+                    return;
+                }
                 let _ = transcript_history::append(record.clone());
                 let _ = transcript_app.emit("transcript-captured", record);
             }));
@@ -122,6 +128,12 @@ fn main() {
                 .ok_or_else(|| "main window config missing".to_string())?;
             let main_window =
                 tauri::WebviewWindowBuilder::from_config(app.handle(), &main_config)?.build()?;
+            if let Ok(scale) = main_window.scale_factor() {
+                shengjian_windows::display::set_scale_factor(scale);
+            }
+            if let Ok(theme) = main_window.theme() {
+                shengjian_windows::display::set_dark_theme(matches!(theme, tauri::Theme::Dark));
+            }
             // Keep the centered startup position even if the platform defers
             // placement until the hidden window is first mapped.
             let _ = main_window.center();
@@ -156,6 +168,12 @@ fn main() {
                     window.app_handle().exit(0);
                 }
             }
+            tauri::WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
+                shengjian_windows::display::set_scale_factor(*scale_factor);
+            }
+            tauri::WindowEvent::ThemeChanged(theme) => {
+                shengjian_windows::display::set_dark_theme(matches!(theme, tauri::Theme::Dark));
+            }
             tauri::WindowEvent::Destroyed => {
                 if window.label() == "main" {
                     if let Some(state) = window.app_handle().try_state::<state::AppState>() {
@@ -172,6 +190,7 @@ fn main() {
             commands::scan_remotes,
             commands::connect_remote,
             commands::disconnect_remote,
+            commands::forget_remote,
             commands::get_settings,
             commands::save_settings,
             commands::open_diagnostic_log_folder,
@@ -219,6 +238,11 @@ fn main() {
             commands::current_process_id,
             commands::resolve_app_target,
             commands::device_status,
+            commands::raw_input_status,
+            commands::set_button_listening,
+            commands::common_phrases_document,
+            commands::save_common_phrases,
+            commands::open_common_phrases_panel,
             commands::device_support,
             commands::diagnostic_log,
             commands::export_diagnostic_bundle,
@@ -226,6 +250,16 @@ fn main() {
             commands::clear_macro_run_history,
             commands::reset_settings,
             commands::transcript_history,
+            commands::open_voice_test_pad,
+            commands::raise_voice_test_pad,
+            commands::voice_test_pad_foreground,
+            commands::collapse_voice_test_pad,
+            commands::expand_voice_test_pad,
+            commands::close_voice_test_pad,
+            commands::voice_test_pad_text,
+            commands::begin_transcript_probe,
+            commands::end_transcript_probe,
+            commands::take_transcript_probe,
             commands::clear_transcript_history,
             commands::set_tray_language,
             commands::set_tray_update,
@@ -235,45 +269,72 @@ fn main() {
         .expect("error while running Shengjian desktop");
 }
 
+fn tray_status_for(state: &state::AppState) -> tray::TrayStatus {
+    let connection = state.engine.connection().snapshot();
+    let model = connection.remote.as_ref().and_then(|remote| remote.model.clone());
+    let profiles = state.engine.button_profiles();
+    let profile_name = state
+        .engine
+        .active_button_profile_id()
+        .and_then(|id| profiles.profile(&id).map(|profile| profile.name.clone()))
+        .or_else(|| {
+            profiles
+                .default_profile_for(model.as_deref())
+                .map(|profile| profile.name.clone())
+        })
+        .unwrap_or_else(|| "默认".to_owned());
+    let remote_name = connection
+        .remote
+        .as_ref()
+        .map(|remote| remote.name.clone())
+        .unwrap_or_default();
+    let device_id = connection
+        .remote
+        .as_ref()
+        .and_then(|remote| remote.device_id.as_ref())
+        .map(|device| device.as_str().to_owned());
+    let resolved = state
+        .engine
+        .settings()
+        .load_document()
+        .ok()
+        .map(|document| document.resolve(device_id.as_deref(), state.host.platform_id()));
+    let tool_id = state
+        .engine
+        .active_profile_voice_input_tool()
+        .or_else(|| resolved.and_then(|settings| settings.voice_input_tool));
+    let input_method = tool_id
+        .map(|id| {
+            shengjian_domain::voice_tools::tools()
+                .into_iter()
+                .find(|tool| tool.id == id)
+                .map(|tool| tool.label)
+                .unwrap_or(id)
+        })
+        .unwrap_or_default();
+    tray::TrayStatus {
+        profile_name,
+        remote_name,
+        input_method,
+        battery_level: state.host.battery_level(),
+    }
+}
+
 fn spawn_tray_battery_status(app: tauri::AppHandle) {
     std::thread::Builder::new()
         .name("shengjian-tray-battery".to_owned())
         .spawn(move || {
             let mut tray_theme = None;
             loop {
-                std::thread::sleep(Duration::from_secs(15));
-                tray::sync_brand_icons(&app, &mut tray_theme);
-                let tooltip = app
+                // 先更新方案/遥控器/输入法/电量，再做主题切换；
+                // 语言/更新刷新不会再把完整状态覆盖掉。
+                let status = app
                     .try_state::<state::AppState>()
-                    .map(|state| {
-                        let english = state
-                            .engine
-                            .settings()
-                            .load()
-                            .map(|settings| settings.application_language.is_english())
-                            .unwrap_or(false);
-                        match state.host.battery_level() {
-                            Some(level) if level <= 20 => {
-                                if english {
-                                    format!("声键 · Low battery {level}%")
-                                } else {
-                                    format!("声键 · 电量低 {level}%")
-                                }
-                            }
-                            Some(level) => {
-                                if english {
-                                    format!("声键 · Battery {level}%")
-                                } else {
-                                    format!("声键 · 电量 {level}%")
-                                }
-                            }
-                            None => "声键".to_owned(),
-                        }
-                    })
-                    .unwrap_or_else(|| "声键".to_owned());
-                if let Some(tray) = app.tray_by_id("main-tray") {
-                    let _ = tray.set_tooltip(Some(&tooltip));
-                }
+                    .map(|state| tray_status_for(&state))
+                    .unwrap_or_default();
+                tray::set_tray_status(&app, status);
+                std::thread::sleep(Duration::from_secs(5));
+                tray::sync_brand_icons(&app, &mut tray_theme);
             }
         })
         .expect("tray battery thread");

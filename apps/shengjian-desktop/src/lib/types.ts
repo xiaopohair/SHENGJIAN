@@ -127,7 +127,7 @@ export interface DeviceSettingsOverride {
 }
 
 /**
- * 配置目录（`config/voice-tools.json`）下发的语音输入工具。
+ * 配置目录（`config/voice-tool-presets.json`）下发的语音输入工具。
  * `label` 是应用自己的名字，不做界面翻译；`defaultHotkey` 是
  * `KeyboardEvent.code` 序列，作为用户未自定义热键时的默认值。
  */
@@ -255,6 +255,7 @@ export interface ButtonGesture {
 export interface HostCapabilities {
   platform: string;
   enhancedCapture: boolean;
+  buttonListeningPause: boolean;
   macroRuntime: boolean;
   autostart: boolean;
   tray: boolean;
@@ -268,6 +269,22 @@ export interface DeviceStatus {
   powerNotificationsAvailable: boolean;
   batteryLevel: number | null;
   firmwareVersion: string | null;
+}
+
+export interface CommonPhraseSlot {
+  button: string;
+  label: string;
+  text: string;
+}
+
+export interface CommonPhrasesDocument {
+  slots: CommonPhraseSlot[];
+}
+
+export interface RawInputStatus {
+  phase: string;
+  matchedDeviceCount: number;
+  lastError: string | null;
 }
 
 export interface DevicePlatformSupport {

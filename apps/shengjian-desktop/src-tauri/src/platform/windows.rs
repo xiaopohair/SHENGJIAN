@@ -2,16 +2,16 @@ use crate::events::TauriEventSink;
 use crate::helper;
 use crate::host::{
     DeviceStatus, HostCapabilities, HostError, HostPlatform, MacroInfo, MacroRunStatusView,
-    TranscriptRecord,
+    RawInputStatus, TranscriptRecord,
 };
 use shengjian_app::CoreEngine;
 use shengjian_domain::voice_tools;
 use shengjian_domain::{MacroDefinition, MacroLibraryDocument};
-use shengjian_windows::common_phrases::{current_common_phrase_host, CommonPhraseAccess};
 use shengjian_windows::macro_runtime::{macro_key_to_key_code, MacroRunReport, MacroStartError};
 use shengjian_windows::send_input::{KeyChord, KeyCode};
 use shengjian_windows::{DiagnosticLogMetadata, VoiceToolKind, WindowsPlatform};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 pub fn initialize_diagnostics() {
@@ -37,6 +37,8 @@ pub fn initialize_diagnostics() {
 pub fn live_engine(
     sink: Arc<TauriEventSink>,
 ) -> Result<(CoreEngine, Arc<WindowsPlatform>), String> {
+    // 内置常用语；进程级安装一次即可。
+    shengjian_windows::common_phrases::install_builtin_host();
     shengjian_windows_adapter::live_core_engine_with_platform(sink)
         .map_err(|error| error.to_string())
 }
@@ -47,13 +49,15 @@ pub fn note(message: String) {
 
 pub struct PlatformHost {
     platform: Arc<WindowsPlatform>,
-    /// 当前输入工具的 **id**（`config/voice-tools.json` 的 `id`，如 `wechat`）。
+    /// 当前输入工具的 **id**（`config/voice-tool-presets.json` 的 `id`，如 `wechat`）。
     ///
     /// 平台层保存 id 而不是枚举/行为：默认热键按 id 查配置目录，Windows 行为按
     /// id 对应配置里的 `kind` 解析（见 [`voice_tool_kind`]）。这样配置里新增/改名
     /// 工具时，这里不需要跟着改代码。
     current_tool: Mutex<Option<String>>,
     custom_hotkey: Mutex<Option<KeyChord>>,
+    /// 用户手动暂停按钮监听时置位：期间设置页再开启「全按键支持」也不能重新接管。
+    listening_paused: AtomicBool,
 }
 
 impl PlatformHost {
@@ -62,6 +66,7 @@ impl PlatformHost {
             platform,
             current_tool: Mutex::new(None),
             custom_hotkey: Mutex::new(None),
+            listening_paused: AtomicBool::new(false),
         }
     }
 
@@ -171,13 +176,11 @@ impl HostPlatform for PlatformHost {
         HostCapabilities {
             platform: self.platform_id().to_owned(),
             enhanced_capture: true,
+            button_listening_pause: true,
             macro_runtime: true,
             autostart: true,
             tray: true,
-            common_phrases: !matches!(
-                current_common_phrase_host().access(),
-                CommonPhraseAccess::Unavailable
-            ),
+            common_phrases: true,
         }
     }
 
@@ -210,7 +213,48 @@ impl HostPlatform for PlatformHost {
         })
     }
 
+    fn raw_input_status(&self) -> RawInputStatus {
+        let snapshot = self.platform.raw_input_snapshot();
+        RawInputStatus {
+            phase: format!("{:?}", snapshot.phase).to_lowercase(),
+            matched_device_count: snapshot.matched_device_count,
+            last_error: snapshot.last_error,
+        }
+    }
+
+    fn set_button_listening(
+        &self,
+        enabled: bool,
+        capture_enabled: bool,
+    ) -> Result<RawInputStatus, HostError> {
+        if enabled {
+            self.listening_paused.store(false, Ordering::Relaxed);
+            if capture_enabled {
+                self.set_enhanced_capture_enabled(true);
+            }
+            self.platform
+                .start_raw_input()
+                .map_err(|error| HostError::new("button-listening", error.to_string()))?;
+        } else {
+            self.platform
+                .stop_raw_input()
+                .map_err(|error| HostError::new("button-listening", error.to_string()))?;
+            self.listening_paused.store(true, Ordering::Relaxed);
+            // core 之外还有平台映射这条旧路径：暂停时一并挂起。
+            self.platform.set_mapping_suspension(true);
+            if capture_enabled {
+                // 全按键支持交还系统，否则三键会被助手吞掉却没有动作。
+                self.set_enhanced_capture_enabled(false);
+            }
+        }
+        Ok(self.raw_input_status())
+    }
+
     fn set_enhanced_capture_enabled(&self, enabled: bool) {
+        // 监听暂停期间，设置页再打开「全按键支持」也不能重新接管按键。
+        if enabled && self.listening_paused.load(Ordering::Relaxed) {
+            return;
+        }
         self.platform.set_enhanced_capture_enabled(enabled);
         if enabled {
             helper::start_helper_task();
@@ -433,7 +477,7 @@ mod tests {
         assert!(parse_voice_hotkey(&[]).is_none());
     }
 
-    /// 默认热键**完全来自配置目录**（`config/voice-tools.json` 的 `defaultHotkey`），
+    /// 默认热键**完全来自配置目录**（`config/voice-tool-presets.json` 的 `defaultHotkey`），
     /// 这里不再写死任何工具组合键：断言解析链路与目录一致，并钉住空列表→None。
     #[test]
     fn default_hotkeys_follow_the_voice_tool_catalog() {

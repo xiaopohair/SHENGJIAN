@@ -10,6 +10,7 @@ import type {
   ButtonProfilesDocument,
   ButtonProfileState,
   CommandError,
+  CommonPhrasesDocument,
   ConnectionSnapshot,
   DeviceStatus,
   DeviceSupport,
@@ -21,6 +22,7 @@ import type {
   MacroHistoryEntry,
   MacroRunStatus,
   PresetExportView,
+  RawInputStatus,
   RecommendedButtonProfilesBundle,
   RemoteCandidate,
   SettingsDocument,
@@ -46,6 +48,26 @@ export async function getVoiceLevel(): Promise<number> {
 
 export async function getDeviceStatus(): Promise<DeviceStatus | null> {
   return invoke<DeviceStatus | null>("device_status");
+}
+
+export async function getCommonPhrasesDocument(): Promise<CommonPhrasesDocument> {
+  return invoke<CommonPhrasesDocument>("common_phrases_document");
+}
+
+export async function saveCommonPhrases(document: CommonPhrasesDocument): Promise<void> {
+  return invoke<void>("save_common_phrases", { document });
+}
+
+export async function openCommonPhrasesPanel(): Promise<boolean> {
+  return invoke<boolean>("open_common_phrases_panel");
+}
+
+export async function getRawInputStatus(): Promise<RawInputStatus> {
+  return invoke<RawInputStatus>("raw_input_status");
+}
+
+export async function setButtonListening(enabled: boolean): Promise<RawInputStatus> {
+  return invoke<RawInputStatus>("set_button_listening", { enabled });
 }
 
 export async function getDeviceSupport(): Promise<DeviceSupport[]> {
@@ -117,7 +139,7 @@ export async function getSettings(): Promise<SettingsDocument> {
 }
 
 /**
- * 配置目录下发的语音输入工具目录（`config/voice-tools.json`）。
+ * 配置目录下发的语音输入工具目录（`config/voice-tool-presets.json`）。
  * label 直接来自配置，应用名不翻译；defaultHotkey 是 KeyboardEvent.code 序列。
  */
 export async function getVoiceToolCatalog(): Promise<VoiceToolInfo[]> {
@@ -160,7 +182,7 @@ export async function installRc003Helper(): Promise<void> {
   return invoke<void>("install_rc003_helper");
 }
 
-/** 卸载按键增强服务：提权移除计划任务（弹一次 UAC）。 */
+/** 卸载全按键支持服务：提权移除计划任务（弹一次 UAC）。 */
 export async function uninstallRc003Helper(): Promise<void> {
   return invoke<void>("uninstall_rc003_helper");
 }
@@ -179,6 +201,10 @@ export async function getAudioDependencyStatus(): Promise<AudioDependencyStatus>
 
 export async function selectAudioEndpoint(endpointId: string): Promise<AudioSnapshot> {
   return invoke<AudioSnapshot>("select_audio_endpoint", { endpointId });
+}
+
+export async function forgetRemote(remoteId: string): Promise<void> {
+  return invoke<void>("forget_remote", { remoteId });
 }
 
 export async function setGainDb(gainDb: number): Promise<AudioSnapshot> {
@@ -240,7 +266,7 @@ export async function copyRecommendedButtonProfile(
  * 把当前方案直接导出成推荐方案文件（在应用内完成，不需要命令行）。
  *
  * 后端会按与运行时相同的规则校验并归一化（型号大写、目标小写等），
- * 写出的文件可直接放进仓库 `config/button-profiles/` 后跑 `pnpm config:build`。
+ * 写出的文件可直接放进仓库 `config/recommended-button-profiles/` 后跑 `pnpm config:build`。
  */
 export async function exportProfileAsPreset(params: {
   path: string;
@@ -300,6 +326,67 @@ export async function clearMacroRunHistory(): Promise<void> {
 
 export async function getTranscriptHistory(): Promise<TranscriptRecord[]> {
   return invoke<TranscriptRecord[]>("transcript_history");
+}
+
+export interface VoiceTestPadRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** 0xRRGGBB：卡片背景/边框，取当前主题的计算样式。 */
+  background: number;
+  border: number;
+}
+
+/**
+ * 打开原生语音测试板（Win32 EDIT：输入法可以在里面落字，不用切应用）。
+ * 坐标是主窗口客户区的**物理像素**，由调用方按 `getBoundingClientRect × devicePixelRatio` 算好。
+ */
+export async function openVoiceTestPad(rect: VoiceTestPadRect): Promise<void> {
+  return invoke<void>("open_voice_test_pad", { ...rect });
+}
+
+/** 主窗口重新获得焦点时，把测试板重新顶到最前。 */
+export async function raiseVoiceTestPad(): Promise<void> {
+  return invoke<void>("raise_voice_test_pad");
+}
+
+/** 原生窗口当前是否前台。 */
+export async function voiceTestPadForeground(): Promise<boolean> {
+  return invoke<boolean>("voice_test_pad_foreground");
+}
+
+/** 收起成底部细带：露出识别文字，同时保留键盘焦点。 */
+export async function collapseVoiceTestPad(): Promise<void> {
+  return invoke<void>("collapse_voice_test_pad");
+}
+
+/** 还原成完整高度（下一次按下语音键时）。 */
+export async function expandVoiceTestPad(): Promise<void> {
+  return invoke<void>("expand_voice_test_pad");
+}
+
+export async function closeVoiceTestPad(): Promise<void> {
+  return invoke<void>("close_voice_test_pad");
+}
+
+export async function voiceTestPadText(): Promise<string | null> {
+  return invoke<string | null>("voice_test_pad_text");
+}
+
+/** 设备测试面板：打开期间临时开启捕获，结果只进内存（不写语音记录）。 */
+export async function beginTranscriptProbe(): Promise<void> {
+  return invoke<void>("begin_transcript_probe");
+}
+
+/** 关闭探针并恢复用户原来的捕获开关。 */
+export async function endTranscriptProbe(): Promise<void> {
+  return invoke<void>("end_transcript_probe");
+}
+
+/** 取走最近一次识别内容（取过即清空）。 */
+export async function takeTranscriptProbe(): Promise<TranscriptRecord | null> {
+  return invoke<TranscriptRecord | null>("take_transcript_probe");
 }
 
 export async function clearTranscriptHistory(): Promise<void> {

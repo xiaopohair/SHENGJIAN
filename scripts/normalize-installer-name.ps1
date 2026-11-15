@@ -33,7 +33,12 @@ $built = Join-Path $bundleDir ("{0}_{1}_{2}-setup.exe" -f $tauri.productName, $V
 $target = Join-Path $bundleDir ("shengjian_{0}_{1}-setup.exe" -f $Version, $Arch)
 
 if (Test-Path -LiteralPath $built) {
-    Move-Item -LiteralPath $built -Destination $target -Force
+    # Move-Item refuses to overwrite an existing file even with -Force, so
+    # rebuilding the same version would otherwise fail here.
+    if (Test-Path -LiteralPath $target) {
+        Remove-Item -LiteralPath $target -Force
+    }
+    Move-Item -LiteralPath $built -Destination $target
 } elseif (-not (Test-Path -LiteralPath $target)) {
     throw "installer not found: $built (run 'pnpm tauri build' first)"
 }

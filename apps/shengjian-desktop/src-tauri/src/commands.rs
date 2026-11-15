@@ -1,6 +1,9 @@
 use crate::host::{
-    DeviceStatus, HostCapabilities, HostError, HostPlatform, MacroRunStatusView, TranscriptRecord,
+    DeviceStatus, HostCapabilities, HostError, HostPlatform, MacroRunStatusView, RawInputStatus,
+    TranscriptRecord,
 };
+use shengjian_windows::common_phrases::{load_document as load_common_phrases,
+    save_document as save_common_phrases_document, CommonPhrasesDocument};
 use crate::macros;
 use crate::state::AppState;
 use serde::{Deserialize, Serialize};
@@ -14,7 +17,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::State;
 use tauri_plugin_autostart::ManagerExt;
 
-/// 可配置的语音输入工具目录（`config/voice-tools.json`）。
+/// 可配置的语音输入工具目录（`config/voice-tool-presets.json`）。
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VoiceToolInfo {
@@ -153,6 +156,23 @@ pub async fn disconnect_remote(
     // 断开后型号变回未知；让方案服务跟着回落，界面不会挂着上一台的方案。
     state.engine.sync_device_model();
     Ok(result)
+}
+
+/// 忘记设备：断开并解除 Windows 配对。之后扫描列表里不会再出现这支遥控器。
+#[tauri::command]
+pub async fn forget_remote(
+    state: State<'_, AppState>,
+    remote_id: String,
+) -> Result<(), CommandError> {
+    let engine = state.engine.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        engine.connection().forget(&RemoteId::new(remote_id))
+    })
+    .await
+    .map_err(|_| CommandError::new("command-join-failed", "forget task failed", true))?
+    .map_err(CommandError::from)?;
+    state.engine.sync_device_model();
+    Ok(())
 }
 
 #[tauri::command]
@@ -301,7 +321,7 @@ pub fn install_rc003_helper(
     state.host.install_helper(&app).map_err(CommandError::from)
 }
 
-/// 卸载按键增强服务：提权移除计划任务（会弹一次 UAC）。
+/// 卸载全按键支持服务：提权移除计划任务（会弹一次 UAC）。
 ///
 /// 只是移除服务；`rc003_capture_enabled` 由调用方（设置/连接页）一并置 false。
 #[tauri::command]
@@ -407,6 +427,44 @@ pub async fn app_icon_data_urls(targets: Vec<String>) -> Vec<Option<String>> {
 #[tauri::command]
 pub fn device_status(state: State<'_, AppState>) -> Option<DeviceStatus> {
     state.host.device_status()
+}
+
+#[tauri::command]
+pub fn raw_input_status(state: State<'_, AppState>) -> RawInputStatus {
+    state.host.raw_input_status()
+}
+
+#[tauri::command]
+pub fn common_phrases_document() -> CommonPhrasesDocument {
+    load_common_phrases()
+}
+
+#[tauri::command]
+pub fn open_common_phrases_panel() -> bool {
+    shengjian_windows::common_phrases::current_common_phrase_host().open("preview")
+}
+
+#[tauri::command]
+pub fn save_common_phrases(document: CommonPhrasesDocument) -> Result<(), CommandError> {
+    save_common_phrases_document(&document)
+        .map_err(|error| CommandError::new("common-phrases-save", &error, true))
+}
+
+/// 暂停/恢复按钮监听（Raw Input + 按键门控 + 全按键支持）；语音与蓝牙连接不受影响。
+#[tauri::command]
+pub fn set_button_listening(
+    enabled: bool,
+    state: State<'_, AppState>,
+) -> Result<RawInputStatus, CommandError> {
+    let capture_enabled = state
+        .engine
+        .settings()
+        .load_document()
+        .map(|document| document.global.rc003_capture_enabled)
+        .unwrap_or(false);
+    let status = state.host.set_button_listening(enabled, capture_enabled)?;
+    state.engine.buttons().reset();
+    Ok(status)
 }
 
 #[tauri::command]
@@ -644,7 +702,7 @@ pub fn copy_recommended_button_profile(
     ))
 }
 
-/// 把一条用户方案导出成推荐方案文件（`config/button-profiles/<id>.json`）。
+/// 把一条用户方案导出成推荐方案文件（`config/recommended-button-profiles/<id>.json`）。
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PresetExportView {
@@ -659,7 +717,7 @@ pub struct PresetExportView {
 ///
 /// 与命令行工具 `scripts/profile-to-preset.mjs` 等价，但由 Rust 侧做同一套校验
 /// （`button_presets::validate_catalog`），因此不依赖开发者本地装 Node。
-/// 写出的文件可直接放进仓库 `config/button-profiles/`，跑 `pnpm config:build` 聚合。
+/// 写出的文件可直接放进仓库 `config/recommended-button-profiles/`，跑 `pnpm config:build` 聚合。
 #[tauri::command]
 pub fn export_profile_as_preset(
     path: String,
@@ -781,26 +839,33 @@ mod recommended_profiles_tests {
     fn recommended_profiles_view_serializes_frontend_contract() {
         let view = recommended_button_profiles(Some("rc003".to_owned()));
         let value = serde_json::to_value(&view).expect("serialize recommended profiles");
-        assert_eq!(value["bundleVersion"], "2026.11.1");
+        assert!(
+            !value["bundleVersion"].as_str().unwrap_or("").is_empty(),
+            "bundleVersion 必须下发"
+        );
         let profiles = value["profiles"].as_array().expect("profiles array");
-        assert_eq!(profiles.len(), 2, "RC003 应看到通用 + 仅 RC003 两条");
-        assert_eq!(profiles[0]["id"], "preset.desktop.shortcuts");
-        assert_eq!(profiles[0]["bindCount"], 2);
-        assert_eq!(profiles[0]["deviceModel"], serde_json::Value::Null);
-        assert_eq!(profiles[1]["compatibleModels"][0], "RC003");
-        assert_eq!(profiles[1]["appTargets"][0], "netease_music");
-        assert_eq!(profiles[1]["autoApply"], true);
-        assert_eq!(profiles[1]["profile"]["autoApply"], true);
-        assert_eq!(profiles[1]["profile"]["isDefault"], false);
+        assert!(!profiles.is_empty(), "至少一条推荐方案");
+        // 字段契约（不绑定具体方案内容，避免随推荐方案增删而失效）。
+        for profile in profiles {
+            assert!(profile["id"]
+                .as_str()
+                .is_some_and(|id| id.starts_with("preset.")));
+            assert!(profile["name"].as_str().is_some());
+            assert!(profile["bindCount"].as_u64().is_some());
+            assert!(profile["compatibleModels"].is_array());
+            assert!(profile["appTargets"].is_array());
+            assert_eq!(profile["profile"]["isDefault"], false);
+        }
 
-        // 仅 RC003 适配的方案不出现在 ARN9 下。
+        // 当前推荐方案都是通用方案：型号已知/未知都不应少给。
         let arn9 = recommended_button_profiles(Some("ARN9".to_owned()));
-        assert_eq!(arn9.profiles.len(), 1);
-        assert_eq!(arn9.profiles[0].id, "preset.desktop.shortcuts");
+        assert_eq!(arn9.profiles.len(), view.profiles.len());
+        let unknown = recommended_button_profiles(None);
+        assert_eq!(unknown.profiles.len(), view.profiles.len());
     }
 
     /// 前台导出：把用户方案写成推荐方案文件，产出可直接放进
-    /// `config/button-profiles/` 的单条 JSON（无 isDefault / createdAt 噪音）。
+    /// `config/recommended-button-profiles/` 的单条 JSON（无 isDefault / createdAt 噪音）。
     #[test]
     fn export_profile_as_preset_writes_clean_preset_file() {
         let path = std::env::temp_dir().join("shengjian-preset-export-test.json");
@@ -1033,6 +1098,101 @@ pub fn clear_macro_run_history() -> Result<(), CommandError> {
 pub fn transcript_history() -> Result<Vec<TranscriptRecord>, CommandError> {
     crate::transcript_history::load()
         .map_err(|message| CommandError::new("transcript-history", &message, true))
+}
+
+/// 应用内语音测试：把原生测试板（Win32 EDIT）嵌到主窗口的指定矩形上。
+/// 它属于本进程但不是 WebView2，输入法可以安全地在里面落字，因此不需要切到别的应用。
+/// 坐标是父窗口客户区的物理像素，由前端按 `getBoundingClientRect × devicePixelRatio` 给出。
+#[tauri::command]
+pub fn open_voice_test_pad(
+    window: tauri::Window,
+    app: tauri::AppHandle,
+    x: i32,
+    y: i32,
+    width: i32,
+    height: i32,
+    background: u32,
+    border: u32,
+) -> Result<(), CommandError> {
+    shengjian_windows::test_pad::set_theme(background, border);
+    eprintln!("[test-pad] open request rect=({x},{y},{width},{height})");
+    let hwnd = window
+        .hwnd()
+        .map_err(|error| CommandError::new("voice-test-pad", &error.to_string(), true))?;
+    eprintln!("[test-pad] parent hwnd={:?}", hwnd.0);
+    // 子窗口必须在主窗口所属线程创建：跨线程创建会阻塞，且 z 序压不过 WebView2。
+    let (tx, rx) = std::sync::mpsc::channel();
+    let parent = hwnd.0 as isize;
+    app.run_on_main_thread(move || {
+            let _ = tx.send(shengjian_windows::test_pad::show(parent, x, y, width, height));
+        })
+        .map_err(|error| CommandError::new("voice-test-pad", &error.to_string(), true))?;
+    let result = rx
+        .recv_timeout(std::time::Duration::from_secs(3))
+        .map_err(|_| CommandError::new("voice-test-pad", "打开测试板超时", true))?;
+    eprintln!("[test-pad] result={result:?}");
+    result.map_err(|message| CommandError::new("voice-test-pad", &message, true))
+}
+
+#[tauri::command]
+pub fn raise_voice_test_pad() {
+    shengjian_windows::test_pad::raise();
+}
+
+#[tauri::command]
+pub fn voice_test_pad_foreground() -> bool {
+    shengjian_windows::test_pad::is_foreground()
+}
+
+#[tauri::command]
+pub fn collapse_voice_test_pad(app: tauri::AppHandle) {
+    let _ = app.run_on_main_thread(|| shengjian_windows::test_pad::collapse());
+}
+
+#[tauri::command]
+pub fn expand_voice_test_pad(app: tauri::AppHandle) {
+    let _ = app.run_on_main_thread(|| shengjian_windows::test_pad::expand());
+}
+
+#[tauri::command]
+pub fn close_voice_test_pad(app: tauri::AppHandle) {
+    // 销毁窗口必须在它所属线程上做（窗口建在主线程）。
+    let _ = app.run_on_main_thread(|| match shengjian_windows::test_pad::close() {
+        Ok(()) => eprintln!("[test-pad] destroyed"),
+        Err(message) => eprintln!("[test-pad] close failed: {message}"),
+    });
+}
+
+#[tauri::command]
+pub fn voice_test_pad_text() -> Option<String> {
+    shengjian_windows::test_pad::text()
+}
+
+/// 设备测试面板：打开期间临时开启捕获，结果只留在内存里（不写语音记录）。
+#[tauri::command]
+pub fn begin_transcript_probe(state: State<'_, AppState>) -> Result<(), CommandError> {
+    let previous = state
+        .engine
+        .settings()
+        .load()
+        .map(|settings| settings.local_transcript_history_enabled)
+        .unwrap_or(false);
+    crate::transcript_probe::begin(previous);
+    state.host.set_transcript_capture_enabled(true);
+    Ok(())
+}
+
+/// 关闭探针并恢复用户原来的捕获开关（设置文件从未被改写）。
+#[tauri::command]
+pub fn end_transcript_probe(state: State<'_, AppState>) {
+    let previous = crate::transcript_probe::end();
+    state.host.set_transcript_capture_enabled(previous);
+}
+
+/// 取走最近一次识别内容（取过即清空）。
+#[tauri::command]
+pub fn take_transcript_probe() -> Option<crate::host::TranscriptRecord> {
+    crate::transcript_probe::take()
 }
 
 #[tauri::command]

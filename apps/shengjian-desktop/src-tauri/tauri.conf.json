@@ -65,7 +65,7 @@
     },
     "resources": [
       "resources/config/app-presets.json",
-      "resources/config/voice-tools.json",
+      "resources/config/voice-tool-presets.json",
       "resources/config/button-profiles.json",
       "resources/config/recommended-macros.json",
       "resources/rc003/shengjian-helper.exe",

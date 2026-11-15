@@ -12,10 +12,20 @@ use std::sync::Arc;
 pub struct HostCapabilities {
     pub platform: String,
     pub enhanced_capture: bool,
+    /// 顶栏可随时暂停/恢复按键监听（Raw Input + 按键门控）。
+    pub button_listening_pause: bool,
     pub macro_runtime: bool,
     pub autostart: bool,
     pub tray: bool,
     pub common_phrases: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RawInputStatus {
+    pub phase: String,
+    pub matched_device_count: u32,
+    pub last_error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -81,9 +91,16 @@ pub trait HostPlatform: Send + Sync {
     fn voice_level_dbfs(&self) -> f32;
     fn foreground_executable(&self) -> Option<String>;
     fn device_status(&self) -> Option<DeviceStatus>;
+    fn raw_input_status(&self) -> RawInputStatus;
+    /// 启停按钮监听（Raw Input + 按键门控 + 全按键支持）；语音与蓝牙连接不受影响。
+    fn set_button_listening(
+        &self,
+        enabled: bool,
+        capture_enabled: bool,
+    ) -> Result<RawInputStatus, HostError>;
 
     fn set_enhanced_capture_enabled(&self, enabled: bool);
-    /// 当前输入工具：传 `config/voice-tools.json` 里的 **id**（`None` = 未选择）。
+    /// 当前输入工具：传 `config/voice-tool-presets.json` 里的 **id**（`None` = 未选择）。
     /// 默认热键由 id 查配置目录，Windows 行为由 id 对应 `kind` 决定。
     fn set_voice_input_tool(&self, tool: Option<&str>);
     /// 与 [`HostPlatform::set_voice_input_tool`] 同义的历史入口（同样接收工具 id）。
