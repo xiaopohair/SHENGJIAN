@@ -233,7 +233,7 @@ signed=false
 路线：**public 仓库、x64、手动下载、不自动更新**；通过 SignPath Foundation 做免费开源签名。
 
 - `.github/workflows/release.yml`：`v*` tag 触发构建与 Release；配置 SignPath 变量/密钥后自动签名
-- Release 标题为「声键 &lt;version&gt;」；Tauri 先按 `productName` 产出 `声键_<version>_x64-setup.exe`，workflow 随后调用 `scripts/normalize-installer-name.ps1` 归一化为发布文件名 `shengjian_<version>_x64-setup.exe`
+- Release 标题只写版本号 `<version>`（不带产品名）；Tauri 先按 `productName` 产出 `声键_<version>_x64-setup.exe`，workflow 随后调用 `scripts/normalize-installer-name.ps1` 归一化为发布文件名 `shengjian_<version>_x64-setup.exe`
 - 便携包：签名后用 `scripts/build-portable.ps1 -SkipBuild` 组装 `shengjian_<version>_x64-portable.zip`，与安装包一起发布
 - 签名说明：[CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md)、[docs/signing.md](docs/signing.md)
 - 资产：安装包、便携 zip、`manifest.json`、`portable-manifest.json`、`SHA256SUMS`、`LICENSE`、`ATTRIBUTION.md`、`THIRD_PARTY_NOTICES.md`、`brand/LICENSE-OFL.txt`、Frida 许可全文

@@ -175,7 +175,7 @@ git push origin v0.3.0
 workflow 会：
 
 1. 校验 tag 与 package.json / tauri.conf.json 版本
-2. 从 `tauri.conf.json` 读取 `productName`，构建后调用 `scripts/normalize-installer-name.ps1` 归一化为 `shengjian_<version>_x64-setup.exe`（不写死产品名），Release 标题为「声键 &lt;version&gt;」
+2. 从 `tauri.conf.json` 读取 `productName`，构建后调用 `scripts/normalize-installer-name.ps1` 归一化为 `shengjian_<version>_x64-setup.exe`（不写死产品名），Release 标题只写版本号 `<version>`（不带产品名）
 3. 构建 helper、下载并校验 Frida gadget
 4. 构建未签名 NSIS 安装包
 5. 配置 SignPath 时签 app exe 与安装包

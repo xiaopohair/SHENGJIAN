@@ -260,7 +260,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: "声键 ${{ steps.version.outputs.version }}"
+          # 标题只写版本号，不带产品名（用户 2026-11-15 定）。
+          name: ${{ steps.version.outputs.version }}
           body_path: docs/release-notes-${{ steps.version.outputs.version }}.md
           files: |
             ${{ steps.package.outputs.installer }}
