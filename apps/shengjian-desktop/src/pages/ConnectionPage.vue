@@ -3,15 +3,20 @@ import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 import {
   BatteryMedium,
   Bluetooth,
+  CircleHelp,
   Clock3,
   Cpu,
   Mic,
+  MoreVertical,
   RefreshCw,
   SlidersHorizontal,
+  Trash2,
+  Volume2,
   Wrench,
 } from "lucide-vue-next";
 import {
   errorMessage,
+  forgetRemote,
   getRc003HelperInstalled,
   getSettings,
   listAudioEndpoints,
@@ -27,24 +32,36 @@ import {
   type PendingDeviceOperation,
 } from "../lib/connection";
 import { deviceProductNameKey } from "../lib/deviceProduct";
+import { usePairingStore } from "../stores/pairing";
+import { deviceSettingsRequest, takeDeviceSettingsRequest } from "../lib/navigation";
+import {
+  applyRememberedModels,
+  forgetDeviceRecord,
+  loadDeviceRecords,
+  markDeviceConnected,
+} from "../lib/deviceMemory";
+import { formatRelativeTime } from "../lib/relativeTime";
+import { effectiveGainDb } from "../lib/effectiveAudio";
 import { supportsKeyEnhancement } from "../lib/keyEnhancement";
 import { deviceLineArt } from "../lib/deviceArt";
 import type { AudioEndpoint, SettingsDocument } from "../lib/types";
 import PageHeader from "../components/PageHeader.vue";
 import Button from "../components/ui/Button.vue";
+import IconButton from "../components/ui/IconButton.vue";
 import Card from "../components/ui/Card.vue";
 import EmptyState from "../components/ui/EmptyState.vue";
 import DeviceSettingsDrawer from "../components/DeviceSettingsDrawer.vue";
-import IconButton from "../components/ui/IconButton.vue";
 import Notice from "../components/ui/Notice.vue";
 import SectionHeader from "../components/ui/SectionHeader.vue";
 import StatusPill from "../components/ui/StatusPill.vue";
 import { pushToast } from "../lib/toast";
+import { confirmAction } from "../lib/confirm";
 import { useEngineStore } from "../stores/engine";
 import { useStatusStore } from "../stores/status";
 
 const store = useEngineStore();
 const statusStore = useStatusStore();
+const pairing = usePairingStore();
 const battery = computed(() => statusStore.batteryLevel);
 const deviceStatus = computed(() => statusStore.deviceStatus);
 const settingsError = shallowRef<string | null>(null);
@@ -70,10 +87,19 @@ const lowBattery = computed(() => battery.value !== null && battery.value <= 20)
 const lastRemoteKey = "shengjian.last-remote";
 const autoConnectAttemptedKey = "shengjian.auto-connect-attempted";
 const lastRemoteId = ref(localStorage.getItem(lastRemoteKey) ?? "");
+/** 连接过的设备档案（令牌 → 型号 + 最近连接时间）：扫描后回填，同名设备才分得清。 */
+const deviceRecords = shallowRef(loadDeviceRecords());
+const displayRemotes = computed(() => applyRememberedModels(store.remotes, deviceRecords.value));
 const currentRemoteId = computed(() => store.snapshot?.connection.remote?.remoteId ?? null);
 const deviceId = computed(() => store.snapshot?.connection.remote?.deviceId ?? null);
 const deviceName = computed(() => store.snapshot?.connection.remote?.name ?? tr("未连接设备"));
 const remoteModel = computed(() => store.snapshot?.connection.remote?.model ?? null);
+
+// 连上就记下"这支设备是什么型号、什么时候连的"，断开后重扫还能标出来。
+watch([currentRemoteId, remoteModel], ([id, model]) => {
+  if (!store.isConnected || !id) return;
+  deviceRecords.value = markDeviceConnected(id, model);
+});
 /** 卡片标题：用户起的名字优先，否则退回广播名。 */
 const displayDeviceName = computed(() => deviceNickname.value.trim() || deviceName.value);
 /** 已连接时长（分钟）；刚连上显示 0 分钟。 */
@@ -95,7 +121,7 @@ const voiceChipLabel = computed(() => {
   )?.label;
   return label || tr("未选择");
 });
-/** 按键增强服务状态：按最后一次连上的型号判断，断开后也照常显示。 */
+/** 全按键支持服务状态：按最后一次连上的型号判断，断开后也照常显示。 */
 const rc003ChipVisible = computed(
   () => supportsKeyEnhancement(lastKnownModel.value) && rc003HelperInstalled.value,
 );
@@ -110,6 +136,8 @@ const deviceProductName = computed(() => {
  * 兜底线稿、卡片高度跟着抖一下。
  */
 const lastKnownModel = shallowRef<string | null>(null);
+// 重启/断线后，主卡仍用上次那台设备的型号来画产品图。
+if (lastRemoteId.value) lastKnownModel.value = deviceRecords.value[lastRemoteId.value]?.model ?? null;
 watch(
   remoteModel,
   (model) => {
@@ -137,6 +165,27 @@ const hasConnectionNotices = computed(
 
 function isCurrent(remoteId: string): boolean {
   return store.isConnected && currentRemoteId.value === remoteId;
+}
+
+/** 列表行的连接状态：已连接 / 相对时间（3 天前、1 分钟前）/ 从未连接。 */
+function connectionLabel(remoteId: string): string {
+  if (isCurrent(remoteId)) return trDynamic("已连接");
+  const record = deviceRecords.value[remoteId];
+  // 旧版本只缓存了型号、没存时间：知道它连过，但说不出多久以前。
+  if (!record) return tr("从未连接");
+  if (!record.lastConnectedAt) return tr("已连接过");
+  return formatRelativeTime(record.lastConnectedAt, nowTick.value);
+}
+
+function connectionTone(remoteId: string): "success" | "neutral" {
+  return isCurrent(remoteId) ? "success" : "neutral";
+}
+
+function connectionTitle(remoteId: string): string {
+  const record = deviceRecords.value[remoteId];
+  if (!record) return trDynamic("从未连接");
+  if (!record.lastConnectedAt) return trDynamic("已连接过，但没记下时间");
+  return tr("上次连接：{time}", { time: new Date(record.lastConnectedAt).toLocaleString() });
 }
 
 /**
@@ -179,6 +228,14 @@ watch(lowBattery, (low) => {
     // 电量低是环境预警，不是操作失败（标准：§4.1 的 kind 语义）。
     pushToast(tr("遥控器电量低：{level}%", { level: battery.value }), "warning");
   }
+});
+
+// 设备状态里展示"实际生效"的增益：有独立设置时是设备的值，否则是全局值。
+const effectiveGain = computed(() => {
+  const settings = settingsDocument.value;
+  if (!settings) return null;
+  // 未连接时没有设备覆盖，展示全局值——与顶栏保持一致，不要整块消失。
+  return effectiveGainDb(settings, deviceId.value).value;
 });
 
 function applyDeviceOverride(settings: SettingsDocument) {
@@ -260,7 +317,7 @@ async function saveConnectionSettings() {
         delete devices[id];
       }
     }
-    // 按键增强开关统一在「设置 → 音频及语音」里管理，这里不再改写该字段。
+    // 全按键支持开关统一在「设置 → 音频及语音」里管理，这里不再改写该字段。
     const next: SettingsDocument = {
       ...latest,
       devices,
@@ -283,19 +340,151 @@ function scheduleConnectionSave() {
 
 watch([deviceGain, deviceEndpointId, deviceNickname], scheduleConnectionSave);
 
-/** 连上时记下时刻、断开清空；每 30 秒刷新一次「已连接 N 分钟」。 */
+/**
+ * 连上时记下时刻、真正断开时清空，每 30 秒刷新一次「已连接 N 分钟」。
+ *
+ * 不能跟 `isConnected`：core 在已连接状态下也会短暂发 `scanning`（重新扫描、
+ * 重连过渡），isConnected 会瞬间变 false，计时器于是被反复清零——现场表现就是
+ * 一直显示「0 分钟」。改为跟"当前连的是哪一支"：设备变了才重新计时，
+ * 只有真的 `disconnected` 才清零。
+ */
+const connectedRemoteKey = shallowRef<string | null>(null);
 watch(
-  () => store.isConnected,
-  (connected) => {
-    connectedAt.value = connected ? Date.now() : null;
+  () => store.snapshot?.connection.remote?.remoteId ?? null,
+  (remoteId) => {
+    if (!remoteId || connectedRemoteKey.value === remoteId) return;
+    connectedRemoteKey.value = remoteId;
+    connectedAt.value = Date.now();
     nowTick.value = Date.now();
   },
   { immediate: true },
 );
+watch(
+  () => String(store.phase),
+  (phase) => {
+    if (phase !== "disconnected") return;
+    connectedRemoteKey.value = null;
+    connectedAt.value = null;
+  },
+);
 const minutesTimer = window.setInterval(() => {
-  if (connectedAt.value) nowTick.value = Date.now();
+  // 断开的设备也要刷新"3 天前"这类相对时间，所以无条件走时。
+  nowTick.value = Date.now();
 }, 30000);
-onUnmounted(() => window.clearInterval(minutesTimer));
+onUnmounted(() => {
+  window.clearInterval(minutesTimer);
+  document.removeEventListener("pointerdown", onMorePointerDown, true);
+  document.removeEventListener("keydown", onMoreKeydown, true);
+});
+
+
+/** 「更多操作」菜单：属性（设备设置）与忘记设备都收在这里。 */
+const moreOpen = shallowRef(false);
+const moreRoot = ref<HTMLElement | null>(null);
+const moreMenu = ref<HTMLElement | null>(null);
+const moreTrigger = ref<InstanceType<typeof IconButton> | null>(null);
+/** 菜单用 fixed 定位挂到 body：hero 卡片是 overflow:hidden，直接放里面会被裁掉。 */
+const moreMenuStyle = ref<Record<string, string>>({ top: "0px", right: "0px" });
+
+function toggleMore() {
+  if (moreOpen.value) {
+    closeMore();
+    return;
+  }
+  const element = (moreTrigger.value as unknown as { $el?: HTMLElement })?.$el;
+  const rect = element?.getBoundingClientRect();
+  if (rect) {
+    moreMenuStyle.value = {
+      top: `${Math.round(rect.bottom + 6)}px`,
+      right: `${Math.round(window.innerWidth - rect.right)}px`,
+    };
+  }
+  moreOpen.value = true;
+}
+
+function closeMore(restoreFocus = false) {
+  if (!moreOpen.value) return;
+  moreOpen.value = false;
+  if (restoreFocus) {
+    const element = (moreTrigger.value as unknown as { $el?: HTMLElement })?.$el;
+    element?.focus();
+  }
+}
+
+function runMore(action: () => void) {
+  closeMore(true);
+  action();
+}
+
+function onMorePointerDown(event: PointerEvent) {
+  if (!moreOpen.value) return;
+  const target = event.target as Node | null;
+  if (target && (moreRoot.value?.contains(target) || moreMenu.value?.contains(target))) return;
+  closeMore();
+}
+
+function onMoreScroll() {
+  closeMore();
+}
+
+function onMoreKeydown(event: KeyboardEvent) {
+  if (!moreOpen.value) return;
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeMore(true);
+  }
+}
+
+watch(moreOpen, (open) => {
+  if (open) {
+    document.addEventListener("pointerdown", onMorePointerDown, true);
+    document.addEventListener("keydown", onMoreKeydown, true);
+    window.addEventListener("scroll", onMoreScroll, true);
+    window.addEventListener("resize", onMoreScroll);
+  } else {
+    document.removeEventListener("pointerdown", onMorePointerDown, true);
+    document.removeEventListener("keydown", onMoreKeydown, true);
+    window.removeEventListener("scroll", onMoreScroll, true);
+    window.removeEventListener("resize", onMoreScroll);
+  }
+});
+
+/** 「忘记」进行中：按钮置灰，避免重复解除配对。 */
+const forgetting = shallowRef(false);
+
+/** 忘记设备：断开 + 解除 Windows 配对 + 清掉本机档案。 */
+async function forgetCurrentDevice() {
+  const remoteId = currentRemoteId.value;
+  if (!remoteId) return;
+  const name = displayDeviceName.value;
+  const confirmed = await confirmAction({
+    title: tr("忘记「{name}」？", { name }),
+    message: tr("这会解除它与 Windows 的配对，之后需要重新配对才能使用。"),
+    confirmLabel: tr("忘记"),
+    danger: true,
+  });
+  if (!confirmed) return;
+  forgetting.value = true;
+  try {
+    await forgetRemote(remoteId);
+    deviceRecords.value = forgetDeviceRecord(remoteId);
+    if (lastRemoteId.value === remoteId) {
+      lastRemoteId.value = "";
+      localStorage.removeItem(lastRemoteKey);
+    }
+    await store.scan();
+    pushToast(tr("已忘记「{name}」", { name }), "success");
+  } catch (cause) {
+    pushToast(errorMessage(cause), "error");
+  } finally {
+    forgetting.value = false;
+  }
+}
+
+/** 配对指南：带上当前设备型号，直接落在对应型号的标签页。 */
+function openPairingGuide() {
+  pairing.show(remoteModel.value);
+}
 
 /** 「设置」打开右侧的设备设置抽屉。 */
 const deviceSettingsOpen = shallowRef(false);
@@ -303,6 +492,11 @@ const deviceSettingsOpen = shallowRef(false);
 function openDeviceSettings() {
   deviceSettingsOpen.value = true;
 }
+
+// 从设置页点「去设备设置」跳过来：已挂载时靠计数器监听，挂载时另见 onMounted。
+watch(deviceSettingsRequest, () => {
+  if (takeDeviceSettingsRequest()) openDeviceSettings();
+});
 
 watch(useDeviceOverride, () => {
   if (loadingSettings) return;
@@ -408,6 +602,8 @@ onMounted(async () => {
     loadVoiceToolCatalog(),
   ]);
   await autoConnectLast();
+  // 从设置页跳过来：等数据加载完再展开抽屉。
+  if (takeDeviceSettingsRequest()) openDeviceSettings();
 });
 
 onUnmounted(() => {
@@ -423,6 +619,10 @@ onUnmounted(() => {
         <Button variant="primary" :disabled="store.scanning" @click="refresh">
           <RefreshCw :size="16" :class="{ spin: store.scanning }" />
           {{ trDynamic(store.scanning ? "扫描中" : "扫描设备") }}
+        </Button>
+        <Button variant="secondary" @click="openPairingGuide">
+          <CircleHelp :size="16" />
+          {{ tr("配对指南") }}
         </Button>
       </template>
     </PageHeader>
@@ -504,6 +704,14 @@ onUnmounted(() => {
               <Cpu :size="16" aria-hidden="true" />
               {{ deviceStatus?.firmwareVersion ?? tr("未知") }}
             </span>
+            <span
+              v-if="effectiveGain !== null"
+              class="hero-stat"
+              :title="tr('实际生效的语音增益（设备独立设置优先）')"
+            >
+              <Volume2 :size="16" aria-hidden="true" />
+              {{ effectiveGain }} dB
+            </span>
           </div>
           <div class="hero-status-row">
             <div class="hero-chips">
@@ -516,7 +724,7 @@ onUnmounted(() => {
               >
               <span class="hero-chip">
                 <Wrench :size="13" aria-hidden="true" />
-                {{ rc003ChipVisible ? tr("按键增强 · 已安装") : tr("按键增强 · 未安装") }}
+                {{ rc003ChipVisible ? tr("全按键支持 · 已安装") : tr("全按键支持 · 未安装") }}
               </span>
             </div>
             <div class="hero-actions">
@@ -528,17 +736,51 @@ onUnmounted(() => {
               >
                 {{ tr("断开") }}
               </Button>
+
               <Button v-else size="sm" :disabled="store.scanning" @click="refresh">
                 {{ trDynamic(store.scanning ? "扫描中" : "扫描设备") }}
               </Button>
-              <IconButton
-                v-if="store.isConnected"
-                size="sm"
-                :label="tr('设置')"
-                @click="openDeviceSettings"
-              >
-                <SlidersHorizontal :size="15" />
-              </IconButton>
+              <div v-if="store.isConnected" ref="moreRoot" class="more-actions">
+                <IconButton
+                  ref="moreTrigger"
+                  size="sm"
+                  :label="trDynamic('更多操作')"
+                  :aria-expanded="moreOpen"
+                  aria-haspopup="menu"
+                  @click="toggleMore"
+                >
+                  <MoreVertical :size="15" />
+                </IconButton>
+                <Teleport to="body">
+                <div
+                  v-if="moreOpen"
+                  ref="moreMenu"
+                  class="more-menu"
+                  role="menu"
+                  :style="moreMenuStyle"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    class="more-item"
+                    @click="runMore(openDeviceSettings)"
+                  >
+                    <SlidersHorizontal :size="15" />
+                    {{ tr("设备属性") }}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    class="more-item danger"
+                    :disabled="forgetting"
+                    @click="runMore(forgetCurrentDevice)"
+                  >
+                    <Trash2 :size="15" />
+                    {{ tr("忘记设备") }}
+                  </button>
+                </div>
+                </Teleport>
+              </div>
             </div>
           </div>
         </div>
@@ -548,12 +790,12 @@ onUnmounted(() => {
     <Card class="stack">
       <SectionHeader title="发现的设备" hint="扫描结果，可能包含未适配型号。">
         <template #actions>
-          <span class="muted">{{ store.remotes.length }} {{ tr("台") }}</span>
+          <span class="muted">{{ displayRemotes.length }} {{ tr("台") }}</span>
         </template>
       </SectionHeader>
 
       <EmptyState
-        v-if="store.remotes.length === 0"
+        v-if="displayRemotes.length === 0"
         title="还没有扫描结果"
         description="点击“扫描设备”开始扫描附近的遥控器。"
       >
@@ -570,7 +812,7 @@ onUnmounted(() => {
 
       <ul v-else class="device-list">
         <li
-          v-for="remote in store.remotes"
+          v-for="remote in displayRemotes"
           :key="remote.remoteId"
           class="device-row"
           :class="{ current: isCurrent(remote.remoteId) }"
@@ -580,19 +822,14 @@ onUnmounted(() => {
             <span class="device-head">
               <span class="device-name">{{ remoteLabel(remote) }}</span>
               <StatusPill
-                v-if="isCurrent(remote.remoteId)"
-                :label="trDynamic('已连接')"
-                tone="success"
-                dot
+                :label="connectionLabel(remote.remoteId)"
+                :tone="connectionTone(remote.remoteId)"
+                :dot="isCurrent(remote.remoteId)"
+                :title="connectionTitle(remote.remoteId)"
               />
               <StatusPill
                 :label="statusLabel(remote.isSupported ? 'supported' : 'unsupported')"
                 :tone="remote.isSupported ? 'success' : 'neutral'"
-              />
-              <StatusPill
-                v-if="remote.remoteId === lastRemoteId"
-                :label="trDynamic('上次使用')"
-                tone="accent"
               />
             </span>
             <span class="device-meta muted">
@@ -952,5 +1189,53 @@ onUnmounted(() => {
   gap: var(--space-2);
   /* 胶囊靠左、按钮靠右，两者同一行自然中心对齐 */
   margin-left: auto;
+}
+
+.more-actions {
+  position: relative;
+  display: inline-flex;
+}
+
+.more-menu {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 176px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-md, var(--shadow-lg));
+  padding: var(--space-1);
+}
+
+.more-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  padding: 7px 8px;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.more-item:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.more-item.danger {
+  color: var(--danger-text, var(--danger, #d64545));
+}
+
+.more-item:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 </style>

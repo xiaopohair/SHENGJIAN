@@ -25,9 +25,11 @@ import {
   Radio,
   RefreshCw,
   Settings as SettingsIcon,
+  Volume2,
 } from "lucide-vue-next";
 import ConnectionPage from "./pages/ConnectionPage.vue";
 import DevicePairingHelp from "./components/DevicePairingHelp.vue";
+import DeviceTestDialog from "./components/DeviceTestDialog.vue";
 import OnboardingWizard from "./components/OnboardingWizard.vue";
 import ToastHost from "./components/ToastHost.vue";
 import TitleBar from "./components/TitleBar.vue";
@@ -35,10 +37,23 @@ import TopbarSearch from "./components/TopbarSearch.vue";
 import ConfirmDialog from "./components/ui/ConfirmDialog.vue";
 import LoadingState from "./components/ui/LoadingState.vue";
 import StatusPill from "./components/ui/StatusPill.vue";
-import { getSettings, setTrayLanguage } from "./lib/api";
+import Switch from "./components/ui/Switch.vue";
+import {
+  errorMessage,
+  getRawInputStatus,
+  getSettings,
+  setButtonListening,
+  setTrayLanguage,
+} from "./lib/api";
 import { setLanguagePreference, statusLabel, tr, trDynamic, uiLocale } from "./lib/i18n";
-import { canLeavePage } from "./lib/navigation";
+import {
+  buttonsPageRequest,
+  canLeavePage,
+  deviceSettingsRequest,
+  takeDeviceSettingsRequest,
+} from "./lib/navigation";
 import { deviceProductNameKey } from "./lib/deviceProduct";
+import { effectiveGainDb, effectiveVoiceInputTool } from "./lib/effectiveAudio";
 import { voiceToolLabel } from "./lib/voiceTools";
 import { useVoiceToolCatalog } from "./composables/useVoiceToolCatalog";
 import {
@@ -59,7 +74,7 @@ import { useStatusStore } from "./stores/status";
 import { useUpdateStore } from "./stores/update";
 import { usePairingStore } from "./stores/pairing";
 import type { PaletteCommand } from "./lib/palette";
-import type { EventEnvelope } from "./lib/types";
+import type { EventEnvelope, RawInputStatus } from "./lib/types";
 import BrandMark from "./components/BrandMark.vue";
 
 type PageId = "connection" | "buttons" | "macros" | "history" | "settings" | "about";
@@ -83,6 +98,42 @@ const scrollbarVisible = shallowRef(false);
 const themePreference = ref("system");
 const sidebarCollapsed = ref(localStorage.getItem(SIDEBAR_KEY) === "1");
 const topbarSearch = ref<InstanceType<typeof TopbarSearch> | null>(null);
+/** 顶栏命令面板打开的测试面板（只读，不改设置）。 */
+const testDialog = ref<{ open: boolean; tab: "voice" | "buttons" }>({ open: false, tab: "voice" });
+const listeningStatus = ref<RawInputStatus | null>(null);
+const listeningBusy = ref(false);
+const listeningActive = computed(() =>
+  ["ready", "starting", "awaiting"].includes(listeningStatus.value?.phase ?? ""),
+);
+const listeningLabel = computed(() => {
+  if (!listeningStatus.value) return tr("正在读取状态");
+  return listeningActive.value ? tr("监听中") : tr("已暂停");
+});
+const listeningHint = computed(() => tr("禁用或开启当前按键方案"));
+
+async function refreshListeningStatus() {
+  try {
+    listeningStatus.value = await getRawInputStatus();
+  } catch {
+    // 读不到状态时保留上一次的值；失败不阻塞启动。
+  }
+}
+
+async function toggleListening(enabled: boolean) {
+  if (listeningBusy.value) return;
+  listeningBusy.value = true;
+  try {
+    listeningStatus.value = await setButtonListening(enabled);
+  } catch (cause) {
+    pushToast(errorMessage(cause), "error");
+  } finally {
+    listeningBusy.value = false;
+  }
+}
+
+function openTestDialog(tab: "voice" | "buttons") {
+  testDialog.value = { open: true, tab };
+}
 let unlisten: UnlistenFn | undefined;
 let unlistenNavigate: UnlistenFn | undefined;
 let mediaQuery: MediaQueryList | undefined;
@@ -203,6 +254,20 @@ const paletteCommands = computed<PaletteCommand[]>(() => [
     icon: RefreshCw,
     keywords: "scan bluetooth 扫描",
   },
+  {
+    id: "action:voice-test",
+    label: "语音测试",
+    group: "操作",
+    icon: Mic,
+    keywords: "voice test 语音 麦克风 测试",
+  },
+  {
+    id: "action:button-test",
+    label: "按键测试",
+    group: "操作",
+    icon: Keyboard,
+    keywords: "button test 按键 遥控器 测试",
+  },
 ]);
 
 function syncTheme() {
@@ -226,12 +291,15 @@ async function loadTheme() {
   syncTheme();
 }
 
+// 顶栏显示"实际生效"的值：设备有独立设置时以设备为准，否则用全局。
+const topbarGainDb = ref<number | null>(null);
+
 async function refreshTopbarVoiceInputTool() {
   try {
     const settings = await getSettings();
     const deviceId = store.snapshot?.connection.remote?.deviceId;
-    const override = deviceId ? settings.devices[deviceId]?.windows?.voiceInputTool : undefined;
-    status.setVoiceInputTool(override ?? settings.global.voice_input_tool);
+    status.setVoiceInputTool(effectiveVoiceInputTool(settings, deviceId).value);
+    topbarGainDb.value = effectiveGainDb(settings, deviceId).value;
   } catch {
     // Keep the current topbar value when settings are unavailable.
   }
@@ -247,6 +315,8 @@ watch(
 function refreshStatusIfVisible() {
   if (document.visibilityState === "visible") {
     void status.refreshDeviceStatus();
+    // 从设置页回来时同步顶栏的"实际生效"值，避免显示上一轮的旧数字。
+    void refreshTopbarVoiceInputTool();
   }
 }
 
@@ -294,6 +364,7 @@ watch(
         voiceState: state,
         previousVoiceState: previous,
         onboardingOpen: showOnboarding.value,
+        selfTestOpen: testDialog.value.open,
         windowFocused: document.hasFocus(),
         alreadyHinted: voiceFocusHinted.value,
       })
@@ -311,6 +382,23 @@ function restartOnboarding() {
   showOnboarding.value = true;
 }
 
+// 设置页里被设备覆盖的项点"去设备设置"：跳到连接页，抽屉由连接页挂载时打开。
+watch(deviceSettingsRequest, async () => {
+  if (active.value === "connection") return;
+  if (!(await canLeavePage())) {
+    takeDeviceSettingsRequest();
+    return;
+  }
+  active.value = "connection";
+});
+
+// 设置页装完全按键支持服务后要用户去按键页打开开关：同样的跨页请求，目标页无需额外处理。
+watch(buttonsPageRequest, async () => {
+  if (active.value === "buttons") return;
+  if (!(await canLeavePage())) return;
+  active.value = "buttons";
+});
+
 async function goTo(pageId: PageId) {
   if (pageId === active.value) return;
   if (!(await canLeavePage())) return;
@@ -327,6 +415,10 @@ function runPaletteCommand(command: PaletteCommand) {
     void goTo(command.id.slice(4) as PageId);
   } else if (command.id === "action:scan") {
     void store.scan();
+  } else if (command.id === "action:voice-test") {
+    openTestDialog("voice");
+  } else if (command.id === "action:button-test") {
+    openTestDialog("buttons");
   }
 }
 
@@ -351,19 +443,27 @@ onMounted(async () => {
       void goTo(event.payload as PageId);
     }
   });
-  await store.hydrate();
-  await loadTheme();
-  // The topbar input-tool badge shows the configured label, so load the
-  // config-driven catalog alongside the settings.
-  await loadVoiceToolCatalog();
-  appVersion.value = await getVersion().catch(() => "");
-  applyAccent(localStorage.getItem(ACCENT_KEY) ?? "default");
-  await finishStartup();
-  await updateStore.hydrate();
-  updateStore.setCurrentVersion(appVersion.value);
-  if (!showOnboarding.value) scheduleUpdateCheck();
-  await status.refreshDeviceStatus();
-  void refreshTopbarVoiceInputTool();
+  try {
+    await store.hydrate();
+    await refreshListeningStatus();
+    await loadTheme();
+    // 版本号、语音工具目录与设置互不依赖，并行加载缩短首屏等待。
+    const [, version] = await Promise.all([
+      loadVoiceToolCatalog(),
+      getVersion().catch(() => ""),
+    ]);
+    appVersion.value = version;
+    applyAccent(localStorage.getItem(ACCENT_KEY) ?? "default");
+    await finishStartup();
+    await updateStore.hydrate();
+    updateStore.setCurrentVersion(appVersion.value);
+    if (!showOnboarding.value) scheduleUpdateCheck();
+    await status.refreshDeviceStatus();
+    void refreshTopbarVoiceInputTool();
+  } catch {
+    pushToast(tr("启动时加载数据失败，部分功能可能不可用。"), "error");
+    await finishStartup().catch(() => undefined);
+  }
   statusTimer = window.setInterval(refreshStatusIfVisible, 3000);
   document.addEventListener("visibilitychange", refreshStatusIfVisible);
   window.addEventListener("keydown", onGlobalKeydown, true);
@@ -398,7 +498,7 @@ onUnmounted(() => {
         :aria-label="trDynamic('应用侧栏')"
       >
         <div class="sidebar-brand">
-          <BrandMark :height="24" />
+          <BrandMark :height="24" variant="app" />
           <div v-if="!sidebarCollapsed" class="sidebar-brand-copy">
             <span class="sidebar-brand-name">{{ tr("声键") }}</span>
             <span v-if="appVersion" class="sidebar-brand-version mono">v{{ appVersion }}</span>
@@ -465,6 +565,15 @@ onUnmounted(() => {
                 <span class="sr-only">{{ tr("遥控器电量") }}</span>
                 {{ status.batteryLevel }}%
               </span>
+              <span
+                v-if="topbarGainDb !== null"
+                class="topbar-chip"
+                :title="trDynamic('实际生效的语音增益（设备独立设置优先）')"
+              >
+                <Volume2 :size="14" />
+                <span class="sr-only">{{ tr("增益") }}</span>
+                {{ topbarGainDb }} dB
+              </span>
               <span class="topbar-chip" :title="trDynamic('当前输入法')">
                 <Mic :size="14" />
                 <span class="sr-only">{{ tr("当前输入法") }}</span>
@@ -485,6 +594,17 @@ onUnmounted(() => {
             </div>
           </div>
           <div class="topbar-right">
+            <span class="topbar-listen" :title="listeningHint">
+              <span class="topbar-listen-label">{{ listeningLabel }}</span>
+              <Switch
+                size="sm"
+                :model-value="listeningActive"
+                :label="tr('按键监听')"
+                :title="listeningHint"
+                :disabled="listeningBusy || !listeningStatus"
+                @update:model-value="toggleListening"
+              />
+            </span>
             <TopbarSearch ref="topbarSearch" :commands="paletteCommands" @run="runPaletteCommand" />
           </div>
         </header>
@@ -516,6 +636,11 @@ onUnmounted(() => {
       v-if="pairing.open"
       :initial-model="pairing.model"
       @close="pairing.close()"
+    />
+    <DeviceTestDialog
+      v-if="testDialog.open"
+      :initial-tab="testDialog.tab"
+      @close="testDialog.open = false"
     />
 
     <OnboardingWizard v-if="showOnboarding" @complete="finishOnboarding" />
@@ -781,6 +906,21 @@ onUnmounted(() => {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
+  gap: var(--space-3);
+}
+
+.topbar-listen {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.topbar-listen-label {
+  color: var(--text-secondary);
 }
 
 .topbar-status {

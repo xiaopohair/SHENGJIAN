@@ -7,6 +7,7 @@ import {
   Download,
   FolderOpen,
   HardDrive,
+  MessageSquare,
   Palette,
   Power,
   Keyboard,
@@ -42,6 +43,7 @@ import {
 } from "../lib/api";
 import { ONBOARDING_KEY, ACCENT_KEY, applyAccent, applyTheme } from "../lib/preferences";
 import { confirmAction } from "../lib/confirm";
+import { requestButtonsPage, requestDeviceSettings } from "../lib/navigation";
 import { setLanguagePreference, statusLabel, tr, trDynamic, uiLocale } from "../lib/i18n";
 import { defaultHotkeyFor, voiceToolLabel, voiceToolOptions } from "../lib/voiceTools";
 import {
@@ -60,6 +62,7 @@ import HotkeyPickerDialog from "../components/HotkeyPickerDialog.vue";
 import { hotkeyKeyLabel } from "../lib/hotkey";
 import Button from "../components/ui/Button.vue";
 import Card from "../components/ui/Card.vue";
+import CommonPhrasesSettings from "../components/CommonPhrasesSettings.vue";
 import SettingRow from "../components/ui/SettingRow.vue";
 import ToggleGroup from "../components/ui/ToggleGroup.vue";
 import IconButton from "../components/ui/IconButton.vue";
@@ -73,8 +76,19 @@ import { pushToast } from "../lib/toast";
 import type { AudioDependencyStatus, AudioEndpoint, SettingsDocument } from "../lib/types";
 import { useEngineStore } from "../stores/engine";
 import { useStatusStore } from "../stores/status";
+import {
+  effectiveAudioEndpointId,
+  effectiveGainDb,
+  effectiveVoiceInputTool,
+} from "../lib/effectiveAudio";
 
-type SectionId = "appearance" | "audio" | "startup" | "diagnostics" | "advanced";
+type SectionId =
+  | "appearance"
+  | "common-phrases"
+  | "audio"
+  | "startup"
+  | "diagnostics"
+  | "advanced";
 
 interface HealthCheck {
   label: string;
@@ -92,6 +106,7 @@ interface SettingsSection {
 
 const SECTIONS: SettingsSection[] = [
   { id: "appearance", label: "外观与语言", icon: Palette, group: "常规" },
+  { id: "common-phrases", label: "常用语", icon: MessageSquare, group: "常规" },
   { id: "audio", label: "音频及语音", icon: Volume2, group: "常规" },
   { id: "startup", label: "启动与窗口", icon: Power, group: "系统" },
   { id: "diagnostics", label: "数据与诊断", icon: HardDrive, group: "系统" },
@@ -130,6 +145,7 @@ const visibleSections = computed(() => {
 
 const store = useEngineStore();
 const statusStore = useStatusStore();
+const engine = useEngineStore();
 const settingsDocument = ref<SettingsDocument | null>(null);
 const endpoints = ref<AudioEndpoint[]>([]);
 const gain = shallowRef(0);
@@ -153,10 +169,22 @@ const busy = shallowRef(false);
 const loading = shallowRef(true);
 const error = shallowRef<string | null>(null);
 
-/** 按键增强服务（RC003 helper）：安装 / 更新 / 卸载都在设置里统一管理。 */
+/** 全按键支持服务（RC003 helper）：安装 / 更新 / 卸载都在设置里统一管理。 */
 const rc003HelperInstalled = shallowRef(false);
 const helperBusy = shallowRef(false);
-const helperMessage = shallowRef<string | null>(null);
+/**
+ * 安装 / 卸载全按键支持服务的长流程提示（等 UAC、等轮询、装完还差用户开开关）。
+ *
+ * 按 `docs/ui-design-system.md` §4.1：长流程用页内 `Notice` 常驻，结果另发一条
+ * `success` Toast。所以这条 Notice 只放「还需要用户做点什么」的内容——装成功本身
+ * 不留在它上面，也不再把「计划任务会自动启动」这种过程承诺写进结果里。
+ */
+const helperNotice = shallowRef<{
+  text: string;
+  kind: "info" | "warning";
+  /** 服务装好了但开关还关着：给一个内联出口，别让用户自己去找开关。 */
+  showOpenSwitch?: boolean;
+} | null>(null);
 let helperPoll: number | undefined;
 
 async function refreshHelperInstalled(): Promise<boolean> {
@@ -167,21 +195,40 @@ async function refreshHelperInstalled(): Promise<boolean> {
 async function installHelper() {
   if (helperBusy.value) return;
   helperBusy.value = true;
-  helperMessage.value = null;
+  helperNotice.value = null;
   error.value = null;
   window.clearInterval(helperPoll);
   try {
     await installRc003Helper();
-    helperMessage.value = tr("已请求管理员授权；完成 UAC 后会自动刷新状态。");
+    helperNotice.value = {
+      text: tr("已请求管理员授权；完成 UAC 后会自动刷新状态。"),
+      kind: "info",
+    };
     let attempts = 0;
     helperPoll = window.setInterval(async () => {
       attempts += 1;
       if (await refreshHelperInstalled()) {
         window.clearInterval(helperPoll);
-        helperMessage.value = tr("helper 已安装；计划任务会自动启动。");
+        // 装完只是「结果」，用 Toast 说一句就够。计划任务没有触发器，只有打开
+        // 「全按键支持」开关时才会 schtasks /run 拉起它——所以「已安装」不等于
+        // 「已经在跑」，这里必须把还差用户做的那一步交给页内 Notice。
+        helperNotice.value =
+          settingsDocument.value?.global.rc003_capture_enabled === true
+            ? null
+            : {
+                text: tr(
+                  "服务已安装；在「按键」页打开「全按键支持」开关后，返回键和音量键才会生效。",
+                ),
+                kind: "info",
+                showOpenSwitch: true,
+              };
+        pushToast(tr("全按键支持服务已安装"), "success");
       } else if (attempts >= 15) {
         window.clearInterval(helperPoll);
-        helperMessage.value = tr("未检测到 helper 安装完成，请确认 UAC 已通过后重新检测。");
+        helperNotice.value = {
+          text: tr("没有完成全按键支持服务安装，请确认已在弹窗中通过管理员授权后重新检测。"),
+          kind: "warning",
+        };
       }
     }, 2000);
   } catch (cause) {
@@ -194,20 +241,23 @@ async function installHelper() {
 async function uninstallHelper() {
   if (helperBusy.value) return;
   const confirmed = await confirmAction({
-    title: tr("卸载按键增强服务？"),
-    message: tr("会移除后台计划任务，返回键和音量键的增强捕获将失效；需要时会重新请求管理员授权。"),
+    title: tr("卸载全按键支持服务？"),
+    message: tr("会移除后台计划任务，返回键和音量键的全按键支持将失效；需要时会重新请求管理员授权。"),
     confirmLabel: tr("卸载"),
     danger: true,
   });
   if (!confirmed) return;
   helperBusy.value = true;
-  helperMessage.value = null;
+  helperNotice.value = null;
   error.value = null;
   window.clearInterval(helperPoll);
   try {
     await uninstallRc003Helper();
-    helperMessage.value = tr("已请求管理员授权；完成 UAC 后会移除服务。");
-    // 顺手关掉增强捕获，避免留下「开关开着但服务没了」的状态。
+    helperNotice.value = {
+      text: tr("已请求管理员授权；完成 UAC 后会移除服务。"),
+      kind: "info",
+    };
+    // 顺手关掉全按键支持，避免留下「开关开着但服务没了」的状态。
     if (settingsDocument.value?.global.rc003_capture_enabled) {
       const next: SettingsDocument = {
         ...settingsDocument.value,
@@ -221,10 +271,14 @@ async function uninstallHelper() {
       attempts += 1;
       if (!(await refreshHelperInstalled())) {
         window.clearInterval(helperPoll);
-        helperMessage.value = tr("按键增强服务已卸载。");
+        helperNotice.value = null;
+        pushToast(tr("全按键支持服务已卸载"), "success");
       } else if (attempts >= 15) {
         window.clearInterval(helperPoll);
-        helperMessage.value = tr("未检测到卸载完成，请确认 UAC 已通过后重新检测。");
+        helperNotice.value = {
+          text: tr("没有完成全按键支持服务卸载，请确认已在弹窗中通过管理员授权后重新检测。"),
+          kind: "warning",
+        };
       }
     }, 2000);
   } catch (cause) {
@@ -247,6 +301,47 @@ const accentModel = computed({
 });
 
 const voiceInputTool = shallowRef("");
+
+// 「实际生效」的三个音频设置。设备有独立设置时以设备为准（与 core 的
+// settings_namespace 解析口径一致）；此时全局控件置灰，并提示去设备设置里改。
+const connectedDeviceId = computed(() => engine.snapshot?.connection.remote?.deviceId ?? null);
+
+function deviceOverridden<T>(resolve: () => { value: T; source: "device" | "global" }): T | null {
+  if (!settingsDocument.value || !connectedDeviceId.value) return null;
+  const resolved = resolve();
+  return resolved.source === "device" ? resolved.value : null;
+}
+
+const gainOverride = computed(() =>
+  deviceOverridden(() => effectiveGainDb(settingsDocument.value!, connectedDeviceId.value)),
+);
+const endpointOverride = computed(() =>
+  deviceOverridden(() => effectiveAudioEndpointId(settingsDocument.value!, connectedDeviceId.value)),
+);
+const toolOverride = computed(() =>
+  deviceOverridden(() => effectiveVoiceInputTool(settingsDocument.value!, connectedDeviceId.value)),
+);
+
+const gainValue = computed(() => gainOverride.value ?? gain.value);
+const endpointValue = computed(() => endpointOverride.value ?? endpointId.value);
+const toolValue = computed(() => toolOverride.value ?? voiceInputTool.value);
+const gainLocked = computed(() => gainOverride.value !== null);
+const endpointLocked = computed(() => endpointOverride.value !== null);
+const toolLocked = computed(() => toolOverride.value !== null);
+function onGainInput(value: number) {
+  if (!gainLocked.value) gain.value = value;
+}
+function onEndpointInput(value: string) {
+  if (!endpointLocked.value) endpointId.value = value;
+}
+function onToolInput(value: string) {
+  if (!toolLocked.value) voiceInputTool.value = value;
+}
+
+// 被设备覆盖的项：把用户直接送到「连接页 → 设备设置」抽屉。
+function openDeviceSettings() {
+  requestDeviceSettings();
+}
 const transcriptHistory = shallowRef(false);
 const voiceHotkey = ref<string[] | null>(null);
 const { catalog: voiceToolCatalog, load: loadVoiceToolCatalog } = useVoiceToolCatalog();
@@ -595,7 +690,7 @@ async function runHealthCheck() {
         ok: caps.macroRuntime,
         detail: caps.macroRuntime ? tr("可用") : tr("不可用"),
       },
-      { label: tr("按键增强服务"), ok: helper, detail: helper ? tr("已安装") : tr("未安装") },
+      { label: tr("全按键支持服务"), ok: helper, detail: helper ? tr("已安装") : tr("未安装") },
       {
         label: tr("虚拟音频设备"),
         ok: audioDependencyStatus.state === "ready",
@@ -793,6 +888,13 @@ onMounted(async () => {
           </Card>
         </template>
 
+        <template v-if="!loading && sectionVisible('common-phrases')">
+          <p class="settings-group-label">{{ tr("常用语") }}</p>
+          <Card padding="none">
+            <CommonPhrasesSettings />
+          </Card>
+        </template>
+
         <template v-if="!loading && sectionVisible('audio')">
           <p class="settings-group-label">{{ tr("音频") }}</p>
           <Card v-if="settingsDocument">
@@ -818,13 +920,26 @@ onMounted(async () => {
                 label="语音输出设备"
                 hint="遥控器语音输出到的设备；未设置时连接后自动选 CABLE"
               >
-                <SelectInput v-model="endpointId">
+                <SelectInput
+                  :model-value="endpointValue"
+                  :disabled="endpointLocked"
+                  @update:model-value="onEndpointInput"
+                >
                   <option value="">{{ tr("未设置（连接时自动选 CABLE）") }}</option>
                   <option v-for="endpoint in endpoints" :key="endpoint.id" :value="endpoint.id">
                     {{ endpoint.name }}{{ endpoint.recommended ? tr("（推荐）") : "" }}
                   </option>
                 </SelectInput>
               </SettingRow>
+              <button
+                v-if="endpointLocked"
+                type="button"
+                class="settings-inline-note settings-inline-action"
+                :title="tr('打开设备设置')"
+                @click="openDeviceSettings"
+              >
+                {{ tr("已被设备设置覆盖") }}
+              </button>
               <div v-if="cableMissingInline" class="settings-inline-warning" role="status">
                 <span>
                   {{ tr("未检测到 VB-CABLE：遥控器语音将没有声音输出。仍可选择其他输出设备。") }}
@@ -844,10 +959,26 @@ onMounted(async () => {
 
               <SettingRow label="增益" hint="语音播放的音量增益">
                 <div class="range-control">
-                  <RangeInput v-model="gain" :min="0" :max="24" :step="1" />
-                  <span class="range-value mono">{{ gain }} dB</span>
+                  <RangeInput
+                    :model-value="gainValue"
+                    :min="0"
+                    :max="24"
+                    :step="1"
+                    :disabled="gainLocked"
+                    @update:model-value="onGainInput"
+                  />
+                  <span class="range-value mono">{{ gainValue }} dB</span>
                 </div>
               </SettingRow>
+              <button
+                v-if="gainLocked"
+                type="button"
+                class="settings-inline-note settings-inline-action"
+                :title="tr('打开设备设置')"
+                @click="openDeviceSettings"
+              >
+                {{ tr("已被设备设置覆盖") }}
+              </button>
             </div>
           </Card>
 
@@ -855,8 +986,8 @@ onMounted(async () => {
           <Card>
             <div class="settings-rows">
               <SettingRow
-                label="按键增强服务"
-                hint="返回键和音量键需要增强捕获组件；首次安装会请求管理员授权。"
+                label="全按键支持服务"
+                hint="返回键和音量键需要全按键支持组件；首次安装会请求管理员授权。"
               >
                 <div class="helper-control">
                   <StatusPill
@@ -883,7 +1014,14 @@ onMounted(async () => {
                   </Button>
                 </div>
               </SettingRow>
-              <Notice v-if="helperMessage" kind="info">{{ helperMessage }}</Notice>
+              <Notice v-if="helperNotice" :kind="helperNotice.kind">
+                <span class="helper-notice-text">
+                  {{ helperNotice.text }}
+                  <Button v-if="helperNotice.showOpenSwitch" size="sm" @click="requestButtonsPage">
+                    {{ tr("去按键页") }}
+                  </Button>
+                </span>
+              </Notice>
             </div>
           </Card>
 
@@ -891,10 +1029,14 @@ onMounted(async () => {
           <Card v-if="settingsDocument">
             <div class="settings-rows">
               <SettingRow label="输入法" hint="遥控器语音转写注入的目标输入法">
-                <SelectInput v-model="voiceInputTool">
+                <SelectInput
+                  :model-value="toolValue"
+                  :disabled="toolLocked"
+                  @update:model-value="onToolInput"
+                >
                   <option value="">{{ tr("未选择") }}</option>
                   <option
-                    v-for="tool in voiceToolOptions(voiceToolCatalog, voiceInputTool)"
+                    v-for="tool in voiceToolOptions(voiceToolCatalog, toolValue)"
                     :key="tool.id"
                     :value="tool.id"
                   >
@@ -902,6 +1044,15 @@ onMounted(async () => {
                   </option>
                 </SelectInput>
               </SettingRow>
+              <button
+                v-if="toolLocked"
+                type="button"
+                class="settings-inline-note settings-inline-action"
+                :title="tr('打开设备设置')"
+                @click="openDeviceSettings"
+              >
+                {{ tr("已被设备设置覆盖") }}
+              </button>
 
               <SettingRow
                 label="语音热键"
@@ -1019,7 +1170,7 @@ onMounted(async () => {
             <div class="settings-rows">
               <SettingRow
                 label="运行健康检查"
-                hint="检查平台、按键增强服务、音频、连接、电量和前台应用识别"
+                hint="检查平台、全按键支持服务、音频、连接、电量和前台应用识别"
               >
                 <Button size="sm" :disabled="healthBusy" @click="runHealthCheck">
                   {{ trDynamic(healthBusy ? "检查中" : "运行") }}
@@ -1211,8 +1362,42 @@ onMounted(async () => {
   color: var(--warning-text);
 }
 
+/* 提示本身是入口：点击跳到「连接页 → 设备设置」抽屉。 */
+.settings-inline-action {
+  /* 与 .setting-row-hint 同一个字号；靠右贴在控件下方。 */
+  align-self: flex-end;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  text-align: right;
+  cursor: pointer;
+}
+
+.settings-inline-action:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.settings-inline-action:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
 .helper-control {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Notice 里「一句说明 + 一个内联出口」：按钮跟在文案后面，不另起一段。 */
+.helper-notice-text {
+  display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
