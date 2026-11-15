@@ -536,6 +536,9 @@ onBeforeUnmount(() => {
   /* 给计数留一条固定车位：输入框永远不压到它，文字也不会被计数挡住。 */
   padding-right: 58px;
   min-width: 0;
+  /* 撑住这一格的高度：焦点态输入框改成绝对定位后不再有流内高度，这一格若跟着塌成 0，
+     `td` 的 `vertical-align: middle` 会把 0 高度盒子居中，输入框看起来就整体向下漂移。 */
+  height: 36px;
 }
 
 .phrase-text-count {
@@ -555,6 +558,8 @@ onBeforeUnmount(() => {
 
 .phrase-text {
   box-sizing: border-box;
+  /* 块级：消掉 inline-block 的基线间隙，行高才和 36px 的表格单元格严格对齐。 */
+  display: block;
   width: 100%;
   /* 表格行固定单行：不换行，也就不会在格子底部露出半行字。
      36px 与矩阵单元格的 min-height 对齐，两处行高一致。 */
@@ -594,7 +599,7 @@ onBeforeUnmount(() => {
   z-index: 3;
   width: auto;
   height: auto;
-  min-height: 34px;
+  min-height: 36px;
   max-height: 160px;
   overflow-y: auto;
   field-sizing: content;
