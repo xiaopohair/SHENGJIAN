@@ -672,5 +672,8 @@ mod tests {
         assert!(profile_buttons_for_model(None).contains(&LogicalButton::Tv));
         assert_eq!(profile_buttons_for_model(Some("ARN9")).len(), 11);
         assert_eq!(profile_buttons_for_model(Some("RC003")).len(), 12);
+        // RC001 实机确认有 TV 键（2026-11-15），布局与 RC003 一致，不走 ARN9 的 11 键特例。
+        assert!(profile_buttons_for_model(Some("RC001")).contains(&LogicalButton::Tv));
+        assert_eq!(profile_buttons_for_model(Some("RC001")).len(), 12);
     }
 }

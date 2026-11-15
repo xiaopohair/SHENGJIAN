@@ -6,28 +6,32 @@
   "vendor": "Xiaomi",
   "model": "RC001",
   "support": {
-    "status": "research",
-    "notes": "Draft profile. The Windows product supports RC001 voice and basic buttons, but the profile identity is not reconciled with upstream ARN9 yet; it must not be used for runtime matching until the GATT Model Number and HID identity are verified."
+    "status": "implemented",
+    "notes": "Windows 真机探测 2026-11-15（MAC e8:55:40:e1:0b:c5，见 docs/device-identity.md）：GATT 型号号读回 RC001、制造商 MIOM、序列号 250513、硬件 V2.0、固件 2671、软件 A.6.0.3；PnP VID 0x2717 / PID 0x32B8 / REV 0x00A4；9 个 GATT 服务与 ATVV 与 RC003/ARN9 完全一致；电池服务没有 0x2BED 额外特征（同 ARN9，不同 RC003）。按键布局与 RC003 一致：12 键、含 TV 键（2026-11-15 用户实机确认）。RC001 是独立 SKU，不等于 ARN9。2026-11-15 12:03 两次真实语音会话通过（36,000 / 108,720 采样，输入法均 verdict=reacted）；语音热键必须与微信输入法实际快捷键一致（默认 Ctrl+Win），不一致时输入法完全无响应。"
   },
   "identity": {
     "bluetoothNames": [
       "Xiaomi Bluetooth Remote 2",
       "小米蓝牙语音遥控器 2"
     ],
-    "modelNumbers": ["RC001"]
+    "modelNumbers": ["RC001"],
+    "hid": {
+      "vendorId": 10007,
+      "productId": 12984
+    }
   },
   "transports": [
     {
       "kind": "ble-gatt",
       "role": "voice-input",
       "status": "implemented",
-      "notes": "The Windows product uses ATVV voice for this model. The exact capability variant still needs profile-level verification."
+      "notes": "ATVV service AB5E0001 with the same 0002 write / 0003 notify / 0004 notify characteristic set as RC003 and ARN9. Live voice sessions verified on 2026-11-15: 36,000 and 108,720 samples at about 15.0 kHz, with the IME reacting on both attempts."
     },
     {
       "kind": "bluetooth-hid",
       "role": "button-input",
-      "status": "research",
-      "notes": "Basic buttons work on Windows, but the HID VID/PID and the relation to upstream ARN9 are not yet confirmed."
+      "status": "implemented",
+      "notes": "HID identity confirmed on 2026-11-15: VID 0x2717 / PID 0x32B8 / REV 0x00A4, the same hardware ID as RC003 and ARN9. Layout matches RC003: 12 keys including TV, confirmed on the physical remote on 2026-11-15. The HID report descriptor is not readable from user mode, so key capture keeps using the RC003 path (Raw Input plus enhanced capture)."
     }
   ],
   "capabilities": [
@@ -66,5 +70,5 @@
     "https://github.com/HD838A/remote-mic-app",
     "https://github.com/nijez/open-voice-bridge"
   ],
-  "notes": "The current Rust function remote_model_from_model_number maps ARN9 to Rc003; that conflicts with the upstream ARN9 profile. Resolve this before promoting the profile to implemented."
+  "notes": "remote_model_from_model_number maps ARN9 to RemoteModel::Arn9 and RC001 to RemoteModel::Rc001, so the earlier ARN9/RC003 conflict is resolved. RC001 currently gets the 12-key PROFILE_BUTTONS layout (TV key included); switch it to an 11-key layout only if the physical remote turns out to have no TV key."
 }
