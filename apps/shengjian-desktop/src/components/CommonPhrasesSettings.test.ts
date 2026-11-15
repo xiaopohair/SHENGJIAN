@@ -92,18 +92,22 @@ describe("CommonPhrasesSettings", () => {
     expect(wrapper.text()).toContain("已保存");
   });
 
-  it("adds a phrase and saves it automatically", async () => {
+  it("adds a phrase and saves it once it has content", async () => {
     const wrapper = mount(CommonPhrasesSettings);
     await flushPromises();
 
     await buttonByText(wrapper, "添加").trigger("click");
     expect(wrapper.findAll(".phrase-row")).toHaveLength(6);
 
+    // 空行不落盘；填了内容才会进保存载荷。
+    const added = () => wrapper.findAll(".phrase-row")[5]!;
+    await added().find("input").setValue("新条目");
+    await added().find("textarea").setValue("要插入的文本");
+
     await settleAutoSave();
-    expect(mocks.save).toHaveBeenCalledTimes(1);
-    const payload = mocks.save.mock.calls[0]![0] as CommonPhrasesDocument;
-    expect(payload.slots).toHaveLength(6);
-    expect(payload.slots[5]!.label).toBe("");
+    const payload = mocks.save.mock.calls.at(-1)![0] as CommonPhrasesDocument;
+    expect(payload.slots).toHaveLength(4);
+    expect(payload.slots[3]!.label).toBe("新条目");
   });
 
   it("confirms before removing a phrase and persists the removal", async () => {
@@ -121,8 +125,24 @@ describe("CommonPhrasesSettings", () => {
     ).toBe("");
 
     await settleAutoSave();
-    const payload = mocks.save.mock.calls[0]![0] as CommonPhrasesDocument;
-    expect(payload.slots.map((slot) => slot.label)).toEqual(["搜索", "投屏", "", ""]);
+    // 取最后一次落盘：首次挂载期间其它路径也可能触发一次保存，判「最终写的是什么」才有意义。
+    const payload = mocks.save.mock.calls.at(-1)![0] as CommonPhrasesDocument;
+    // 删掉的「稍后处理」不再出现；两行空白（left / ok）也不落盘。
+    expect(payload.slots.map((slot) => slot.label)).toEqual(["搜索", "投屏"]);
+  });
+
+  it("does not persist a row added but left blank", async () => {
+    const wrapper = mount(CommonPhrasesSettings);
+    await flushPromises();
+
+    await buttonByText(wrapper, "添加").trigger("click");
+    await flushPromises();
+    expect(wrapper.findAll(".phrase-row")).toHaveLength(6);
+
+    await settleAutoSave();
+    const payload = mocks.save.mock.calls.at(-1)![0] as CommonPhrasesDocument;
+    expect(payload.slots).toHaveLength(3);
+    expect(payload.slots.some((slot) => slot.label === "" && slot.text === "")).toBe(false);
   });
 
   it("saves pending edits before opening the floating panel", async () => {

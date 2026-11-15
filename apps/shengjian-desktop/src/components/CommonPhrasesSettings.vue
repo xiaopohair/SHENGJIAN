@@ -18,7 +18,7 @@ import {
 import { confirmAction } from "../lib/confirm";
 import { tr, trDynamic } from "../lib/i18n";
 import { pushToast } from "../lib/toast";
-import type { CommonPhrasesDocument } from "../lib/types";
+import type { CommonPhraseSlot, CommonPhrasesDocument } from "../lib/types";
 import Button from "./ui/Button.vue";
 import EmptyState from "./ui/EmptyState.vue";
 import IconButton from "./ui/IconButton.vue";
@@ -51,6 +51,17 @@ let saveAgain = false;
 let hydrated = false;
 
 const slots = computed(() => phrasesDocument.value?.slots ?? []);
+
+/**
+ * 完全空白的行不落盘。
+ *
+ * 「添加」只是先在界面上放一行，用户还没写名字也没写文本时，这一行没有任何可执行内容；
+ * 若跟着自动保存写进磁盘，切到别的分区再回来（或重启）还会看到它，像在催用户填。
+ * 所以落盘前滤掉：界面里它照常留着，一旦填了任一字段就会正常保存。
+ */
+function isBlankSlot(slot: CommonPhraseSlot): boolean {
+  return slot.label.trim() === "" && slot.text.trim() === "";
+}
 
 /** 名称重复的行 → 第一条同名的序号（面板上会出现两个一样的条目）。 */
 const duplicateOf = computed<Record<number, number>>(() => {
@@ -144,7 +155,7 @@ function persist(): Promise<void> {
       do {
         saveAgain = false;
         const snapshot: CommonPhrasesDocument = {
-          slots: slots.value.map((slot) => ({ ...slot })),
+          slots: slots.value.filter((slot) => !isBlankSlot(slot)).map((slot) => ({ ...slot })),
         };
         await saveCommonPhrases(snapshot);
       } while (saveAgain);
