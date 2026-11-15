@@ -226,32 +226,37 @@ onBeforeUnmount(() => {
     </Notice>
 
     <template v-else-if="phrasesDocument">
-      <div class="phrase-toolbar">
-        <div class="phrase-toolbar-actions">
-          <StatusPill
-            v-if="saveState === 'saving'"
-            tone="neutral"
-            dot
-            :label="trDynamic('保存中…')"
-          />
-          <StatusPill v-else-if="saveState === 'saved'" tone="success" dot :label="tr('已保存')" />
-          <IconButton :label="tr('预览面板')" :disabled="previewing" size="md" @click="preview">
-            <Eye :size="16" />
-          </IconButton>
-          <Button size="sm" variant="primary" @click="addPhrase">
-            <Plus :size="14" />
-            {{ tr("添加") }}
-          </Button>
+      <div class="phrase-panel">
+        <div class="phrase-toolbar">
+          <div class="phrase-toolbar-actions">
+            <StatusPill
+              v-if="saveState === 'saving'"
+              tone="neutral"
+              dot
+              :label="trDynamic('保存中…')"
+            />
+            <StatusPill
+              v-else-if="saveState === 'saved'"
+              tone="success"
+              dot
+              :label="tr('已保存')"
+            />
+            <IconButton :label="tr('预览面板')" :disabled="previewing" size="md" @click="preview">
+              <Eye :size="16" />
+            </IconButton>
+            <Button size="sm" variant="primary" @click="addPhrase">
+              <Plus :size="14" />
+              {{ tr("添加") }}
+            </Button>
+          </div>
         </div>
-      </div>
 
-      <Notice v-if="saveState === 'error'" kind="error" class="phrase-notice">
-        <span class="phrase-notice-text">{{ trDynamic("常用语没有保存成功，请重试。") }}</span>
-        <Button size="sm" variant="ghost" @click="retrySave">{{ tr("重试") }}</Button>
-      </Notice>
+        <Notice v-if="saveState === 'error'" kind="error" class="phrase-notice">
+          <span class="phrase-notice-text">{{ trDynamic("常用语没有保存成功，请重试。") }}</span>
+          <Button size="sm" variant="ghost" @click="retrySave">{{ tr("重试") }}</Button>
+        </Notice>
 
-      <div v-if="slots.length">
-        <table class="phrase-table">
+        <table v-if="slots.length" class="phrase-table">
           <caption class="sr-only">
             {{
               tr("常用语")
@@ -268,7 +273,12 @@ onBeforeUnmount(() => {
           <tbody>
             <tr v-for="(slot, index) in slots" :key="slot.button" class="phrase-row">
               <td class="phrase-col-index">
-                <span class="phrase-index" aria-hidden="true">{{ index + 1 }}</span>
+                <span
+                  class="phrase-cap"
+                  :class="{ 'is-duplicate': duplicateOf[index] !== undefined }"
+                  aria-hidden="true"
+                  >{{ index + 1 }}</span
+                >
                 <span
                   v-if="duplicateOf[index] !== undefined"
                   class="phrase-index-warning"
@@ -341,22 +351,22 @@ onBeforeUnmount(() => {
             </tr>
           </tbody>
         </table>
-      </div>
 
-      <EmptyState
-        v-else
-        class="phrase-empty"
-        title="还没有常用语"
-        description="添加常用语；绑定「常用语」动作后，在面板中用 ↑/↓ 选择、OK 插入，返回键关闭。"
-      >
-        <template #icon><MessageSquare :size="20" /></template>
-        <template #actions>
-          <Button variant="primary" size="sm" @click="addPhrase">
-            <Plus :size="14" />
-            {{ tr("添加") }}
-          </Button>
-        </template>
-      </EmptyState>
+        <EmptyState
+          v-else
+          class="phrase-empty"
+          title="还没有常用语"
+          description="添加常用语；绑定「常用语」动作后，在面板中用 ↑/↓ 选择、OK 插入，返回键关闭。"
+        >
+          <template #icon><MessageSquare :size="20" /></template>
+          <template #actions>
+            <Button variant="primary" size="sm" @click="addPhrase">
+              <Plus :size="14" />
+              {{ tr("添加") }}
+            </Button>
+          </template>
+        </EmptyState>
+      </div>
     </template>
   </div>
 </template>
@@ -368,8 +378,16 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-lg);
 }
 
-/* 与方案页（ProfileWorkbench 的 matrix 面板）同一套骨架：
-   工具条 12px 内边距 + 1px 下边框，表格满铺卡片，表头用 --bg-subtle。 */
+/* 与方案页「表格视图」（ProfileWorkbench 的 matrix 面板）同一套骨架：
+   卡片边框 + 圆角 + 溢出裁切，工具条 12px 内边距 + 1px 下边框，
+   表格满铺卡片，表头 --bg-subtle，行分隔线落在 td 上。 */
+.phrase-panel {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-sm);
+}
 .phrase-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -422,29 +440,20 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
+/* 分隔线与方案页矩阵一致：每条 td 自带 1px 上边框，首行不画（表头自己不画线）。 */
 .phrase-table td {
-  padding: 5px 12px;
-  vertical-align: middle;
-}
-
-.phrase-table tbody tr + tr td {
   border-top: 1px solid var(--border);
+  padding: 4px 12px;
+  vertical-align: middle;
 }
 
 .phrase-table tbody tr:hover td {
   background: var(--bg-hover);
 }
 
+/* 编辑中的行沿用矩阵的选中底色比例（accent-soft 52%），两处观感一致。 */
 .phrase-table tbody tr:focus-within td {
-  background: color-mix(in srgb, var(--accent-soft) 55%, transparent);
-}
-
-.phrase-table tbody tr:last-child td:first-child {
-  border-bottom-left-radius: var(--radius-lg);
-}
-
-.phrase-table tbody tr:last-child td:last-child {
-  border-bottom-right-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--accent-soft) 52%, transparent);
 }
 
 .phrase-table th.phrase-col-index,
@@ -466,10 +475,32 @@ onBeforeUnmount(() => {
   text-align: right;
 }
 
-.phrase-index {
+/* 序号做成一枚键帽，与矩阵视图的 .key-cap 同一形态（30px 改 26px，行高更矮）。 */
+.phrase-cap {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--bg-raised);
   color: var(--text-muted);
-  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  font-size: 10px;
   font-variant-numeric: tabular-nums;
+}
+
+.phrase-row:focus-within .phrase-cap,
+.phrase-row:hover .phrase-cap {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+/* 名称重复是可修的小问题：键帽转警告色，不整行报警。 */
+.phrase-cap.is-duplicate {
+  border-color: var(--warning);
+  color: var(--warning-text);
+  background: color-mix(in srgb, var(--warning) 12%, var(--bg-raised));
 }
 
 .phrase-name-field {
@@ -525,9 +556,10 @@ onBeforeUnmount(() => {
 .phrase-text {
   box-sizing: border-box;
   width: 100%;
-  /* 表格行固定单行：不换行，也就不会在格子底部露出半行字。 */
-  height: 34px;
-  min-height: 34px;
+  /* 表格行固定单行：不换行，也就不会在格子底部露出半行字。
+     36px 与矩阵单元格的 min-height 对齐，两处行高一致。 */
+  height: 36px;
+  min-height: 36px;
   overflow: hidden;
   white-space: pre;
   resize: none;
