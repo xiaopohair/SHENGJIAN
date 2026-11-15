@@ -25,11 +25,11 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     KEYEVENTF_UNICODE, VIRTUAL_KEY,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetMessageW, PostMessageW,
-    PostQuitMessage, RegisterClassW, SetWindowPos, ShowWindow, TranslateMessage, CS_DROPSHADOW,
-    CS_HREDRAW, CS_VREDRAW, HWND_TOPMOST, SWP_NOACTIVATE, SWP_SHOWWINDOW, SW_SHOWNOACTIVATE,
-    WM_CLOSE, WM_DESTROY, WM_LBUTTONUP, WM_PAINT, WNDCLASSW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
-    WS_EX_TOPMOST, WS_POPUP,
+    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetMessageW, LoadCursorW,
+    PostMessageW, PostQuitMessage, RegisterClassW, SetCursor, SetWindowPos, ShowWindow,
+    TranslateMessage, CS_DROPSHADOW, CS_HREDRAW, CS_VREDRAW, HWND_TOPMOST, IDC_ARROW,
+    SWP_NOACTIVATE, SWP_SHOWWINDOW, SW_SHOWNOACTIVATE, WM_CLOSE, WM_DESTROY, WM_LBUTTONUP,
+    WM_PAINT, WM_SETCURSOR, WNDCLASSW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP,
 };
 
 const PANEL_WIDTH: i32 = 520;
@@ -331,21 +331,6 @@ unsafe fn paint(hwnd: HWND) {
         return;
     };
 
-    let mut count_rect = RECT {
-        left: client.right - 110,
-        top: 34,
-        right: client.right - 26,
-        bottom: 64,
-    };
-    draw_text_flags(
-        hdc,
-        &format!("{} 条", slots.len()),
-        &mut count_rect,
-        c.faint,
-        12,
-        DT_LEFT | DT_VCENTER,
-    );
-
     let divider = CreateSolidBrush(COLORREF(c.border));
     let divider_rect = RECT {
         left: 26,
@@ -542,7 +527,7 @@ unsafe fn paint(hwnd: HWND) {
             &mut position_rect,
             c.faint,
             12,
-            DT_LEFT | DT_VCENTER,
+            DT_RIGHT | DT_VCENTER,
         );
     }
 
@@ -560,6 +545,12 @@ unsafe extern "system" fn window_proc(
             paint(hwnd);
             LRESULT(0)
         }
+        WM_SETCURSOR => {
+            if let Ok(cursor) = LoadCursorW(None, IDC_ARROW) {
+                let _ = SetCursor(Some(cursor));
+            }
+            LRESULT(1)
+        }
         WM_LBUTTONUP => {
             let _ = PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0));
             LRESULT(0)
@@ -574,6 +565,9 @@ unsafe extern "system" fn window_proc(
                 if let Ok(mut guard) = panel_model_slot().lock() {
                     *guard = None;
                 }
+                // 点击浮层关窗不经过宿主的 close_panel：必须在这里把「面板打开」与
+                // 键门控遮蔽掩码复位，否则方向键会被低层钩子一直吞着，直到应用退出。
+                crate::common_phrases::notify_panel_destroyed();
             }
             PostQuitMessage(0);
             LRESULT(0)
@@ -592,6 +586,9 @@ fn register_class() -> bool {
             style: CS_HREDRAW | CS_VREDRAW | CS_DROPSHADOW,
             lpfnWndProc: Some(window_proc),
             hInstance: instance.into(),
+            // 类游标必须给：留空时本窗口不响应 WM_SETCURSOR，指针会沿用上一个窗口的
+            // 游标（实测在浮层上显示成「运行中」的忙碌指针）。
+            hCursor: LoadCursorW(None, IDC_ARROW).unwrap_or_default(),
             lpszClassName: w!("ShengjianCommonPhrases"),
             ..Default::default()
         };

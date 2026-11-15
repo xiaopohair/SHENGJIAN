@@ -396,6 +396,18 @@ impl CommonPhraseHost for BuiltinCommonPhraseHost {
 
 static BUILTIN_HOST: std::sync::OnceLock<Arc<BuiltinCommonPhraseHost>> = std::sync::OnceLock::new();
 
+/// 面板窗口被销毁（点击浮层 / 系统关窗）时由 `common_phrases_panel` 回调。
+///
+/// 点击浮层走的是 `WM_LBUTTONUP → WM_CLOSE → DestroyWindow`，不经过宿主的
+/// `close_panel`。不在这条回路上复位的话，`panel_open` 会一直是 true，`key_gate`
+/// 的「面板遮蔽掩码」也一直挂着——低层键盘钩子于是继续吞方向键，表现就是
+/// 「面板消失后实体键盘方向键失效，直到应用退出」。
+pub(crate) fn notify_panel_destroyed() {
+    if let Some(host) = BUILTIN_HOST.get() {
+        host.close_panel("window_destroyed");
+    }
+}
+
 pub fn builtin_host() -> Arc<BuiltinCommonPhraseHost> {
     Arc::clone(BUILTIN_HOST.get_or_init(|| Arc::new(BuiltinCommonPhraseHost::new())))
 }
