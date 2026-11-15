@@ -5,6 +5,7 @@ const base = {
   voiceState: "streaming",
   previousVoiceState: "idle",
   onboardingOpen: false,
+  selfTestOpen: false,
   windowFocused: true,
   alreadyHinted: false,
 };
@@ -16,6 +17,10 @@ describe("shouldHintVoiceSelfForeground", () => {
 
   it("stays quiet when another window is in the foreground", () => {
     expect(shouldHintVoiceSelfForeground({ ...base, windowFocused: false })).toBe(false);
+  });
+
+  it("stays quiet while the device test panel is open", () => {
+    expect(shouldHintVoiceSelfForeground({ ...base, selfTestOpen: true })).toBe(false);
   });
 
   it("stays quiet during onboarding: its step 3 records voice inside our own window", () => {

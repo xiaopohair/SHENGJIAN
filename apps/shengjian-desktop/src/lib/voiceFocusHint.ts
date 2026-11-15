@@ -19,6 +19,8 @@ export interface VoiceFocusHintInput {
   onboardingOpen: boolean;
   /** 本窗口是否持有焦点（前端用 `document.hasFocus()`）。 */
   windowFocused: boolean;
+  /** 设备测试面板是否打开：面板里已经写了引导和警告，不再弹全局提示。 */
+  selfTestOpen: boolean;
   /** 本次会话已经提示过，避免按住期间重复弹。 */
   alreadyHinted: boolean;
 }
@@ -30,6 +32,8 @@ export function shouldHintVoiceSelfForeground(input: VoiceFocusHintInput): boole
   if (input.previousVoiceState === "streaming") return false;
   // 首次启动向导的麦克风测试本来就在本窗口里做。
   if (input.onboardingOpen) return false;
+  // 设备测试面板里已经给出"先切到输入窗口"的引导，不再重复弹全局提示。
+  if (input.selfTestOpen) return false;
   if (!input.windowFocused) return false;
   return !input.alreadyHinted;
 }

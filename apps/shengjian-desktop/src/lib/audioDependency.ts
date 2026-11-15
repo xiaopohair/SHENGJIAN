@@ -108,3 +108,22 @@ export function cableEndpointNames(status: AudioDependencyStatus | null | undefi
     .filter(Boolean)
     .join(" / ");
 }
+
+/**
+ * 选中的语音输出设备是否是我们支持的那款虚拟线（CABLE Input）。
+ *
+ * 依赖装好不等于选对了设备：下拉里还有扬声器与 16ch 变体，选错了遥控器语音
+ * 不会进入输入法。留空视作"连接时自动选 CABLE"，只要依赖 ready 就算支持。
+ */
+export function isSupportedVoiceOutput(
+  status: AudioDependencyStatus | null | undefined,
+  chosenId: string | null | undefined,
+  endpoints: readonly AudioEndpoint[] = [],
+): boolean {
+  if (!isAudioDependencyReady(status)) return false;
+  const chosen = (chosenId ?? "").trim();
+  if (!chosen) return true;
+  const cable = status?.cableEndpoints ?? [];
+  if (cable.some((endpoint) => endpoint.id === chosen)) return true;
+  return Boolean(endpoints.find((endpoint) => endpoint.id === chosen)?.recommended);
+}

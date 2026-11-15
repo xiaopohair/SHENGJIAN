@@ -6,6 +6,7 @@ import {
   blocksOnboardingProgress,
   cableEndpointNames,
   isAudioDependencyReady,
+  isSupportedVoiceOutput,
   mergeAudioEndpoints,
   suggestedCableEndpointName,
   suggestedEndpointId,
@@ -29,6 +30,26 @@ function status(overrides: Partial<AudioDependencyStatus> = {}): AudioDependency
 }
 
 describe("audio dependency helpers", () => {
+  it("treats only VB-CABLE output as supported, and blocks until the dependency is ready", () => {
+    const speaker = { id: "spk", name: "扬声器", recommended: false };
+    const cable = { id: "cable-in", name: "CABLE Input", recommended: true };
+    const ready = status({ cableEndpoints: [cable], suggestedEndpointId: "cable-in" });
+
+    // 依赖没装好：一律不支持，哪怕选的正好是 CABLE。
+    expect(isSupportedVoiceOutput(status({ state: "missing" }), "cable-in")).toBe(false);
+    expect(isSupportedVoiceOutput(null, "")).toBe(false);
+
+    // 留空 = 连接时自动选 CABLE。
+    expect(isSupportedVoiceOutput(ready, "")).toBe(true);
+    expect(isSupportedVoiceOutput(ready, "cable-in")).toBe(true);
+    // 只在下拉里出现、但被标成推荐的 CABLE 端点也算支持。
+    expect(isSupportedVoiceOutput(ready, "usb-cable", [cable, { ...cable, id: "usb-cable" }])).toBe(
+      true,
+    );
+    // 扬声器这类真实输出设备不支持。
+    expect(isSupportedVoiceOutput(ready, "spk", [speaker, cable])).toBe(false);
+  });
+
   it("maps each state to a translated title and detail", () => {
     for (const state of ["ready", "missing", "disabled"] as const) {
       expect(hasTranslation(audioDependencyTitleKey(state))).toBe(true);
