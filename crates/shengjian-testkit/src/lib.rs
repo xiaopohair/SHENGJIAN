@@ -156,6 +156,22 @@ impl RemoteLinkPort for FakeRemoteLink {
         snapshot.remote = None;
         Ok(snapshot.clone())
     }
+
+    /// 与真实适配器同序：先断开，再把这一支从候选里移除（忘记后扫描不到它）。
+    fn forget(&self, remote_id: &RemoteId) -> CoreResult<()> {
+        {
+            let mut snapshot = self.snapshot.lock().expect("snapshot");
+            if snapshot.remote.as_ref().map(|remote| &remote.remote_id) == Some(remote_id) {
+                snapshot.phase = ConnectionPhase::Disconnected;
+                snapshot.remote = None;
+            }
+        }
+        self.candidates
+            .lock()
+            .expect("candidates")
+            .retain(|candidate| &candidate.remote_id != remote_id);
+        Ok(())
+    }
 }
 
 pub struct FakeAudioSink {

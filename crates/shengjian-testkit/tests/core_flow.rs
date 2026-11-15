@@ -208,7 +208,9 @@ fn settings_round_trip_and_bundled_catalog_capabilities() {
         capabilities.profiles,
         vec![
             DeviceId::new("xiaomi-rc003"),
-            // ARN9 于 2026-11-12 真机验收，升为 implemented 后进入能力列表。
+            // RC001 于 2026-11-15 真机验收（身份 + 12 键布局），升为 implemented 后进入列表。
+            DeviceId::new("xiaomi-rc001"),
+            // ARN9 于 2026-11-12 真机验收；顺序跟内置目录一致。
             DeviceId::new("xiaomi-arn9"),
         ]
     );

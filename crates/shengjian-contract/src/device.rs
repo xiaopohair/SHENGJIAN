@@ -295,8 +295,11 @@ mod tests {
         let rc001 = catalog
             .get(&DeviceId::new("xiaomi-rc001"))
             .expect("rc001 profile");
-        assert_eq!(rc001.support.status, SupportStatus::Research);
-        assert!(rc001.identity.hid.is_none());
+        // 2026-11-15 真机确认（见 `docs/device-identity.md`）：独立 SKU，
+        // GATT 型号号、HID 身份与 12 键布局都已验证，状态从 research 升为 implemented。
+        assert_eq!(rc001.support.status, SupportStatus::Implemented);
+        let rc001_hid = rc001.identity.hid.as_ref().expect("rc001 hid identity");
+        assert_eq!((rc001_hid.vendor_id, rc001_hid.product_id), (10007, 12984));
 
         // ARN9：真机已验证，与 RC003 同族硬件但独立档案。
         let arn9 = catalog
