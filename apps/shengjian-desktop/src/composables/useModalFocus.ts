@@ -42,8 +42,7 @@ export function useModalFocus(options: ModalFocusOptions) {
   }
 
   function focusInitial() {
-    const target =
-      options.initialFocus?.() ?? focusableElements()[0] ?? options.container.value;
+    const target = options.initialFocus?.() ?? focusableElements()[0] ?? options.container.value;
     target?.focus();
   }
 

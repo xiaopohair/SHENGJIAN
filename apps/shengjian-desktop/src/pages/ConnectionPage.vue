@@ -137,7 +137,8 @@ const deviceProductName = computed(() => {
  */
 const lastKnownModel = shallowRef<string | null>(null);
 // 重启/断线后，主卡仍用上次那台设备的型号来画产品图。
-if (lastRemoteId.value) lastKnownModel.value = deviceRecords.value[lastRemoteId.value]?.model ?? null;
+if (lastRemoteId.value)
+  lastKnownModel.value = deviceRecords.value[lastRemoteId.value]?.model ?? null;
 watch(
   remoteModel,
   (model) => {
@@ -376,7 +377,6 @@ onUnmounted(() => {
   document.removeEventListener("pointerdown", onMorePointerDown, true);
   document.removeEventListener("keydown", onMoreKeydown, true);
 });
-
 
 /** 「更多操作」菜单：属性（设备设置）与忘记设备都收在这里。 */
 const moreOpen = shallowRef(false);
@@ -752,33 +752,33 @@ onUnmounted(() => {
                   <MoreVertical :size="15" />
                 </IconButton>
                 <Teleport to="body">
-                <div
-                  v-if="moreOpen"
-                  ref="moreMenu"
-                  class="more-menu"
-                  role="menu"
-                  :style="moreMenuStyle"
-                >
-                  <button
-                    type="button"
-                    role="menuitem"
-                    class="more-item"
-                    @click="runMore(openDeviceSettings)"
+                  <div
+                    v-if="moreOpen"
+                    ref="moreMenu"
+                    class="more-menu"
+                    role="menu"
+                    :style="moreMenuStyle"
                   >
-                    <SlidersHorizontal :size="15" />
-                    {{ tr("设备属性") }}
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    class="more-item danger"
-                    :disabled="forgetting"
-                    @click="runMore(forgetCurrentDevice)"
-                  >
-                    <Trash2 :size="15" />
-                    {{ tr("忘记设备") }}
-                  </button>
-                </div>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      class="more-item"
+                      @click="runMore(openDeviceSettings)"
+                    >
+                      <SlidersHorizontal :size="15" />
+                      {{ tr("设备属性") }}
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      class="more-item danger"
+                      :disabled="forgetting"
+                      @click="runMore(forgetCurrentDevice)"
+                    >
+                      <Trash2 :size="15" />
+                      {{ tr("忘记设备") }}
+                    </button>
+                  </div>
                 </Teleport>
               </div>
             </div>

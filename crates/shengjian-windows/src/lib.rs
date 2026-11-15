@@ -30,10 +30,10 @@ pub mod button_profiles;
 pub mod common_phrases;
 #[cfg(windows)]
 mod common_phrases_panel;
-/// 应用级显示缩放（Tauri 主窗口上报，原生浮层读取）。
-pub mod display;
 pub mod compatibility;
 mod diagnostic_log;
+/// 应用级显示缩放（Tauri 主窗口上报，原生浮层读取）。
+pub mod display;
 pub mod file_dialog;
 /// 聚焦输入框的纯逻辑（跨平台可编译、可单测）。
 pub mod focus;
@@ -48,10 +48,10 @@ pub mod foreground;
 pub mod graceful_exit;
 #[cfg(windows)]
 pub mod instance_signal;
-#[cfg(windows)]
-pub mod test_pad;
 /// 按键宿主进程（LL 钩子迁出主进程；见 Bugs/2026-10-04-ll-hooks-break-in-app-ime-voice.md）。
 pub mod key_host;
+#[cfg(windows)]
+pub mod test_pad;
 /// 回眸原始录音：WAV 写入、终态清理与 manifest。跨平台可单测，写入只在启用时发生。
 pub mod voice_recording;
 /// 语音输入工具的 **Windows 行为类别**（`kind`）：列表/名称/默认热键来自可编辑
@@ -1892,8 +1892,12 @@ fn forget_paired_remote(device_id: &str) -> Result<(), PlatformError> {
     let operation = pairing.UnpairAsync().map_err(windows_error)?;
     let result = futures::executor::block_on(operation.into_future()).map_err(windows_error)?;
     match result.Status().map_err(windows_error)? {
-        DeviceUnpairingResultStatus::Unpaired | DeviceUnpairingResultStatus::AlreadyUnpaired => Ok(()),
-        status => Err(PlatformError::WindowsApi(format!("解除配对失败：{status:?}"))),
+        DeviceUnpairingResultStatus::Unpaired | DeviceUnpairingResultStatus::AlreadyUnpaired => {
+            Ok(())
+        }
+        status => Err(PlatformError::WindowsApi(format!(
+            "解除配对失败：{status:?}"
+        ))),
     }
 }
 

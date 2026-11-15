@@ -12,12 +12,12 @@ use windows::core::w;
 use windows::Win32::Foundation::{COLORREF, HWND, LPARAM, LRESULT, RECT, WPARAM};
 use windows::Win32::Graphics::Gdi::{
     BeginPaint, CreateFontW, CreatePen, CreateRoundRectRgn, CreateSolidBrush, DeleteObject,
-    DrawTextW, DRAW_TEXT_FORMAT,
-    EndPaint, FillRect, FrameRect, GetStockObject, InvalidateRect, RoundRect, SelectObject,
-    SetBkMode, SetMapMode, SetTextColor, SetViewportExtEx, SetWindowExtEx, SetWindowRgn,
-    CLEARTYPE_QUALITY, DEFAULT_CHARSET, DT_END_ELLIPSIS, DT_LEFT, DT_SINGLELINE, DT_TOP,
-    DT_CENTER, DT_RIGHT, DT_VCENTER, FONT_CLIP_PRECISION, FONT_OUTPUT_PRECISION, HDC,
-    MM_ANISOTROPIC, NULL_BRUSH, NULL_PEN, PAINTSTRUCT, PS_SOLID, TRANSPARENT,
+    DrawTextW, EndPaint, FillRect, FrameRect, GetStockObject, InvalidateRect, RoundRect,
+    SelectObject, SetBkMode, SetMapMode, SetTextColor, SetViewportExtEx, SetWindowExtEx,
+    SetWindowRgn, CLEARTYPE_QUALITY, DEFAULT_CHARSET, DRAW_TEXT_FORMAT, DT_CENTER, DT_END_ELLIPSIS,
+    DT_LEFT, DT_RIGHT, DT_SINGLELINE, DT_TOP, DT_VCENTER, FONT_CLIP_PRECISION,
+    FONT_OUTPUT_PRECISION, HDC, MM_ANISOTROPIC, NULL_BRUSH, NULL_PEN, PAINTSTRUCT, PS_SOLID,
+    TRANSPARENT,
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
@@ -26,10 +26,10 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetMessageW, PostMessageW,
-    PostQuitMessage, RegisterClassW, SetWindowPos, ShowWindow, TranslateMessage, CS_HREDRAW,
-    CS_DROPSHADOW, CS_VREDRAW, HWND_TOPMOST, SW_SHOWNOACTIVATE, SWP_NOACTIVATE, SWP_SHOWWINDOW, WM_CLOSE,
-    WM_DESTROY, WM_LBUTTONUP, WM_PAINT, WNDCLASSW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
-    WS_POPUP,
+    PostQuitMessage, RegisterClassW, SetWindowPos, ShowWindow, TranslateMessage, CS_DROPSHADOW,
+    CS_HREDRAW, CS_VREDRAW, HWND_TOPMOST, SWP_NOACTIVATE, SWP_SHOWWINDOW, SW_SHOWNOACTIVATE,
+    WM_CLOSE, WM_DESTROY, WM_LBUTTONUP, WM_PAINT, WNDCLASSW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+    WS_EX_TOPMOST, WS_POPUP,
 };
 
 const PANEL_WIDTH: i32 = 520;
@@ -295,10 +295,11 @@ unsafe fn paint(hwnd: HWND) {
         12,
     );
 
-    let model = panel_model_slot()
-        .lock()
-        .ok()
-        .and_then(|guard| guard.as_ref().map(|model| (model.slots.clone(), model.selected)));
+    let model = panel_model_slot().lock().ok().and_then(|guard| {
+        guard
+            .as_ref()
+            .map(|model| (model.slots.clone(), model.selected))
+    });
     let Some((slots, selected)) = model else {
         let _ = EndPaint(hwnd, &ps);
         return;
@@ -694,8 +695,8 @@ pub fn move_selection(delta: isize) {
     if model.slots.is_empty() {
         return;
     }
-    let next = (model.selected as isize + delta)
-        .clamp(0, model.slots.len().saturating_sub(1) as isize);
+    let next =
+        (model.selected as isize + delta).clamp(0, model.slots.len().saturating_sub(1) as isize);
     model.selected = next as usize;
     let raw = PANEL_HWND.load(Ordering::SeqCst);
     if raw != 0 {

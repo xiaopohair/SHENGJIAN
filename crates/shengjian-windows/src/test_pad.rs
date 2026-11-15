@@ -21,7 +21,8 @@ use std::sync::atomic::{AtomicI32, AtomicIsize, AtomicU32, Ordering};
 use windows::core::w;
 use windows::Win32::Foundation::{COLORREF, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
 use windows::Win32::Graphics::Dwm::{
-    DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWM_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
+    DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
+    DWM_WINDOW_CORNER_PREFERENCE,
 };
 use windows::Win32::Graphics::Gdi::{
     BeginPaint, ClientToScreen, CreateRoundRectRgn, CreateSolidBrush, DeleteObject, EndPaint,
@@ -31,16 +32,14 @@ use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::Accessibility::{SetWinEventHook, HWINEVENTHOOK};
 use windows::Win32::UI::Input::KeyboardAndMouse::{SetFocus, VK_ESCAPE};
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DestroyWindow, GetClientRect, GetForegroundWindow,
-    GetGUIThreadInfo,
-    GetClassInfoExW, GetWindowTextLengthW, GetWindowTextW, LoadCursorW, MoveWindow,
-    RegisterClassExW, SendMessageW,
-    SetForegroundWindow, SetWindowPos, SetWindowTextW, ShowWindow, GUITHREADINFO, HWND_TOP,
-    EVENT_OBJECT_LOCATIONCHANGE, OBJID_WINDOW, WINEVENT_OUTOFCONTEXT, IDC_ARROW, SW_HIDE, SW_SHOW,
-    SWP_SHOWWINDOW, WM_CLOSE, WM_CREATE, WM_DESTROY, WM_ERASEBKGND,
-    WM_GETTEXT, WM_KEYDOWN, WM_PAINT, WM_SETFONT, WM_SIZE, WNDCLASSEXW, WINDOW_STYLE, WS_CHILD,
-    WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP, WS_VISIBLE, WS_VSCROLL, ES_AUTOVSCROLL, ES_LEFT,
-    ES_MULTILINE,
+    CreateWindowExW, DefWindowProcW, DestroyWindow, GetClassInfoExW, GetClientRect,
+    GetForegroundWindow, GetGUIThreadInfo, GetWindowTextLengthW, GetWindowTextW, LoadCursorW,
+    MoveWindow, RegisterClassExW, SendMessageW, SetForegroundWindow, SetWindowPos, SetWindowTextW,
+    ShowWindow, ES_AUTOVSCROLL, ES_LEFT, ES_MULTILINE, EVENT_OBJECT_LOCATIONCHANGE, GUITHREADINFO,
+    HWND_TOP, IDC_ARROW, OBJID_WINDOW, SWP_SHOWWINDOW, SW_HIDE, SW_SHOW, WINDOW_STYLE,
+    WINEVENT_OUTOFCONTEXT, WM_CLOSE, WM_CREATE, WM_DESTROY, WM_ERASEBKGND, WM_GETTEXT, WM_KEYDOWN,
+    WM_PAINT, WM_SETFONT, WM_SIZE, WNDCLASSEXW, WS_CHILD, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
+    WS_POPUP, WS_VISIBLE, WS_VSCROLL,
 };
 
 const PAD_CLASS: windows::core::PCWSTR = w!("ShengjianVoiceTestPad");
@@ -351,12 +350,19 @@ pub fn text() -> Option<String> {
         if copied <= 0 {
             return None;
         }
-        let value = String::from_utf16_lossy(&buffer[..copied as usize]).trim().to_owned();
+        let value = String::from_utf16_lossy(&buffer[..copied as usize])
+            .trim()
+            .to_owned();
         (!value.is_empty()).then_some(value)
     }
 }
 
-unsafe extern "system" fn pad_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+unsafe extern "system" fn pad_proc(
+    hwnd: HWND,
+    msg: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
     match msg {
         WM_CREATE => {
             let edit = CreateWindowExW(
@@ -399,7 +405,8 @@ unsafe extern "system" fn pad_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam:
                 let _ = MoveWindow(edit, 2, 2, (width - 4).max(80), (height - 4).max(32), true);
             }
             // 无边框窗口自己裁圆角（DWM 的圆角对无框架弹窗不一定生效）。
-            let region = CreateRoundRectRgn(0, 0, width + 1, height + 1, CORNER_RADIUS, CORNER_RADIUS);
+            let region =
+                CreateRoundRectRgn(0, 0, width + 1, height + 1, CORNER_RADIUS, CORNER_RADIUS);
             if !region.is_invalid() {
                 let _ = SetWindowRgn(hwnd, Some(region), true);
             }

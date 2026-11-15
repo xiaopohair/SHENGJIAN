@@ -1,13 +1,5 @@
 <script setup lang="ts">
-import {
-  computed,
-  onMounted,
-  onUnmounted,
-  ref,
-  shallowRef,
-  useTemplateRef,
-  watch,
-} from "vue";
+import { computed, onMounted, onUnmounted, ref, shallowRef, useTemplateRef, watch } from "vue";
 import { Check, CheckCircle2, Keyboard, Mic, Radio, ShieldCheck } from "lucide-vue-next";
 import {
   errorMessage,
@@ -586,9 +578,7 @@ onUnmounted(() => {
             </div>
             <p v-if="helperRequired" class="capture-hint">
               {{
-                tr(
-                  "豆包输入法会丢弃程序注入的按键，必须启用并安装全按键支持服务，语音键才生效。",
-                )
+                tr("豆包输入法会丢弃程序注入的按键，必须启用并安装全按键支持服务，语音键才生效。")
               }}
             </p>
             <p class="muted capture-hint">
@@ -615,11 +605,7 @@ onUnmounted(() => {
         <Button v-if="step > 1" variant="ghost" @click="previous">{{ tr("上一步") }}</Button>
         <p v-if="stepBlocked" class="wizard-block-reason" role="alert">{{ blockReason }}</p>
         <span class="footer-spacer" />
-        <Button
-          v-if="step === 4 && detectedCount > 0"
-          variant="ghost"
-          @click="resetButtonCheck"
-        >
+        <Button v-if="step === 4 && detectedCount > 0" variant="ghost" @click="resetButtonCheck">
           {{ tr("重新测试") }}
         </Button>
         <Button v-if="step < 5" variant="primary" :disabled="stepBlocked" @click="next">

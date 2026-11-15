@@ -131,7 +131,6 @@ const canSubmit = computed(() => {
   return importFiles.value.length > 0;
 });
 
-
 function resetState() {
   direction.value = "export";
   format.value = "single";
@@ -379,7 +378,6 @@ useModalFocus({
 watch(format, (value) => {
   if (value !== "single") importMode.value = "merge";
 });
-
 </script>
 
 <template>

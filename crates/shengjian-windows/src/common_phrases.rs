@@ -314,17 +314,11 @@ impl CommonPhraseHost for BuiltinCommonPhraseHost {
     }
 
     fn claims(&self, button: RemoteButton, _source: &str) -> bool {
-        self.panel_open
-            .load(std::sync::atomic::Ordering::SeqCst)
-            && is_panel_button(button)
+        self.panel_open.load(std::sync::atomic::Ordering::SeqCst) && is_panel_button(button)
     }
 
     fn handle(&self, button: RemoteButton, is_pressed: bool, _source: &str) -> bool {
-        if !self
-            .panel_open
-            .load(std::sync::atomic::Ordering::SeqCst)
-            || !is_panel_button(button)
-        {
+        if !self.panel_open.load(std::sync::atomic::Ordering::SeqCst) || !is_panel_button(button) {
             return false;
         }
         if !is_pressed {
@@ -364,8 +358,7 @@ impl CommonPhraseHost for BuiltinCommonPhraseHost {
     }
 
     fn is_panel_open(&self) -> bool {
-        self.panel_open
-            .load(std::sync::atomic::Ordering::SeqCst)
+        self.panel_open.load(std::sync::atomic::Ordering::SeqCst)
     }
 
     fn reset(&self, reason: &str) {
@@ -401,8 +394,7 @@ impl CommonPhraseHost for BuiltinCommonPhraseHost {
     }
 }
 
-static BUILTIN_HOST: std::sync::OnceLock<Arc<BuiltinCommonPhraseHost>> =
-    std::sync::OnceLock::new();
+static BUILTIN_HOST: std::sync::OnceLock<Arc<BuiltinCommonPhraseHost>> = std::sync::OnceLock::new();
 
 pub fn builtin_host() -> Arc<BuiltinCommonPhraseHost> {
     Arc::clone(BUILTIN_HOST.get_or_init(|| Arc::new(BuiltinCommonPhraseHost::new())))
@@ -539,11 +531,7 @@ mod tests {
                 "{button:?} 必须在遮蔽掩码里"
             );
         }
-        for button in [
-            RemoteButton::Home,
-            RemoteButton::Tv,
-            RemoteButton::VolumeUp,
-        ] {
+        for button in [RemoteButton::Home, RemoteButton::Tv, RemoteButton::VolumeUp] {
             assert_eq!((mask >> button.ordinal()) & 1, 0, "{button:?} 不得被遮蔽");
         }
     }

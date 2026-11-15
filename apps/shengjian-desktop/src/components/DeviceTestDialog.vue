@@ -357,7 +357,6 @@ watch(
             <Mic :size="14" />
             {{ tr("原生测试") }}
           </Button>
-
         </div>
       </div>
 

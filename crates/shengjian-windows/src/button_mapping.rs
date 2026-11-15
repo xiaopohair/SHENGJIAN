@@ -1647,8 +1647,7 @@ fn fire_gesture(
                 host.access()
             ));
             if !opened && !toggled_closed {
-                lock_state(state).last_error =
-                    Some("常用语面板暂时无法打开".to_owned());
+                lock_state(state).last_error = Some("常用语面板暂时无法打开".to_owned());
             }
         }
     }

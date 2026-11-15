@@ -73,7 +73,6 @@ const onlyCompatible = ref(true);
 /** 导入前的文档快照：撤销时原样写回去。 */
 const previousDocument = shallowRef<ButtonProfilesDocument | null>(null);
 
-
 const profiles = computed(() => props.document?.profiles ?? []);
 
 const selectedProfiles = computed(() =>

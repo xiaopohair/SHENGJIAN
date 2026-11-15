@@ -1111,7 +1111,6 @@ impl WindowsProfileStore {
             Err(_) => true,
         }
     }
-
 }
 
 #[derive(Debug, Default, serde::Deserialize, serde::Serialize)]

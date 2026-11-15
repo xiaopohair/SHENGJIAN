@@ -82,13 +82,7 @@ import {
   effectiveVoiceInputTool,
 } from "../lib/effectiveAudio";
 
-type SectionId =
-  | "appearance"
-  | "common-phrases"
-  | "audio"
-  | "startup"
-  | "diagnostics"
-  | "advanced";
+type SectionId = "appearance" | "common-phrases" | "audio" | "startup" | "diagnostics" | "advanced";
 
 interface HealthCheck {
   label: string;
@@ -242,7 +236,9 @@ async function uninstallHelper() {
   if (helperBusy.value) return;
   const confirmed = await confirmAction({
     title: tr("卸载全按键支持服务？"),
-    message: tr("会移除后台计划任务，返回键和音量键的全按键支持将失效；需要时会重新请求管理员授权。"),
+    message: tr(
+      "会移除后台计划任务，返回键和音量键的全按键支持将失效；需要时会重新请求管理员授权。",
+    ),
     confirmLabel: tr("卸载"),
     danger: true,
   });
@@ -316,7 +312,9 @@ const gainOverride = computed(() =>
   deviceOverridden(() => effectiveGainDb(settingsDocument.value!, connectedDeviceId.value)),
 );
 const endpointOverride = computed(() =>
-  deviceOverridden(() => effectiveAudioEndpointId(settingsDocument.value!, connectedDeviceId.value)),
+  deviceOverridden(() =>
+    effectiveAudioEndpointId(settingsDocument.value!, connectedDeviceId.value),
+  ),
 );
 const toolOverride = computed(() =>
   deviceOverridden(() => effectiveVoiceInputTool(settingsDocument.value!, connectedDeviceId.value)),

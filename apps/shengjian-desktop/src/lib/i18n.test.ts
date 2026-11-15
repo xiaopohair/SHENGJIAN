@@ -19,10 +19,7 @@ function spellings(raw: string): string[] {
   return [raw, raw.replace(/\\'/g, "'").replace(/\\"/g, '"').replace(/\\\\/g, "\\")];
 }
 
-function missingKeys(
-  files: string[],
-  extract: (source: string) => string[],
-): string[] {
+function missingKeys(files: string[], extract: (source: string) => string[]): string[] {
   const missing = new Set<string>();
   for (const file of files) {
     for (const key of extract(fs.readFileSync(file, "utf8"))) {
@@ -47,7 +44,11 @@ describe("i18n dictionary", () => {
 
   it("covers every Chinese literal fed to a PageHeader / SettingRow / EmptyState prop", () => {
     const missing = missingKeys(files, (source) =>
-      [...source.matchAll(/(?<![:\w-])(?:aria-label|label|hint|description|eyebrow|title)="([^"]*)"/g)]
+      [
+        ...source.matchAll(
+          /(?<![:\w-])(?:aria-label|label|hint|description|eyebrow|title)="([^"]*)"/g,
+        ),
+      ]
         .map((match) => match[1])
         .filter((value) => /[\u4e00-\u9fff]/.test(value) && !/[({`$]/.test(value)),
     );

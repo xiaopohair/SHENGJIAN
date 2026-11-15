@@ -26,7 +26,7 @@ vi.mock("../lib/api", () => ({
   getHostCapabilities: vi.fn(async () => ({
     platform: "windows",
     enhancedCapture: true,
-  buttonListeningPause: true,
+    buttonListeningPause: true,
     macroRuntime: true,
     autostart: true,
     tray: true,

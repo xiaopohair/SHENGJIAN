@@ -27,8 +27,7 @@ useModalFocus({
   container: drawerRef,
   open: () => props.open,
   onClose: close,
-  initialFocus: () =>
-    drawerRef.value?.querySelector<HTMLElement>(".macro-settings-body input"),
+  initialFocus: () => drawerRef.value?.querySelector<HTMLElement>(".macro-settings-body input"),
 });
 </script>
 

@@ -448,10 +448,7 @@ onMounted(async () => {
     await refreshListeningStatus();
     await loadTheme();
     // 版本号、语音工具目录与设置互不依赖，并行加载缩短首屏等待。
-    const [, version] = await Promise.all([
-      loadVoiceToolCatalog(),
-      getVersion().catch(() => ""),
-    ]);
+    const [, version] = await Promise.all([loadVoiceToolCatalog(), getVersion().catch(() => "")]);
     appVersion.value = version;
     applyAccent(localStorage.getItem(ACCENT_KEY) ?? "default");
     await finishStartup();

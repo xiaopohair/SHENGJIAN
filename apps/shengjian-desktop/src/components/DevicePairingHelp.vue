@@ -117,7 +117,6 @@ watch(
     activeModel.value = normalizePairingModel(value);
   },
 );
-
 </script>
 
 <template>
@@ -128,121 +127,117 @@ watch(
     :subtitle="tr('首先选择型号，然后按步骤完成配对。')"
     @close="close"
   >
+    <div class="model-tabs" role="tablist" :aria-label="trDynamic('遥控器型号')">
+      <button
+        v-for="(info, key) in MODELS"
+        :key="key"
+        type="button"
+        role="tab"
+        class="model-tab"
+        :class="{ active: activeModel === key }"
+        :aria-selected="activeModel === key"
+        :aria-label="trDynamic(info.nameKey)"
+        @click="selectModel(key)"
+      >
+        <span class="model-tab-name">{{ trDynamic(info.nameKey) }}</span>
+      </button>
+    </div>
 
-        <div class="model-tabs" role="tablist" :aria-label="trDynamic('遥控器型号')">
-          <button
-            v-for="(info, key) in MODELS"
-            :key="key"
-            type="button"
-            role="tab"
-            class="model-tab"
-            :class="{ active: activeModel === key }"
-            :aria-selected="activeModel === key"
-            :aria-label="trDynamic(info.nameKey)"
-            @click="selectModel(key)"
-          >
-            <span class="model-tab-name">{{ trDynamic(info.nameKey) }}</span>
-          </button>
+    <div class="pairing-body">
+      <section class="pairing-visual">
+        <div class="pairing-step-head">
+          <span class="pairing-step-index">1</span>
+          <div>
+            <h3>{{ tr("让遥控器进入配对状态") }}</h3>
+          </div>
         </div>
 
-        <div class="pairing-body">
-          <section class="pairing-visual">
-            <div class="pairing-step-head">
-              <span class="pairing-step-index">1</span>
-              <div>
-                <h3>{{ tr("让遥控器进入配对状态") }}</h3>
-              </div>
-            </div>
-
-            <div class="remote-stage">
-              <div
-                class="remote-figure"
-                :style="{ aspectRatio: `${model.width} / ${model.height}` }"
-              >
-                <!-- 三张产品图常驻 DOM，切型号只切换显隐：换 <img src> 会让浏览器
+        <div class="remote-stage">
+          <div class="remote-figure" :style="{ aspectRatio: `${model.width} / ${model.height}` }">
+            <!-- 三张产品图常驻 DOM，切型号只切换显隐：换 <img src> 会让浏览器
                      丢弃当前位图重新解码，中间闪过一帧空白，切标签时看起来就是抖一下。 -->
-                <img
-                  v-for="(info, key) in MODELS"
-                  :key="key"
-                  :src="info.image"
-                  class="remote-photo"
-                  :class="{ active: key === activeModel }"
-                  :style="{ transform: `scale(${info.bodyScale})` }"
-                  :alt="key === activeModel ? trDynamic(info.nameKey) : ''"
-                  :aria-hidden="key === activeModel ? undefined : 'true'"
-                />
-                <!-- 热区单独一层，按当前型号的 bodyScale 整体缩放，保证圈与按键对齐。 -->
-                <div class="hotspot-layer" :style="{ transform: `scale(${model.bodyScale})` }">
-                  <span
-                    v-for="spot in model.hotspots"
-                    :key="spot.label"
-                    class="button-hotspot"
-                    :class="`side-${spot.side}`"
-                    :style="{ left: `${spot.x * 100}%`, top: `${spot.y * 100}%` }"
-                  >
-                    <span class="hotspot-ring" aria-hidden="true" />
-                    <span class="hotspot-label">{{ trDynamic(spot.label) }}</span>
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <p class="visual-caption">
-              {{ tr("同时按住「主页键」和「菜单键」约 3 秒。") }}
-            </p>
-          </section>
-
-          <section class="pairing-connect">
-            <div class="pairing-step-head">
-              <span class="pairing-step-index">2</span>
-              <div>
-                <h3>{{ tr("在电脑上完成连接") }}</h3>
-              </div>
-            </div>
-
-            <ol class="connect-steps">
-              <li>{{ tr("打开 Windows「设置 > 蓝牙和其他设备」。") }}</li>
-              <li>{{ tr("选择「添加设备 > 蓝牙」。") }}</li>
-              <li>
-                {{
-                  tr("在列表中选择「{device}」。", {
-                    device: model.bluetoothName,
-                  })
-                }}
-              </li>
-            </ol>
-
-            <!-- ARN9 没有 TV 键，这条初始化提示只对本型号不适用。 -->
-            <p v-if="model.hasTvKey" class="init-note">
-              <Tv :size="16" />
-              <span>{{ tr("新遥控器请先按一次「TV」键完成初始化，再进入配对。") }}</span>
-            </p>
-          </section>
-        </div>
-
-        <div class="pairing-tips">
-          <div class="pairing-tip">
-            <span class="tip-icon"><Mic :size="17" /></span>
-            <div>
-              <strong>{{ tr("语音键") }}</strong>
-              <p>{{ tr("按住说话，松开结束。") }}</p>
-            </div>
-          </div>
-          <div class="pairing-tip">
-            <span class="tip-icon"><CheckCircle2 :size="17" /></span>
-            <div>
-              <strong>{{ tr("确认键") }}</strong>
-              <p>{{ tr("发送当前输入内容。") }}</p>
-            </div>
-          </div>
-          <div class="pairing-tip">
-            <span class="tip-icon"><CircleHelp :size="17" /></span>
-            <div>
-              <strong>{{ tr("配对遇到问题？") }}</strong>
-              <p>{{ tr("将遥控器靠近电脑或更换电池。") }}</p>
+            <img
+              v-for="(info, key) in MODELS"
+              :key="key"
+              :src="info.image"
+              class="remote-photo"
+              :class="{ active: key === activeModel }"
+              :style="{ transform: `scale(${info.bodyScale})` }"
+              :alt="key === activeModel ? trDynamic(info.nameKey) : ''"
+              :aria-hidden="key === activeModel ? undefined : 'true'"
+            />
+            <!-- 热区单独一层，按当前型号的 bodyScale 整体缩放，保证圈与按键对齐。 -->
+            <div class="hotspot-layer" :style="{ transform: `scale(${model.bodyScale})` }">
+              <span
+                v-for="spot in model.hotspots"
+                :key="spot.label"
+                class="button-hotspot"
+                :class="`side-${spot.side}`"
+                :style="{ left: `${spot.x * 100}%`, top: `${spot.y * 100}%` }"
+              >
+                <span class="hotspot-ring" aria-hidden="true" />
+                <span class="hotspot-label">{{ trDynamic(spot.label) }}</span>
+              </span>
             </div>
           </div>
         </div>
+
+        <p class="visual-caption">
+          {{ tr("同时按住「主页键」和「菜单键」约 3 秒。") }}
+        </p>
+      </section>
+
+      <section class="pairing-connect">
+        <div class="pairing-step-head">
+          <span class="pairing-step-index">2</span>
+          <div>
+            <h3>{{ tr("在电脑上完成连接") }}</h3>
+          </div>
+        </div>
+
+        <ol class="connect-steps">
+          <li>{{ tr("打开 Windows「设置 > 蓝牙和其他设备」。") }}</li>
+          <li>{{ tr("选择「添加设备 > 蓝牙」。") }}</li>
+          <li>
+            {{
+              tr("在列表中选择「{device}」。", {
+                device: model.bluetoothName,
+              })
+            }}
+          </li>
+        </ol>
+
+        <!-- ARN9 没有 TV 键，这条初始化提示只对本型号不适用。 -->
+        <p v-if="model.hasTvKey" class="init-note">
+          <Tv :size="16" />
+          <span>{{ tr("新遥控器请先按一次「TV」键完成初始化，再进入配对。") }}</span>
+        </p>
+      </section>
+    </div>
+
+    <div class="pairing-tips">
+      <div class="pairing-tip">
+        <span class="tip-icon"><Mic :size="17" /></span>
+        <div>
+          <strong>{{ tr("语音键") }}</strong>
+          <p>{{ tr("按住说话，松开结束。") }}</p>
+        </div>
+      </div>
+      <div class="pairing-tip">
+        <span class="tip-icon"><CheckCircle2 :size="17" /></span>
+        <div>
+          <strong>{{ tr("确认键") }}</strong>
+          <p>{{ tr("发送当前输入内容。") }}</p>
+        </div>
+      </div>
+      <div class="pairing-tip">
+        <span class="tip-icon"><CircleHelp :size="17" /></span>
+        <div>
+          <strong>{{ tr("配对遇到问题？") }}</strong>
+          <p>{{ tr("将遥控器靠近电脑或更换电池。") }}</p>
+        </div>
+      </div>
+    </div>
   </DialogShell>
 </template>
 
