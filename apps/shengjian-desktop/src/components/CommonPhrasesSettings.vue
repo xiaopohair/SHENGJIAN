@@ -302,22 +302,24 @@ onBeforeUnmount(() => {
               </td>
               <td>
                 <div class="phrase-content">
-                  <textarea
-                    v-model="slot.text"
-                    class="phrase-text"
-                    rows="1"
-                    :maxlength="TEXT_LIMIT"
-                    :placeholder="tr('要插入的文本')"
-                    :aria-label="textAreaLabel(index)"
-                  />
-                  <span
-                    v-if="slot.text.length"
-                    class="phrase-text-count"
-                    :class="{ 'is-limit': slot.text.length >= TEXT_LIMIT }"
-                    aria-hidden="true"
-                  >
-                    {{ slot.text.length }}/{{ TEXT_LIMIT }}
-                  </span>
+                  <div class="phrase-field">
+                    <textarea
+                      v-model="slot.text"
+                      class="phrase-text"
+                      rows="1"
+                      :maxlength="TEXT_LIMIT"
+                      :placeholder="tr('要插入的文本')"
+                      :aria-label="textAreaLabel(index)"
+                    />
+                    <span
+                      v-if="slot.text.length"
+                      class="phrase-text-count"
+                      :class="{ 'is-limit': slot.text.length >= TEXT_LIMIT }"
+                      aria-hidden="true"
+                    >
+                      {{ slot.text.length }}/{{ TEXT_LIMIT }}
+                    </span>
+                  </div>
                 </div>
               </td>
               <td class="phrase-col-actions">
@@ -468,11 +470,12 @@ onBeforeUnmount(() => {
   width: 200px;
 }
 
+/* 操作列整体居中：表头文字与行内按钮同一个中线，与矩阵视图的居中列一致。 */
 .phrase-table th.phrase-col-actions,
 .phrase-table td.phrase-col-actions {
   width: 112px;
   padding-inline: 8px;
-  text-align: right;
+  text-align: center;
 }
 
 /* 序号做成一枚键帽，与矩阵视图的 .key-cap 同一形态（30px 改 26px，行高更矮）。 */
@@ -533,23 +536,58 @@ onBeforeUnmount(() => {
 
 .phrase-content {
   position: relative;
-  /* 给计数留一条固定车位：输入框永远不压到它，文字也不会被计数挡住。 */
-  padding-right: 58px;
   min-width: 0;
-  /* 撑住这一格的高度：焦点态输入框改成绝对定位后不再有流内高度，这一格若跟着塌成 0，
-     `td` 的 `vertical-align: middle` 会把 0 高度盒子居中，输入框看起来就整体向下漂移。 */
+  /* 这一格用固定高度撑住：字段框本身绝对定位（见 .phrase-field），不占流内高度；
+     若这里塌成 0，td 的 vertical-align: middle 会把 0 高度盒子居中，输入框就整体向下漂移。 */
   height: 36px;
 }
 
-.phrase-text-count {
+/* 输入框与字数统计合成同一个控件：边框、底色、悬停/聚焦都落在外框上，
+   textarea 和计数只是它的两个部件（计数器不再浮在输入框外面）。 */
+.phrase-field {
   position: absolute;
-  top: 50%;
-  right: 8px;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  padding-right: 8px;
+  transition:
+    border-color var(--duration-fast) ease,
+    background var(--duration-fast) ease;
+}
+
+.phrase-field:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-elevated);
+}
+
+/* 编辑时整个控件一起浮起展开：外框长高加阴影，计数贴到底边；
+   撑高度的是上面的 .phrase-content，所以表格行高仍然不变。 */
+.phrase-field:focus-within {
+  bottom: auto;
+  z-index: 3;
+  height: auto;
+  min-height: 36px;
+  max-height: 160px;
+  padding-block: 4px;
+  border-color: var(--accent);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-md);
+}
+
+.phrase-text-count {
+  flex: 0 0 auto;
   color: var(--text-muted);
   font-size: var(--text-2xs);
   font-variant-numeric: tabular-nums;
-  translate: 0 -50%;
   pointer-events: none;
+}
+
+.phrase-field:focus-within .phrase-text-count {
+  align-self: flex-end;
 }
 
 .phrase-text-count.is-limit {
@@ -560,59 +598,40 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   /* 块级：消掉 inline-block 的基线间隙，行高才和 36px 的表格单元格严格对齐。 */
   display: block;
-  width: 100%;
-  /* 表格行固定单行：不换行，也就不会在格子底部露出半行字。
-     36px 与矩阵单元格的 min-height 对齐，两处行高一致。 */
-  height: 36px;
-  min-height: 36px;
+  flex: 1;
+  min-width: 0;
+  /* 表格行固定单行：不换行，也就不会在格子底部露出半行字。 */
+  height: 34px;
   overflow: hidden;
   white-space: pre;
   resize: none;
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
+  border: 0;
   background: transparent;
-  padding: 6px 10px;
+  padding: 6px 0 6px 10px;
   color: var(--text);
   font: inherit;
   font-size: var(--text-sm);
   line-height: 20px;
-  transition:
-    border-color var(--duration-fast) ease,
-    background var(--duration-fast) ease;
+  outline: none;
 }
 
 .phrase-text::placeholder {
   color: var(--text-muted);
 }
 
-.phrase-text:hover {
-  border-color: var(--border-strong);
-  background: var(--bg-elevated);
-}
-
-/* 编辑时浮起展开，长文本、换行都能看全；表格行高不变。 */
-.phrase-text:focus-visible {
-  position: absolute;
-  top: 0;
-  right: 58px;
-  left: 0;
-  z-index: 3;
-  width: auto;
+/* 展开后按内容长高、可滚动，换行也能看全。 */
+.phrase-field:focus-within .phrase-text {
   height: auto;
-  min-height: 36px;
-  max-height: 160px;
+  max-height: 136px;
   overflow-y: auto;
   field-sizing: content;
-  border-color: var(--accent);
-  background: var(--bg-elevated);
   white-space: pre-wrap;
-  box-shadow: var(--shadow-md);
-  outline: none;
 }
 
 .phrase-row-actions {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 2px;
 }
 </style>
