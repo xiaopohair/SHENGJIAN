@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import {
   computed,
-  nextTick,
   onMounted,
   onUnmounted,
   ref,
@@ -30,16 +29,19 @@ import {
   suggestedEndpointId,
   VB_CABLE_INSTALL_URL,
 } from "../lib/audioDependency";
-import { PROFILE_BUTTONS } from "../lib/buttons";
+import { profileButtonsForModel } from "../lib/buttons";
 import { deviceProductNameKey } from "../lib/deviceProduct";
 import { supportsKeyEnhancement } from "../lib/keyEnhancement";
 import { statusLabel, tr, trDynamic } from "../lib/i18n";
-import { voiceToolOptions } from "../lib/voiceTools";
+import { pushToast } from "../lib/toast";
+import { useModalFocus } from "../composables/useModalFocus";
+import { requiresReportLayerSynthesis, voiceToolOptions } from "../lib/voiceTools";
 import { useVoiceToolCatalog } from "../composables/useVoiceToolCatalog";
 import type { AudioDependencyStatus, AudioEndpoint, SettingsDocument } from "../lib/types";
 import { useEngineStore } from "../stores/engine";
 import { usePairingStore } from "../stores/pairing";
 import { useStatusStore } from "../stores/status";
+import ButtonCheckList from "./ButtonCheckList.vue";
 import Button from "./ui/Button.vue";
 import Checkbox from "./ui/Checkbox.vue";
 import Field from "./ui/Field.vue";
@@ -67,14 +69,14 @@ const audioDependencyError = shallowRef<string | null>(null);
 const rc003Capture = shallowRef(false);
 const rc003HelperInstalled = shallowRef(false);
 const helperBusy = shallowRef(false);
-const helperMessage = shallowRef<string | null>(null);
+/** 安装全按键支持服务的长流程提示：等授权用常驻 Notice，结果用 Toast（§4.1）。 */
+const helperNotice = shallowRef<{ text: string; kind: "info" | "error" } | null>(null);
 const detectedButtons = ref<string[]>([]);
 const voiceFailure = shallowRef(false);
-const settingsReady = shallowRef(false);
+
 const saving = shallowRef(false);
 const error = shallowRef<string | null>(null);
 const wizardRef = useTemplateRef<HTMLElement>("wizardRef");
-let previousFocus: HTMLElement | null = null;
 let helperPoll: number | undefined;
 let buttonBaseline = 0;
 
@@ -97,8 +99,11 @@ const supportsKeyEnhancementCapture = computed(() =>
   supportsKeyEnhancement(store.snapshot?.connection.remote?.model),
 );
 const detectedCount = computed(() => detectedButtons.value.length);
+// 按键清单按型号过滤：ARN9 没有 TV 键，全量布局会让它永远凑不齐。
+const remoteModel = computed(() => store.snapshot?.connection.remote?.model ?? null);
+const checkButtons = computed(() => profileButtonsForModel(remoteModel.value));
 const buttonChecklist = computed(() =>
-  PROFILE_BUTTONS.map((button) => ({
+  checkButtons.value.map((button) => ({
     ...button,
     detected: detectedButtons.value.includes(button.id),
   })),
@@ -122,6 +127,56 @@ const audioDependencyDetail = computed(() => {
   return names ? tr("语音输出设备：{names}", { names }) : tr(key);
 });
 const audioDependencyToneValue = computed(() => audioDependencyTone(audioDependency.value?.state));
+
+/**
+ * 选中的语音输出设备是否是我们支持的那款虚拟线（CABLE Input）。
+ *
+ * 依赖装好不等于选对了设备：下拉里还有扬声器、16ch 变体等选项，选错了遥控器语音
+ * 不会进输入法，所以第 3 步必须卡住，让用户改选或先安装再「重新检测」。
+ */
+/**
+ * 语音输出设备只支持 VB-CABLE：下拉里直接筛掉扬声器等真实输出设备，
+ * 历史保存过的其它设备也自动回到"未设置（自动选 CABLE）"。
+ */
+const cableOutputs = computed(() => {
+  const status = audioDependency.value;
+  if (!isAudioDependencyReady(status)) return [];
+  const cableIds = new Set((status?.cableEndpoints ?? []).map((endpoint) => endpoint.id));
+  const seen = new Set<string>();
+  return endpoints.value.filter((endpoint) => {
+    const supported = cableIds.has(endpoint.id) || endpoint.recommended;
+    if (!supported || seen.has(endpoint.id)) return false;
+    seen.add(endpoint.id);
+    return true;
+  });
+});
+watch(
+  [audioDependencyReady, audioEndpointId, cableOutputs],
+  () => {
+    if (!audioDependencyReady.value) return;
+    const chosen = audioEndpointId.value.trim();
+    if (!chosen) return;
+    if (cableOutputs.value.some((endpoint) => endpoint.id === chosen)) return;
+    audioEndpointId.value = "";
+  },
+  { immediate: true },
+);
+
+/** 会丢弃程序注入按键的输入法：必须走报告层合成（全按键支持服务），否则语音键无效。 */
+const voiceToolNeedsHelper = computed(() => requiresReportLayerSynthesis(voiceInputTool.value));
+const helperRequired = computed(
+  () => voiceToolNeedsHelper.value && supportsKeyEnhancementCapture.value,
+);
+const helperReady = computed(
+  () => !helperRequired.value || (rc003Capture.value && rc003HelperInstalled.value),
+);
+watch(
+  helperRequired,
+  (required) => {
+    if (required && !rc003Capture.value) rc003Capture.value = true;
+  },
+  { immediate: true },
+);
 const showVbCableDownload = computed(
   () => !audioDependencyReady.value && !audioDependencyLoading.value,
 );
@@ -131,7 +186,10 @@ const stepBlocked = computed(() => {
     if (!isAudioDependencyReady(audioDependency.value)) return true;
     return voiceResult.value !== "success";
   }
-  if (step.value === 4) return detectedCount.value !== PROFILE_BUTTONS.length;
+  if (step.value === 4) {
+    if (!helperReady.value) return true;
+    return detectedCount.value !== checkButtons.value.length;
+  }
   return false;
 });
 const blockReason = computed(() => {
@@ -147,6 +205,9 @@ const blockReason = computed(() => {
       ? tr("语音测试未通过，请重试。")
       : tr("请先完成语音测试，才能继续。");
   }
+  if (step.value === 4 && !helperReady.value) {
+    return tr("豆包输入法必须安装全按键支持服务，请勾选后再继续。");
+  }
   if (step.value === 4) return tr("请先检测全部按键，才能继续。");
   return "";
 });
@@ -161,34 +222,11 @@ const primaryLabel = computed(() => {
   return saving.value ? "保存中" : "进入应用";
 });
 
-function focusableElements(): HTMLElement[] {
-  if (!wizardRef.value) return [];
-  return Array.from(
-    wizardRef.value.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-    ),
-  ).filter((element) => !element.hasAttribute("disabled") && element.offsetParent !== null);
-}
-
-function onKeydown(event: KeyboardEvent) {
-  if (event.key === "Escape") {
-    event.preventDefault();
-    emit("complete");
-    return;
-  }
-  if (event.key !== "Tab") return;
-  const elements = focusableElements();
-  if (elements.length === 0) return;
-  const first = elements[0];
-  const last = elements[elements.length - 1];
-  if (event.shiftKey && document.activeElement === first) {
-    event.preventDefault();
-    last.focus();
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault();
-    first.focus();
-  }
-}
+useModalFocus({
+  container: wizardRef,
+  open: () => true,
+  onClose: () => emit("complete"),
+});
 
 function phaseTone(phase: string): StatusTone {
   if (phase === "ready") return "success";
@@ -224,44 +262,17 @@ watch(
     for (const event of events) {
       if (event.seq > buttonBaseline) detected.add(event.button);
     }
-    const next = PROFILE_BUTTONS.filter((button) => detected.has(button.id)).map(
-      (button) => button.id,
-    );
+    const next = checkButtons.value
+      .filter((button) => detected.has(button.id))
+      .map((button) => button.id);
     if (next.length !== detectedButtons.value.length) {
       detectedButtons.value = next;
     }
   },
-  { deep: true },
 );
 
-async function saveGlobalSettings(patch: Partial<SettingsDocument["global"]>) {
-  if (!settingsReady.value || !settings.value) return;
-  try {
-    const next: SettingsDocument = {
-      ...settings.value,
-      global: {
-        ...settings.value.global,
-        ...patch,
-      },
-    };
-    await saveSettings(next);
-    settings.value = next;
-  } catch (cause) {
-    error.value = errorMessage(cause);
-  }
-}
-
-watch(rc003Capture, (value) => {
-  void saveGlobalSettings({ rc003_capture_enabled: value });
-});
-
-watch(voiceInputTool, (value) => {
-  void saveGlobalSettings({ voice_input_tool: value || null });
-});
-
-watch(audioEndpointId, (value) => {
-  void saveGlobalSettings({ audio_endpoint_id: value || null });
-});
+// 向导里的改动只留在本地状态：只有点「进入应用」才落盘，而且只提交真正改过的字段。
+// 这样"重跑一次向导看看"不会把系统里已经配好的东西悄悄覆盖掉。
 
 function applyAudioDependency(status: AudioDependencyStatus) {
   audioDependency.value = status;
@@ -300,20 +311,25 @@ async function downloadVbCable() {
 async function installHelper() {
   if (helperBusy.value) return;
   helperBusy.value = true;
-  helperMessage.value = null;
+  helperNotice.value = null;
   try {
     await installRc003Helper();
-    helperMessage.value = tr("已请求管理员授权；完成 UAC 后会自动刷新状态。");
+    helperNotice.value = {
+      text: tr("已请求管理员授权；完成 UAC 后会自动刷新状态。"),
+      kind: "info",
+    };
     window.clearInterval(helperPoll);
     helperPoll = window.setInterval(async () => {
       rc003HelperInstalled.value = await getRc003HelperInstalled();
       if (rc003HelperInstalled.value) {
         window.clearInterval(helperPoll);
-        helperMessage.value = tr("按键增强服务已安装。");
+        // 结果走 Toast；这条常驻提示只留给「还在等授权」。
+        helperNotice.value = null;
+        pushToast(tr("全按键支持服务已安装"), "success");
       }
     }, 2000);
   } catch (cause) {
-    helperMessage.value = errorMessage(cause);
+    helperNotice.value = { text: errorMessage(cause), kind: "error" };
   } finally {
     helperBusy.value = false;
   }
@@ -342,35 +358,41 @@ function previous() {
 }
 
 async function finish() {
-  if (settings.value) {
-    saving.value = true;
-    error.value = null;
-    try {
-      await saveSettings({
-        ...settings.value,
-        global: {
-          ...settings.value.global,
-          voice_input_tool: voiceInputTool.value || null,
-          audio_endpoint_id: audioEndpointId.value || null,
-          rc003_capture_enabled: rc003Capture.value,
-        },
-      });
-      statusStore.setVoiceInputTool(voiceInputTool.value);
-    } catch (cause) {
-      error.value = errorMessage(cause);
-      saving.value = false;
-      return;
-    }
-    saving.value = false;
+  const current = settings.value;
+  if (!current) {
+    emit("complete");
+    return;
   }
+  // 只提交向导里真正改过的字段：重跑向导不应该覆盖系统里已有的配置。
+  const global = current.global;
+  const patch: Partial<typeof global> = {};
+  const tool = voiceInputTool.value || null;
+  if (tool !== (global.voice_input_tool ?? null)) patch.voice_input_tool = tool;
+  const endpoint = audioEndpointId.value || null;
+  if (endpoint !== (global.audio_endpoint_id ?? null)) patch.audio_endpoint_id = endpoint;
+  if (rc003Capture.value !== (global.rc003_capture_enabled ?? false)) {
+    patch.rc003_capture_enabled = rc003Capture.value;
+  }
+  if (Object.keys(patch).length === 0) {
+    statusStore.setVoiceInputTool(voiceInputTool.value);
+    emit("complete");
+    return;
+  }
+  saving.value = true;
+  error.value = null;
+  try {
+    await saveSettings({ ...current, global: { ...global, ...patch } });
+    statusStore.setVoiceInputTool(voiceInputTool.value);
+  } catch (cause) {
+    error.value = errorMessage(cause);
+    saving.value = false;
+    return;
+  }
+  saving.value = false;
   emit("complete");
 }
 
 onMounted(async () => {
-  previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-  window.addEventListener("keydown", onKeydown, true);
-  await nextTick();
-  focusableElements()[0]?.focus();
   try {
     await loadVoiceToolCatalog();
     settings.value = await getSettings();
@@ -379,7 +401,6 @@ onMounted(async () => {
     rc003Capture.value = settings.value.global.rc003_capture_enabled ?? false;
     endpoints.value = await listAudioEndpoints().catch(() => []);
     rc003HelperInstalled.value = await getRc003HelperInstalled().catch(() => false);
-    settingsReady.value = true;
   } catch (cause) {
     error.value = errorMessage(cause);
   }
@@ -388,10 +409,7 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
-  window.removeEventListener("keydown", onKeydown, true);
   window.clearInterval(helperPoll);
-  previousFocus?.focus();
-  previousFocus = null;
 });
 </script>
 
@@ -493,17 +511,28 @@ onUnmounted(() => {
               {{ audioDependencyError }}
             </p>
           </div>
-          <div class="audio-dependency-actions">
-            <Button v-if="showVbCableDownload" size="sm" @click="downloadVbCable">
-              {{ tr("下载 VB-CABLE") }}
-            </Button>
-            <Button size="sm" :disabled="audioDependencyLoading" @click="loadAudioDependency">
-              {{ audioDependencyLoading ? tr("检测中…") : tr("重新检测") }}
-            </Button>
-          </div>
         </div>
 
         <div class="voice-options">
+          <Field :label="tr('语音输出设备')">
+            <SelectInput v-model="audioEndpointId">
+              <option value="">{{ tr("未设置（连接时自动选 CABLE）") }}</option>
+              <option v-for="endpoint in cableOutputs" :key="endpoint.id" :value="endpoint.id">
+                {{ endpoint.name }}{{ endpoint.recommended ? tr("（推荐）") : "" }}
+              </option>
+            </SelectInput>
+            <p v-if="cableOutputs.length === 0" class="audio-endpoint-hint">
+              {{ tr("当前仅支持 VB-CABLE。") }}
+            </p>
+            <div v-if="cableOutputs.length === 0" class="audio-endpoint-actions">
+              <Button v-if="showVbCableDownload" size="sm" @click="downloadVbCable">
+                {{ tr("下载 VB-CABLE") }}
+              </Button>
+              <Button size="sm" :disabled="audioDependencyLoading" @click="loadAudioDependency">
+                {{ audioDependencyLoading ? tr("检测中…") : tr("重新检测") }}
+              </Button>
+            </div>
+          </Field>
           <Field :label="tr('语音输入工具')">
             <SelectInput v-model="voiceInputTool">
               <option value="">{{ tr("未选择") }}</option>
@@ -515,17 +544,6 @@ onUnmounted(() => {
                 {{ tool.label }}
               </option>
             </SelectInput>
-          </Field>
-          <Field :label="tr('语音输出设备')">
-            <SelectInput v-model="audioEndpointId">
-              <option value="">{{ tr("未设置（连接时自动选 CABLE）") }}</option>
-              <option v-for="endpoint in endpoints" :key="endpoint.id" :value="endpoint.id">
-                {{ endpoint.name }}{{ endpoint.recommended ? tr("（推荐）") : "" }}
-              </option>
-            </SelectInput>
-            <p v-if="!audioDependencyReady && !audioDependencyLoading" class="audio-endpoint-hint">
-              {{ tr("未检测到 VB-CABLE：遥控器语音将没有声音输出。仍可选择其他输出设备。") }}
-            </p>
           </Field>
         </div>
 
@@ -543,34 +561,14 @@ onUnmounted(() => {
         <h2>{{ tr("检测遥控器按键") }}</h2>
         <p class="step-lead">{{ tr("请依次按下遥控器上的各个键，检测按键是否可用。") }}</p>
 
-        <div class="wizard-panel stack-sm button-check-panel">
-          <div class="button-check-head">
-            <span class="muted"
-              >{{ tr("已检测") }} {{ detectedCount }}/{{ PROFILE_BUTTONS.length }}</span
-            >
-            <span v-if="detectedCount === PROFILE_BUTTONS.length" class="muted">
-              {{ tr("全部按键可用") }}
-            </span>
-          </div>
-
-          <ul class="button-check-list">
-            <li
-              v-for="button in buttonChecklist"
-              :key="button.id"
-              class="button-check-item"
-              :class="{ detected: button.detected }"
-            >
-              <span class="button-check-name">{{ trDynamic(button.label) }}</span>
-              <StatusPill
-                :label="trDynamic(button.detected ? '可用' : '待检测')"
-                :tone="button.detected ? 'success' : 'neutral'"
-              />
-            </li>
-          </ul>
+        <div class="wizard-panel stack-sm">
+          <ButtonCheckList :buttons="buttonChecklist" />
 
           <div v-if="supportsKeyEnhancementCapture" class="capture-setting">
             <div class="capture-heading">
-              <Checkbox v-model="rc003Capture">{{ tr("启用按键增强服务") }}</Checkbox>
+              <Checkbox v-model="rc003Capture" :disabled="helperRequired">{{
+                tr("启用全按键支持服务")
+              }}</Checkbox>
               <div v-if="rc003Capture" class="capture-actions">
                 <StatusPill
                   :label="trDynamic(rc003HelperInstalled ? '已安装' : '未安装')"
@@ -586,13 +584,20 @@ onUnmounted(() => {
                 </Button>
               </div>
             </div>
-            <p class="muted capture-hint">
+            <p v-if="helperRequired" class="capture-hint">
               {{
-                tr("返回键和音量键需要安装按键增强服务并开启才能使用；首次安装会请求管理员授权。")
+                tr(
+                  "豆包输入法会丢弃程序注入的按键，必须启用并安装全按键支持服务，语音键才生效。",
+                )
               }}
             </p>
-            <Notice v-if="helperMessage" :kind="rc003HelperInstalled ? 'success' : 'info'">
-              {{ helperMessage }}
+            <p class="muted capture-hint">
+              {{
+                tr("返回键和音量键需要安装全按键支持服务并开启才能使用；首次安装会请求管理员授权。")
+              }}
+            </p>
+            <Notice v-if="helperNotice" :kind="helperNotice.kind">
+              {{ helperNotice.text }}
             </Notice>
           </div>
         </div>
@@ -610,6 +615,13 @@ onUnmounted(() => {
         <Button v-if="step > 1" variant="ghost" @click="previous">{{ tr("上一步") }}</Button>
         <p v-if="stepBlocked" class="wizard-block-reason" role="alert">{{ blockReason }}</p>
         <span class="footer-spacer" />
+        <Button
+          v-if="step === 4 && detectedCount > 0"
+          variant="ghost"
+          @click="resetButtonCheck"
+        >
+          {{ tr("重新测试") }}
+        </Button>
         <Button v-if="step < 5" variant="primary" :disabled="stepBlocked" @click="next">
           {{ trDynamic(primaryLabel) }}
         </Button>
@@ -850,6 +862,13 @@ onUnmounted(() => {
   gap: var(--space-2);
 }
 
+.audio-endpoint-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
 .audio-endpoint-hint {
   margin: 4px 0 0;
   color: var(--warning-text);
@@ -985,47 +1004,11 @@ onUnmounted(() => {
   font-weight: 600;
 }
 
-.button-check-panel {
-  align-items: stretch;
-  text-align: left;
-}
-
-.button-check-head {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-3);
-  font-size: var(--text-sm);
-}
-
-.button-check-list {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-1);
+.capture-hint {
   margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.button-check-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-2) var(--space-3);
-}
-
-.button-check-item.detected {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-}
-
-.button-check-name {
-  font-size: var(--text-sm);
-  font-weight: 600;
-  overflow-wrap: anywhere;
+  color: var(--warning-text);
+  font-size: var(--text-2xs);
+  line-height: 1.5;
 }
 
 .capture-setting {
@@ -1076,10 +1059,6 @@ onUnmounted(() => {
 }
 
 @media (max-width: 1260px) {
-  .button-check-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .wizard {
     padding: var(--space-5);
   }

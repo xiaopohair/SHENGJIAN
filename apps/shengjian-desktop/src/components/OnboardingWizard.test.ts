@@ -142,11 +142,11 @@ describe("OnboardingWizard step test gates", () => {
     await primaryButton(wrapper).trigger("click");
     await flushPromises();
 
-    // step 4: 必须检测到全部按键；增强捕获文案使用“按键增强服务”
+    // step 4: 必须检测到全部按键；文案使用“全按键支持服务”
     expect(primaryButton(wrapper).attributes("disabled")).toBeDefined();
-    expect(wrapper.text()).toContain("启用按键增强服务");
+    expect(wrapper.text()).toContain("启用全按键支持服务");
     expect(wrapper.text()).toContain(
-      "返回键和音量键需要安装按键增强服务并开启才能使用；首次安装会请求管理员授权。",
+      "返回键和音量键需要安装全按键支持服务并开启才能使用；首次安装会请求管理员授权。",
     );
     expect(wrapper.find(".wizard-block-reason").text()).toContain("请先检测全部按键");
     const store = useEngineStore();
@@ -157,6 +157,17 @@ describe("OnboardingWizard step test gates", () => {
     }));
     await flushPromises();
     expect(primaryButton(wrapper).attributes("disabled")).toBeUndefined();
+
+    // 「重新测试」清空已检测状态，下一步重新被阻断。
+    const reset = wrapper
+      .findAll(".wizard-footer button")
+      .find((button) => button.text() === "重新测试");
+    expect(reset).toBeDefined();
+    await reset!.trigger("click");
+    await flushPromises();
+    expect(wrapper.text()).toContain("已检测 0/");
+    expect(primaryButton(wrapper).attributes("disabled")).toBeDefined();
+    expect(wrapper.find(".wizard-block-reason").text()).toContain("请先检测全部按键");
   });
 });
 
@@ -174,6 +185,94 @@ describe("OnboardingWizard remote connection gate", () => {
     await flushPromises();
     expect(primaryButton(wrapper).attributes("disabled")).toBeUndefined();
     expect(wrapper.find(".wizard-block-reason").exists()).toBe(false);
+  });
+});
+
+describe("OnboardingWizard settings persistence", () => {
+  function configuredDocument(): SettingsDocument {
+    return {
+      schemaVersion: 1,
+      global: {
+        gain_db: 12,
+        voice_input_tool: "wechat",
+        audio_endpoint_id: "cable-in",
+        rc003_capture_enabled: true,
+      },
+      devices: {},
+    } as unknown as SettingsDocument;
+  }
+
+  async function advanceToStep3(wrapper: ReturnType<typeof mountWizard>) {
+    await primaryButton(wrapper).trigger("click"); // 开始配置 → 第 2 步
+    await flushPromises();
+    setConnected(true);
+    await flushPromises();
+    await primaryButton(wrapper).trigger("click"); // 第 2 步 → 第 3 步
+    await flushPromises();
+  }
+
+  async function advanceToFinish(wrapper: ReturnType<typeof mountWizard>) {
+    setVoiceTestPassed();
+    await flushPromises();
+    await primaryButton(wrapper).trigger("click"); // 第 3 步 → 第 4 步
+    await flushPromises();
+    const store = useEngineStore();
+    store.buttonHistory = PROFILE_BUTTONS.map((button, index) => ({
+      seq: index + 1,
+      type: "gesture" as const,
+      button: button.id,
+    }));
+    await flushPromises();
+    await primaryButton(wrapper).trigger("click"); // 第 4 步 → 第 5 步
+    await flushPromises();
+    expect(primaryButton(wrapper).text()).toBe("进入应用");
+  }
+
+  it("does not write settings while the user is only browsing or changing wizard fields", async () => {
+    getAudioDependencyStatus.mockResolvedValue(readyStatus());
+    getSettings.mockResolvedValue(configuredDocument());
+    const wrapper = mountWizard();
+    await flushPromises();
+    await advanceToStep3(wrapper);
+
+    // 以前这里改下拉会立刻 saveSettings，重跑一次向导就会覆盖系统配置。
+    await wrapper.findAll(".voice-options select")[1].setValue("");
+    await flushPromises();
+    expect(saveSettings).not.toHaveBeenCalled();
+  });
+
+  it("writes nothing when finishing without changes", async () => {
+    getAudioDependencyStatus.mockResolvedValue(readyStatus());
+    getSettings.mockResolvedValue(configuredDocument());
+    const wrapper = mountWizard();
+    await flushPromises();
+    await advanceToStep3(wrapper);
+    await advanceToFinish(wrapper);
+
+    await primaryButton(wrapper).trigger("click"); // 进入应用
+    await flushPromises();
+    expect(saveSettings).not.toHaveBeenCalled();
+  });
+
+  it("writes only the field the wizard actually changed", async () => {
+    getAudioDependencyStatus.mockResolvedValue(readyStatus());
+    getSettings.mockResolvedValue(configuredDocument());
+    const wrapper = mountWizard();
+    await flushPromises();
+    await advanceToStep3(wrapper);
+    await wrapper.findAll(".voice-options select")[1].setValue("");
+    await flushPromises();
+    await advanceToFinish(wrapper);
+
+    await primaryButton(wrapper).trigger("click"); // 进入应用
+    await flushPromises();
+    expect(saveSettings).toHaveBeenCalledTimes(1);
+    const saved = saveSettings.mock.calls[0][0] as SettingsDocument;
+    expect(saved.global.voice_input_tool).toBeNull();
+    // 其余字段原样保留。
+    expect(saved.global.audio_endpoint_id).toBe("cable-in");
+    expect(saved.global.rc003_capture_enabled).toBe(true);
+    expect(saved.global.gain_db).toBe(12);
   });
 });
 
@@ -203,7 +302,7 @@ describe("OnboardingWizard VB-CABLE dependency", () => {
 
     // Download opens the official page through the whitelisted external URL command.
     const download = wrapper
-      .findAll(".audio-dependency-actions button")
+      .findAll(".audio-endpoint-actions button")
       .find((button) => button.text() === "下载 VB-CABLE");
     expect(download).toBeDefined();
     await download!.trigger("click");
@@ -213,7 +312,7 @@ describe("OnboardingWizard VB-CABLE dependency", () => {
     // Re-check picks up the now-ready state and auto-selects the suggested endpoint.
     getAudioDependencyStatus.mockResolvedValue(readyStatus());
     const recheck = wrapper
-      .findAll(".audio-dependency-actions button")
+      .findAll(".audio-endpoint-actions button")
       .find((button) => button.text() === "重新检测");
     await recheck!.trigger("click");
     await flushPromises();
@@ -226,7 +325,8 @@ describe("OnboardingWizard VB-CABLE dependency", () => {
     await flushPromises();
     expect(primaryButton(wrapper).attributes("disabled")).toBeUndefined();
     expect(wrapper.find(".wizard-block-reason").exists()).toBe(false);
-    const endpointSelect = wrapper.findAll(".voice-options select")[1];
+    // 「语音输出设备」现在是这一组里的第一个下拉（2026-11-15 调换顺序）。
+    const endpointSelect = wrapper.findAll(".voice-options select")[0];
     expect((endpointSelect.element as HTMLSelectElement).value).toBe("cable-in");
   });
 
@@ -246,13 +346,13 @@ describe("OnboardingWizard VB-CABLE dependency", () => {
     expect(card.text()).toContain("Windows 声音设置");
     expect(
       wrapper
-        .findAll(".audio-dependency-actions button")
+        .findAll(".audio-endpoint-actions button")
         .some((button) => button.text() === "重新检测"),
     ).toBe(true);
     // 已安装但设备不可用时也给出下载/重装入口。
     expect(
       wrapper
-        .findAll(".audio-dependency-actions button")
+        .findAll(".audio-endpoint-actions button")
         .some((button) => button.text() === "下载 VB-CABLE"),
     ).toBe(true);
     expect(primaryButton(wrapper).attributes("disabled")).toBeDefined();
@@ -270,7 +370,7 @@ describe("OnboardingWizard VB-CABLE dependency", () => {
 
     getAudioDependencyStatus.mockResolvedValue(missingStatus());
     const recheck = wrapper
-      .findAll(".audio-dependency-actions button")
+      .findAll(".audio-endpoint-actions button")
       .find((button) => button.text() === "重新检测");
     await recheck!.trigger("click");
     await flushPromises();
