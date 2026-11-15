@@ -1,35 +1,25 @@
-//! 常用语宿主接缝：公开侧**只**保留稳定动作 ID 与可选适配接口。
+//! 常用语：内置的快捷文本面板。
 //!
-//! 产品规则（2026-10-12/2026-10-13 定稿）：常用语是会员能力，Plus 与 Pro 可用、Free 不可用；
-//! 实现、内置资源与测试位于私有 `packages/windows-common-phrases/`（macOS 对应
-//! `packages/macos-common-phrases/`）。公开构建缺少私有组件时：
+//! 用户在设置里维护一个列表；按下绑定键后，用 ↑/↓ 选择条目、OK 插入、返回关闭。
+//! 面板打开期间这些按键由本模块在**手势识别之前**认领，命中即插入文本并结束，
+//! 不进入单击/双击/长按判定，也不写成持久绑定。
 //!
-//! - 按键映射页不显示「打开常用语」入口；
-//! - 已保存但无法用的绑定显示为不可用，**不静默替换**成含义不同的动作；
-//! - 稳定按键、语音与音频功能不受影响。
-//!
-//! 本模块因此只定义：
-//! - 门禁决策类型 [`CommonPhraseAccess`]（会员事实源在私有会员组件，公开侧不做判断）；
-//! - 适配接口 [`CommonPhraseHost`]（私有组件实现；未接入时用 [`DisabledCommonPhraseHost`]）。
-//!
-//! 按键认领约束（与 macOS 侧一致）：面板打开期间对 OK/左/上/右/下/返回 的认领必须发生在
-//! **手势识别之前**，命中即直接执行并结束，不得进入单击/双击/长按判定，也不得写成持久绑定。
+//! 常用语完全内置，不依赖外部组件；数据保存在
+//! `%LOCALAPPDATA%\Shengjian\common-phrases.json`。
 
 use crate::raw_input::RemoteButton;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 /// 面板按键认领的来源标识（Windows 只有一条遥控器来源；保留参数以便未来多来源）。
 pub const PHRASE_SOURCE_DEFAULT: &str = "remote";
 
-/// 会员门禁决策。公开侧不产生该决策，只透传私有组件的判定。
+/// 常用语是否可用。内置宿主恒为 [`CommonPhraseAccess::Allowed`]。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommonPhraseAccess {
-    /// 私有组件未接入（公开构建的默认状态）：能力不可用，入口隐藏。
+    /// 未安装宿主（空实现）。
     Unavailable,
-    /// 组件已接入但当前没有有效会员租约（Free 用户）：显示会员入口，不可使用。
-    Denied,
-    /// 有有效会员租约；`valid_until_unix` 为租约到期时间（未知时为 `None`）。
-    Allowed { valid_until_unix: Option<i64> },
+    /// 可用。
+    Allowed,
 }
 
 /// 面板浮层窗口（由宿主实现）：创建**不抢焦点**的浮层并加载可选组件的 UI 资源。
@@ -49,22 +39,22 @@ pub struct CommonPhrasePanelEntry {
 }
 
 /// 可选常用语组件适配接口。所有方法都有默认实现（不可用 + 不认领），
-/// 因此未接入私有组件时引擎行为与改动前完全一致。
+/// 因此未安装宿主时引擎行为与改动前完全一致。
 pub trait CommonPhraseHost: Send + Sync {
-    /// 门禁决策（界面据此显示入口/会员提示）。
+    /// 可用状态（界面据此显示入口）。
     fn access(&self) -> CommonPhraseAccess {
         CommonPhraseAccess::Unavailable
     }
 
-    /// 会员组件更新门禁（公开构建/未注入组件时 no-op）。
+    /// 兼容入口：更新可用状态（内置宿主忽略）。
     fn set_access(&self, _access: CommonPhraseAccess) {}
 
-    /// 会员是否可用（`Allowed` 的便捷判据）。
+    /// 是否可用（`Allowed` 的便捷判据）。
     fn can_use(&self) -> bool {
-        matches!(self.access(), CommonPhraseAccess::Allowed { .. })
+        matches!(self.access(), CommonPhraseAccess::Allowed)
     }
 
-    /// 打开面板（返回是否真的打开）。未接入或非会员时返回 `false`。
+    /// 打开面板（返回是否真的打开）。未安装宿主时返回 `false`。
     fn open(&self, source: &str) -> bool {
         let _ = source;
         false
@@ -113,7 +103,7 @@ pub trait CommonPhraseHost: Send + Sync {
     /// 剪贴板永久留在常用语文本上。未接入组件时空操作。
     fn shutdown(&self) {}
 
-    /// 面板五个位置的当前数据（供浮层渲染；只含短显示）。
+    /// 面板当前列表（兼容接口；只含短显示）。
     fn panel_entries(&self) -> Vec<CommonPhrasePanelEntry> {
         Vec::new()
     }
@@ -140,7 +130,7 @@ pub trait CommonPhraseHost: Send + Sync {
 
     /// 下行命令通道：编辑器（"调整常用语"）等扩展能力走这里，公开侧用一条
     /// Tauri 命令转发。`command` 是稳定命令 ID，`payload` 与返回值都是 JSON。
-    /// 未接入组件（公开构建）或未知命令一律返回 `None`——调用方按"不支持"处理，
+    /// 未安装宿主或未知命令一律返回 `None`——调用方按"不支持"处理，
     /// 不得静默当成功（外部调用成功判据）。
     fn dispatch(&self, command: &str, payload: &str) -> Option<String> {
         let _ = (command, payload);
@@ -148,13 +138,288 @@ pub trait CommonPhraseHost: Send + Sync {
     }
 }
 
-/// 未接入私有组件时的空实现：不可用、不认领、不影响任何按键行为。
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommonPhraseSlot {
+    /// 面板位置：ok / up / down / left / right。
+    pub button: String,
+    /// 面板上显示的短标题。
+    pub label: String,
+    /// 真正插入的文本。
+    pub text: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommonPhrasesDocument {
+    pub slots: Vec<CommonPhraseSlot>,
+}
+
+impl Default for CommonPhrasesDocument {
+    fn default() -> Self {
+        Self { slots: Vec::new() }
+    }
+}
+
+fn normalize_document(mut document: CommonPhrasesDocument) -> CommonPhrasesDocument {
+    let mut seen = std::collections::HashSet::new();
+    for (index, slot) in document.slots.iter_mut().enumerate() {
+        slot.label = slot.label.trim().to_owned();
+        if slot.button.trim().is_empty() || !seen.insert(slot.button.clone()) {
+            slot.button = format!("phrase-{index}");
+            seen.insert(slot.button.clone());
+        }
+    }
+    document
+}
+
+fn document_path() -> std::path::PathBuf {
+    std::env::var_os("LOCALAPPDATA")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir)
+        .join("Shengjian")
+        .join("common-phrases.json")
+}
+
+pub fn load_document() -> CommonPhrasesDocument {
+    let Ok(raw) = std::fs::read_to_string(document_path()) else {
+        return CommonPhrasesDocument::default();
+    };
+    serde_json::from_str::<CommonPhrasesDocument>(&raw)
+        .map(normalize_document)
+        .unwrap_or_default()
+}
+
+pub fn save_document(document: &CommonPhrasesDocument) -> Result<(), String> {
+    let path = document_path();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    let normalized = normalize_document(document.clone());
+    let json = serde_json::to_string_pretty(&normalized).map_err(|error| error.to_string())?;
+    let temporary = path.with_extension("json.tmp");
+    std::fs::write(&temporary, json).map_err(|error| error.to_string())?;
+    // Windows 上 rename 不覆盖已存在目标。
+    let _ = std::fs::remove_file(&path);
+    std::fs::rename(&temporary, &path).map_err(|error| error.to_string())
+}
+
+fn button_from_id(id: &str) -> Option<RemoteButton> {
+    match id {
+        "ok" => Some(RemoteButton::Ok),
+        "up" => Some(RemoteButton::Up),
+        "down" => Some(RemoteButton::Down),
+        "left" => Some(RemoteButton::Left),
+        "right" => Some(RemoteButton::Right),
+        _ => None,
+    }
+}
+
+fn is_panel_button(button: RemoteButton) -> bool {
+    matches!(
+        button,
+        RemoteButton::Ok
+            | RemoteButton::Up
+            | RemoteButton::Down
+            | RemoteButton::Left
+            | RemoteButton::Right
+            | RemoteButton::Back
+            | RemoteButton::Menu
+    )
+}
+
+/// 内置常用语宿主。
+pub struct BuiltinCommonPhraseHost {
+    slots: Arc<std::sync::RwLock<Vec<CommonPhraseSlot>>>,
+    panel_open: std::sync::atomic::AtomicBool,
+    notice: Mutex<Option<String>>,
+}
+
+impl BuiltinCommonPhraseHost {
+    pub fn new() -> Self {
+        Self {
+            slots: Arc::new(std::sync::RwLock::new(load_document().slots)),
+            panel_open: std::sync::atomic::AtomicBool::new(false),
+            notice: Mutex::new(None),
+        }
+    }
+
+    fn close_panel(&self, _reason: &str) {
+        self.panel_open
+            .store(false, std::sync::atomic::Ordering::SeqCst);
+        crate::key_gate::set_phrase_panel_mask(0);
+        #[cfg(windows)]
+        crate::common_phrases_panel::hide_panel();
+    }
+
+    fn insert_selected(&self) -> Result<bool, String> {
+        #[cfg(windows)]
+        let text = crate::common_phrases_panel::selected_text().unwrap_or_default();
+        #[cfg(not(windows))]
+        let text = String::new();
+        if text.trim().is_empty() {
+            if let Ok(mut notice) = self.notice.lock() {
+                *notice = Some("empty_slot".to_owned());
+            }
+            return Ok(false);
+        }
+        #[cfg(windows)]
+        {
+            crate::common_phrases_panel::insert_text(&text)?;
+            Ok(true)
+        }
+        #[cfg(not(windows))]
+        {
+            Err("unsupported".to_owned())
+        }
+    }
+}
+
+impl Default for BuiltinCommonPhraseHost {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl CommonPhraseHost for BuiltinCommonPhraseHost {
+    fn access(&self) -> CommonPhraseAccess {
+        CommonPhraseAccess::Allowed
+    }
+
+    fn open(&self, _source: &str) -> bool {
+        let document = load_document();
+        if let Ok(mut slots) = self.slots.write() {
+            *slots = document.slots.clone();
+        }
+        if let Ok(mut notice) = self.notice.lock() {
+            *notice = None;
+        }
+        #[cfg(windows)]
+        {
+            if !crate::common_phrases_panel::show_panel(document.slots.clone()) {
+                if let Ok(mut notice) = self.notice.lock() {
+                    *notice = Some("panel_unavailable".to_owned());
+                }
+                return false;
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            return false;
+        }
+        self.panel_open
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        crate::key_gate::set_phrase_panel_mask(crate::key_gate::phrase_panel_mask());
+        true
+    }
+
+    fn claims(&self, button: RemoteButton, _source: &str) -> bool {
+        self.panel_open
+            .load(std::sync::atomic::Ordering::SeqCst)
+            && is_panel_button(button)
+    }
+
+    fn handle(&self, button: RemoteButton, is_pressed: bool, _source: &str) -> bool {
+        if !self
+            .panel_open
+            .load(std::sync::atomic::Ordering::SeqCst)
+            || !is_panel_button(button)
+        {
+            return false;
+        }
+        if !is_pressed {
+            return true;
+        }
+        match button {
+            RemoteButton::Back | RemoteButton::Menu => {
+                self.close_panel("back");
+                true
+            }
+            RemoteButton::Up => {
+                #[cfg(windows)]
+                crate::common_phrases_panel::move_selection(-1);
+                true
+            }
+            RemoteButton::Down => {
+                #[cfg(windows)]
+                crate::common_phrases_panel::move_selection(1);
+                true
+            }
+            RemoteButton::Ok => match self.insert_selected() {
+                Ok(true) => {
+                    self.close_panel("inserted");
+                    true
+                }
+                Ok(false) => true,
+                Err(error) => {
+                    if let Ok(mut notice) = self.notice.lock() {
+                        *notice = Some(error);
+                    }
+                    true
+                }
+            },
+            // 左右键在面板里不做事，但仍由面板认领，避免漏到底层应用。
+            _ => true,
+        }
+    }
+
+    fn is_panel_open(&self) -> bool {
+        self.panel_open
+            .load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    fn reset(&self, reason: &str) {
+        self.close_panel(reason);
+    }
+
+    fn close(&self, reason: &str) {
+        self.close_panel(reason);
+    }
+
+    fn shutdown(&self) {
+        self.close_panel("shutdown");
+    }
+
+    fn panel_entries(&self) -> Vec<CommonPhrasePanelEntry> {
+        let Ok(slots) = self.slots.read() else {
+            return Vec::new();
+        };
+        slots
+            .iter()
+            .filter_map(|slot| {
+                let button = button_from_id(&slot.button)?;
+                Some(CommonPhrasePanelEntry {
+                    button,
+                    label: slot.label.clone(),
+                })
+            })
+            .collect()
+    }
+
+    fn take_panel_notice(&self) -> Option<String> {
+        self.notice.lock().ok().and_then(|mut guard| guard.take())
+    }
+}
+
+static BUILTIN_HOST: std::sync::OnceLock<Arc<BuiltinCommonPhraseHost>> =
+    std::sync::OnceLock::new();
+
+pub fn builtin_host() -> Arc<BuiltinCommonPhraseHost> {
+    Arc::clone(BUILTIN_HOST.get_or_init(|| Arc::new(BuiltinCommonPhraseHost::new())))
+}
+
+/// 安装内置常用语宿主（幂等）。
+pub fn install_builtin_host() {
+    set_common_phrase_host(builtin_host());
+}
+
+/// 未安装宿主时的空实现：不可用、不认领、不影响任何按键行为。
 #[derive(Debug, Default)]
 pub struct DisabledCommonPhraseHost;
 
 impl CommonPhraseHost for DisabledCommonPhraseHost {}
 
-/// 进程级注入点：宿主启动时把私有组件安装在这里。
+/// 进程级安装点：宿主启动时把常用语实现安装在这里。
 ///
 /// 为什么用全局槽而不是往引擎里层层传递：引擎的注入器接口（`MappingInjector`）
 /// 已经是唯一的按键分发入口，`common_phrase_host()` 的默认实现直接读这里即可，
@@ -184,7 +449,7 @@ pub fn current_common_phrase_host() -> Arc<dyn CommonPhraseHost> {
     }
 }
 
-/// 会员组件更新常用语门禁（public 宿主统一入口；未注入组件时为 no-op）。
+/// 兼容入口：更新当前宿主的可用状态（内置宿主忽略外部门禁）。
 pub fn set_common_phrase_access(access: CommonPhraseAccess) {
     current_common_phrase_host().set_access(access);
 }
@@ -221,7 +486,42 @@ mod tests {
     }
 
     #[test]
-    fn panel_button_mask_covers_exactly_the_six_panel_buttons() {
+    fn default_document_has_no_fixed_slots() {
+        let document = CommonPhrasesDocument::default();
+        assert!(document.slots.is_empty());
+    }
+
+    #[test]
+    fn normalize_keeps_arbitrary_rows_in_order() {
+        let document = normalize_document(CommonPhrasesDocument {
+            slots: vec![
+                CommonPhraseSlot {
+                    button: "custom-a".to_owned(),
+                    label: " 地址 ".to_owned(),
+                    text: "A".to_owned(),
+                },
+                CommonPhraseSlot {
+                    button: "custom-b".to_owned(),
+                    label: "邮箱".to_owned(),
+                    text: "B".to_owned(),
+                },
+            ],
+        });
+        assert_eq!(document.slots.len(), 2);
+        assert_eq!(document.slots[0].label, "地址");
+        assert_eq!(document.slots[0].button, "custom-a");
+        assert_eq!(document.slots[1].button, "custom-b");
+    }
+
+    #[test]
+    fn builtin_host_is_available() {
+        let host = BuiltinCommonPhraseHost::new();
+        assert_eq!(host.access(), CommonPhraseAccess::Allowed);
+        assert!(!host.is_panel_open());
+    }
+
+    #[test]
+    fn panel_button_mask_covers_panel_keys_and_menu_fallback() {
         let mask = crate::key_gate::phrase_panel_mask();
         let expected = [
             RemoteButton::Ok,
@@ -230,6 +530,7 @@ mod tests {
             RemoteButton::Right,
             RemoteButton::Down,
             RemoteButton::Back,
+            RemoteButton::Menu,
         ];
         for button in expected {
             assert_eq!(
@@ -241,7 +542,6 @@ mod tests {
         for button in [
             RemoteButton::Home,
             RemoteButton::Tv,
-            RemoteButton::Menu,
             RemoteButton::VolumeUp,
         ] {
             assert_eq!((mask >> button.ordinal()) & 1, 0, "{button:?} 不得被遮蔽");

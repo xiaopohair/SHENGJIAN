@@ -4,7 +4,7 @@ version = "0.0.0"
 edition = "2021"
 license = "GPL-3.0-only"
 publish = false
-description = "常用语可选组件的公开空壳（私有实现在构建期注入本目录）"
+description = "常用语内置组件入口（本项目自带实现）"
 
 [dependencies]
 shengjian-windows = { path = "../shengjian-windows" }
