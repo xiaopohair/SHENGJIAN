@@ -31,7 +31,7 @@
 //! 调用。
 //!
 //! 2026-10-01 泛化：目标不再写死 WeType，而是按**用户选的输入工具的行为类别**
-//! （`config/voice-tools.json` 的 `kind`，经 [`crate::voice_tool::VoiceToolKind`]
+//! （`config/voice-tool-presets.json` 的 `kind`，经 [`crate::voice_tool::VoiceToolKind`]
 //! 解析）决定——豆包输入法同款配方（STA +
 //! `TF_IPPMF_FORSESSION` + 冷路径重绑等待），GUID 由 `examples/doubao_ime_probe.rs`
 //! 真机取得并读回验证。Vokie / custom（自定义工具）不切输入法（`NotRequired`）。
@@ -92,7 +92,7 @@ const CHATTERFLY_IME: ImeProfile = ImeProfile {
     label: "chatterfly",
 };
 
-/// 由 `config/voice-tools.json` 解析出的输入法身份覆盖（启动时安装）。
+/// 由 `config/voice-tool-presets.json` 解析出的输入法身份覆盖（启动时安装）。
 static IME_PROFILE_OVERRIDES: OnceLock<RwLock<Vec<(VoiceToolKind, ImeProfile)>>> = OnceLock::new();
 
 fn profile_overrides() -> &'static RwLock<Vec<(VoiceToolKind, ImeProfile)>> {
@@ -288,7 +288,7 @@ fn resolve_ime_profile(
     }
 }
 
-/// 启动时把 `config/voice-tools.json` 里的 TSF 身份装进覆盖表。
+/// 启动时把 `config/voice-tool-presets.json` 里的 TSF 身份装进覆盖表。
 ///
 /// 返回可写入诊断日志的摘要行（不含 GUID / 个人路径）。失败或配置缺失时
 /// 保持内置常量，不影响原有行为。
@@ -381,7 +381,17 @@ pub(crate) fn foreground_is_self() -> bool {
         }
         let mut process_id: u32 = 0;
         GetWindowThreadProcessId(foreground, Some(&mut process_id));
-        process_id != 0 && process_id == std::process::id()
+        if process_id == 0 || process_id != std::process::id() {
+            return false;
+        }
+        // 例外：键盘焦点在本进程的**原生**语音测试板（Win32 EDIT，不是 WebView2）。
+        // 它是嵌在主窗口里的子窗口，所以前台窗口仍是主窗口本身——这里按"焦点控件"
+        // 判断。它没有 TSF 重载问题，正是"在应用内测语音"需要的落字目标。
+        // 2026-11-15 真机确认：焦点在测试板时输入法能正常落字，主窗口不重载。
+        if crate::test_pad::has_focus() {
+            return false;
+        }
+        true
     }
 }
 

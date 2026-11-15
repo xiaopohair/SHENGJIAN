@@ -15,6 +15,8 @@ pub trait RemoteLinkPort: Send + Sync {
     fn scan(&self) -> CoreResult<Vec<RemoteCandidate>>;
     fn connect(&self, remote_id: &RemoteId) -> CoreResult<ConnectionSnapshot>;
     fn disconnect(&self) -> CoreResult<ConnectionSnapshot>;
+    /// 解除平台配对关系（「忘记设备」）：先断开，再从系统配对列表里移除。
+    fn forget(&self, remote_id: &RemoteId) -> CoreResult<()>;
 }
 
 /// Platform button edges after semantic decoding, before gesture recognition.

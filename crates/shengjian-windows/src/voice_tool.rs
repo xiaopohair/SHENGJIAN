@@ -1,6 +1,6 @@
 //! Windows 侧「输入工具行为」枚举（2026-11-13 配置化）。
 //!
-//! 工具列表、显示名与默认热键来自可编辑配置 `config/voice-tools.json`
+//! 工具列表、显示名与默认热键来自可编辑配置 `config/voice-tool-presets.json`
 //! （`shengjian_domain::voice_tools`）；本枚举只保留**必须写在代码里的 Windows
 //! 行为**，由配置里的 `kind` 字段选择：
 //!

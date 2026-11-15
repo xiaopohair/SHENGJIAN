@@ -966,7 +966,9 @@ mod windows_impl {
         PHRASE_PANEL_MASK.store(mask, Ordering::Relaxed);
     }
 
-    /// 面板六个按键（OK/左/上/右/下/返回）的遮蔽掩码。
+    /// 面板按键（OK/左/上/右/下/返回/Menu）的遮蔽掩码。
+    ///
+    /// Menu 是在未开启全按键支持时 Back 不可达的替代关闭键。
     pub fn phrase_panel_mask() -> u64 {
         [
             RemoteButton::Ok,
@@ -975,19 +977,18 @@ mod windows_impl {
             RemoteButton::Right,
             RemoteButton::Down,
             RemoteButton::Back,
+            RemoteButton::Menu,
         ]
         .iter()
         .fold(0, |mask, button| mask | (1u64 << button.ordinal()))
     }
 
     fn phrase_panel_owned(button: RemoteButton) -> bool {
-        // 遥控器离线（断连、睡眠、宿主重启）时不再遮蔽：此刻面板已不可操作，
-        // 继续吞会把六个键（含**物理键盘**的 Enter/方向键/Back）永久吃掉。
-        // 与 `remote_connected()` 的既有语义一致，也是对 `set_phrase_panel_mask`
-        // "清零是 fail-open" 承诺的兜底（不依赖上层一定调到 reset/断连清理）。
-        if !remote_connected() {
-            return false;
-        }
+        // 面板遮罩非零 = 面板确实打开；此时无论 BLE 链路是否已提交 connected，
+        // 都必须吞掉六个键。遥控器可能只以 Windows HID 方式在发报文，BLE 相位
+        // 仍是 idle；如果这里再看 remote_connected，方向键就会同时移动前台输入框。
+        //
+        // 遮罩由常用语宿主在 close/reset/断连时清零，清零即 fail-open。
         (PHRASE_PANEL_MASK.load(Ordering::Relaxed) >> button.ordinal()) & 1 == 1
     }
 

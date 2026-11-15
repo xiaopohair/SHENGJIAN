@@ -1,11 +1,8 @@
 //! 键位方案的可选宿主接缝。
 //!
-//! 公开构建只有 [`DisabledButtonProfileHost`]：入口不可用，所有调用都是 no-op。
-//! 私有实现由 `shengjian-profiles` 在构建期注入，并在应用启动时通过
-//! [`set_button_profile_host`] 安装。公开层不读取方案文件、不解析 `.shengjian`、
-//! 不做 App 匹配，也不保存会员权益。
-//!
-//! 前端只依赖稳定的命令名与 JSON 形状；业务语义全部在私有组件内。
+//! 默认只有 [`DisabledButtonProfileHost`]：所有调用都是 no-op。
+//! 需要扩展时可在启动时通过 [`set_button_profile_host`] 安装宿主；
+//! 公开层不读取方案文件、不解析 `.shengjian`，也不做 App 匹配。
 
 use std::sync::{Arc, OnceLock, RwLock};
 
@@ -13,10 +10,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::send_input::ButtonMappings;
 
-/// 私有组件需要的公开宿主能力。
+/// 可选方案宿主需要的公开能力。
 ///
-/// 公开宿主只负责转发：写覆盖层、读基础映射、读前台可执行文件名。
-/// 私有组件不直接持有引擎句柄，也不执行 SendInput。
+/// 宿主只负责转发：写覆盖层、读基础映射、读前台可执行文件名。
+/// 宿主不直接持有引擎句柄，也不执行 SendInput。
 pub trait ButtonProfileHostContext: Send + Sync {
     /// 安装/清除当前方案覆盖层。
     fn set_overlay(&self, overlay: Option<ButtonMappings>);
@@ -30,37 +27,17 @@ pub trait ButtonProfileHostContext: Send + Sync {
     }
 }
 
-/// 私有组件给出的访问状态。
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// 方案宿主是否可用。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "status")]
 pub enum ProfileAccess {
-    /// 私有组件未注入或不可用。
     Unavailable,
-    /// 已保存方案可见，但编辑/自动应用需要 Plus。
-    RequiresPlus,
-    /// 会员状态暂时离线，但上次验签的权益仍允许使用。
-    TemporarilyOffline {
-        #[serde(
-            rename = "validUntil",
-            default,
-            skip_serializing_if = "Option::is_none"
-        )]
-        valid_until: Option<String>,
-    },
-    /// 可使用；`valid_until` 只用于界面提示，不参与公开层判断。
-    Allowed {
-        #[serde(
-            rename = "validUntil",
-            default,
-            skip_serializing_if = "Option::is_none"
-        )]
-        valid_until: Option<String>,
-    },
+    Allowed,
 }
 
-/// 键位方案宿主：私有组件实现，公开命令层只转发。
+/// 键位方案宿主：可选实现，公开命令层只转发。
 pub trait ButtonProfileHost: Send + Sync {
-    /// 私有实现是否已安装（不读取方案文件）。
+    /// 宿主是否已安装（不读取方案文件）。
     fn is_available(&self) -> bool {
         false
     }
@@ -69,7 +46,7 @@ pub trait ButtonProfileHost: Send + Sync {
         ProfileAccess::Unavailable
     }
 
-    /// 会员组件推送最新访问状态；公开构建与未注入时 no-op。
+    /// 兼容入口：更新访问状态（默认 no-op）。
     fn set_access(&self, _access: ProfileAccess) {}
 
     /// 页面快照（JSON）。`None` = 宿主不可用。
@@ -93,13 +70,13 @@ pub trait ButtonProfileHost: Send + Sync {
     fn target_opened(&self, _target: &str) {}
 }
 
-/// 未注入私有组件时的宿主。
+/// 未安装宿主时的空实现。
 #[derive(Debug, Default)]
 pub struct DisabledButtonProfileHost;
 
 impl ButtonProfileHost for DisabledButtonProfileHost {}
 
-/// 全局宿主槽：与常用语组件同形，启动时安装一次。
+/// 全局宿主槽：启动时安装一次。
 static BUTTON_PROFILE_HOST: OnceLock<RwLock<Arc<dyn ButtonProfileHost>>> = OnceLock::new();
 
 fn button_profile_slot() -> &'static RwLock<Arc<dyn ButtonProfileHost>> {
@@ -115,7 +92,7 @@ pub fn set_button_profile_host(host: Arc<dyn ButtonProfileHost>) {
     }
 }
 
-/// 当前宿主；公开构建恒为 [`DisabledButtonProfileHost`]。
+/// 当前宿主；默认是 [`DisabledButtonProfileHost`]。
 pub fn current_button_profile_host() -> Arc<dyn ButtonProfileHost> {
     match button_profile_slot().read() {
         Ok(guard) => Arc::clone(&guard),
@@ -123,12 +100,12 @@ pub fn current_button_profile_host() -> Arc<dyn ButtonProfileHost> {
     }
 }
 
-/// 私有组件是否已注入。
+/// 是否已安装可选宿主。
 pub fn is_button_profile_host_available() -> bool {
     current_button_profile_host().is_available()
 }
 
-/// 会员组件推送访问状态（未注入时 no-op）。
+/// 兼容入口：更新访问状态（默认 no-op）。
 pub fn set_button_profile_access(access: ProfileAccess) {
     current_button_profile_host().set_access(access);
 }
@@ -150,7 +127,7 @@ mod tests {
     }
 
     #[test]
-    fn default_slot_has_no_private_component() {
+    fn default_slot_has_no_optional_host() {
         assert!(!is_button_profile_host_available());
         assert_eq!(
             current_button_profile_host().access(),
@@ -161,21 +138,12 @@ mod tests {
     #[test]
     fn access_serializes_with_the_frontend_contract() {
         assert_eq!(
-            serde_json::to_value(ProfileAccess::RequiresPlus).unwrap()["status"],
-            "requiresPlus"
+            serde_json::to_value(ProfileAccess::Allowed).unwrap()["status"],
+            "allowed"
         );
         assert_eq!(
-            serde_json::to_value(ProfileAccess::Allowed {
-                valid_until: Some("2026-11-01T00:00:00Z".to_owned())
-            })
-            .unwrap()["validUntil"],
-            "2026-11-01T00:00:00Z"
+            serde_json::to_value(ProfileAccess::Unavailable).unwrap()["status"],
+            "unavailable"
         );
-        let offline = serde_json::to_value(ProfileAccess::TemporarilyOffline {
-            valid_until: Some("2026-11-01T00:00:00Z".to_owned()),
-        })
-        .unwrap();
-        assert_eq!(offline["status"], "temporarilyOffline");
-        assert_eq!(offline["validUntil"], "2026-11-01T00:00:00Z");
     }
 }

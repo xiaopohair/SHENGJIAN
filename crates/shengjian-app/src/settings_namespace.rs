@@ -22,7 +22,7 @@ pub struct DeviceSettingsOverride {
     pub audio_endpoint_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub audio_endpoint_name: Option<String>,
-    /// 输入工具 id（配置目录 `config/voice-tools.json` 的 `id`，未知 id 原样保留）。
+    /// 输入工具 id（配置目录 `config/voice-tool-presets.json` 的 `id`，未知 id 原样保留）。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub voice_input_tool: Option<String>,
 }

@@ -1091,7 +1091,7 @@ fn engine_worker(
                     _ => "device_removed",
                 };
                 crate::ble::gatt_note(format!("map_reset source={reason}"));
-                // 常用语面板（可选私有组件）：来源失效（断连、监听停止、睡眠
+                // 常用语面板：来源失效（断连、监听停止、睡眠
                 // 唤醒后的 HID 接口移除）时关闭面板并清认领状态；未接入时空操作。
                 injector.common_phrase_host().reset(reason);
                 // 释放全部按住状态：取消所有手势计时，不触发动作。
@@ -1224,7 +1224,7 @@ fn handle_edges(
             ));
         }
         let fired = if edge.is_pressed {
-            // 常用语面板（可选私有组件）：在手势识别之前认领本次边沿。
+            // 常用语面板：在手势识别之前认领本次边沿。
             // 面板打开期间这六个键不区分单击/双击/长按，按下即响应；
             // 命中即结束，不进入 recognizer，也不执行原映射。
             if injector.common_phrase_host().handle(
@@ -1648,7 +1648,7 @@ fn fire_gesture(
             ));
             if !opened && !toggled_closed {
                 lock_state(state).last_error =
-                    Some("常用语当前不可用（需要会员，或未接入常用语组件）".to_owned());
+                    Some("常用语面板暂时无法打开".to_owned());
             }
         }
     }

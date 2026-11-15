@@ -62,6 +62,7 @@ pub trait PlatformRemote: Send + Sync {
         device_id: String,
     ) -> Result<PlatformConnectionSnapshot, PlatformError>;
     fn disconnect_remote(&self) -> Result<PlatformConnectionSnapshot, PlatformError>;
+    fn forget_remote(&self, device_id: String) -> Result<(), PlatformError>;
 }
 
 impl PlatformRemote for WindowsPlatform {
@@ -82,6 +83,10 @@ impl PlatformRemote for WindowsPlatform {
 
     fn disconnect_remote(&self) -> Result<PlatformConnectionSnapshot, PlatformError> {
         WindowsPlatform::disconnect_remote(self)
+    }
+
+    fn forget_remote(&self, device_id: String) -> Result<(), PlatformError> {
+        WindowsPlatform::forget_remote(self, device_id)
     }
 }
 
@@ -154,6 +159,26 @@ impl<P: PlatformRemote> RemoteLinkPort for WindowsRemoteLink<P> {
             }
             Err(error) => Err(map_platform_error(error)),
         }
+    }
+
+    fn forget(&self, remote_id: &RemoteId) -> CoreResult<()> {
+        // 先断开：设备正在连接时 Windows 会拒绝 Unpair。
+        let _ = self.platform.disconnect_remote();
+        let platform_id = self
+            .platform_ids
+            .lock()
+            .expect("platform ids")
+            .get(remote_id)
+            .cloned()
+            .unwrap_or_else(|| remote_id.as_str().to_owned());
+        self.platform
+            .forget_remote(platform_id)
+            .map_err(map_platform_error)?;
+        let mut last = self.last_remote.lock().expect("last remote");
+        if last.as_ref() == Some(remote_id) {
+            *last = None;
+        }
+        Ok(())
     }
 
     fn disconnect(&self) -> CoreResult<ConnectionSnapshot> {
@@ -1040,7 +1065,6 @@ fn default_settings_path() -> PathBuf {
 ///     RC003-默认-rc003.json                         该型号的默认方案（不可删除）
 ///     RC003-音乐播放-7f3a2b1c.json                   普通方案
 ///     通用-默认-generic.json                         型号未知时的兜底默认方案
-///   button-profiles.json                           旧版单文件库（只在首次运行时导入一次）
 /// ```
 ///
 /// 文件名带型号与方案名是为了分享时可识别；id 尾段保证唯一。改名时先写新文件再删旧
@@ -1048,31 +1072,23 @@ fn default_settings_path() -> PathBuf {
 pub struct WindowsProfileStore {
     index_path: PathBuf,
     profiles_dir: PathBuf,
-    /// 目录布局之前的单文件方案库位置。
-    ///
-    /// 只在「索引缺失 + 方案目录为空」时读一次：目录布局引入时没有写迁移代码，
-    /// 老用户升级后方案会静静躺在旧文件里没人读（2026-11-12 现场：用户 3 个方案
-    /// 从 11-11 23:45 那次重构起一直没被加载）。见 `import_legacy_single_file`。
-    legacy_path: PathBuf,
 }
 
 impl WindowsProfileStore {
-    pub fn new(path: PathBuf) -> Self {
-        // `path` is the historical single-file location; derive the new layout
-        // from its directory so existing callers keep working.
-        let dir = path
+    /// `index_path` 是索引文件位置，方案目录由它同级的 `profiles/` 决定。
+    pub fn new(index_path: PathBuf) -> Self {
+        let dir = index_path
             .parent()
             .map(Path::to_path_buf)
             .unwrap_or_else(std::env::temp_dir);
         Self {
-            index_path: dir.join("profiles.json"),
+            index_path,
             profiles_dir: dir.join("profiles"),
-            legacy_path: path,
         }
     }
 
     pub fn live() -> Self {
-        Self::new(default_core_path("button-profiles.json"))
+        Self::new(default_core_path("profiles.json"))
     }
 
     pub fn path(&self) -> &Path {
@@ -1096,38 +1112,6 @@ impl WindowsProfileStore {
         }
     }
 
-    /// 一次性导入旧版单文件方案库。
-    ///
-    /// 返回 `Some(文档)` 表示确实导入并已落盘。任何一步不对劲都返回 `None` 并
-    /// **保留原文件不动**，宁可让用户从默认方案开始，也不毁掉还能人工恢复的数据。
-    fn import_legacy_single_file(&self) -> CoreResult<Option<ButtonProfilesDocument>> {
-        // 调用方把索引路径当参数传进来时，别把索引当成旧库。
-        if self.legacy_path == self.index_path || !self.legacy_path.is_file() {
-            return Ok(None);
-        }
-        let Ok(contents) = fs::read_to_string(&self.legacy_path) else {
-            return Ok(None);
-        };
-        let Ok(document) = serde_json::from_str::<ButtonProfilesDocument>(&contents) else {
-            return Ok(None);
-        };
-        let migrated = if document.schema_version < BUTTON_PROFILES_SCHEMA_VERSION {
-            migrate_to_device_models(document)
-        } else {
-            document.normalized()
-        };
-        // 落盘失败就下次启动再试，旧文件保持不动。
-        if self.save(&migrated).is_err() {
-            return Ok(None);
-        }
-        // 改名而不是删除：用户还能从 `.migrated.bak` 里找回原始数据。
-        let _ = fs::rename(
-            &self.legacy_path,
-            self.legacy_path
-                .with_extension(format!("{}.migrated.bak", "json")),
-        );
-        Ok(Some(migrated))
-    }
 }
 
 #[derive(Debug, Default, serde::Deserialize, serde::Serialize)]
@@ -1247,10 +1231,9 @@ impl ButtonProfilesStorePort for WindowsProfileStore {
             Err(error) if error.kind() == ErrorKind::NotFound => None,
             Err(_) => return Err(config_error("profile-store-read-failed")),
         };
-        // 索引缺失 + 方案目录为空：要么真首次运行，要么是从目录布局之前的版本
-        // 升级上来。后者必须先把旧单文件库导进来，否则用户会看到「方案全没了」。
+        // 索引缺失 + 方案目录为空 = 真首次运行：返回 None，由上层从默认方案开始。
         if index.is_none() && self.profiles_dir_is_empty() {
-            return Ok(self.import_legacy_single_file()?);
+            return Ok(None);
         }
         let index = index.unwrap_or_default();
         if index.schema_version > BUTTON_PROFILES_SCHEMA_VERSION {
@@ -1514,6 +1497,14 @@ mod tests {
             snapshot.remote_token = None;
             snapshot.generation += 1;
             Ok(snapshot.clone())
+        }
+
+        fn forget_remote(&self, device_id: String) -> Result<(), PlatformError> {
+            self.remotes
+                .lock()
+                .expect("remotes")
+                .retain(|remote| remote.id != device_id);
+            Ok(())
         }
     }
 
@@ -2039,7 +2030,7 @@ mod button_store_tests {
     #[test]
     fn profile_store_round_trips_and_missing_is_none() {
         let dir = temporary_dir();
-        let store = WindowsProfileStore::new(dir.join("button-profiles.json"));
+        let store = WindowsProfileStore::new(dir.join("profiles.json"));
         assert!(store.load().expect("missing").is_none());
 
         let document = ButtonProfilesDocument::default();
@@ -2063,105 +2054,6 @@ mod button_store_tests {
         let _ = fs::remove_dir_all(dir);
     }
 
-    /// 旧版单文件方案库（schema 4，没有 deviceModel/isDefault）。
-    const LEGACY_PROFILES_JSON: &str = r#"{
-      "schemaVersion": 4,
-      "profiles": [
-        {
-          "id": "global",
-          "name": "全局",
-          "createdAt": 0,
-          "appTargets": [],
-          "autoApply": false,
-          "holdRepeat": null,
-          "holdRepeatByButton": {},
-          "voiceInputTool": null,
-          "bindings": { "home": { "single": { "type": "focus-input" } } }
-        },
-        {
-          "id": "music",
-          "name": "音乐",
-          "createdAt": 1,
-          "appTargets": ["cloudmusic.exe"],
-          "autoApply": true,
-          "holdRepeat": null,
-          "holdRepeatByButton": {},
-          "voiceInputTool": null,
-          "bindings": { "ok": { "long": { "type": "open-app", "app": "cloudmusic.exe" } } }
-        }
-      ],
-      "activeManualProfileId": "music"
-    }"#;
-
-    #[test]
-    fn legacy_single_file_profiles_are_imported_once() {
-        let dir = temporary_dir();
-        fs::create_dir_all(&dir).expect("dir");
-        let legacy = dir.join("button-profiles.json");
-        fs::write(&legacy, LEGACY_PROFILES_JSON).expect("write legacy");
-
-        let store = WindowsProfileStore::new(legacy.clone());
-        let imported = store
-            .load()
-            .expect("load")
-            .expect("legacy profiles must be imported");
-
-        // 旧数据归 RC003；原 global 变 RC003 默认方案并保留其绑定。
-        let default = imported
-            .default_profile_for(Some("RC003"))
-            .expect("RC003 default");
-        assert_eq!(default.name, shengjian_contract::DEFAULT_PROFILE_NAME);
-        assert!(default.is_default);
-        assert!(default.bindings.contains_key(&LogicalButton::Home));
-        // 普通方案的型号与绑定都保留。
-        let music = imported
-            .profiles
-            .iter()
-            .find(|profile| profile.id == "music")
-            .expect("music profile");
-        assert_eq!(music.device_model.as_deref(), Some("RC003"));
-        assert_eq!(music.app_targets, vec!["cloudmusic.exe".to_owned()]);
-        assert!(music.bindings.contains_key(&LogicalButton::Ok));
-        // 通用兜底默认方案由归一化补齐。
-        assert!(imported.default_profile_for(None).is_some());
-        assert_eq!(imported.active_manual_profile_id.as_deref(), Some("music"));
-
-        // 落盘形态正确，旧文件改名保留。
-        assert!(store.path().is_file(), "index");
-        assert!(store.profiles_dir().is_dir(), "profiles dir");
-        assert!(!legacy.exists(), "旧文件应被改名");
-        assert!(
-            dir.join("button-profiles.json.migrated.bak").is_file(),
-            "旧文件应保留为 .migrated.bak"
-        );
-
-        // 第二次启动走正常路径，不会重复导入、也不重建旧文件。
-        let again = store.load().expect("load again").expect("document");
-        assert_eq!(again, imported);
-        assert!(!legacy.exists());
-
-        let _ = fs::remove_dir_all(dir);
-    }
-
-    #[test]
-    fn corrupt_legacy_file_is_left_untouched_and_starts_fresh() {
-        let dir = temporary_dir();
-        fs::create_dir_all(&dir).expect("dir");
-        let legacy = dir.join("button-profiles.json");
-        fs::write(&legacy, "{ not json").expect("write legacy");
-
-        let store = WindowsProfileStore::new(legacy.clone());
-        assert!(
-            store.load().expect("load").is_none(),
-            "解析失败就当首次运行，不要报错也别导入"
-        );
-        // 原始文件必须原样留着，供人工恢复。
-        assert!(legacy.is_file());
-        assert_eq!(fs::read_to_string(&legacy).expect("read"), "{ not json");
-
-        let _ = fs::remove_dir_all(dir);
-    }
-
     #[test]
     fn mapping_store_round_trips_and_missing_is_none() {
         let dir = temporary_dir();
@@ -2177,7 +2069,7 @@ mod button_store_tests {
     fn newer_profile_schema_is_rejected_and_backed_up() {
         let dir = temporary_dir();
         fs::create_dir_all(&dir).expect("dir");
-        let path = dir.join("button-profiles.json");
+        let path = dir.join("profiles.json");
         let store = WindowsProfileStore::new(path);
         let mut document = ButtonProfilesDocument::default();
         document.schema_version = BUTTON_PROFILES_SCHEMA_VERSION + 1;
@@ -2201,7 +2093,7 @@ mod button_store_tests {
     fn corrupt_button_store_files_are_stable_configuration_errors() {
         let dir = temporary_dir();
         fs::create_dir_all(&dir).expect("dir");
-        let profile_store = WindowsProfileStore::new(dir.join("button-profiles.json"));
+        let profile_store = WindowsProfileStore::new(dir.join("profiles.json"));
         let mapping_path = dir.join("button-mappings.json");
         fs::write(profile_store.path(), b"not json").expect("profile write");
         fs::write(&mapping_path, b"not json").expect("mapping write");

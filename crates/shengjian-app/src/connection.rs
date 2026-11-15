@@ -61,6 +61,15 @@ impl ConnectionService {
         }
     }
 
+    /// 解除配对（「忘记设备」）：底层会先断开再 Unpair。
+    pub fn forget(&self, remote_id: &RemoteId) -> CoreResult<()> {
+        let result = self.link.forget(remote_id);
+        if result.is_ok() {
+            self.set_phase(ConnectionPhase::Disconnected, None);
+        }
+        result
+    }
+
     pub fn connect(&self, remote_id: &RemoteId) -> CoreResult<ConnectionSnapshot> {
         self.set_phase(ConnectionPhase::Connecting, None);
         match self.link.connect(remote_id) {
@@ -184,6 +193,10 @@ mod tests {
         }
 
         fn connect(&self, _remote_id: &RemoteId) -> CoreResult<ConnectionSnapshot> {
+            Err(unsupported_remote())
+        }
+
+        fn forget(&self, _remote_id: &RemoteId) -> CoreResult<()> {
             Err(unsupported_remote())
         }
 

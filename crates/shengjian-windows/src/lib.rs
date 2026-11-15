@@ -25,9 +25,13 @@ mod button_gestures;
 pub mod button_mapping;
 /// 键位方案可选组件的公开接缝（私有实现由构建期注入）。
 pub mod button_profiles;
-/// 常用语（内置内容、用户副本、五键分配、面板期认领与插入事务；纯逻辑，跨平台可单测）：
+/// 常用语（内置列表、面板期认领与插入；纯逻辑，跨平台可单测）：
 /// 平台实现见 `clipboard_windows` 与 `phrase_insert_windows`。
 pub mod common_phrases;
+#[cfg(windows)]
+mod common_phrases_panel;
+/// 应用级显示缩放（Tauri 主窗口上报，原生浮层读取）。
+pub mod display;
 pub mod compatibility;
 mod diagnostic_log;
 pub mod file_dialog;
@@ -44,12 +48,14 @@ pub mod foreground;
 pub mod graceful_exit;
 #[cfg(windows)]
 pub mod instance_signal;
+#[cfg(windows)]
+pub mod test_pad;
 /// 按键宿主进程（LL 钩子迁出主进程；见 Bugs/2026-10-04-ll-hooks-break-in-app-ime-voice.md）。
 pub mod key_host;
 /// 回眸原始录音：WAV 写入、终态清理与 manifest。跨平台可单测，写入只在启用时发生。
 pub mod voice_recording;
 /// 语音输入工具的 **Windows 行为类别**（`kind`）：列表/名称/默认热键来自可编辑
-/// 配置 `config/voice-tools.json`，这里只保留必须写在代码里的行为分派。
+/// 配置 `config/voice-tool-presets.json`，这里只保留必须写在代码里的行为分派。
 pub mod voice_tool;
 pub use voice_tool::VoiceToolKind;
 // 硬件信号脚本（仿真回放用；见模块注释）：解析模拟器导出的信号脚本。
@@ -1566,6 +1572,23 @@ impl WindowsPlatform {
         }
     }
 
+    /// 解除 Windows 配对关系（界面上的「忘记设备」）。
+    ///
+    /// 调用方必须**先断开**：设备正在连接时 Windows 会拒绝 Unpair
+    /// （`OperationAlreadyInProgress`）。解除后扫描列表里不会再出现这支遥控器。
+    pub fn forget_remote(&self, device_id: String) -> Result<(), PlatformError> {
+        #[cfg(windows)]
+        {
+            forget_paired_remote(&device_id)
+        }
+
+        #[cfg(not(windows))]
+        {
+            let _ = device_id;
+            Err(PlatformError::UnsupportedPlatform)
+        }
+    }
+
     pub fn restore_remote(&self, device_id: String) -> Result<ConnectionSnapshot, PlatformError> {
         #[cfg(windows)]
         {
@@ -1821,6 +1844,56 @@ fn scan_paired_remotes() -> Result<Vec<PairedRemote>, PlatformError> {
         });
     }
     Ok(remotes)
+}
+
+/// 解除一支已配对 BLE 设备的 Windows 配对关系。
+///
+/// 设备路径来自扫描得到的平台 id（`scan_paired_remotes` 里那份），蓝牙地址由
+/// `bluetooth_address_from_device_id` 从中解析，与 connect 走同一条路径。
+#[cfg(windows)]
+fn forget_paired_remote(device_id: &str) -> Result<(), PlatformError> {
+    use std::future::IntoFuture;
+    use windows::core::Interface;
+    use windows::Devices::Bluetooth::BluetoothLEDevice;
+    use windows::Devices::Enumeration::DeviceUnpairingResultStatus;
+    use windows::Win32::System::WinRT::{RoInitialize, RoUninitialize, RO_INIT_MULTITHREADED};
+
+    struct WinRtApartment;
+
+    impl Drop for WinRtApartment {
+        fn drop(&mut self) {
+            unsafe { RoUninitialize() };
+        }
+    }
+
+    unsafe { RoInitialize(RO_INIT_MULTITHREADED) }.map_err(windows_error)?;
+    let _apartment = WinRtApartment;
+
+    let address = bluetooth_address_from_device_id(device_id)
+        .ok_or_else(|| PlatformError::WindowsApi("设备 id 里解析不出蓝牙地址".to_owned()))?;
+    let operation = BluetoothLEDevice::FromBluetoothAddressAsync(address).map_err(windows_error)?;
+    let device = futures::executor::block_on(operation.into_future()).map_err(windows_error)?;
+    if device.as_raw().is_null() {
+        return Err(PlatformError::WindowsApi(
+            "设备当前不在线，无法解除配对".to_owned(),
+        ));
+    }
+    let pairing = device
+        .DeviceInformation()
+        .map_err(windows_error)?
+        .Pairing()
+        .map_err(windows_error)?;
+    let operation = pairing.UnpairAsync().map_err(windows_error)?;
+    let result = futures::executor::block_on(operation.into_future()).map_err(windows_error)?;
+    match result.Status().map_err(windows_error)? {
+        DeviceUnpairingResultStatus::Unpaired | DeviceUnpairingResultStatus::AlreadyUnpaired => Ok(()),
+        status => Err(PlatformError::WindowsApi(format!("解除配对失败：{status:?}"))),
+    }
+}
+
+#[cfg(not(windows))]
+fn forget_paired_remote(_device_id: &str) -> Result<(), PlatformError> {
+    Err(PlatformError::UnsupportedPlatform)
 }
 
 #[cfg(windows)]
