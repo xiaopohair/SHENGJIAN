@@ -48,7 +48,8 @@ const capabilityItems = computed(() => {
   const caps = capabilities.value;
   if (!caps) return [];
   return [
-    { label: "增强捕获", ok: caps.enhancedCapture },
+    { label: "全按键支持", ok: caps.enhancedCapture },
+    { label: "按键监听暂停", ok: caps.buttonListeningPause },
     { label: "宏运行时", ok: caps.macroRuntime },
     { label: "托盘", ok: caps.tray },
     { label: "开机自启", ok: caps.autostart },
@@ -160,7 +161,7 @@ onMounted(async () => {
     <Card data-about-hero>
       <div class="about-hero">
         <div class="about-brand">
-          <BrandMark :height="84" />
+          <BrandMark :height="84" variant="app" />
           <div class="about-copy">
             <p class="about-roman">SHENGJIAN</p>
             <h2 class="about-name">{{ tr("声键") }}</h2>
@@ -330,7 +331,7 @@ onMounted(async () => {
         <li class="about-list-row">
           <span class="about-list-name">
             <ShieldCheck :size="15" />
-            {{ tr("按键增强（RC003 helper）") }}
+            {{ tr("全按键支持（RC003 helper）") }}
           </span>
           <span class="mono muted">Frida Gadget</span>
         </li>

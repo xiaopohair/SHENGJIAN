@@ -2,11 +2,19 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import markOnDark from "../assets/brand/shengjian-mark.svg";
 import markOnLight from "../assets/brand/shengjian-mark-on-light.svg";
+import appIcon from "../assets/app-icon.png";
 
-withDefaults(defineProps<{ height?: number }>(), { height: 24 });
+const props = withDefaults(defineProps<{ height?: number; variant?: "mark" | "app" }>(), {
+  height: 24,
+  variant: "mark",
+});
 
 const theme = ref<"light" | "dark">("dark");
-const src = computed(() => (theme.value === "light" ? markOnLight : markOnDark));
+/** The app icon carries its own dark plate, so it reads the same in both themes. */
+const src = computed(() => {
+  if (props.variant === "app") return appIcon;
+  return theme.value === "light" ? markOnLight : markOnDark;
+});
 let observer: MutationObserver | undefined;
 
 function readTheme() {

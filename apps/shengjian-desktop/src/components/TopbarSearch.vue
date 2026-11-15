@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, shallowRef, useTemplateRef, watch } from "vue";
+import { computed, nextTick, onUnmounted, ref, shallowRef, useTemplateRef, watch } from "vue";
 import { Search } from "lucide-vue-next";
 import type { PaletteCommand } from "../lib/palette";
 import { tr, trDynamic } from "../lib/i18n";
@@ -19,6 +19,7 @@ const rootRef = useTemplateRef<HTMLElement>("rootRef");
 const inputRef = useTemplateRef<HTMLInputElement>("inputRef");
 const toggleRef = useTemplateRef<HTMLButtonElement>("toggleRef");
 const optionRefs = ref<HTMLElement[]>([]);
+let focusOutTimer: number | undefined;
 
 const filtered = computed(() => {
   const value = query.value.trim().toLowerCase();
@@ -92,10 +93,16 @@ function onKeydown(event: KeyboardEvent) {
 function onFocusOut(event: FocusEvent) {
   const next = event.relatedTarget as Node | null;
   if (next && rootRef.value?.contains(next)) return;
-  window.setTimeout(() => {
+  if (focusOutTimer !== undefined) window.clearTimeout(focusOutTimer);
+  focusOutTimer = window.setTimeout(() => {
+    focusOutTimer = undefined;
     if (!rootRef.value?.contains(document.activeElement)) close();
   }, 0);
 }
+
+onUnmounted(() => {
+  if (focusOutTimer !== undefined) window.clearTimeout(focusOutTimer);
+});
 
 defineExpose({ open });
 </script>
