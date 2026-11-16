@@ -189,7 +189,13 @@ mod tests {
         assert_eq!(tools[0].default_hotkey, vec!["ControlLeft", "MetaLeft"]);
         assert_eq!(tools[1].default_hotkey, vec!["AltRight"]);
         assert_eq!(tools[3].kind, "chatterfly");
-        assert_eq!(tools[3].default_hotkey, vec!["ControlLeft", "MetaLeft"]);
+        // 0.9.2：Chatterfly 不再预置默认热键。它只吃报告层的真实按键，而报告层能表达
+        // 的组合由器件与白名单决定——旧的 Ctrl+Win 不在白名单里，注定按不出来。
+        assert_eq!(
+            tools[3].default_hotkey,
+            Vec::<String>::new(),
+            "chatterfly must ship no default hotkey; users pick one in settings"
+        );
         let ime = tools[3].ime.as_ref().expect("chatterfly ime identity");
         assert!(
             ime.fixed_profile().is_some(),
