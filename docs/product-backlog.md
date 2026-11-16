@@ -106,6 +106,31 @@
 
 无。0.1.0 已收口；后续方向见 [roadmap.md](roadmap.md)。
 
+## 2026-11-17 待办（0.9.2 之后）
+
+### 1. 共享宿主刷新：做成一键「重启宿主」
+
+- **现状**：`[AGENT-REFRESH] reason=shared_host` 时助手拒绝自我刷新，改了 agent 会**静默**卡在
+  旧实例（2026-11-16 为此来回折腾四次，最后靠管理员 `taskkill` WUDFHost 才换掉）。
+- **正解入口已存在且不需要管理员**：`schtasks /End /TN "Shengjian RC003 Helper"` +
+  `schtasks /Run /TN "Shengjian RC003 Helper"`（app 侧 `helper.rs` 本来就用它启动助手）。
+- **要做**：包成一个 `restart_helper_host` 命令 + 设置页/设备页一键入口；`shared_host` 时日志
+  给可操作提示；失败回显 `schtasks` 退出码。
+- **验收**：改一版 agent → 点一次按钮 → 日志出现新 `[HOST]` + `[HELLO] build=<新代次>`，
+  全程无管理员、无重启。
+
+### 2. 三键 / 任意组合键：评估虚拟 HID 键盘（WinUHid / UMDF-VHF）
+
+- **现状**：报告层被器件描述符锁死——每帧最多两键、第三槽写入不产生事件（2026-11-16 低级
+  键盘钩子实测），`Alt+W`、`Ctrl+Shift+X` 这类组合无法靠改写报文发出。
+- **候选**：[WinUHid](https://github.com/cgutman/WinUHid)（cgutman；UMDF2 + VHF，虚拟键盘发出
+  的键不带 `LLKHF_INJECTED`）；Interception（内核驱动，HVCI 下不可用）；参考 MoteDeck 的
+  「按键级后端选择」做法。
+- **要做**：确认许可证；确认驱动包签名/分发路径（SignPath 目前只签应用）；出接入方案
+  （安装/卸载、失败回退、与现有 agent 清键职责的边界）；真机验证 Chatterfly / 豆包能收到
+  虚拟键盘的按键。
+- **验收**：虚拟键盘能发出 `Ctrl+Shift+Alt` 并被 Chatterfly 拉起；可随时回退到报告层方案。
+
 ## 验收
 
 所有批次完成后统一进行真机手工验收。
