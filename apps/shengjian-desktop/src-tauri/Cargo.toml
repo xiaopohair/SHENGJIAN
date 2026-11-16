@@ -1,6 +1,6 @@
 [package]
 name = "shengjian-desktop"
-version = "0.9.1"
+version = "0.9.2"
 description = "Shengjian desktop shell"
 edition = "2021"
 rust-version = "1.77"
