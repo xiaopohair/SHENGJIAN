@@ -87,7 +87,7 @@
    [AGENT-STALE]。没有它，"改了 agent 但宿主里跑的还是上一代"是完全静默的——
    握手正常、命令照发、日志漂亮，只有按键行为是旧的（2026-09-26 哨兵键那次
    就是这样白跑了一轮：以为在验新逻辑，其实接管的是旧实例）。 */
-var AGENT_BUILD = '2026-10-23.release-hold';
+var AGENT_BUILD = '2026-11-16.two-slots';
 
 var TARGET_IOCTL = 0x80018483;
 var TARGET_USAGES = [
@@ -102,7 +102,27 @@ var TARGET_USAGES = [
  * 0x00E6 实测产出 VK_RMENU(0xA5)、0x00E2 实测产出 VK_LMENU(0xA4)。
  * 未实测的 usage 一律拒绝——替换 usage 必须逐键实测。 */
 var SYNTH_FROM_WHITELIST = [0x003E];
-var SYNTH_TO_WHITELIST = [0x00E6, 0x00E2];
+/* 纯修饰键合成（2026-11-16，Chatterfly 现场）。
+ * 值 0x1E00|mask 表示「不发 usage，改报告字节 0 的修饰键位」：Chatterfly 只接受
+ * Ctrl/Alt/Shift/Win 之间的组合，裸 Alt 它不收，所以单 usage 的目标对它无效。
+ * 目前只实测 0x11 = 左 Ctrl + 右 Ctrl。与 usage 白名单同一条纪律：没有真机
+ * 验证过的掩码不进表。 */
+var SYNTH_MODS_BASE = 0x1E00;
+/* 纯修饰键组合的目标 usage（2026-11-16）。
+ * 这台设备的 HID 报告里字节 0 改了不产出按键（探针实测读不到 Ctrl），
+ * 所以把修饰键当成普通 usage 写进槽位：键盘页 0xE0-0xE7 就是左/右
+ * Ctrl/Shift/Alt/Win，驱动按 usage 翻译成对应 VK。 */
+/* 2026-11-16 真机实测（RC003 + Chatterfly）：把组合里的修饰键当普通 usage
+ * 写进报告的三个键槽。实测驱动只会呈现第一个非零槽（探针只见左 Ctrl），
+ * 而 Chatterfly 的语音条确实被拉起——所以先写左 Ctrl 这一槽就够用；
+ * 组合里的其余修饰键同表保留，将来支持多键时不用改协议。 */
+var SYNTH_MODS_USAGES = {
+  0x11: [0x00E0, 0x00E4],   /* 左 Ctrl + 右 Ctrl */
+  0x05: [0x00E0, 0x00E2],   /* 左 Ctrl + 左 Alt  */
+  0x03: [0x00E0, 0x00E1],   /* 左 Ctrl + 左 Shift */
+  0x07: [0x00E0, 0x00E1, 0x00E2]  /* 左 Ctrl + 左 Shift + 左 Alt（三键，验第三槽） */
+};
+var SYNTH_TO_WHITELIST = [0x00E6, 0x00E2, 0x1E11, 0x1E05, 0x1E03, 0x1E07];
 var TARGET_NAMES = {
   0x00F1: 'back', 0x0028: 'ok', 0x0035: 'tv', 0x004A: 'home',
   0x004F: 'right', 0x0050: 'left', 0x0051: 'down', 0x0052: 'up',
@@ -901,8 +921,27 @@ function installHook() {
           var u = bytes[o] | (bytes[o + 1] << 8);
           if (u === 0) continue;
           if (synthFrom !== 0 && u === synthFrom) {
-            patched[o] = synthTo & 0xff;
-            patched[o + 1] = (synthTo >> 8) & 0xff;
+            if ((synthTo & SYNTH_MODS_BASE) === SYNTH_MODS_BASE) {
+              /* 修饰键合成：从语音键所在槽起，按 u16 步长写 3/5/7。
+                 2026-11-16 两次真机对照实验（低级键盘钩子取证）确认了两件事：
+                 1) 槽位编码是 **u16**：改成连续字节写 3/4/5 后，Ctrl+Shift+Alt
+                    只剩下 Alt——3-4 拼成 0xE1E0（无效 usage 被丢）、5-6 拼成
+                    0x00E2（左 Alt），与 u16 模型逐字节吻合；
+                 2) **只有前两个槽生效**：u16 写 3/5/7 时 Ctrl+Shift+Alt 只到
+                    Ctrl+Shift，第三槽写什么都不产生按键事件。
+                 所以报告层每帧最多两个键；三键组合在 RC003 上不可表达，产品侧
+                 白名单也不再放行 0x1E07（见 rc003_bridge::VOICE_SYNTHABLE_MODS）。 */
+              var modUsages = SYNTH_MODS_USAGES[synthTo & 0xff] || [];
+              for (var s = 0; s < 3; s++) {
+                var so = 3 + s * 2;
+                var su = modUsages[s] || 0;
+                patched[so] = su & 0xff;
+                patched[so + 1] = (su >> 8) & 0xff;
+              }
+            } else {
+              patched[o] = synthTo & 0xff;
+              patched[o + 1] = (synthTo >> 8) & 0xff;
+            }
             changed = true;
             synthChanged = true;
             continue;

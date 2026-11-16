@@ -116,17 +116,47 @@ pub const VOICE_KEY_HID_USAGE: u16 = 0x003E;
 /// 各自测试钉住；agent 是终审，这里只是「不下发注定被拒的配置」的预过滤）。
 pub const VOICE_SYNTHABLE_USAGES: &[u16] = &[0x00E2, 0x00E6];
 
-/// 「按住说话快捷键」能否驱动报告层合成：**恰好单键**且 usage 在白名单内。
+/// 报告层「修饰键合成」的编码前缀（2026-11-16，Chatterfly 现场）。
 ///
-/// 和弦（≥2 键）无法用单个报告槽表达（合成是槽内替换，一次只能呈现一个
-/// usage），返回 `None` 后 BLE 层继续走 SendInput 注入路径——两条路径
-/// 互斥，由判据显式二选一，不允许叠加（双写互扰，2026-09-29 run8 实证）。
+/// 背景：Chatterfly 只接受 Ctrl/Alt/Shift/Win 之间的组合（不收裸 Alt），而
+/// 报告层的槽内替换一次只能呈现一个 usage——左 Ctrl + 右 Ctrl 这类纯修饰键
+/// 和弦没有 usage 可替换。HID 键盘报告的字节 0 就是修饰键位，于是把目标编码
+/// 成 0x1E00 | mask：高于键盘页任何真实 usage，不会混淆，线协议（S/A 行与
+/// agent 命令）因此一个字都不用改。
+pub const VOICE_SYNTH_MODS_BASE: u16 = 0x1E00;
+
+/// 已实测可用的修饰键掩码白名单（HID 位：0x01 左 Ctrl、0x10 右 Ctrl）。
+///
+/// 与 usage 白名单同一条纪律：没在真机上验过「报告层改字节 0 能产出对应修饰
+/// 键」的组合不许进表。
+///
+/// **只有两键掩码**（2026-11-16 两次钩子实测）：报告有三个 u16 键槽，但第三槽
+/// 写成什么都不产生按键事件——`Ctrl+Shift+Alt`(0x07) 稳定只到 Ctrl+Shift。所以
+/// 0x07 不在表内：三键组合在这台器件上不可表达，放进来只会让界面"配置成功"而
+/// 行为半残。
+pub const VOICE_SYNTHABLE_MODS: &[u8] = &[0x11, 0x05, 0x03];
+
+/// 「按住说话快捷键」能否驱动报告层合成。
+///
+/// 两条判据二选一，命中其一才返回目标：
+/// * **恰好单键**且 usage 在 [`VOICE_SYNTHABLE_USAGES`] 内 → 该 usage；
+/// * **全是修饰键**且掩码在 [`VOICE_SYNTHABLE_MODS`] 内 → 0x1E00 | mask，
+///   由 agent 改写报告字节 0（普通和弦没有键可替换，只能走这条路）。
+///
+/// 其余情况（普通和弦、白名单外的键）返回 `None`，BLE 层继续走 SendInput
+/// 注入路径——两条路径互斥，不允许叠加（双写互扰，2026-09-29 run8 实证）。
 pub(crate) fn voice_synth_target(chord: &crate::send_input::KeyChord) -> Option<u16> {
-    if chord.keys.len() != 1 {
-        return None;
+    if chord.keys.len() == 1 {
+        let usage = chord.keys[0].hid_usage()?;
+        return VOICE_SYNTHABLE_USAGES.contains(&usage).then_some(usage);
     }
-    let usage = chord.keys[0].hid_usage()?;
-    VOICE_SYNTHABLE_USAGES.contains(&usage).then_some(usage)
+    let mut mask = 0u8;
+    for key in &chord.keys {
+        mask |= key.hid_modifier_bit()?;
+    }
+    VOICE_SYNTHABLE_MODS
+        .contains(&mask)
+        .then_some(VOICE_SYNTH_MODS_BASE | u16::from(mask))
 }
 
 /// 报告层"语音键帧"结果的两种形态（助手转发的 agent 帧回执，2026-10-14）。
@@ -2066,6 +2096,54 @@ mod tests {
         assert_eq!(voice_synth_target(&chord(&[KeyCode::LeftControl])), None);
         // 无 usage 的键（音量键走 Consumer 页）。
         assert_eq!(voice_synth_target(&chord(&[KeyCode::VolumeUp])), None);
+    }
+
+    #[test]
+    fn voice_synth_target_accepts_whitelisted_modifier_masks() {
+        // 纯修饰键和弦（左 Ctrl + 右 Ctrl）：没有 usage 可替换，改成报告字节 0
+        // 的修饰键位——2026-11-16 Chatterfly 现场，它只收修饰键之间的组合。
+        assert_eq!(
+            voice_synth_target(&chord(&[KeyCode::LeftControl, KeyCode::RightControl])),
+            Some(VOICE_SYNTH_MODS_BASE | 0x11)
+        );
+        // Ctrl+Shift 也在白名单（Chatterfly 可选组合之一）。
+        assert_eq!(
+            voice_synth_target(&chord(&[KeyCode::LeftControl, KeyCode::LeftShift])),
+            Some(VOICE_SYNTH_MODS_BASE | 0x03)
+        );
+        // 三键掩码**刻意不在**白名单：2026-11-16 钩子实测，报告第三槽写成什么
+        // 都不产生按键事件（Ctrl+Shift+Alt 稳定只到 Ctrl+Shift）。放进来只会让
+        // 界面"配置成功"、行为半残，所以让它回落注入路径。
+        assert_eq!(
+            voice_synth_target(&chord(&[
+                KeyCode::LeftControl,
+                KeyCode::LeftShift,
+                KeyCode::LeftAlt
+            ])),
+            None
+        );
+        // 没实测过的掩码、混了普通键、或与白名单不等：一律回落注入路径。
+        assert_eq!(
+            voice_synth_target(&chord(&[KeyCode::LeftControl, KeyCode::RightShift])),
+            None
+        );
+        assert_eq!(
+            voice_synth_target(&chord(&[KeyCode::LeftControl, KeyCode::A])),
+            None
+        );
+        assert_eq!(
+            voice_synth_target(&chord(&[KeyCode::LeftAlt, KeyCode::RightControl])),
+            None
+        );
+    }
+
+    #[test]
+    fn voice_synth_line_encodes_modifier_mask() {
+        // 修饰键掩码走同一行协议：helper 侧 parse_bridge_synth_line 原样读回。
+        assert_eq!(
+            voice_synth_line(Some(VOICE_SYNTH_MODS_BASE | 0x11)),
+            "S 1E11"
+        );
     }
 
     #[test]

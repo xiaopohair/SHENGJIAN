@@ -544,6 +544,25 @@ impl KeyCode {
         };
         Some(usage)
     }
+
+    /// 该键在 HID 键盘报告**修饰键位**（字节 0）里的掩码。
+    ///
+    /// 报告层合成是「槽内替换一个 usage」，一个槽只能承载一个键；纯修饰键
+    /// 组合（例如左 Ctrl + 右 Ctrl）没有普通键可替换，只能改写修饰键位。
+    /// None = 该键不是 8 个修饰键之一。
+    pub fn hid_modifier_bit(&self) -> Option<u8> {
+        Some(match self {
+            KeyCode::Control | KeyCode::LeftControl => 0x01,
+            KeyCode::Shift | KeyCode::LeftShift => 0x02,
+            KeyCode::Alt | KeyCode::LeftAlt => 0x04,
+            KeyCode::LeftWindows => 0x08,
+            KeyCode::RightControl => 0x10,
+            KeyCode::RightShift => 0x20,
+            KeyCode::RightAlt => 0x40,
+            KeyCode::RightWindows => 0x80,
+            _ => return None,
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -935,7 +935,11 @@ pub(crate) fn mic_marker_for(tool: Option<VoiceToolKind>) -> Option<&'static str
     match tool {
         Some(VoiceToolKind::Doubao) => Some("doubao"),
         Some(VoiceToolKind::Wechat) => Some("wetype"),
-        Some(VoiceToolKind::Chatterfly) => Some("chatterfly"),
+        // 2026-11-16 真机实测（Chatterfly 1.0.0.3935）：语音条弹出、确实在收音频，
+        // 但 ConsentStore 里那条记录还停在旧版本 1.0.0.3664，时间戳一动不动。
+        // 拿它当判据会把"已响应"误判成"未响应"，进而触发抢焦点的 focus_bounce。
+        // 这里不给标记：判据退化为 unknown，按纪律不做任何推断，也不自救。
+        Some(VoiceToolKind::Chatterfly) => None,
         Some(VoiceToolKind::Vokie) => Some("vokie"),
         _ => None,
     }
@@ -956,10 +960,9 @@ mod press_context_tests {
     fn mic_markers_cover_shipped_tools_only() {
         assert_eq!(mic_marker_for(Some(VoiceToolKind::Doubao)), Some("doubao"));
         assert_eq!(mic_marker_for(Some(VoiceToolKind::Wechat)), Some("wetype"));
-        assert_eq!(
-            mic_marker_for(Some(VoiceToolKind::Chatterfly)),
-            Some("chatterfly")
-        );
+        // 2026-11-16：Chatterfly 的麦克风记录不再更新（见 mic_marker_for 的注释），
+        // 提供标记只会制造假阴性，所以它明确不给标记。
+        assert_eq!(mic_marker_for(Some(VoiceToolKind::Chatterfly)), None);
         assert_eq!(mic_marker_for(Some(VoiceToolKind::Vokie)), Some("vokie"));
         assert_eq!(mic_marker_for(Some(VoiceToolKind::Custom)), None);
         assert_eq!(mic_marker_for(None), None);

@@ -559,16 +559,70 @@ mod voice_effect_verdict_tests {
     }
 }
 
-/// 语音会话结束后是否应该补发右 Alt 抬起（2026-10-23）。
+/// 对注入键免疫、只能用报告层真实按键拉起语音的输入法。
 ///
-/// 只在三条同时成立时补发：报告层合成生效、目标是豆包、OS 仍认为右 Alt
+/// 豆包（2026-09-29）：`LLKHF_INJECTED` 一律丢弃，注入的语音和弦永远拉不起。
+/// Chatterfly（2026-11-16）：输入法侧快捷键已改成左 Ctrl + 右 Ctrl，键盘按下
+/// 能拉起语音条，遥控器注入同一和弦却稳定 `verdict=not_reacted`，换到记事本
+/// 复现同样结果（排除 UIPI）。两者共同点：只有报告层把语音键槽内替换成真实
+/// 按键时才进语音态。
+pub(crate) fn ignores_injected_keys(tool: VoiceToolKind) -> bool {
+    matches!(tool, VoiceToolKind::Doubao | VoiceToolKind::Chatterfly)
+}
+
+/// 报告层合成能承载的工具集合（与 [`ignores_injected_keys`] 同一集合：
+/// 报告层存在的理由就是这些输入法）。
+fn uses_report_layer(tool: Option<VoiceToolKind>) -> bool {
+    tool.is_some_and(ignores_injected_keys)
+}
+
+/// 语音会话结束后是否应该补发合成键抬起（2026-10-23；2026-11-16 扩到 Chatterfly）。
+///
+/// 只在三条同时成立时补发：报告层合成生效、目标工具吃报告层、OS 仍认为合成键
 /// 按下。纯判定便于单测；真实键态读取与 SendInput 由调度线程执行。
 fn should_release_stuck_voice_synth(
     report_layer_active: bool,
     tool: Option<VoiceToolKind>,
-    right_alt_down: bool,
+    key_down: bool,
 ) -> bool {
-    report_layer_active && tool == Some(VoiceToolKind::Doubao) && right_alt_down
+    report_layer_active && uses_report_layer(tool) && key_down
+}
+
+/// 配置对不上时留一行判据：工具对注入键免疫，但热键进不了报告层——这一按
+/// 注定没反应，报障时不必再从注入链路查起。
+///
+/// 报告层能表达的形状只有两种：单 usage 槽内替换（`VOICE_SYNTHABLE_USAGES`），
+/// 以及纯修饰键掩码（`VOICE_SYNTHABLE_MODS`，编码 0x1E00|mask）。后者受
+/// 报告长度限制**每帧最多送到两个键**（2026-11-16 钩子实测：Ctrl+Alt 两键同时
+/// 到达，第三槽被截断），所以三键组合、普通和弦（修饰键 + 字母）、白名单外的键
+/// 都进不了报告层；这类配置对豆包 / Chatterfly 就是「键盘能按出来、遥控器没反应」。
+pub(crate) fn note_unsynthable_hotkey(
+    tool: Option<VoiceToolKind>,
+    hotkey: Option<&KeyChord>,
+    synth_enabled: bool,
+) {
+    // 启动与每次保存都会走这条路径（工具、热键、设置各触发一次），同一个
+    // (工具, 热键) 只落一行，避免把诊断日志刷成同一句话的复读机。
+    static LAST_NOTED: Mutex<Option<(VoiceToolKind, Vec<KeyCode>)>> = Mutex::new(None);
+    let (Some(tool), Some(chord)) = (tool, hotkey) else {
+        return;
+    };
+    if synth_enabled || !ignores_injected_keys(tool) {
+        return;
+    }
+    {
+        let mut last = lock(&LAST_NOTED);
+        let current = (tool, chord.keys.clone());
+        if last.as_ref() == Some(&current) {
+            return;
+        }
+        *last = Some(current);
+    }
+    gatt_note(format!(
+        "voice_config warning=hotkey_not_synthable tool={} keys={} note=tool_ignores_injected_keys hint=use_single_alt_key",
+        crate::ime::tool_label(Some(tool)),
+        chord.keys.len()
+    ));
 }
 
 #[cfg(test)]
@@ -577,10 +631,16 @@ mod stuck_voice_synth_tests {
     use crate::voice_tool::VoiceToolKind;
 
     #[test]
-    fn releases_only_when_report_layer_doubao_and_key_is_down() {
+    fn releases_only_when_report_layer_tool_and_key_is_down() {
         assert!(should_release_stuck_voice_synth(
             true,
             Some(VoiceToolKind::Doubao),
+            true
+        ));
+        // Chatterfly 和豆包一样只吃报告层的真实按键，松手保险必须同开口。
+        assert!(should_release_stuck_voice_synth(
+            true,
+            Some(VoiceToolKind::Chatterfly),
             true
         ));
         assert!(!should_release_stuck_voice_synth(
@@ -2669,11 +2729,15 @@ fn handle_control(
             // 识别就会落到内置麦克风阵列或「立体声混音」上——按键链路、报告层合成、
             // 录音时长全都正常，只有识别结果对不上（2026-10-27 现场，用户改设备后
             // 立刻恢复）。这行日志就是"下次一眼定位"的那条证据。
+            //
+            // 2026-11-16 补充：有些输入法自带麦克风选择器（Chatterfly 就是），
+            // 它实际用的设备可以不是系统默认——这时 is_cable_output=false 并
+            // 不代表链路不通。这行只陈述"系统默认是什么"，不要据此下结论。
             if let Some((default_capture, is_cable_output)) =
                 crate::audio::capture_input_diagnosis()
             {
                 gatt_note(format!(
-                    "voice_capture_input default=\"{default_capture}\" is_cable_output={is_cable_output}"
+                    "voice_capture_input default=\"{default_capture}\" is_cable_output={is_cable_output} note=system_default_only"
                 ));
             }
 
@@ -2681,10 +2745,11 @@ fn handle_control(
             // （LLKHF_INJECTED，见 docs/investigations/2026-09-04-avoid-driver-signing-input-paths.md），
             // 这一按必然出不了字。单列一行，让"按住语音键没反应"的报障一眼归因到路径。
             if press_path(synth_gate, attempt_hotkey.is_some()) == "send_input"
-                && matches!(attempt_tool, Some(VoiceToolKind::Doubao))
+                && attempt_tool.is_some_and(ignores_injected_keys)
             {
                 gatt_note(format!(
-                    "voice_path fallback session={session_id} tool=doubao reason=report_layer_inactive note=tool_ignores_injected_keys"
+                    "voice_path fallback session={session_id} tool={} reason=report_layer_inactive note=tool_ignores_injected_keys",
+                    crate::ime::tool_label(attempt_tool)
                 ));
             }
             if synth_gate {
@@ -2927,7 +2992,7 @@ fn spawn_voice_synth_guard(
     generation: u64,
     tool: Option<VoiceToolKind>,
 ) {
-    if tool != Some(VoiceToolKind::Doubao) || !crate::key_gate::voice_synth_active() {
+    if !uses_report_layer(tool) || !crate::key_gate::voice_synth_active() {
         return;
     }
     let epoch = voice_session_epoch.load(Ordering::SeqCst);
@@ -2942,15 +3007,21 @@ fn spawn_voice_synth_guard(
                 return;
             }
             let report_layer_active = crate::key_gate::voice_synth_active();
-            let key_down = crate::send_input_windows::right_alt_down();
-            if !should_release_stuck_voice_synth(report_layer_active, tool, key_down) {
+            // 报告层可能合成一个 usage（左/右 Alt），也可能合成一组修饰键
+            // （左右 Ctrl），所以问"哪个合成键还按着"，补的才是同一个键。
+            let stuck_key = crate::send_input_windows::synth_key_down();
+            if !should_release_stuck_voice_synth(report_layer_active, tool, stuck_key.is_some()) {
                 gatt_note(format!(
-                    "voice_synth_guard generation={generation} epoch={epoch} report_layer={report_layer_active} key_down={key_down} action=none"
+                    "voice_synth_guard generation={generation} epoch={epoch} report_layer={report_layer_active} key_down={} action=none",
+                    stuck_key.is_some()
                 ));
                 return;
             }
+            let Some(stuck_key) = stuck_key else {
+                return;
+            };
             let chord = KeyChord {
-                keys: vec![KeyCode::RightAlt],
+                keys: vec![stuck_key],
             };
             match send_input.release(&chord) {
                 Ok(_) => gatt_note(format!(

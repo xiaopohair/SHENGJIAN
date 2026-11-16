@@ -27,12 +27,22 @@ pub struct SendInputRuntime {
     snapshot: Mutex<SendInputSnapshot>,
 }
 
-/// 报告层合成的右 Alt 是否仍在 OS 中保持按下（2026-10-23 语音条卡住现场）。
+/// 报告层合成键（左/右 Alt）当前是否仍被 OS 认为按下（2026-10-23 语音条卡住现场）。
 ///
 /// 只读 `GetAsyncKeyState`，不改变键态。语音会话结束后用它判定遥控器的 HID
 /// 释放报告是否丢失；调用方只在报告层合成门禁为真时使用，避免误伤物理按键。
-pub fn right_alt_down() -> bool {
-    unsafe { GetAsyncKeyState(i32::from(KeyCode::RightAlt.virtual_key())) < 0 }
+/// 报告层一次只能替换成一个 usage（白名单见 `VOICE_SYNTHABLE_USAGES`），所以
+/// 这里只需要认识两个 Alt 键；返回具体是哪一个，松手保险才能补对同一个键。
+pub fn synth_key_down() -> Option<KeyCode> {
+    // 报告层能合成的合法目标：单 usage（左/右 Alt）与修饰键位（左右 Ctrl）。
+    [
+        KeyCode::LeftAlt,
+        KeyCode::RightAlt,
+        KeyCode::LeftControl,
+        KeyCode::RightControl,
+    ]
+    .into_iter()
+    .find(|key| unsafe { GetAsyncKeyState(i32::from(key.virtual_key())) < 0 })
 }
 
 impl SendInputRuntime {

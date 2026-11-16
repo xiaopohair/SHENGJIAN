@@ -1125,8 +1125,17 @@ impl WindowsPlatform {
         *lock(&self.voice_hold_hotkey) = hotkey.clone();
         #[cfg(windows)]
         {
-            let synth_to = hotkey.and_then(|chord| rc003_bridge::voice_synth_target(&chord));
+            let synth_to = hotkey
+                .as_ref()
+                .and_then(|chord| rc003_bridge::voice_synth_target(chord));
             self.rc003_bridge.set_voice_synth(synth_to);
+            // 判据先于现象：工具对注入键免疫、热键又进不了报告层时，这一按注定
+            // 没反应（键盘能按出来 ≠ 遥控器能按出来），保存配置时就留痕。
+            crate::ble::note_unsynthable_hotkey(
+                *lock(&self.voice_input_tool),
+                hotkey.as_ref(),
+                synth_to.is_some(),
+            );
         }
     }
 
@@ -1145,6 +1154,15 @@ impl WindowsPlatform {
         // 窗口"，按下时"距选工具多久"由此起算并进 `voice_attempt`。
         ime::note_tool_select();
         *lock(&self.voice_input_tool) = tool;
+        #[cfg(windows)]
+        {
+            let hotkey = lock(&self.voice_hold_hotkey).clone();
+            let synth_enabled = hotkey
+                .as_ref()
+                .and_then(|chord| rc003_bridge::voice_synth_target(chord))
+                .is_some();
+            crate::ble::note_unsynthable_hotkey(tool, hotkey.as_ref(), synth_enabled);
+        }
         let Some(tool) = tool else {
             *lock(&self.ime_align_pending) = None;
             return;

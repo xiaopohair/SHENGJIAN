@@ -85,6 +85,32 @@
   - `chatterfly`：切换/观测 Chatterfly 输入法（TSF），走通用 IME 救回
   - `vokie`：只观测，不切换输入法
   - `custom`：只有自定义热键，无 IME 切换/观测/救回
+- **对注入键免疫的输入法（`doubao` / `chatterfly`）只能靠报告层合成拉起语音**：
+  报告层是在遥控器 HID 报文的按键槽里，把语音键（F5 usage）替换成一个真实 usage；
+  注入（SendInput）的按键带 LLKHF_INJECTED，这两家一律丢。
+  - 单键热键（豆包默认右 Alt）走 usage 白名单 `VOICE_SYNTHABLE_USAGES`；
+  - 纯修饰键和弦（左 Ctrl + 右 Ctrl、Ctrl+Alt、Ctrl+Shift）走
+    `VOICE_SYNTHABLE_MODS`，编码成 0x1E00|mask，由 agent 把修饰键当作 usage
+    写进报告的键槽（键盘页 0xE0-0xE7）。
+  两类都要真机验过才进白名单；判据是日志 `voice_attempt ... path=report_layer
+  synth=0x1E05 synth_confirmed=true`。
+  **2026-11-16 实测（RC003 + Chatterfly，低级键盘钩子取证）**：
+  - 报告层**每帧最多送到两个键**：`Ctrl+Alt`、`Ctrl+右Ctrl` 都是两键同时到达
+    （`vk=0xA2` + `vk=0xA4`，间隔 4ms；`vk=0xA2` + `vk=0xA3` 同样成立）。
+  - 槽位编码是 **u16**、且**只有前两个槽生效**。两次对照实验：按 u16 步长写
+    3/5/7 时 `Ctrl+Shift+Alt` 只到 `Ctrl+Shift`；改成连续字节写 3/4/5 后只剩
+    `Alt`（3-4 拼成 `0xE1E0` 被丢、5-6 拼成 `0x00E2`）。所以第三槽写什么都不
+    产生按键——**三键组合在这台设备上不可表达**，`VOICE_SYNTHABLE_MODS` 因此
+    只收两键掩码（`0x11`/`0x05`/`0x03`）。
+  - `Ctrl+Shift` 会被 Windows 的输入法切换吃掉，所以留给工具的两键组合实际只有
+    `Ctrl+Alt`（左 Ctrl + 左 Alt）和 `Ctrl+右Ctrl`。
+  - 结论：对注入键免疫的输入法配**单键**或 **`Ctrl+Alt`**，不要配三键；Chatterfly
+    在 `Ctrl+Alt` 下已实测能弹语音条并出字。
+  - 曾被误判为"驱动只呈现第一个非零槽"——那是 `GetAsyncKeyState` 探针的假阴性，
+    钩子日志证明两键都会到。
+  **还要在输入法自己的设置里选麦克风**：Chatterfly 有独立的麦克风选择器，系统
+  默认设备不是它实际用的那个——日志 `voice_capture_input ... is_cable_output=false`
+  只说明系统默认，不能据此判定链路不通。
 - `ime`（可选）：给"本身是输入法"的工具配置 TSF 身份。
   - 优先用 `clsid` + `profile` 固定 GUID（格式带不带 `{}`/大小写都可）；
   - 固定 GUID 未提供或在本机读不到显示名时，按 `names` 在已安装的简体中文
