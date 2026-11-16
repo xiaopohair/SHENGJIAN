@@ -57,12 +57,33 @@ export function defaultHotkeyFor(
 }
 
 /**
+ * 换输入工具后仍然生效的自定义热键。
+ *
+ * 热键是**工具专属**的：豆包默认右 Alt、Chatterfly 默认修饰键组合，同一个组合
+ * 换个工具通常就按不出来。若把旧值继续发给新工具，表现是「设置里保存成功、
+ * 遥控器按了没反应」——所以换工具一律回到新工具的默认预设；同工具重选不清。
+ */
+export function customHotkeyAfterToolChange(
+  previousTool: string | null | undefined,
+  nextTool: string | null | undefined,
+  custom: readonly string[] | null | undefined,
+): string[] | null {
+  const sameTool = (previousTool ?? "").trim() === (nextTool ?? "").trim();
+  if (sameTool) return custom && custom.length > 0 ? [...custom] : null;
+  return null;
+}
+
+/**
  * 该输入法是否**丢弃程序注入的按键**（`LLKHF_INJECTED`）。
  *
- * 豆包按设计丢弃注入键，所以必须走"报告层合成"（全按键支持服务）；没有它，
- * 声键用 SendInput 注入的和弦会被直接忽略，语音键看起来完全没反应。
- * 事实来源：`ble.rs` 里 `voice_path fallback tool=doubao` 的现场记录。
+ * 豆包按设计丢弃注入键；Chatterfly 同样只认报告层的真实按键（2026-11-16 实测：
+ * 注入的和弦稳定没反应，报告层替换同一和弦可拉起）。这类工具必须走"报告层合成"
+ * （全按键支持服务）；没有它，声键用 SendInput 注入的和弦会被直接忽略，语音键
+ * 看起来完全没反应。
+ *
+ * 与后端 `ble::ignores_injected_keys` 必须同集合：两侧漂移会让新手引导漏提示。
  */
 export function requiresReportLayerSynthesis(toolId: string | null | undefined): boolean {
-  return (toolId ?? "").trim().toLowerCase() === "doubao";
+  const key = (toolId ?? "").trim().toLowerCase();
+  return key === "doubao" || key === "chatterfly";
 }

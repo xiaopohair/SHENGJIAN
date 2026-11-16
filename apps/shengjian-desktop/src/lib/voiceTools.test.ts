@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  customHotkeyAfterToolChange,
   defaultHotkeyFor,
   requiresReportLayerSynthesis,
   voiceToolLabel,
@@ -14,13 +15,33 @@ const catalog: VoiceToolInfo[] = [
 ];
 
 describe("voice tool catalog helpers", () => {
-  it("flags only the IME that drops injected keys as needing report-layer synthesis", () => {
+  it("flags the IMEs that drop injected keys as needing report-layer synthesis", () => {
     expect(requiresReportLayerSynthesis("doubao")).toBe(true);
     expect(requiresReportLayerSynthesis(" DOUBAO ")).toBe(true);
+    // Chatterfly 与豆包同集合（2026-11-16 实测：注入没反应、报告层能拉起）。
+    expect(requiresReportLayerSynthesis("chatterfly")).toBe(true);
+    expect(requiresReportLayerSynthesis(" Chatterfly ")).toBe(true);
+    // 微信输入法吃注入键，不需要助手。
     expect(requiresReportLayerSynthesis("wechat")).toBe(false);
-    expect(requiresReportLayerSynthesis("chatterfly")).toBe(false);
+    expect(requiresReportLayerSynthesis("vokie")).toBe(false);
     expect(requiresReportLayerSynthesis("")).toBe(false);
     expect(requiresReportLayerSynthesis(null)).toBe(false);
+  });
+
+  it("drops a custom hotkey when the input tool changes", () => {
+    // 热键是工具专属的：换工具必须回到新工具的默认预设。
+    expect(
+      customHotkeyAfterToolChange("chatterfly", "doubao", ["ControlLeft", "AltLeft"]),
+    ).toBeNull();
+    expect(customHotkeyAfterToolChange("", "doubao", ["ControlLeft"])).toBeNull();
+    // 同工具重选（含大小写/空白差异以外的一致值）保留原值。
+    expect(customHotkeyAfterToolChange("doubao", "doubao", ["ControlLeft", "AltLeft"])).toEqual([
+      "ControlLeft",
+      "AltLeft",
+    ]);
+    // 空值归一成 null，避免把 [] 存进设置。
+    expect(customHotkeyAfterToolChange("doubao", "doubao", [])).toBeNull();
+    expect(customHotkeyAfterToolChange("doubao", "doubao", null)).toBeNull();
   });
 
   it("maps catalog entries to dropdown options without translating labels", () => {

@@ -45,7 +45,12 @@ import { ONBOARDING_KEY, ACCENT_KEY, applyAccent, applyTheme } from "../lib/pref
 import { confirmAction } from "../lib/confirm";
 import { requestButtonsPage, requestDeviceSettings } from "../lib/navigation";
 import { setLanguagePreference, statusLabel, tr, trDynamic, uiLocale } from "../lib/i18n";
-import { defaultHotkeyFor, voiceToolLabel, voiceToolOptions } from "../lib/voiceTools";
+import {
+  customHotkeyAfterToolChange,
+  defaultHotkeyFor,
+  voiceToolLabel,
+  voiceToolOptions,
+} from "../lib/voiceTools";
 import {
   audioDependencyDetailKey,
   audioDependencyTitleKey,
@@ -332,9 +337,6 @@ function onGainInput(value: number) {
 function onEndpointInput(value: string) {
   if (!endpointLocked.value) endpointId.value = value;
 }
-function onToolInput(value: string) {
-  if (!toolLocked.value) voiceInputTool.value = value;
-}
 
 // 被设备覆盖的项：把用户直接送到「连接页 → 设备设置」抽屉。
 function openDeviceSettings() {
@@ -351,18 +353,29 @@ const { catalog: voiceToolCatalog, load: loadVoiceToolCatalog } = useVoiceToolCa
  * 确定地选到任意组合，也不会触发任何程序。
  */
 const hotkeyPickerOpen = shallowRef(false);
-const toolDefaultHotkey = computed(() =>
-  defaultHotkeyFor(voiceToolCatalog.value, voiceInputTool.value),
-);
+const toolDefaultHotkey = computed(() => defaultHotkeyFor(voiceToolCatalog.value, toolValue.value));
 /** 当前生效的热键按「键帽」拆开显示（与按键方案里的快捷键录入同一套展示）。 */
 const hotkeyParts = computed(() =>
   (voiceHotkey.value ?? toolDefaultHotkey.value).map(hotkeyKeyLabel),
 );
 const hasCustom = computed(() => (voiceHotkey.value?.length ?? 0) > 0);
+/**
+ * 切换输入工具。
+ *
+ * 热键是工具专属的（豆包默认右 Alt、Chatterfly 默认修饰键组合），换工具后旧的自定义
+ * 热键不再适用——继续沿用会「设置里保存成功、遥控器按了没反应」，所以回到新工具的
+ * 默认预设；同工具重选不动。
+ */
+function onToolInput(value: string) {
+  if (toolLocked.value) return;
+  if (value === voiceInputTool.value) return;
+  voiceHotkey.value = customHotkeyAfterToolChange(voiceInputTool.value, value, voiceHotkey.value);
+  voiceInputTool.value = value;
+}
 const currentVoiceToolLabel = computed(
   () =>
-    voiceToolOptions(voiceToolCatalog.value, voiceInputTool.value).find(
-      (tool) => tool.id === voiceInputTool.value,
+    voiceToolOptions(voiceToolCatalog.value, toolValue.value).find(
+      (tool) => tool.id === toolValue.value,
     )?.label ?? "",
 );
 

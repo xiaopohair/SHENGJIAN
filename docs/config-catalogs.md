@@ -82,7 +82,9 @@
 - `kind` 决定 Windows 专属行为，代码里目前有这几种适配器：
   - `wechat`：切换/观测微信输入法（WeType）
   - `doubao`：切换豆包输入法 + 右 Alt 松手保险
-  - `chatterfly`：切换/观测 Chatterfly 输入法（TSF），走通用 IME 救回
+  - `chatterfly`：切换/观测 Chatterfly 输入法（TSF），走通用 IME 救回；**默认热键为空**——
+    它只吃报告层的真实按键，而报告层能表达的组合取决于器件与白名单（见下），所以不预置，
+    由用户在设置里点选（实测可用 `Ctrl+Alt`）
   - `vokie`：只观测，不切换输入法
   - `custom`：只有自定义热键，无 IME 切换/观测/救回
 - **对注入键免疫的输入法（`doubao` / `chatterfly`）只能靠报告层合成拉起语音**：
