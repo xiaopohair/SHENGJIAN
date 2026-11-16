@@ -27,12 +27,15 @@ pub struct SendInputRuntime {
     snapshot: Mutex<SendInputSnapshot>,
 }
 
-/// 报告层合成键（左/右 Alt）当前是否仍被 OS 认为按下（2026-10-23 语音条卡住现场）。
+/// 报告层合成键里**哪个当前仍被 OS 认为按下**（2026-10-23 语音条卡住现场）。
 ///
-/// 只读 `GetAsyncKeyState`，不改变键态。语音会话结束后用它判定遥控器的 HID
-/// 释放报告是否丢失；调用方只在报告层合成门禁为真时使用，避免误伤物理按键。
-/// 报告层一次只能替换成一个 usage（白名单见 `VOICE_SYNTHABLE_USAGES`），所以
-/// 这里只需要认识两个 Alt 键；返回具体是哪一个，松手保险才能补对同一个键。
+/// 只读 `GetAsyncKeyState`，不改变键态。**它只用于诊断日志，不能当松手保险的判据**：
+/// 该查询对 HID 合成出来的按键并不可靠（2026-11-16 探针就漏过右 Ctrl），漏判会让
+/// 合成键粘在 OS 键态里。松手保险现在的判据是「这一按合成了哪个和弦」
+/// （见 `ble::should_release_stuck_voice_synth`）。
+///
+/// 报告层能合成的合法目标只有左/右 Alt 与左右 Ctrl 这四种，所以只需要认识它们；
+/// 返回值只用来在日志里说明"补抬起前系统认为按着哪个键"。
 pub fn synth_key_down() -> Option<KeyCode> {
     // 报告层能合成的合法目标：单 usage（左/右 Alt）与修饰键位（左右 Ctrl）。
     [

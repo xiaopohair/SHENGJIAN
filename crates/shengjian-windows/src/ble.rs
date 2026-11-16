@@ -578,14 +578,20 @@ fn uses_report_layer(tool: Option<VoiceToolKind>) -> bool {
 
 /// 语音会话结束后是否应该补发合成键抬起（2026-10-23；2026-11-16 扩到 Chatterfly）。
 ///
-/// 只在三条同时成立时补发：报告层合成生效、目标工具吃报告层、OS 仍认为合成键
-/// 按下。纯判定便于单测；真实键态读取与 SendInput 由调度线程执行。
+/// 判据只看三件事：这一按是报告层合成的、目标工具吃报告层、且**我们知道合成过哪些键**。
+/// **不再依赖 `GetAsyncKeyState`**：那个查询对合成出来的按键并不可靠（2026-11-16 的探针
+/// 就漏过右 Ctrl），一旦漏判，合成键会粘在 OS 键态里、输入法语音条不消失。反过来，正常
+/// 场景下补一次 key-up 是无害空操作（键本来已经抬起），所以宁可无条件补。
+///
+/// 纯判定便于单测；真实 SendInput 由调度线程执行。
 fn should_release_stuck_voice_synth(
     report_layer_active: bool,
     tool: Option<VoiceToolKind>,
-    key_down: bool,
+    synth_chord: Option<&KeyChord>,
 ) -> bool {
-    report_layer_active && uses_report_layer(tool) && key_down
+    report_layer_active
+        && uses_report_layer(tool)
+        && synth_chord.is_some_and(|chord| !chord.keys.is_empty())
 }
 
 /// 配置对不上时留一行判据：工具对注入键免疫，但热键进不了报告层——这一按
@@ -628,41 +634,73 @@ pub(crate) fn note_unsynthable_hotkey(
 #[cfg(test)]
 mod stuck_voice_synth_tests {
     use super::should_release_stuck_voice_synth;
+    use crate::send_input::{KeyChord, KeyCode};
     use crate::voice_tool::VoiceToolKind;
 
+    fn chord(keys: &[KeyCode]) -> KeyChord {
+        KeyChord {
+            keys: keys.to_vec(),
+        }
+    }
+
     #[test]
-    fn releases_only_when_report_layer_tool_and_key_is_down() {
+    fn releases_only_for_report_layer_tools_with_a_known_chord() {
+        let ctrl_alt = chord(&[KeyCode::LeftControl, KeyCode::LeftAlt]);
         assert!(should_release_stuck_voice_synth(
             true,
             Some(VoiceToolKind::Doubao),
-            true
+            Some(&ctrl_alt)
         ));
         // Chatterfly 和豆包一样只吃报告层的真实按键，松手保险必须同开口。
         assert!(should_release_stuck_voice_synth(
             true,
             Some(VoiceToolKind::Chatterfly),
-            true
+            Some(&ctrl_alt)
         ));
+        // 不是报告层合成的、工具不吃报告层、或不知道合成了哪些键 → 不补发
+        // （最后一条挡住"白名单外的组合被误补"）。
         assert!(!should_release_stuck_voice_synth(
             false,
             Some(VoiceToolKind::Doubao),
-            true
+            Some(&ctrl_alt)
         ));
         assert!(!should_release_stuck_voice_synth(
             true,
             Some(VoiceToolKind::Wechat),
-            true
+            Some(&ctrl_alt)
         ));
         assert!(!should_release_stuck_voice_synth(
             true,
             Some(VoiceToolKind::Vokie),
-            true
+            Some(&ctrl_alt)
         ));
-        assert!(!should_release_stuck_voice_synth(true, None, true));
+        assert!(!should_release_stuck_voice_synth(
+            true,
+            None,
+            Some(&ctrl_alt)
+        ));
         assert!(!should_release_stuck_voice_synth(
             true,
             Some(VoiceToolKind::Doubao),
-            false
+            None
+        ));
+        // 空和弦（热键被清空）同样不补发。
+        assert!(!should_release_stuck_voice_synth(
+            true,
+            Some(VoiceToolKind::Chatterfly),
+            Some(&chord(&[]))
+        ));
+    }
+
+    /// 旧实现把"OS 认为键还按着"当判据（`key_down` 入参），探针漏采时就不补发。
+    /// 现在签名里已经没有这个入参——判据只认"我们合成过什么"，这条测试把它钉住。
+    #[test]
+    fn release_decision_does_not_take_os_key_state() {
+        let ctrl_alt = chord(&[KeyCode::LeftControl, KeyCode::LeftAlt]);
+        assert!(should_release_stuck_voice_synth(
+            true,
+            Some(VoiceToolKind::Doubao),
+            Some(&ctrl_alt)
         ));
     }
 }
@@ -2959,14 +2997,15 @@ fn handle_control(
                 apply_input_connection_phase(snapshot.phase);
                 snapshot.voice_state = VoiceSessionState::Idle;
             }
-            // 报告层合成的右 Alt 保险（2026-10-23）：遥控器偶发不发/丢失
-            // 语音键的 HID 释放报告，合成键会一直处于按下（豆包语音条不消失）。
-            // 给真实报告一个宽限期后检查 OS 键态，确认仍按下才补发抬起。
+            // 报告层合成的松手保险（2026-10-23）：遥控器偶发不发/丢失语音键的
+            // HID 释放报告，合成键会一直处于按下（输入法语音条不消失）。把这一按
+            // 用到的和弦传进去，宽限期后按「我们合成过什么」补抬起，不再问 OS 键态。
             spawn_voice_synth_guard(
                 Arc::clone(send_input),
                 Arc::clone(voice_session_epoch),
                 generation,
                 *lock(voice_input_tool),
+                lock(voice_hold_hotkey).clone(),
             );
         }
         PipelineOutput::DecoderSynchronized { .. }
@@ -2975,22 +3014,25 @@ fn handle_control(
     }
 }
 
-/// 报告层合成键的松手保险（2026-10-23 现场）。
+/// 报告层合成键的松手保险（2026-10-23 现场；2026-11-16 改为不依赖键态查询）。
 ///
-/// 背景：报告层把遥控器语音键（0x003E）槽内替换成右 Alt（0x00E6），OS 的
-/// 键态完全由 HID 报告驱动。实测偶发松手后没有收到 HID 释放报告，右 Alt
-/// 在 OS 里持续按下 60 多秒，豆包语音条跟着不消失；而 ATVV STOP 正常到达。
-/// 这里在会话结束后给真实报告 250ms 宽限期，再读 `GetAsyncKeyState`；
-/// 若仍按下，就用 SendInput 补一次右 Alt UP。2026-10-23 真机验证：语音条
-/// 会立即消失，且注入的 UP 不会让豆包重新开麦。
+/// 背景：报告层把遥控器语音键（0x003E）槽内替换成真实按键，OS 的键态完全由 HID
+/// 报告驱动。实测偶发松手后没有收到 HID 释放报告，合成键在 OS 里持续按下（豆包
+/// 语音条不消失 60 多秒），而 ATVV STOP 正常到达。
 ///
-/// 纪元检查防止迟到补发打断 250ms 内重新开始的新会话（AGENTS.md 的
+/// 做法：会话结束后给真实报告一个宽限期，然后把**这一按合成的整个和弦**补一次
+/// key-up。判据是"我们合成过哪些键"，不是"OS 还说按着吗"——`GetAsyncKeyState`
+/// 对合成键不可靠（2026-11-16 探针漏过右 Ctrl），而多补一次 key-up 在正常场景是
+/// 无害空操作（键本来就已抬起）。多键和弦也一次补齐，不会只抬起其中一个。
+///
+/// 纪元检查防止迟到补发打断宽限期内重新开始的新会话（AGENTS.md 的
 /// "迟到回调不得覆盖新一代会话"）。
 fn spawn_voice_synth_guard(
     send_input: Arc<SendInputRuntime>,
     voice_session_epoch: Arc<AtomicU64>,
     generation: u64,
     tool: Option<VoiceToolKind>,
+    synth_chord: Option<KeyChord>,
 ) {
     if !uses_report_layer(tool) || !crate::key_gate::voice_synth_active() {
         return;
@@ -3007,28 +3049,30 @@ fn spawn_voice_synth_guard(
                 return;
             }
             let report_layer_active = crate::key_gate::voice_synth_active();
-            // 报告层可能合成一个 usage（左/右 Alt），也可能合成一组修饰键
-            // （左右 Ctrl），所以问"哪个合成键还按着"，补的才是同一个键。
-            let stuck_key = crate::send_input_windows::synth_key_down();
-            if !should_release_stuck_voice_synth(report_layer_active, tool, stuck_key.is_some()) {
+            // 只对「报告层真能合成」的和弦动手：白名单外的组合根本没被合成过，
+            // 补抬起会误伤用户正在按的物理键。
+            let synth_chord = synth_chord
+                .filter(|chord| crate::rc003_bridge::voice_synth_target(chord).is_some());
+            // 只用于日志：查询不可靠，但它能告诉现场"系统当时认为按着哪个键"。
+            let still_down = crate::send_input_windows::synth_key_down();
+            if !should_release_stuck_voice_synth(report_layer_active, tool, synth_chord.as_ref()) {
                 gatt_note(format!(
-                    "voice_synth_guard generation={generation} epoch={epoch} report_layer={report_layer_active} key_down={} action=none",
-                    stuck_key.is_some()
+                    "voice_synth_guard generation={generation} epoch={epoch} report_layer={report_layer_active} key_down_before_release={} action=none",
+                    still_down.is_some()
                 ));
                 return;
             }
-            let Some(stuck_key) = stuck_key else {
+            let Some(chord) = synth_chord else {
                 return;
             };
-            let chord = KeyChord {
-                keys: vec![stuck_key],
-            };
+            let keys = chord.keys.len();
+            let key_down_before_release = still_down.is_some();
             match send_input.release(&chord) {
                 Ok(_) => gatt_note(format!(
-                    "voice_synth_guard generation={generation} epoch={epoch} report_layer=true key_down=true action=release terminal_result=passed"
+                    "voice_synth_guard generation={generation} epoch={epoch} report_layer=true keys={keys} key_down_before_release={key_down_before_release} action=release terminal_result=passed"
                 )),
                 Err(_) => gatt_note(format!(
-                    "voice_synth_guard generation={generation} epoch={epoch} report_layer=true key_down=true action=release terminal_result=failed error_domain=send_input error_code=release_failed retryable=true"
+                    "voice_synth_guard generation={generation} epoch={epoch} report_layer=true keys={keys} key_down_before_release={key_down_before_release} action=release terminal_result=failed error_domain=send_input error_code=release_failed retryable=true"
                 )),
             }
         });
