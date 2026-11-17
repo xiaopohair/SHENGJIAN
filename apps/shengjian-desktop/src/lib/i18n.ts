@@ -334,8 +334,14 @@ const ENGLISH = {
   面板上显示: "Shown on the panel",
   未命名: "Untitled",
   点击添加内容: "Click to add content",
-  "返回键和音量键需要全按键支持组件；首次安装会请求管理员授权。":
-    "The Back and Volume keys require the full-key support component; the first install asks for administrator approval.",
+  "返回键和音量键需要全按键支持组件；首次安装会请求管理员授权。后台组件更新后，用「重启宿主」立即生效。":
+    "The Back and Volume keys require the full-key support component; the first install asks for administrator approval. After the background component updates, use “Restart host” to apply it.",
+  重启宿主: "Restart host",
+  重启全按键支持服务: "Restart full-key support service",
+  已重启全按键支持服务: "Full-key support service restarted",
+  "服务已重启；新版本的后台组件从现在起生效。":
+    "Service restarted; the newly installed background components take effect from now on.",
+  重启失败: "Restart failed",
   安装: "Install",
   更新: "Update",
   启动与窗口: "Startup & window",

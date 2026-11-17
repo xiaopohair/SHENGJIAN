@@ -187,6 +187,16 @@ export async function uninstallRc003Helper(): Promise<void> {
   return invoke<void>("uninstall_rc003_helper");
 }
 
+/**
+ * 重启全按键支持服务：`schtasks /End` + `/Run`，**不需要管理员**。
+ *
+ * 后台 agent 换代后，宿主若是共享进程，助手会拒绝自我刷新；重启任务让它重新
+ * 扫描宿主并注入当前版本。
+ */
+export async function restartRc003Helper(): Promise<void> {
+  return invoke<void>("restart_rc003_helper");
+}
+
 export async function listAudioEndpoints(): Promise<AudioEndpoint[]> {
   return invoke<AudioEndpoint[]>("list_audio_endpoints");
 }

@@ -337,6 +337,16 @@ pub fn uninstall_rc003_helper(
         .map_err(CommandError::from)
 }
 
+/// 重启全按键支持服务：`schtasks /End` + `/Run`，**不需要管理员**。
+///
+/// 用途：后台 agent 换代后，宿主（WUDFHost）若是共享进程，助手会拒绝自我刷新
+/// （日志 `[AGENT-REFRESH] reason=shared_host`），新 agent 永远不生效且没有报错。
+/// 重启任务会让助手重新扫描宿主、注入当前版本，用户不必再手动 taskkill 宿主。
+#[tauri::command]
+pub fn restart_rc003_helper(state: State<'_, AppState>) -> Result<(), CommandError> {
+    state.host.restart_helper().map_err(CommandError::from)
+}
+
 #[tauri::command]
 pub fn host_capabilities(state: State<'_, AppState>) -> HostCapabilities {
     state.host.capabilities()

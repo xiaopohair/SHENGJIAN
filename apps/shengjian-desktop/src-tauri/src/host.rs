@@ -118,6 +118,11 @@ pub trait HostPlatform: Send + Sync {
     fn helper_installed(&self) -> bool;
     fn install_helper(&self, app: &tauri::AppHandle) -> Result<(), HostError>;
     fn uninstall_helper(&self, app: &tauri::AppHandle) -> Result<(), HostError>;
+    /// 重启全按键支持服务（结束 + 重新拉起计划任务，不需要管理员）。
+    ///
+    /// 后台 agent 换代后，宿主若是共享进程，助手会拒绝自我刷新
+    /// （`[AGENT-REFRESH] reason=shared_host`），必须整条服务重启才会重新注入。
+    fn restart_helper(&self) -> Result<(), HostError>;
     fn open_diagnostic_log_folder(&self) -> Result<(), HostError>;
     fn read_diagnostic_log(&self, max_bytes: usize) -> Result<String, HostError>;
     fn export_diagnostic_bundle(&self, path: &str) -> Result<(), HostError>;

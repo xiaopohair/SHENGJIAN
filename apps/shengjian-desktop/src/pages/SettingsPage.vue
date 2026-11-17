@@ -36,6 +36,7 @@ import {
   openExternalUrl,
   readDiagnosticLog,
   resetSettings,
+  restartRc003Helper,
   saveSettings,
   setAutostartEnabled,
   setTrayLanguage,
@@ -230,6 +231,34 @@ async function installHelper() {
         };
       }
     }, 2000);
+  } catch (cause) {
+    error.value = errorMessage(cause);
+  } finally {
+    helperBusy.value = false;
+  }
+}
+
+/**
+ * 重启全按键支持服务。
+ *
+ * 后台 agent 换代后，宿主（WUDFHost）若是共享进程，助手会拒绝自我刷新
+ * （`[AGENT-REFRESH] reason=shared_host`），新版本会静默不生效。这对
+ * `schtasks /End` + `/Run` 不需要管理员，正好补上这个缺口。
+ */
+async function restartHelperHost() {
+  if (helperBusy.value) return;
+  helperBusy.value = true;
+  helperNotice.value = null;
+  error.value = null;
+  window.clearInterval(helperPoll);
+  try {
+    await restartRc003Helper();
+    helperNotice.value = {
+      text: tr("服务已重启；新版本的后台组件从现在起生效。"),
+      kind: "info",
+    };
+    pushToast(tr("已重启全按键支持服务"), "success");
+    await refreshHelperInstalled();
   } catch (cause) {
     error.value = errorMessage(cause);
   } finally {
@@ -998,7 +1027,7 @@ onMounted(async () => {
             <div class="settings-rows">
               <SettingRow
                 label="全按键支持服务"
-                hint="返回键和音量键需要全按键支持组件；首次安装会请求管理员授权。"
+                hint="返回键和音量键需要全按键支持组件；首次安装会请求管理员授权。后台组件更新后，用「重启宿主」立即生效。"
               >
                 <div class="helper-control">
                   <StatusPill
@@ -1013,6 +1042,15 @@ onMounted(async () => {
                     @click="installHelper"
                   >
                     {{ trDynamic(rc003HelperInstalled ? "更新" : "安装") }}
+                  </Button>
+                  <Button
+                    v-if="rc003HelperInstalled"
+                    size="sm"
+                    variant="secondary"
+                    :disabled="helperBusy"
+                    @click="restartHelperHost"
+                  >
+                    {{ tr("重启宿主") }}
                   </Button>
                   <Button
                     v-if="rc003HelperInstalled"

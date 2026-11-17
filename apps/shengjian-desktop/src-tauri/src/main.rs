@@ -226,6 +226,7 @@ fn main() {
             commands::rc003_helper_installed,
             commands::install_rc003_helper,
             commands::uninstall_rc003_helper,
+            commands::restart_rc003_helper,
             commands::host_capabilities,
             commands::remote_battery,
             commands::voice_level,
