@@ -394,6 +394,8 @@ const ENGLISH = {
   "将遥控器靠近电脑或更换电池。": "Move the remote closer to the PC or replace the battery.",
   可用: "Available",
   不可用: "Unavailable",
+  "此组合键依赖「全按键支持服务」+「虚拟键盘驱动」，请确认两项都已安装。":
+    "This combo needs both the All-key support service and the virtual keyboard driver; make sure both are installed.",
   虚拟键盘驱动已就绪: "Virtual keyboard driver is ready",
   "安装并开启组件后，小米遥控器才能自定义返回键和音量键。\n首次安装会请求管理员授权。组件更新后，点击「重启服务」立即生效。":
     "After installing and enabling the component, the Xiaomi remote can customize its Back and Volume keys.\nThe first install asks for administrator approval. After the component is updated, click Restart service to apply it.",
@@ -401,10 +403,6 @@ const ENGLISH = {
     "Installing it fixes the case where IMEs such as Doubao and ChatterFly do not respond after a multi-key combo is configured.",
   "这次更新与旧的后台组件不兼容：请在「设置 → 音频及语音 → 遥控器」里点一次「更新」，让全按键支持服务一起升级。":
     "This update is not compatible with the old background component: click Update in Settings → Audio & voice → Remote so the All-key support service is upgraded too.",
-  "因输入法限制，请先安装虚拟键盘驱动，否则此组合键无法使用。":
-    "Because of IME limitations, install the virtual keyboard driver first; otherwise this combo cannot be used.",
-  "先安装「全按键支持服务」，这个组合才能用。":
-    "Install the All-key support service first to use this combo.",
   "已交给后台组件执行，完成后会自动刷新状态。":
     "Handed to the background service; the status refreshes automatically when it finishes.",
   "驱动安装没有完成：看诊断日志里的 [WINUHID-DRIVER] 行（含失败码）。":

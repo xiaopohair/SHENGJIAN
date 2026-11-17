@@ -862,9 +862,7 @@ const hotkeyNeedsVirtualHid = computed(
  * 两种来源分开：服务没装（先装服务） vs 服务在但驱动没装（装驱动）。
  */
 const hotkeyBackendHint = computed(() =>
-  hidHostInstalled.value
-    ? tr("因输入法限制，请先安装虚拟键盘驱动，否则此组合键无法使用。")
-    : tr("先安装「全按键支持服务」，这个组合才能用。"),
+  tr("此组合键依赖「全按键支持服务」+「虚拟键盘驱动」，请确认两项都已安装。"),
 );
 
 async function refreshVirtualHid() {
