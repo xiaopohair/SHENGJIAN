@@ -63,6 +63,10 @@ fn main() {
 
 #[cfg(windows)]
 mod imp {
+    /// 虚拟 HID 键盘（WinUHid 客户端）。见模块头注释：报告层两键上限的唯一出口。
+    #[path = "../virtual_hid.rs"]
+    mod virtual_hid;
+
     use std::collections::BTreeSet;
     use std::ffi::c_void;
     use std::fs;
@@ -4592,6 +4596,113 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
         Some(AgentVoiceFrame::Skipped(reason.chars().take(32).collect()))
     }
 
+    /// 虚拟键盘后端状态：DLL 与设备都**按需**创建。
+    ///
+    /// 驱动没装时不该拖慢助手启动，也不该让 `K ?` 之前的任何路径失败——所以这里
+    /// 只放两个 `Option`，第一次真正要用时才去 `LoadLibraryW` + 创建设备。
+    struct VirtualHidState {
+        library: Option<virtual_hid::WinUHid>,
+        keyboard: Option<virtual_hid::VirtualKeyboard>,
+    }
+
+    impl VirtualHidState {
+        fn new() -> Self {
+            Self {
+                library: None,
+                keyboard: None,
+            }
+        }
+
+        /// 确保虚拟键盘设备存在；失败返回原因（上层据此回 `K err <reason>`）。
+        fn ensure(&mut self) -> Result<(), String> {
+            if self.keyboard.is_some() {
+                return Ok(());
+            }
+            if self.library.is_none() {
+                self.library = Some(virtual_hid::WinUHid::open()?);
+            }
+            let library = self.library.as_ref().expect("library just ensured");
+            self.keyboard = Some(library.create_keyboard()?);
+            Ok(())
+        }
+    }
+
+    /// 主程序下发的虚拟键盘命令（`K` 行），与 `S`/`W`/`T` 同一套换行分隔纯文本：
+    ///
+    /// * `K ?`                      —— 查询可用性 → `K ok <driver_version>` / `K no <reason>`
+    /// * `K <mods:02X> <usage:04X>` —— 按下（`mods` 是 HID 修饰位，`usage` 是单键目标）
+    /// * `K -`                      —— 释放（全零报文）
+    #[derive(Debug, PartialEq, Eq)]
+    enum BridgeVirtualHid {
+        Query,
+        Press { mods: u8, usage: u16 },
+        Release,
+    }
+
+    fn parse_bridge_virtual_hid_line(line: &str) -> Option<BridgeVirtualHid> {
+        let mut parts = line.trim().split(' ');
+        if parts.next()? != "K" {
+            return None;
+        }
+        match parts.next()? {
+            "?" => Some(BridgeVirtualHid::Query),
+            "-" => Some(BridgeVirtualHid::Release),
+            mods => Some(BridgeVirtualHid::Press {
+                mods: u8::from_str_radix(mods, 16).ok()?,
+                usage: u16::from_str_radix(parts.next()?, 16).ok()?,
+            }),
+        }
+    }
+
+    /// 可用性判定的纯函数：`version` 为 `None` = DLL 没加载；`Some(0)` = 驱动没装/被拒。
+    fn virtual_hid_availability(version: Option<u32>) -> String {
+        match version {
+            Some(version) if version > 0 => format!("K ok {version}"),
+            Some(_) => "K no driver_unavailable".to_owned(),
+            None => "K no dll_missing".to_owned(),
+        }
+    }
+
+    /// 执行一条 `K` 命令，返回要回给主程序的那一行。
+    fn handle_virtual_hid(state: &Mutex<VirtualHidState>, command: BridgeVirtualHid) -> String {
+        let Ok(mut state) = state.lock() else {
+            return "K err lock".to_owned();
+        };
+        match command {
+            BridgeVirtualHid::Query => {
+                if state.library.is_none() {
+                    state.library = virtual_hid::WinUHid::open().ok();
+                }
+                virtual_hid_availability(
+                    state
+                        .library
+                        .as_ref()
+                        .map(|library| library.driver_version()),
+                )
+            }
+            BridgeVirtualHid::Press { mods, usage } => {
+                if let Err(error) = state.ensure() {
+                    return format!("K err {}", error.replace(' ', "_"));
+                }
+                let keyboard = state.keyboard.as_ref().expect("keyboard ensured");
+                match keyboard.press(mods, usage) {
+                    Ok(()) => "K ack press".to_owned(),
+                    Err(error) => {
+                        // 提交失败通常意味着设备已失效：丢掉，下次重建。
+                        state.keyboard = None;
+                        format!("K err {}", error.replace(' ', "_"))
+                    }
+                }
+            }
+            BridgeVirtualHid::Release => {
+                if let Some(keyboard) = state.keyboard.as_ref() {
+                    let _ = keyboard.release();
+                }
+                "K ack release".to_owned()
+            }
+        }
+    }
+
     /// 解析读缓冲里的完整行：`T <generation> <usages>`（动态目标）与
     /// `S <usage>` / `S -`（语音键报告层合成）。
     ///
@@ -4605,8 +4716,10 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
         voice_synth_dirty: &AtomicBool,
         voice_gate: &AtomicBool,
         voice_gate_dirty: &AtomicBool,
+        virtual_hid: &Mutex<VirtualHidState>,
         logger: &Logger,
-    ) {
+    ) -> Vec<String> {
+        let mut replies = Vec::new();
         while let Some(pos) = read_buffer.iter().position(|byte| *byte == b'\n') {
             let raw: Vec<u8> = read_buffer.drain(..=pos).collect();
             let line = String::from_utf8_lossy(&raw[..raw.len().saturating_sub(1)]);
@@ -4652,8 +4765,12 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
                 );
                 voice_gate.store(on, Ordering::Relaxed);
                 voice_gate_dirty.store(true, Ordering::Relaxed);
+            } else if let Some(command) = parse_bridge_virtual_hid_line(&line) {
+                // 虚拟键盘后端：请求/按下/释放都要回一行，主程序据此决定是否回落。
+                replies.push(handle_virtual_hid(virtual_hid, command));
             }
         }
+        replies
     }
 
     /// 发一条边沿行。空集合编码为 `-`（主程序侧据此释放全部）。
@@ -4874,6 +4991,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
         voice_synth_dirty: Arc<AtomicBool>,
         voice_gate: Arc<AtomicBool>,
         voice_gate_dirty: Arc<AtomicBool>,
+        virtual_hid: Arc<Mutex<VirtualHidState>>,
     ) {
         let mut conn: Option<AppBridgeStream> = None;
         let mut last_known: Vec<u16> = Vec::new();
@@ -5093,15 +5211,24 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
                 }
             }
             if conn.is_some() {
-                drain_bridge_lines(
+                let replies = drain_bridge_lines(
                     &mut read_buffer,
                     &targets,
                     &voice_synth,
                     &voice_synth_dirty,
                     &voice_gate,
                     &voice_gate_dirty,
+                    virtual_hid.as_ref(),
                     &logger,
                 );
+                if let Some(stream) = conn.as_mut() {
+                    for reply in replies {
+                        if bridge_write_line(stream, &reply).is_err() {
+                            conn = None;
+                            break;
+                        }
+                    }
+                }
             }
 
             // 3) 心跳：主程序侧以 3 s 静默为断线判据，这里 1 s 一次。
@@ -5180,6 +5307,9 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
         let worker_targets = Arc::clone(&targets);
         let worker_synth = Arc::clone(&voice_synth);
         let worker_synth_dirty = Arc::clone(&voice_synth_dirty);
+        // 虚拟键盘后端：DLL/设备都按需创建，这里只放一个空状态。
+        let virtual_hid = Arc::new(Mutex::new(VirtualHidState::new()));
+        let worker_virtual_hid = Arc::clone(&virtual_hid);
         let handle = std::thread::Builder::new()
             .name("rc003-app-bridge".to_owned())
             .spawn(move || {
@@ -5197,6 +5327,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
                     worker_synth_dirty,
                     worker_gate,
                     worker_gate_dirty,
+                    worker_virtual_hid,
                 )
             })
             .ok()?;
@@ -11059,6 +11190,72 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
     }
 
     #[cfg(test)]
+    mod bridge_virtual_hid_tests {
+        use super::*;
+
+        /// `K` 行三种形态逐字符对齐，非法输入一律不接管（避免误吞别的行）。
+        #[test]
+        fn parses_query_press_and_release() {
+            assert_eq!(
+                parse_bridge_virtual_hid_line("K ?"),
+                Some(BridgeVirtualHid::Query)
+            );
+            assert_eq!(
+                parse_bridge_virtual_hid_line("K 05 0000"),
+                Some(BridgeVirtualHid::Press {
+                    mods: 0x05,
+                    usage: 0
+                })
+            );
+            // 三键组合（报告层做不到的那种）也能表达。
+            assert_eq!(
+                parse_bridge_virtual_hid_line("K 07 0000"),
+                Some(BridgeVirtualHid::Press {
+                    mods: 0x07,
+                    usage: 0
+                })
+            );
+            // 单键目标走 usage，例如右 Alt。
+            assert_eq!(
+                parse_bridge_virtual_hid_line("K 00 00E6"),
+                Some(BridgeVirtualHid::Press {
+                    mods: 0,
+                    usage: 0x00E6
+                })
+            );
+            assert_eq!(
+                parse_bridge_virtual_hid_line("K -"),
+                Some(BridgeVirtualHid::Release)
+            );
+            assert_eq!(parse_bridge_virtual_hid_line("K"), None);
+            assert_eq!(parse_bridge_virtual_hid_line("K zz 0000"), None);
+            assert_eq!(parse_bridge_virtual_hid_line("K 05"), None);
+            assert_eq!(parse_bridge_virtual_hid_line("S 00E6"), None);
+        }
+
+        /// 可用性三种结论：DLL 缺失 / 驱动不可用 / 正常。不依赖真机驱动。
+        #[test]
+        fn availability_reports_three_states() {
+            assert_eq!(virtual_hid_availability(None), "K no dll_missing");
+            assert_eq!(
+                virtual_hid_availability(Some(0)),
+                "K no driver_unavailable"
+            );
+            assert_eq!(virtual_hid_availability(Some(1)), "K ok 1");
+        }
+
+        /// 没有设备时释放是幂等的，且必须回执（主程序据此清理本地状态）。
+        #[test]
+        fn release_without_device_still_acks() {
+            let state = Mutex::new(VirtualHidState::new());
+            assert_eq!(
+                handle_virtual_hid(&state, BridgeVirtualHid::Release),
+                "K ack release"
+            );
+        }
+    }
+
+    #[cfg(test)]
     mod bridge_synth_line_tests {
         use super::*;
 
@@ -11202,17 +11399,21 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
             let dirty = AtomicBool::new(false);
             let gate = AtomicBool::new(false);
             let gate_dirty = AtomicBool::new(false);
+            let virtual_hid = Mutex::new(VirtualHidState::new());
             let logger = Logger::new(None);
 
-            drain_bridge_lines(
+            let replies = drain_bridge_lines(
                 &mut read_buffer,
                 &targets,
                 &voice_synth,
                 &dirty,
                 &gate,
                 &gate_dirty,
+                &virtual_hid,
                 &logger,
             );
+            // 这批全是配置行（S/W），不该产生虚拟键盘回复。
+            assert!(replies.is_empty());
 
             assert!(read_buffer.is_empty());
             let observed = *voice_synth.lock().unwrap();
@@ -11591,3 +11792,4 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
         }
     }
 }
+
