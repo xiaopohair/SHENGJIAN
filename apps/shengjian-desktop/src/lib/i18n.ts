@@ -396,8 +396,8 @@ const ENGLISH = {
   虚拟键盘驱动已就绪: "Virtual keyboard driver is ready",
   "安装并开启组件后，小米遥控器才能自定义返回键和音量键。\n首次安装会请求管理员授权。组件更新后，点击「重启服务」立即生效。":
     "After installing and enabling the component, the Xiaomi remote can customize its Back and Volume keys.\nThe first install asks for administrator approval. After the component is updated, click Restart service to apply it.",
-  "安装后可解决豆包、ChatterFly等输入法设置多组合键后无影响的问题。":
-    "Installing it fixes the case where multi-key combos have no effect in IMEs such as Doubao and ChatterFly.",
+  "安装后可解决豆包、ChatterFly等输入法设置多组合键后没反应的问题。":
+    "Installing it fixes the case where IMEs such as Doubao and ChatterFly do not respond after a multi-key combo is configured.",
   "这次更新与旧的后台组件不兼容：请在「设置 → 音频及语音 → 遥控器」里点一次「更新」，让全按键支持服务一起升级。":
     "This update is not compatible with the old background component: click Update in Settings → Audio & voice → Remote so the All-key support service is upgraded too.",
   "这个组合需要「虚拟键盘」驱动：在上方「虚拟键盘」那一行点「安装」。":

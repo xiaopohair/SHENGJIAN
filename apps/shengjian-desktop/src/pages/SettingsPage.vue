@@ -1188,7 +1188,7 @@ onMounted(async () => {
               </Notice>
               <SettingRow
                 label="虚拟键盘（三键 / 任意组合）"
-                hint="安装后可解决豆包、ChatterFly等输入法设置多组合键后无影响的问题。"
+                hint="安装后可解决豆包、ChatterFly等输入法设置多组合键后没反应的问题。"
               >
                 <div class="helper-control">
                   <StatusPill
