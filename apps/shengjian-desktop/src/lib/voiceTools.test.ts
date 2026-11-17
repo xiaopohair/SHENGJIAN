@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  customHotkeyAfterToolChange,
+  toolHotkey,
+  withToolHotkey,
   defaultHotkeyFor,
   requiresReportLayerSynthesis,
   voiceToolLabel,
@@ -28,20 +29,25 @@ describe("voice tool catalog helpers", () => {
     expect(requiresReportLayerSynthesis(null)).toBe(false);
   });
 
-  it("drops a custom hotkey when the input tool changes", () => {
-    // 热键是工具专属的：换工具必须回到新工具的默认预设。
-    expect(
-      customHotkeyAfterToolChange("chatterfly", "doubao", ["ControlLeft", "AltLeft"]),
-    ).toBeNull();
-    expect(customHotkeyAfterToolChange("", "doubao", ["ControlLeft"])).toBeNull();
-    // 同工具重选（含大小写/空白差异以外的一致值）保留原值。
-    expect(customHotkeyAfterToolChange("doubao", "doubao", ["ControlLeft", "AltLeft"])).toEqual([
-      "ControlLeft",
-      "AltLeft",
-    ]);
-    // 空值归一成 null，避免把 [] 存进设置。
-    expect(customHotkeyAfterToolChange("doubao", "doubao", [])).toBeNull();
-    expect(customHotkeyAfterToolChange("doubao", "doubao", null)).toBeNull();
+  it("remembers each tool's custom hotkey across tool switches", () => {
+    // A 配好自定义 → 切到 B（B 没有记录，回落到默认 = null）→ 切回 A 仍是原来的值。
+    let map = withToolHotkey({}, "doubao", ["RightAlt"]);
+    expect(toolHotkey(map, "doubao")).toEqual(["RightAlt"]);
+    expect(toolHotkey(map, "chatterfly")).toBeNull();
+
+    map = withToolHotkey(map, "chatterfly", ["ControlLeft", "ShiftLeft"]);
+    expect(toolHotkey(map, "doubao")).toEqual(["RightAlt"]);
+    expect(toolHotkey(map, "chatterfly")).toEqual(["ControlLeft", "ShiftLeft"]);
+
+    // 恢复默认 = 从表里删除该工具，不影响其它工具。
+    map = withToolHotkey(map, "doubao", null);
+    expect(toolHotkey(map, "doubao")).toBeNull();
+    expect(toolHotkey(map, "chatterfly")).toEqual(["ControlLeft", "ShiftLeft"]);
+
+    // 空工具 id / 空键列表都不落表。
+    expect(withToolHotkey(map, "  ", ["ControlLeft"])).toEqual(map);
+    expect(withToolHotkey(map, "vokie", [])).toEqual(map);
+    expect(toolHotkey(null, "doubao")).toBeNull();
   });
 
   it("maps catalog entries to dropdown options without translating labels", () => {

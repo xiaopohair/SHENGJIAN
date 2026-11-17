@@ -51,8 +51,9 @@ import { confirmAction } from "../lib/confirm";
 import { requestButtonsPage, requestDeviceSettings } from "../lib/navigation";
 import { setLanguagePreference, statusLabel, tr, trDynamic, uiLocale } from "../lib/i18n";
 import {
-  customHotkeyAfterToolChange,
   defaultHotkeyFor,
+  toolHotkey,
+  withToolHotkey,
   voiceToolLabel,
   voiceToolOptions,
 } from "../lib/voiceTools";
@@ -378,6 +379,13 @@ function openDeviceSettings() {
 }
 const transcriptHistory = shallowRef(false);
 const voiceHotkey = ref<string[] | null>(null);
+/**
+ * 每个输入工具各自记住的自定义热键（tool id → 键列表）。
+ *
+ * 只存一份"当前工具的自定义"时，A→B→A 切回来会发现自己的配置被重置成默认
+ * （2026-11-17 现场反馈）。这张表跟着设置一起保存，切工具时按表恢复。
+ */
+const voiceHotkeys = ref<Record<string, string[]>>({});
 const { catalog: voiceToolCatalog, load: loadVoiceToolCatalog } = useVoiceToolCatalog();
 /**
  * 语音热键只做点选，不做键盘直接采集。
@@ -400,11 +408,18 @@ const hasCustom = computed(() => (voiceHotkey.value?.length ?? 0) > 0);
  * 热键不再适用——继续沿用会「设置里保存成功、遥控器按了没反应」，所以回到新工具的
  * 默认预设；同工具重选不动。
  */
+function rememberHotkey(tool: string, keys: string[] | null) {
+  voiceHotkeys.value = withToolHotkey(voiceHotkeys.value, tool, keys);
+}
+
 function onToolInput(value: string) {
   if (toolLocked.value) return;
   if (value === voiceInputTool.value) return;
-  voiceHotkey.value = customHotkeyAfterToolChange(voiceInputTool.value, value, voiceHotkey.value);
+  // 先把当前工具的自定义存进表里，再恢复目标工具上次配的值（没有就回落到默认）。
+  rememberHotkey(voiceInputTool.value, voiceHotkey.value);
   voiceInputTool.value = value;
+  const saved = voiceHotkeys.value[value.trim()];
+  voiceHotkey.value = saved && saved.length > 0 ? [...saved] : null;
 }
 const currentVoiceToolLabel = computed(
   () =>
@@ -419,11 +434,13 @@ function openHotkeyPicker() {
 
 function applyPickedHotkey(keys: string[]) {
   voiceHotkey.value = keys.length > 0 ? keys : null;
+  rememberHotkey(voiceInputTool.value, voiceHotkey.value);
   hotkeyPickerOpen.value = false;
 }
 
 function resetHotkey() {
   voiceHotkey.value = null;
+  rememberHotkey(voiceInputTool.value, null);
 }
 
 const languageModel = computed({
@@ -517,9 +534,18 @@ async function load() {
     settingsDocument.value = settings;
     statusStore.setVoiceInputTool(settings.global.voice_input_tool);
     voiceInputTool.value = String(settings.global.voice_input_tool ?? "");
+    voiceHotkeys.value = { ...(settings.global.voice_hotkeys ?? {}) };
+    const storedForTool = toolHotkey(
+      voiceHotkeys.value,
+      String(settings.global.voice_input_tool ?? ""),
+    );
     const storedHotkey = settings.global.voice_hotkey;
     voiceHotkey.value =
-      Array.isArray(storedHotkey) && storedHotkey.length > 0 ? storedHotkey : null;
+      Array.isArray(storedForTool) && storedForTool.length > 0
+        ? [...storedForTool]
+        : Array.isArray(storedHotkey) && storedHotkey.length > 0
+          ? storedHotkey
+          : null;
     transcriptHistory.value = settings.global.local_transcript_history_enabled ?? false;
     gain.value = settings.global.gain_db;
     endpointId.value = settings.global.audio_endpoint_id ?? "";
@@ -567,6 +593,7 @@ async function save(auto = false) {
         audio_endpoint_id: endpointId.value || null,
         voice_input_tool: voiceInputTool.value || null,
         voice_hotkey: voiceHotkey.value,
+        voice_hotkeys: voiceHotkeys.value,
         local_transcript_history_enabled: transcriptHistory.value,
         close_to_tray: closeToTray.value,
         open_window_at_launch: !startHiddenToTray.value,

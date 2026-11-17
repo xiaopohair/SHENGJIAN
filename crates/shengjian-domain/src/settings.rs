@@ -1,5 +1,6 @@
 use crate::UsageStatistics;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
@@ -104,6 +105,13 @@ pub struct AppSettings {
     /// 自定义语音热键（`KeyboardEvent.code` 顺序）；`None` 表示跟随输入工具默认。
     /// 空列表或空字符串在 `normalized()` 中收敛为 `None`。
     pub voice_hotkey: Option<Vec<String>>,
+    /// 每个输入工具各自记住的自定义热键（tool id → 键列表）。
+    ///
+    /// 热键是工具专属的：豆包默认右 Alt、Chatterfly 默认修饰键组合。切换工具时如果
+    /// 只存一份当前值，用户 A→B→A 回来就会发现自己的自定义被重置成默认
+    /// （2026-11-17 现场反馈）。这张表就是"每个工具上次配的是什么"。
+    #[serde(default)]
+    pub voice_hotkeys: BTreeMap<String, Vec<String>>,
     pub launch_at_login: bool,
     /// 启动时是否自动打开主面板，默认 **开启**。
     ///
@@ -174,6 +182,7 @@ impl Default for AppSettings {
             voice_trigger_mode: VoiceTriggerMode::Hold,
             voice_input_tool: None,
             voice_hotkey: None,
+            voice_hotkeys: BTreeMap::new(),
             launch_at_login: false,
             open_window_at_launch: true,
             close_to_tray: true,
@@ -217,6 +226,28 @@ impl AppSettings {
                 .collect();
             self.voice_hotkey = (!cleaned.is_empty()).then_some(cleaned);
         }
+        // 每个工具记住的自定义热键：逐条做同样的清洗，空条目直接丢弃。
+        self.voice_hotkeys = std::mem::take(&mut self.voice_hotkeys)
+            .into_iter()
+            .filter_map(|(tool, keys)| {
+                let mut seen = std::collections::HashSet::new();
+                let cleaned: Vec<String> = keys
+                    .into_iter()
+                    .map(|key| key.trim().to_owned())
+                    .filter(|key| !key.is_empty())
+                    .filter(|key| seen.insert(key.clone()))
+                    .take(8)
+                    .collect();
+                (!tool.trim().is_empty() && !cleaned.is_empty())
+                    .then(|| (tool.trim().to_owned(), cleaned))
+            })
+            .collect();
+        // 当前生效的自定义热键同步进表里：老配置只存了 `voice_hotkey`，
+        // 这里补齐当前工具那一项，前端切走再切回来才有值可恢复。
+        if let (Some(tool), Some(keys)) = (self.voice_input_tool.clone(), self.voice_hotkey.clone())
+        {
+            self.voice_hotkeys.entry(tool).or_insert(keys);
+        }
         self.usage_statistics = self.usage_statistics.normalized();
         self
     }
@@ -225,6 +256,41 @@ impl AppSettings {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 2026-11-17 现场：切到别的输入法再切回来，自定义热键会被重置成默认。
+    /// 原因是只存了一份"当前工具的自定义"，换工具就丢了。这里用 map 记住每个工具。
+    #[test]
+    fn per_tool_custom_hotkeys_survive_tool_switches() {
+        let mut settings = AppSettings {
+            voice_input_tool: Some("doubao".to_owned()),
+            voice_hotkey: Some(vec!["RightAlt".to_owned()]),
+            ..AppSettings::default()
+        }
+        .normalized();
+        // 当前工具的自定义写进表里（老配置迁移）。
+        assert_eq!(
+            settings.voice_hotkeys.get("doubao"),
+            Some(&vec!["RightAlt".to_owned()])
+        );
+
+        // 用户配好 Chatterfly 的自定义，再切回豆包。
+        settings.voice_input_tool = Some("chatterfly".to_owned());
+        settings.voice_hotkey = Some(vec!["ControlLeft".to_owned(), "ShiftLeft".to_owned()]);
+        settings = settings.normalized();
+        settings.voice_input_tool = Some("doubao".to_owned());
+        settings.voice_hotkey = None;
+        settings = settings.normalized();
+
+        // 两个工具各自的值都还在：切回来能恢复豆包那份。
+        assert_eq!(
+            settings.voice_hotkeys.get("doubao"),
+            Some(&vec!["RightAlt".to_owned()])
+        );
+        assert_eq!(
+            settings.voice_hotkeys.get("chatterfly"),
+            Some(&vec!["ControlLeft".to_owned(), "ShiftLeft".to_owned()])
+        );
+    }
 
     #[test]
     fn close_to_tray_defaults_true_for_old_config() {

@@ -57,20 +57,40 @@ export function defaultHotkeyFor(
 }
 
 /**
- * 换输入工具后仍然生效的自定义热键。
+ * 每个输入工具各自记住自己的自定义热键。
  *
- * 热键是**工具专属**的：豆包默认右 Alt、Chatterfly 默认修饰键组合，同一个组合
- * 换个工具通常就按不出来。若把旧值继续发给新工具，表现是「设置里保存成功、
- * 遥控器按了没反应」——所以换工具一律回到新工具的默认预设；同工具重选不清。
+ * 热键是**工具专属**的（豆包默认右 Alt、Chatterfly 默认修饰键组合），但"切走再切回来"
+ * 必须能恢复用户配过的值——只存一份当前值的话，A→B→A 回来就被重置成默认
+ * （2026-11-17 现场反馈）。这里用一张 tool id → 键列表的表：
+ *
+ * - `withToolHotkey` 在用户配置/清除时更新表（空值 = 删除该项）；
+ * - `toolHotkey` 在切到某个工具时取出该工具上次配的值（没有则 null = 用默认）。
  */
-export function customHotkeyAfterToolChange(
-  previousTool: string | null | undefined,
-  nextTool: string | null | undefined,
-  custom: readonly string[] | null | undefined,
+export function withToolHotkey(
+  map: Readonly<Record<string, string[]>> | null | undefined,
+  tool: string | null | undefined,
+  keys: readonly string[] | null | undefined,
+): Record<string, string[]> {
+  const id = (tool ?? "").trim();
+  const next: Record<string, string[]> = { ...(map ?? {}) };
+  if (!id) return next;
+  if (keys && keys.length > 0) {
+    next[id] = [...keys];
+  } else {
+    delete next[id];
+  }
+  return next;
+}
+
+/** 取某个工具上次配置的自定义热键；没有则返回 `null`（表示跟随默认）。 */
+export function toolHotkey(
+  map: Readonly<Record<string, string[]>> | null | undefined,
+  tool: string | null | undefined,
 ): string[] | null {
-  const sameTool = (previousTool ?? "").trim() === (nextTool ?? "").trim();
-  if (sameTool) return custom && custom.length > 0 ? [...custom] : null;
-  return null;
+  const id = (tool ?? "").trim();
+  if (!id) return null;
+  const keys = map?.[id];
+  return keys && keys.length > 0 ? [...keys] : null;
 }
 
 /**

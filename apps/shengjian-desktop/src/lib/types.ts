@@ -149,6 +149,8 @@ export interface SettingsDocument {
     rc003_capture_enabled?: boolean;
     voice_input_tool?: string | null;
     voice_hotkey?: string[] | null;
+    /// 每个输入工具各自记住的自定义热键（tool id → 键列表）。
+    voice_hotkeys?: Record<string, string[]> | null;
     local_transcript_history_enabled?: boolean;
     application_language?: string;
     [key: string]: unknown;
