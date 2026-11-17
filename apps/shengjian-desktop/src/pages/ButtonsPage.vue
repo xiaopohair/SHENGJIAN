@@ -613,10 +613,7 @@ const supportsEnhancement = computed(() => supportsKeyEnhancement(remoteModel.va
 
 async function loadSettingsDocument() {
   try {
-    const [settings, helperInstalled] = await Promise.all([
-      getSettings(),
-      getHidHostInstalled(),
-    ]);
+    const [settings, helperInstalled] = await Promise.all([getSettings(), getHidHostInstalled()]);
     settingsDocument.value = settings;
     enhancedCapture.value = settings.global.rc003_capture_enabled ?? false;
     enhancedCaptureInstalled.value = helperInstalled;
