@@ -401,12 +401,10 @@ const ENGLISH = {
     "Installing it fixes the case where IMEs such as Doubao and ChatterFly do not respond after a multi-key combo is configured.",
   "这次更新与旧的后台组件不兼容：请在「设置 → 音频及语音 → 遥控器」里点一次「更新」，让全按键支持服务一起升级。":
     "This update is not compatible with the old background component: click Update in Settings → Audio & voice → Remote so the All-key support service is upgraded too.",
-  "这个组合需要「虚拟键盘」驱动：在上方「虚拟键盘」那一行点「安装」。":
-    "This combo needs the Virtual keyboard driver: click Install in the Virtual keyboard row above.",
+  "因输入法限制，请先安装虚拟键盘驱动，否则此组合键无法使用。":
+    "Because of IME limitations, install the virtual keyboard driver first; otherwise this combo cannot be used.",
   "先安装「全按键支持服务」，这个组合才能用。":
     "Install the All-key support service first to use this combo.",
-  "这个组合报告层发不出去，要靠虚拟键盘后端送达。当前后端不可用（服务没在运行，或驱动未安装），按键会回落成注入，部分输入法会忽略。":
-    "This combo cannot be sent by the report layer and needs the virtual keyboard backend. The backend is unavailable right now (service not running, or driver not installed), so keys fall back to injection, which some IMEs ignore.",
   "已交给后台组件执行，完成后会自动刷新状态。":
     "Handed to the background service; the status refreshes automatically when it finishes.",
   "驱动安装没有完成：看诊断日志里的 [WINUHID-DRIVER] 行（含失败码）。":
@@ -418,7 +416,6 @@ const ENGLISH = {
   "会移除 Root\\WinUHid 设备与驱动包；证书保留在受信任发布者里。虚拟键盘后端随即不可用，语音热键自动回落报告层。":
     "Removes the Root\\WinUHid device and driver package; the signing certificate stays trusted. The virtual keyboard backend becomes unavailable and voice hotkeys fall back to the report layer.",
   "虚拟键盘驱动（WinUHid）": "Virtual keyboard driver (WinUHid)",
-  "需要先安装 WinUHid 驱动": "Install the WinUHid driver first",
   "装上 WinUHid 驱动后，遥控器能发出报告层做不到的组合（如 Ctrl+Shift+Alt、Alt+W）。未安装时自动回落，不影响现有功能。":
     "With the WinUHid driver installed, the remote can send combos the report layer cannot (e.g. Ctrl+Shift+Alt, Alt+W). Without it the app falls back automatically.",
   已安装: "Installed",

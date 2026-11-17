@@ -863,7 +863,7 @@ const hotkeyNeedsVirtualHid = computed(
  */
 const hotkeyBackendHint = computed(() =>
   hidHostInstalled.value
-    ? tr("这个组合需要「虚拟键盘」驱动：在上方「虚拟键盘」那一行点「安装」。")
+    ? tr("因输入法限制，请先安装虚拟键盘驱动，否则此组合键无法使用。")
     : tr("先安装「全按键支持服务」，这个组合才能用。"),
 );
 
@@ -1196,9 +1196,6 @@ onMounted(async () => {
                     :tone="virtualHid.available ? 'success' : 'warning'"
                     dot
                   />
-                  <span v-if="!virtualHid.available" class="helper-notice-text">
-                    {{ tr("需要先安装 WinUHid 驱动") }}
-                  </span>
                   <Button
                     v-if="!virtualHid.available"
                     size="sm"
