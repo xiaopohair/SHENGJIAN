@@ -51,3 +51,11 @@
 - https://github.com/HD838A/remote-mic-app
 - https://github.com/nijez/open-voice-bridge
 - https://github.com/GetSayAll/remote-mic-app-windows
+
+## WinUHid（虚拟 HID 键盘客户端，MIT）
+
+- 用途：虚拟键盘后端的客户端 DLL；由提权助手动态加载，创建一台标准启动键盘，发出报告层
+  表达不了的组合键（三键 / 修饰键+字母）。
+- 来源：https://github.com/cgutman/WinUHid （MIT，Copyright (c) 2025 Cameron Gutman）
+- 随包文件与摘要：见 `helper/rc003/vendor/winuhid.lock.json` 与 `THIRD_PARTY_NOTICES.md`。
+- 驱动（`Root\WinUHid`，UMDF2 + VHF）不由本仓库分发；缺失时后端自动不可用并回落。

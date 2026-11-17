@@ -1,9 +1,10 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 $appRoot = Split-Path -Parent $PSScriptRoot
 $repoRoot = Split-Path -Parent (Split-Path -Parent $appRoot)
 $helperRoot = Join-Path $repoRoot "helper\rc003"
 $sourceHelper = Join-Path $helperRoot "target\release\shengjian-helper.exe"
 $sourceGadget = Join-Path $helperRoot "vendor\frida-gadget.dll"
+$sourceWinUHid = Join-Path $helperRoot "vendor\winuhid.dll"
 $dest = Join-Path $appRoot "src-tauri\resources\rc003"
 $licenseDest = Join-Path $appRoot "src-tauri\resources\licenses"
 
@@ -13,11 +14,16 @@ if (-not (Test-Path -LiteralPath $sourceHelper)) {
 if (-not (Test-Path -LiteralPath $sourceGadget)) {
     throw "frida gadget missing; run: cd helper/rc003 && python vendor/fetch_frida_gadget.py"
 }
+if (-not (Test-Path -LiteralPath $sourceWinUHid)) {
+    throw "WinUHid client missing: helper/rc003/vendor/winuhid.dll（虚拟键盘后端的客户端）"
+}
 
 New-Item -ItemType Directory -Force -Path $dest | Out-Null
 New-Item -ItemType Directory -Force -Path $licenseDest | Out-Null
 Copy-Item -LiteralPath $sourceHelper -Destination (Join-Path $dest "shengjian-helper.exe") -Force
 Copy-Item -LiteralPath $sourceGadget -Destination (Join-Path $dest "frida-gadget.dll") -Force
+# 必须与助手同目录：助手用 LoadLibraryW 按"可执行文件所在目录优先"加载。
+Copy-Item -LiteralPath $sourceWinUHid -Destination (Join-Path $dest "WinUHid.dll") -Force
 
 $licenseFiles = @{
     "LICENSE" = (Join-Path $repoRoot "LICENSE")
@@ -25,6 +31,7 @@ $licenseFiles = @{
     "ATTRIBUTION.md" = (Join-Path $repoRoot "ATTRIBUTION.md")
     "THIRD_PARTY_NOTICES.md" = (Join-Path $repoRoot "THIRD_PARTY_NOTICES.md")
     "COPYING.frida-gadget" = (Join-Path $helperRoot "vendor\frida-gadget-COPYING")
+    "COPYING.winuhid" = (Join-Path $helperRoot "vendor\winuhid-LICENSE")
 }
 foreach ($entry in $licenseFiles.GetEnumerator()) {
     if (-not (Test-Path -LiteralPath $entry.Value)) {

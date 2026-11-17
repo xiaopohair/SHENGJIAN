@@ -17,6 +17,21 @@
 
 版本与摘要的唯一事实来源：`helper/rc003/vendor/frida-gadget.lock.json`。
 
+## WinUHid（虚拟 HID 键盘客户端）
+
+- 组件：`WinUHid.dll`（Windows x86_64 客户端；对应驱动是 root 枚举的 `Root\WinUHid`，UMDF2 + 系统内置 VHF）
+- 版本：`1.0.0.0`
+- 随包文件：`resources/rc003/WinUHid.dll`（必须与 `shengjian-helper.exe` 同目录，助手用 `LoadLibraryW` 加载）
+- 来源：https://github.com/cgutman/WinUHid（上游没有 release 资产；当前副本取自 MoteDeck 0.2.8 随包，同一份上游构建）
+- 完整性：SHA-256 `2990e3583149333f1566a1ad3715a87ffa4cac1345798c50ce30ba659140cfc7`
+- 许可：**MIT License**（Copyright (c) 2025 Cameron Gutman）
+- 许可全文：本仓库 `helper/rc003/vendor/winuhid-LICENSE`，并随安装包 `resources/licenses/COPYING.winuhid` 分发
+- 说明：MIT 允许以二进制形式随产品分发，需保留版权与许可声明；与项目自身的 GPL-3.0-only 兼容。
+- **驱动包不在本仓库分发**：`WinUHidDriver.inf` / `.dll` / `.cat` / `WinUHidCertificate.cer` 由用户自行安装
+  （root 设备 + 信任发布者证书）。驱动缺失时助手回 `K no driver_unavailable`，主程序自动回落报告层。
+
+版本与摘要的唯一事实来源：`helper/rc003/vendor/winuhid.lock.json`。
+
 ## Maple Mono NF CN（品牌字标轮廓）
 
 - 组件：`Maple Mono NF CN Bold`（Maple Mono 字族，Copyright (c) 2022 subframe7536）

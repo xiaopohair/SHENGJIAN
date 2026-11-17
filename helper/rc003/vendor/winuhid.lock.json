@@ -1,0 +1,38 @@
+{
+  "schema": "shengjian.vendored-binary.lock/1",
+  "purpose": "虚拟 HID 键盘客户端。提权助手动态加载它（LoadLibraryW + GetProcAddress），在系统里创建一台虚拟键盘，用于发出报告层表达不了的组合键（三键 / 修饰键+字母）。对应驱动是 WinUHid（UMDF2 + VHF，root 枚举设备 Root\\WinUHid）。",
+  "note": "本文件是版本与完整性的唯一事实来源。上游没有任何 release 资产（GitHub Releases 为空），当前二进制取自 MoteDeck 0.2.8 随包（同一份上游构建）。正式发布前应改为自行从源码构建，或核对来源并更新本文件与 ATTRIBUTION.md。字段约定同 frida-gadget.lock.json。",
+  "entries": [
+    {
+      "name": "winuhid",
+      "component": "WinUHid.dll",
+      "target": "WinUHid.dll",
+      "runtimeName": "WinUHid.dll",
+      "version": "1.0.0.0",
+      "arch": "x86_64",
+      "source": {
+        "kind": "third-party-bundle",
+        "repo": "cgutman/WinUHid",
+        "note": "取自 MoteDeck 0.2.8 的随包副本（app/winuhid/WinUHid.dll）；上游仓库无可下载的 release 资产",
+        "url": "https://github.com/cgutman/WinUHid"
+      },
+      "extracted": {
+        "name": "WinUHid.dll",
+        "size": 113152,
+        "sha256": "2990e3583149333f1566a1ad3715a87ffa4cac1345798c50ce30ba659140cfc7"
+      },
+      "license": {
+        "name": "MIT License",
+        "file": "winuhid-LICENSE（随包，取自 cgutman/WinUHid 的 LICENSE）",
+        "copyright": "Copyright (c) 2025 Cameron Gutman",
+        "implication": "允许以二进制形式随本产品分发，需保留版权与许可声明；与仓库的 GPL-3.0-only 兼容。"
+      },
+      "drivers": {
+        "driverPackage": "WinUHidDriver.inf + WinUHidDriver.dll + WinUHidDriver.cat + WinUHidCertificate.cer",
+        "install": "root 枚举设备 Root\\WinUHid，需要管理员；安装时把发布者证书放进 trustedPublisher。本仓库暂不分发驱动包。",
+        "loadPath": "WinUHid.dll 必须与 shengjian-helper.exe 同目录：LoadLibraryW 首先搜索可执行文件所在目录"
+      },
+      "usageBoundary": "只作为虚拟键盘后端的客户端；驱动缺失时助手回 K no dll_missing / driver_unavailable，主程序自动回落报告层或注入。基础语音主路径不得依赖本组件。"
+    }
+  ]
+}
