@@ -92,3 +92,33 @@ PowerShell 控制台里发键，键到了但语音条没出现，很容易误判
 
 **顺带确认**：早先一次 `Ctrl+Alt` 没反应，原因是 Chatterfly 当时的快捷键不是这个组合，
 不是虚拟键盘的问题——这也说明产品化时**后端选择要能按工具/按键分别配置**，而不是全局一刀切。
+
+## 产品化进展（2026-11-17：已接通并真机验证）
+
+代码已落地（`53aa2f9` / `f7e11fa` / `a74ae1e`）：
+
+- **助手侧**：`helper/rc003/src/virtual_hid.rs` 动态加载 `WinUHid.dll`，创建标准启动键盘
+  （63 字节描述符、8 字节报文），`press(mods, usage)` / `release()`；桥接新增 `K` 行
+  （`K ?` 查询、`K <mods> <usage>` 按下、`K -` 释放），回 `K ok/no/ack/err`。
+- **主程序侧**：hello 发 `K ?`；回执驱动可用性；语音按下按
+  `report_layer → virtual_hid → send_input` 降级，互斥且各自留判据日志；释放统一挂在
+  `release_voice_hold_hotkey()`（助手侧幂等），不会因某个 close 分支漏掉而粘键。
+- **真机结果**：热键设 `Ctrl+Shift+Alt`（报告层表达不了的组合）→ 日志
+  `voice_attempt ... path=virtual_hid` + `chord_press result=skipped reason=virtual_hid_active`；
+  低级键盘钩子见三键同帧到达、`flags=0x0`（INJECTED 计数 0）；**Chatterfly 弹条并识别出文字**。
+
+部署时踩到的两个坑（写进运维须知）：
+
+1. `WinUHid.dll` 必须放在 `shengjian-helper.exe` **同目录**（`LoadLibraryW` 首先搜 exe 目录），
+   否则 `K ?` 只回 `K no dll_missing`；
+2. 应用必须用 `pnpm tauri build` 构建（带 `custom-protocol` 特性）。`cargo build --release`
+   产物仍走 devUrl，运行时会显示「127.0.0.1 拒绝连接」。
+
+## 发货前还差（未做）
+
+1. **打包**：`WinUHid.dll`（MIT）随助手一起分发，版权声明进 `THIRD_PARTY_NOTICES.md`；
+2. **驱动安装入口**：设置页加「驱动管理」（运行随包官方安装器，或自签 MSI），失败要能明确
+   提示"未安装 → 虚拟键盘后端不可用"；
+3. **卸载**：root 设备 + 证书 + 驱动包一起清（官方 MSI 的卸载 CA 可复用其流程）；
+4. **设置项**：显示虚拟键盘后端可用性/版本（`virtual_hid_ready driver_version=`），
+   未安装时不让选。

@@ -128,13 +128,16 @@ HVCI 下可用；设备对象只允许管理员/ SYSTEM / UMDF 创建（正好�
 `WinUHid.dll` 创建虚拟键盘并发送 `Ctrl+Shift+Alt` / `Ctrl+Alt`；低级键盘钩子显示三键/两键
 同帧到达且 `flags=0x0`（非注入），**Chatterfly 语音条被成功拉起**。
 
-**产品化待办（未开工，按优先级）**：
+**产品化进展**：
 
-1. 键盘描述符与输入报文编码沉到 Rust（提权助手持有虚拟设备；app 通过现有桥接下发"打这个和弦"）；
-2. 按键级后端选择：`send_input`（默认）/ `report_layer`（现有）/ `virtual_hid`（新增），
-   每工具/每按键单独选，失败自动回退；
-3. 驱动分发：决定是随包官方 MSI 还是 fork 自签；必须能一键卸载（root 设备 + 证书 + 驱动包）；
-4. 安装前置检查（受管机/被杀软拦截时的明确提示）与"未安装时不可选"的 UI 约束。
+1. ✅ **键盘描述符与报文编码已沉到 Rust**（`helper/rc003/src/virtual_hid.rs` + 桥接 `K` 协议，
+   提权助手持有虚拟设备）；2026-11-17 真机端到端通过：`Ctrl+Shift+Alt` → `path=virtual_hid`
+   → 钩子三键 `flags=0x0` → Chatterfly 弹条并出字。
+2. ✅ **后端降级已接**：`report_layer → virtual_hid → send_input`，互斥、逐级回落、各有判据日志；
+   释放统一挂在 `release_voice_hold_hotkey()`。
+3. ⬜ 驱动分发：决定随包官方 MSI 还是 fork 自签；`WinUHid.dll` 需放在助手同目录并补许可声明；
+4. ⬜ 安装/卸载与 UI：驱动管理入口、卸载清理（root 设备 + 证书 + 驱动包）、
+   "未安装时不可选"的约束。
 
 ## 验收
 
