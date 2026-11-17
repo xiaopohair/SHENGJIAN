@@ -28,8 +28,16 @@
         "implication": "允许以二进制形式随本产品分发，需保留版权与许可声明；与仓库的 GPL-3.0-only 兼容。"
       },
       "drivers": {
-        "driverPackage": "WinUHidDriver.inf + WinUHidDriver.dll + WinUHidDriver.cat + WinUHidCertificate.cer",
-        "install": "root 枚举设备 Root\\WinUHid，需要管理员；安装时把发布者证书放进 trustedPublisher。本仓库暂不分发驱动包。",
+        "packageDir": "winuhid-driver/（WinUHidDriver.inf + WinUHidDriver.dll + WinUHidDriver.cat + WinUHidCertificate.cer）",
+        "installer": "winuhid-driver/install-driver.ps1（-Action status|install|uninstall）",
+        "install": "root 枚举设备 Root\\WinUHid：信任官方 CA → pnputil /add-driver → SetupAPI 建 root 设备 → UpdateDriverForPlugAndPlayDevices。需要管理员。",
+        "uninstall": "pnputil /remove-device + /delete-driver；证书保留在 trustedPublisher（下次安装不再弹信任确认）。",
+        "files": {
+          "WinUHidDriver.inf": "607ee35713a6d24a54f9bbcaca0700ab2266222719f9d00af84465b8010ee666",
+          "WinUHidDriver.dll": "48bd9d67d4d0dc00c71bb1496f9fc3bb19a4859f48f7cf460c5b72b3f38cfe36",
+          "WinUHidDriver.cat": "4bb644a19d2cf7e5ef7061921c1eaa1aa708ba7b98c306db7c8658f0737d8086",
+          "WinUHidCertificate.cer": "30ee7fe5f0543f7eb1fd52ebc7743c61e235e0623c173b54e49dc676314a7eb9"
+        },
         "loadPath": "WinUHid.dll 必须与 shengjian-helper.exe 同目录：LoadLibraryW 首先搜索可执行文件所在目录"
       },
       "usageBoundary": "只作为虚拟键盘后端的客户端；驱动缺失时助手回 K no dll_missing / driver_unavailable，主程序自动回落报告层或注入。基础语音主路径不得依赖本组件。"

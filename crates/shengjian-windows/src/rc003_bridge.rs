@@ -181,6 +181,30 @@ static VIRTUAL_HID_TARGET: Mutex<Option<(u8, u16)>> = Mutex::new(None);
 static VIRTUAL_HID_DIRTY: AtomicBool = AtomicBool::new(false);
 /// 这一轮语音是否真的按下过虚拟键盘（决定会话结束时要不要补释放）。
 static VIRTUAL_HID_HELD: AtomicBool = AtomicBool::new(false);
+/// 待执行的驱动动作（`install` / `uninstall`）。
+static VIRTUAL_HID_DRIVER_ACTION: Mutex<Option<&'static str>> = Mutex::new(None);
+/// 驱动动作待发送标志。
+static VIRTUAL_HID_DRIVER_DIRTY: AtomicBool = AtomicBool::new(false);
+/// 是否需要在下一个周期重发 `K ?`（驱动装/卸后刷新可用性）。
+static VIRTUAL_HID_REQUERY: AtomicBool = AtomicBool::new(false);
+
+/// 重新查询虚拟键盘可用性（写一行 `K ?`）。
+///
+/// 驱动装/卸完成后，app 缓存的可用性是旧的：必须重新问一次助手，UI 才会翻状态。
+pub fn request_virtual_hid_refresh() {
+    VIRTUAL_HID_REQUERY.store(true, Ordering::Relaxed);
+}
+
+/// 请求安装/卸载虚拟键盘驱动。
+///
+/// 由**提权助手**执行随包脚本，不需要 UAC；这里只置状态，bridge 线程下一个周期写
+/// `D install` / `D uninstall`。结果看诊断日志的 `[WINUHID-DRIVER]` 行与虚拟键盘可用性。
+pub fn request_virtual_hid_driver(action: &'static str) {
+    if let Ok(mut current) = VIRTUAL_HID_DRIVER_ACTION.lock() {
+        *current = Some(action);
+    }
+    VIRTUAL_HID_DRIVER_DIRTY.store(true, Ordering::Relaxed);
+}
 
 /// 虚拟键盘后端是否可用（助手回了 `K ok`）。
 pub fn virtual_hid_ready() -> bool {
@@ -1984,6 +2008,27 @@ fn handle_connection(
                 note(format!(
                     "rc003_bridge event=virtual_hid_sent target={label}"
                 ));
+            }
+            // 驱动装/卸后重问一次可用性（UI 靠这个翻状态）。
+            if VIRTUAL_HID_REQUERY.swap(false, Ordering::Relaxed) {
+                if write_line(&mut writer, VIRTUAL_HID_QUERY_LINE).is_err() {
+                    drop_reason = "virtual_hid_query_write_error";
+                    break;
+                }
+                note("rc003_bridge event=virtual_hid_query scope=refresh".to_owned());
+            }
+            // 驱动安装/卸载：交给提权助手执行（`D install` / `D uninstall`），不需要 UAC。
+            if VIRTUAL_HID_DRIVER_DIRTY.swap(false, Ordering::Relaxed) {
+                let action = *lock(&VIRTUAL_HID_DRIVER_ACTION);
+                if let Some(action) = action {
+                    if write_line(&mut writer, &format!("D {action}")).is_err() {
+                        drop_reason = "virtual_hid_driver_write_error";
+                        break;
+                    }
+                    note(format!(
+                        "rc003_bridge event=virtual_hid_driver_sent action={action}"
+                    ));
+                }
             }
             let ownership_expired = lock(shared)
                 .ownership_last_rx

@@ -333,6 +333,29 @@ pub fn virtual_hid_status() -> VirtualHidStatus {
     }
 }
 
+/// 安装虚拟键盘驱动（WinUHid）：交给提权助手执行，**不弹 UAC**。
+///
+/// 早先版本从主程序 `Start-Process -Verb RunAs` 起脚本，实测在部分环境里根本弹不出
+/// UAC（点了没反应）。助手本来就是提权计划任务，由它跑随包脚本最稳。
+/// 结果看诊断日志 `[WINUHID-DRIVER]` 与虚拟键盘可用性。
+#[tauri::command]
+pub fn install_virtual_hid_driver() -> Result<(), CommandError> {
+    shengjian_windows::rc003_bridge::request_virtual_hid_driver("install");
+    Ok(())
+}
+
+#[tauri::command]
+pub fn uninstall_virtual_hid_driver() -> Result<(), CommandError> {
+    shengjian_windows::rc003_bridge::request_virtual_hid_driver("uninstall");
+    Ok(())
+}
+
+/// 重新查询虚拟键盘可用性：驱动装/卸后 UI 靠这个把状态刷新过来。
+#[tauri::command]
+pub fn refresh_virtual_hid_status() {
+    shengjian_windows::rc003_bridge::request_virtual_hid_refresh();
+}
+
 #[tauri::command]
 pub fn install_rc003_helper(
     app: tauri::AppHandle,

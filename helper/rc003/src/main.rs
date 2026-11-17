@@ -4703,6 +4703,89 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
         }
     }
 
+    /// 驱动安装/卸载命令（`D install` / `D uninstall`）。
+    ///
+    /// 由**提权助手**直接执行，而不是主程序弹 UAC：助手本来就是提权计划任务，跑随包脚本
+    /// 不需要再要一次授权（2026-11-17 实测：部分环境里从主程序 `RunAs` 根本弹不出 UAC，
+    /// 表现为"点了没反应"）。MoteDeck 也是这个路子。
+    fn parse_bridge_driver_line(line: &str) -> Option<&'static str> {
+        let mut parts = line.trim().split(' ');
+        if parts.next()? != "D" {
+            return None;
+        }
+        match parts.next()? {
+            "install" => Some("install"),
+            "uninstall" => Some("uninstall"),
+            _ => None,
+        }
+    }
+
+    /// 在独立线程里跑随包脚本，结果落一行 `[WINUHID-DRIVER]`（不阻塞桥接心跳）。
+    fn spawn_driver_action(action: &'static str, logger: &Logger) {
+        let logger = Logger::with_shared(logger.fallback.clone(), logger.shared.clone());
+        let _ = std::thread::Builder::new()
+            .name("winuhid-driver".to_owned())
+            .spawn(move || {
+                let Some(package_dir) = std::env::current_exe()
+                    .ok()
+                    .and_then(|exe| exe.parent().map(|dir| dir.join("winuhid-driver")))
+                    .filter(|dir| dir.join("install-driver.ps1").is_file())
+                else {
+                    logger.kv(
+                        "[WINUHID-DRIVER]",
+                        &[("action", action.into()), ("result", "missing_package".into())],
+                    );
+                    return;
+                };
+                let script = package_dir.join("install-driver.ps1");
+                let started = Instant::now();
+                let output = std::process::Command::new("powershell")
+                    .args([
+                        "-NoProfile",
+                        "-WindowStyle",
+                        "Hidden",
+                        "-ExecutionPolicy",
+                        "Bypass",
+                        "-File",
+                    ])
+                    .arg(&script)
+                    .arg("-Action")
+                    .arg(action)
+                    .arg("-PackageDir")
+                    .arg(&package_dir)
+                    .output();
+                match output {
+                    Ok(output) => {
+                        let text = String::from_utf8_lossy(&output.stdout)
+                            .trim()
+                            .replace(['\r', '\n'], "|");
+                        logger.kv(
+                            "[WINUHID-DRIVER]",
+                            &[
+                                ("action", action.into()),
+                                (
+                                    "exit",
+                                    output.status.code().unwrap_or(-1).to_string(),
+                                ),
+                                (
+                                    "elapsed_ms",
+                                    started.elapsed().as_millis().to_string(),
+                                ),
+                                ("output", text.chars().take(240).collect()),
+                            ],
+                        );
+                    }
+                    Err(error) => logger.kv(
+                        "[WINUHID-DRIVER]",
+                        &[
+                            ("action", action.into()),
+                            ("result", format!("spawn_failed:{error}")),
+                        ],
+                    ),
+                }
+            });
+    }
+
     /// 解析读缓冲里的完整行：`T <generation> <usages>`（动态目标）与
     /// `S <usage>` / `S -`（语音键报告层合成）。
     ///
@@ -4768,6 +4851,15 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
             } else if let Some(command) = parse_bridge_virtual_hid_line(&line) {
                 // 虚拟键盘后端：请求/按下/释放都要回一行，主程序据此决定是否回落。
                 replies.push(handle_virtual_hid(virtual_hid, command));
+            } else if let Some(action) = parse_bridge_driver_line(&line) {
+                // 驱动安装/卸载由提权助手执行（不需要 UAC），结果进诊断日志。
+                // 动作前先丢掉旧的虚拟键盘句柄：卸载后它已失效，重装后要重新创建。
+                if let Ok(mut state) = virtual_hid.lock() {
+                    state.keyboard = None;
+                    state.library = None;
+                }
+                spawn_driver_action(action, logger);
+                replies.push(format!("D ack {action}"));
             }
         }
         replies

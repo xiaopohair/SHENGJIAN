@@ -28,6 +28,9 @@ import {
   getHostCapabilities,
   getRc003HelperInstalled,
   getVirtualHidStatus,
+  refreshVirtualHidStatus,
+  installVirtualHidDriver,
+  uninstallVirtualHidDriver,
   getRemoteBattery,
   getSettings,
   importConfiguration,
@@ -202,7 +205,7 @@ async function installHelper() {
   try {
     await installRc003Helper();
     helperNotice.value = {
-      text: tr("已请求管理员授权；完成 UAC 后会自动刷新状态。"),
+      text: tr("已交给后台组件执行，完成后会自动刷新状态。"),
       kind: "info",
     };
     let attempts = 0;
@@ -852,6 +855,80 @@ async function refreshVirtualHid() {
   }));
 }
 
+/** 驱动安装/卸载会弹 UAC，完成后轮询状态（安装几秒，卸载立刻）。 */
+const virtualHidBusy = shallowRef(false);
+
+async function waitForVirtualHid(expectAvailable: boolean) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    // 驱动装/卸是助手侧异步做的：先让它重新问一次可用性，再读状态。
+    await refreshVirtualHidStatus().catch(() => undefined);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    await refreshVirtualHid();
+    if (virtualHid.value.available === expectAvailable) return true;
+  }
+  return false;
+}
+
+async function installVirtualHid() {
+  if (virtualHidBusy.value) return;
+  virtualHidBusy.value = true;
+  helperNotice.value = null;
+  error.value = null;
+  try {
+    await installVirtualHidDriver();
+    helperNotice.value = {
+      text: tr("已交给后台组件执行，完成后会自动刷新状态。"),
+      kind: "info",
+    };
+    if (await waitForVirtualHid(true)) {
+      pushToast(tr("虚拟键盘驱动已就绪"), "success");
+      helperNotice.value = null;
+    } else {
+      helperNotice.value = {
+        text: tr("驱动安装没有完成：看诊断日志里的 [WINUHID-DRIVER] 行（含失败码）。"),
+        kind: "warning",
+      };
+    }
+  } catch (cause) {
+    error.value = errorMessage(cause);
+  } finally {
+    virtualHidBusy.value = false;
+  }
+}
+
+async function uninstallVirtualHid() {
+  if (virtualHidBusy.value) return;
+  const confirmed = await confirmAction({
+    title: tr("卸载虚拟键盘驱动？"),
+    message: tr(
+      "会移除 Root\\WinUHid 设备与驱动包；证书保留在受信任发布者里。虚拟键盘后端随即不可用，语音热键自动回落报告层。",
+    ),
+    confirmLabel: tr("卸载"),
+    danger: true,
+  });
+  if (!confirmed) return;
+  virtualHidBusy.value = true;
+  helperNotice.value = null;
+  error.value = null;
+  try {
+    await uninstallVirtualHidDriver();
+    if (await waitForVirtualHid(false)) {
+      pushToast(tr("虚拟键盘驱动已移除"), "success");
+      helperNotice.value = null;
+    } else {
+      helperNotice.value = {
+        text: tr("驱动还没有移除：看诊断日志里的 [WINUHID-DRIVER] 行（含失败码）。"),
+        kind: "warning",
+      };
+    }
+  } catch (cause) {
+    error.value = errorMessage(cause);
+  } finally {
+    virtualHidBusy.value = false;
+  }
+}
+
 onMounted(async () => {
   await Promise.all([load(), loadVoiceToolCatalog(), loadAudioDependency(), refreshVirtualHid()]);
 });
@@ -1102,6 +1179,24 @@ onMounted(async () => {
                   <span v-else class="helper-notice-text">
                     {{ tr("需要先安装 WinUHid 驱动") }}
                   </span>
+                  <Button
+                    v-if="!virtualHid.available"
+                    size="sm"
+                    variant="primary"
+                    :disabled="virtualHidBusy"
+                    @click="installVirtualHid"
+                  >
+                    {{ tr("安装") }}
+                  </Button>
+                  <Button
+                    v-else
+                    size="sm"
+                    variant="danger"
+                    :disabled="virtualHidBusy"
+                    @click="uninstallVirtualHid"
+                  >
+                    {{ tr("卸载") }}
+                  </Button>
                 </div>
               </SettingRow>
             </div>

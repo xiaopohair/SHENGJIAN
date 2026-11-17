@@ -192,6 +192,20 @@ export async function getVirtualHidStatus(): Promise<VirtualHidStatus> {
   return invoke<VirtualHidStatus>("virtual_hid_status");
 }
 
+/** 安装虚拟键盘驱动（WinUHid）：提权运行随包脚本，会弹一次 UAC。 */
+export async function installVirtualHidDriver(): Promise<void> {
+  return invoke<void>("install_virtual_hid_driver");
+}
+
+export async function uninstallVirtualHidDriver(): Promise<void> {
+  return invoke<void>("uninstall_virtual_hid_driver");
+}
+
+/** 让桥接重新查询一次虚拟键盘可用性（驱动装/卸后刷新 UI 状态）。 */
+export async function refreshVirtualHidStatus(): Promise<void> {
+  return invoke<void>("refresh_virtual_hid_status");
+}
+
 /** 卸载全按键支持服务：提权移除计划任务（弹一次 UAC）。 */
 export async function uninstallRc003Helper(): Promise<void> {
   return invoke<void>("uninstall_rc003_helper");

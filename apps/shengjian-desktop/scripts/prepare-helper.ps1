@@ -24,6 +24,14 @@ Copy-Item -LiteralPath $sourceHelper -Destination (Join-Path $dest "shengjian-he
 Copy-Item -LiteralPath $sourceGadget -Destination (Join-Path $dest "frida-gadget.dll") -Force
 # 必须与助手同目录：助手用 LoadLibraryW 按"可执行文件所在目录优先"加载。
 Copy-Item -LiteralPath $sourceWinUHid -Destination (Join-Path $dest "WinUHid.dll") -Force
+# 官方驱动包（含官方 CA 证书）与安装脚本：设置页的「驱动管理」直接调用它
+$sourceDriverDir = Join-Path $helperRoot "vendor\winuhid-driver"
+if (-not (Test-Path -LiteralPath $sourceDriverDir)) {
+    throw "WinUHid driver package missing: helper/rc003/vendor/winuhid-driver"
+}
+$driverDest = Join-Path $dest "winuhid-driver"
+if (Test-Path -LiteralPath $driverDest) { Remove-Item -LiteralPath $driverDest -Recurse -Force }
+Copy-Item -LiteralPath $sourceDriverDir -Destination $driverDest -Recurse -Force
 
 $licenseFiles = @{
     "LICENSE" = (Join-Path $repoRoot "LICENSE")

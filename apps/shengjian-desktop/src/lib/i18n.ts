@@ -393,6 +393,17 @@ const ENGLISH = {
   "将遥控器靠近电脑或更换电池。": "Move the remote closer to the PC or replace the battery.",
   可用: "Available",
   不可用: "Unavailable",
+  虚拟键盘驱动已就绪: "Virtual keyboard driver is ready",
+  "已交给后台组件执行，完成后会自动刷新状态。":
+    "Handed to the background service; the status refreshes automatically when it finishes.",
+  "驱动安装没有完成：看诊断日志里的 [WINUHID-DRIVER] 行（含失败码）。":
+    "Driver installation did not finish: check the [WINUHID-DRIVER] line in the diagnostic log (it carries the failure code).",
+  "驱动还没有移除：看诊断日志里的 [WINUHID-DRIVER] 行（含失败码）。":
+    "The driver is still installed: check the [WINUHID-DRIVER] line in the diagnostic log (it carries the failure code).",
+  虚拟键盘驱动已移除: "Virtual keyboard driver removed",
+  "卸载虚拟键盘驱动？": "Uninstall the virtual keyboard driver?",
+  "会移除 Root\\WinUHid 设备与驱动包；证书保留在受信任发布者里。虚拟键盘后端随即不可用，语音热键自动回落报告层。":
+    "Removes the Root\\WinUHid device and driver package; the signing certificate stays trusted. The virtual keyboard backend becomes unavailable and voice hotkeys fall back to the report layer.",
   "虚拟键盘（三键 / 任意组合）": "Virtual keyboard (3-key / any combo)",
   "需要先安装 WinUHid 驱动": "Install the WinUHid driver first",
   "装上 WinUHid 驱动后，遥控器能发出报告层做不到的组合（如 Ctrl+Shift+Alt、Alt+W）。未安装时自动回落，不影响现有功能。":
