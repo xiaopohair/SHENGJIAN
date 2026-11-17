@@ -258,6 +258,8 @@ impl HostPlatform for PlatformHost {
         self.platform.set_enhanced_capture_enabled(enabled);
         if enabled {
             helper::start_helper_task();
+            // 一次拉起不够稳：后台继续盯，连不上就重试（见 ensure_helper_running）。
+            ensure_helper_running(std::sync::Arc::clone(&self.platform));
         } else {
             helper::stop_helper_task();
         }
@@ -525,4 +527,20 @@ mod tests {
             Some(VoiceToolKind::Custom)
         );
     }
+}
+
+/// 兜底拉起助手：`schtasks /Run` 经常"命令成功但助手很快退出"（换代 stale tap、
+/// 任务刚注册、宿主还在重建），用户看到的就是"全按键支持已安装但按了没反应"。
+/// 这里在后台盯 60 秒：桥接没连上就再拉起一次，最多 6 次。
+fn ensure_helper_running(platform: std::sync::Arc<shengjian_windows::WindowsPlatform>) {
+    std::thread::spawn(move || {
+        use shengjian_windows::hid_bridge::BridgePhase;
+        for _ in 0..6 {
+            std::thread::sleep(std::time::Duration::from_secs(5));
+            if matches!(platform.hid_bridge_snapshot().phase, BridgePhase::Connected) {
+                return;
+            }
+            helper::start_helper_task();
+        }
+    });
 }
