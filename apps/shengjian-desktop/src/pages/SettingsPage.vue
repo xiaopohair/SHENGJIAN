@@ -848,6 +848,15 @@ const virtualHid = shallowRef<{ available: boolean; driver_version: number }>({
   driver_version: 0,
 });
 
+/**
+ * 提醒义务：当前热键如果超过两个键，报告层表达不了，只能靠虚拟键盘。
+ * 驱动没装时按键到不了输入法（会回落注入，而部分输入法会忽略注入键），
+ * 这里提前说清楚，而不是让用户按下去没反应再来查。
+ */
+const hotkeyNeedsVirtualHid = computed(
+  () => !virtualHid.value.available && hotkeyParts.value.length > 2,
+);
+
 async function refreshVirtualHid() {
   virtualHid.value = await getVirtualHidStatus().catch(() => ({
     available: false,
@@ -1255,6 +1264,15 @@ onMounted(async () => {
               <SettingRow label="语音记录" hint="只保存转写文字，不保存音频。">
                 <Switch v-model="transcriptHistory" :label="trDynamic('语音记录')" />
               </SettingRow>
+              <Notice v-if="hotkeyNeedsVirtualHid" kind="warning">
+                <span class="helper-notice-text">
+                  {{
+                    tr(
+                      "这个组合报告层发不出去，需要虚拟键盘驱动；没装的话按键到不了输入法（会回落成注入，部分输入法会忽略）。",
+                    )
+                  }}
+                </span>
+              </Notice>
             </div>
           </Card>
         </template>

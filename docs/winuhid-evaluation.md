@@ -114,6 +114,38 @@ PowerShell 控制台里发键，键到了但语音条没出现，很容易误判
 2. 应用必须用 `pnpm tauri build` 构建（带 `custom-protocol` 特性）。`cargo build --release`
    产物仍走 devUrl，运行时会显示「127.0.0.1 拒绝连接」。
 
+## 驱动安装/卸载：已做成（2026-11-17，全程无 UAC）
+
+产品原则（用户拍板）：**装不装、什么时候装，由用户决定**；我们只负责兜底和提醒。
+
+- **不自动安装**：设置页只在"未安装"时显示「安装」按钮，用户点了才动；
+- **后台执行**：主程序不弹 UAC（实测 `Start-Process -Verb RunAs` 在本机弹不出来），
+  改由已提权的助手执行 `D install` / `D uninstall`，跑随包脚本
+  `winuhid-driver/install-driver.ps1`（信任官方 CA → 放驱动 → 建 root 设备 → 绑驱动）；
+- **兜底**：装/卸失败不影响语音主功能，后端自动回落报告层或注入；
+- **提醒**：设置页显示 `可用 + driver vN` / `未安装`；热键超过两键且驱动未装时，
+  在热键行下方直接警告"这个组合报告层发不出去，需要虚拟键盘驱动"。
+
+实测（本机）：
+
+```
+[WINUHID-DRIVER] action=uninstall exit=0 elapsed_ms=3799
+output=device_removed=ROOT\WINUHID\0000||driver_deleted=oem124.inf||cert_kept=true
+[WINUHID-DRIVER] action=install   exit=0 elapsed_ms=5526
+output=cert_trusted=true||driver_staged=true||driver_installed=true||installed=true||instance=ROOT\WINUHID\0000
+```
+
+UI 状态跟着翻（`未安装` ⇄ `可用 driver v1`），驱动就位后语音按键恢复 `path=virtual_hid`。
+
+**踩到的两个坑（都已修）**：
+
+1. `SetupDiCreateDeviceInfoW` 的设备名必须传 `"WinUHid"`（配 `DICD_GENERATE_ID` 让系统生成实例 ID）。
+   传 `"Root\WinUHid"` 会被当成实例 ID，卸载后再装就报 `ERROR_DEVINST_ALREADY_EXISTS`
+   （0xE0000205），而 `UpdateDriver` 又报 `NO_SUCH_DEVINST`（0xE000020B）——两个错误互相矛盾；
+   MoteDeck 的脚本传的就是 `"WinUHid"`，对照后定位。
+2. PowerShell 里用 `[ref]` 把结构体传给 P/Invoke 会编组失败，表现为函数返回 false 且
+   `GetLastError=0`；把整段 SetupAPI 逻辑写进 C# 才对。
+
 ## 发货前还差（未做）
 
 1. **打包**：`WinUHid.dll`（MIT）随助手一起分发，版权声明进 `THIRD_PARTY_NOTICES.md`；

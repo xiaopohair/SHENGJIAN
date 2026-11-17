@@ -183,7 +183,10 @@ public static class ShengjianRootDev
         {
             var data = new SP_DEVINFO_DATA();
             data.cbSize = (uint)Marshal.SizeOf(typeof(SP_DEVINFO_DATA));
-            if (!SetupDiCreateDeviceInfoW(set, hardwareId, ref classGuid, "WinUHid Virtual HID Enumerator",
+            // 设备名必须是不带 "Root\" 前缀的短名：它会被当作设备描述，实例 ID 由系统生成。
+            // 传 "Root\WinUHid" 会被当成实例 ID，一旦有残留就报 ERROR_DEVINST_ALREADY_EXISTS
+            // （0xE0000205，2026-11-17 实测；MoteDeck 的脚本传的是 "WinUHid"）。
+            if (!SetupDiCreateDeviceInfoW(set, "WinUHid", ref classGuid, "WinUHid Virtual HID Enumerator",
                     IntPtr.Zero, DICD_GENERATE_ID, ref data))
                 return "create_device_info_failed:" + Marshal.GetLastWin32Error();
 
