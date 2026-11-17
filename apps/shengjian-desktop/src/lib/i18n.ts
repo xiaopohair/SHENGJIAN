@@ -412,9 +412,13 @@ const ENGLISH = {
   "驱动还没有移除：看诊断日志里的 [WINUHID-DRIVER] 行（含失败码）。":
     "The driver is still installed: check the [WINUHID-DRIVER] line in the diagnostic log (it carries the failure code).",
   虚拟键盘驱动已移除: "Virtual keyboard driver removed",
+  "已卸载虚拟键盘驱动：三键组合暂时用不了，需要时在这一行点「安装」装回来。":
+    "Virtual keyboard driver removed: 3-key combos are unavailable for now. Click Install in this row whenever you need it back.",
+  "虚拟键盘驱动已安装：现在可以使用三键组合了。":
+    "Virtual keyboard driver installed: 3-key combos work now.",
   "卸载虚拟键盘驱动？": "Uninstall the virtual keyboard driver?",
-  "会移除 Root\\WinUHid 设备与驱动包；证书保留在受信任发布者里。虚拟键盘后端随即不可用，语音热键自动回落报告层。":
-    "Removes the Root\\WinUHid device and driver package; the signing certificate stays trusted. The virtual keyboard backend becomes unavailable and voice hotkeys fall back to the report layer.",
+  "卸载后，三键组合（如 Ctrl+Shift+Alt）就用不了了，语音热键会改用其他方式发送，部分输入法可能收不到。之后随时可以在这一行点「安装」装回来。":
+    "After uninstalling, 3-key combos (e.g. Ctrl+Shift+Alt) stop working; the voice hotkey falls back to another send path and some IMEs may not receive it. You can reinstall any time from this row.",
   "虚拟键盘驱动（WinUHid）": "Virtual keyboard driver (WinUHid)",
   "装上 WinUHid 驱动后，遥控器能发出报告层做不到的组合（如 Ctrl+Shift+Alt、Alt+W）。未安装时自动回落，不影响现有功能。":
     "With the WinUHid driver installed, the remote can send combos the report layer cannot (e.g. Ctrl+Shift+Alt, Alt+W). Without it the app falls back automatically.",

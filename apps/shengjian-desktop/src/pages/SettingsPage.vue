@@ -185,7 +185,7 @@ const helperBusy = shallowRef(false);
  */
 const helperNotice = shallowRef<{
   text: string;
-  kind: "info" | "warning";
+  kind: "info" | "warning" | "success";
   /** 服务装好了但开关还关着：给一个内联出口，别让用户自己去找开关。 */
   showOpenSwitch?: boolean;
 } | null>(null);
@@ -902,7 +902,10 @@ async function installVirtualHid() {
     };
     if (await waitForVirtualHid(true)) {
       pushToast(tr("虚拟键盘驱动已就绪"), "success");
-      helperNotice.value = null;
+      helperNotice.value = {
+        text: tr("虚拟键盘驱动已安装：现在可以使用三键组合了。"),
+        kind: "success",
+      };
     } else {
       helperNotice.value = {
         text: tr("驱动安装没有完成：看诊断日志里的 [WINUHID-DRIVER] 行（含失败码）。"),
@@ -921,7 +924,7 @@ async function uninstallVirtualHid() {
   const confirmed = await confirmAction({
     title: tr("卸载虚拟键盘驱动？"),
     message: tr(
-      "会移除 Root\\WinUHid 设备与驱动包；证书保留在受信任发布者里。虚拟键盘后端随即不可用，语音热键自动回落报告层。",
+      "卸载后，三键组合（如 Ctrl+Shift+Alt）就用不了了，语音热键会改用其他方式发送，部分输入法可能收不到。之后随时可以在这一行点「安装」装回来。",
     ),
     confirmLabel: tr("卸载"),
     danger: true,
@@ -934,7 +937,10 @@ async function uninstallVirtualHid() {
     await uninstallVirtualHidDriver();
     if (await waitForVirtualHid(false)) {
       pushToast(tr("虚拟键盘驱动已移除"), "success");
-      helperNotice.value = null;
+      helperNotice.value = {
+        text: tr("已卸载虚拟键盘驱动：三键组合暂时用不了，需要时在这一行点「安装」装回来。"),
+        kind: "info",
+      };
     } else {
       helperNotice.value = {
         text: tr("驱动还没有移除：看诊断日志里的 [WINUHID-DRIVER] 行（含失败码）。"),
