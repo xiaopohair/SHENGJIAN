@@ -1287,15 +1287,15 @@ onMounted(async () => {
           <p class="settings-group-label">{{ tr("系统") }}</p>
           <Card v-if="settingsDocument">
             <div class="settings-rows">
-              <SettingRow label="开机自动启动" hint="登录 Windows 后自动启动声键">
+              <SettingRow label="开机自动启动">
                 <Switch v-model="autostart" :label="trDynamic('开机自动启动')" />
               </SettingRow>
 
-              <SettingRow label="启动后隐藏到系统托盘" hint="启动时不弹出主窗口，只驻留系统托盘">
+              <SettingRow label="启动后隐藏到系统托盘">
                 <Switch v-model="startHiddenToTray" :label="trDynamic('启动后隐藏到系统托盘')" />
               </SettingRow>
 
-              <SettingRow label="关闭窗口时隐藏到托盘" hint="关闭后点窗口关闭按钮将直接退出应用">
+              <SettingRow label="关闭窗口时隐藏到托盘">
                 <Switch v-model="closeToTray" :label="trDynamic('关闭窗口时隐藏到托盘')" />
               </SettingRow>
             </div>
