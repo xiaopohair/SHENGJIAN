@@ -99,6 +99,15 @@
 - [`MacroTransferDialog.vue`](../apps/shengjian-desktop/src/components/MacroTransferDialog.vue)：宏库导入/导出（单文件整库 / 多文件每宏一个，导入按 ID+版本合并）
 - 触发入口统一是 [`ChordInput.vue`](../apps/shengjian-desktop/src/components/ui/ChordInput.vue) 的「选择」按钮
 
+### 设置行（SettingRow）
+
+设置页的每一行是 `label`（必填）+ 可选 `hint` + 右侧控件。
+
+- **行最小高度 `--row-min-height: 56px`**（7×8 栅格）。没有 `hint` 的行靠它撑住节奏；
+  只有 12px 上下内边距时，"标题 + 开关"的行会挤在一起（2026-11-17 实测）。
+- 有 `hint` 的行自然变高，不额外加间距；行之间只靠 1px 分隔线。
+- `hint` 里的 `\n` 会换行（`white-space: pre-line`），但**优先不加说明**，见 §4.2。
+
 ### Button
 
 `Button.vue`

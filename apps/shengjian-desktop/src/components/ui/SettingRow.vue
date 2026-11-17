@@ -31,6 +31,9 @@ withDefaults(
   justify-content: space-between;
   gap: var(--space-4);
   min-width: 0;
+  /* 没有副标题的行也要有稳定高度：用栅格上的 --row-min-height 撑节奏，
+     否则 12px 上下内边距会让"只有标题 + 开关"的行显得挤在一起。 */
+  min-height: var(--row-min-height);
   padding: var(--space-3) 0;
 }
 

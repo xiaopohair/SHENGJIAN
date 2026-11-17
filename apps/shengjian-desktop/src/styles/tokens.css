@@ -72,6 +72,11 @@
   --space-7: 48px;
   --space-8: 64px;
 
+  /* Layout */
+  /* 列表行（设置项等）的最小高度：7×8，落在 8px 栅格上。
+     没有副标题的行靠它撑住节奏，否则只有 12px 上下内边距会显得挤。 */
+  --row-min-height: 56px;
+
   /* Type */
   --font:
     "Segoe UI Variable", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
