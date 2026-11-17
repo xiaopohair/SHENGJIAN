@@ -1182,10 +1182,7 @@ onMounted(async () => {
                     :tone="virtualHid.available ? 'success' : 'warning'"
                     dot
                   />
-                  <span v-if="virtualHid.available" class="helper-notice-text">
-                    driver v{{ virtualHid.driver_version }}
-                  </span>
-                  <span v-else class="helper-notice-text">
+                  <span v-if="!virtualHid.available" class="helper-notice-text">
                     {{ tr("需要先安装 WinUHid 驱动") }}
                   </span>
                   <Button
