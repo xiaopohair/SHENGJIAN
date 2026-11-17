@@ -33,10 +33,7 @@ fn run_schtasks_code(args: &[&str]) -> Option<i32> {
     command.args(args);
     #[cfg(windows)]
     command.creation_flags(CREATE_NO_WINDOW);
-    command
-        .status()
-        .ok()
-        .and_then(|status| status.code())
+    command.status().ok().and_then(|status| status.code())
 }
 
 pub fn start_helper_task() -> bool {
