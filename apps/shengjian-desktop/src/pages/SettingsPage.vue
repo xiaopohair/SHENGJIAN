@@ -1225,7 +1225,7 @@ onMounted(async () => {
           <p class="settings-group-label">{{ tr("语音") }}</p>
           <Card v-if="settingsDocument">
             <div class="settings-rows">
-              <SettingRow label="输入法" hint="遥控器语音转写注入的目标输入法">
+              <SettingRow label="输入法" hint="配置按下遥控器语音键时调用的输入法">
                 <SelectInput
                   :model-value="toolValue"
                   :disabled="toolLocked"
@@ -1251,10 +1251,7 @@ onMounted(async () => {
                 {{ tr("已被设备设置覆盖") }}
               </button>
 
-              <SettingRow
-                label="语音热键"
-                hint="按下遥控器语音键时注入的组合键；用点选方式设置，避免被输入法抢走按键"
-              >
+              <SettingRow label="语音热键" hint="请配置成与输入法相同的组合键">
                 <div class="hotkey-inline">
                   <span v-if="hotkeyParts.length" class="hotkey-keys" aria-live="polite">
                     <kbd v-for="(part, index) in hotkeyParts" :key="`${part}-${index}`">

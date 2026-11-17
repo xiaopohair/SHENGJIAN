@@ -1233,8 +1233,7 @@ const ENGLISH = {
     "This is {tool}'s own voice chord, so it may respond first at runtime; pick another chord.",
   "避免其他 App 使用同一个快捷键（Vokie、Chatterfly 这类语音工具会抢在输入法前面）":
     "Avoid chords other apps already use (Vokie, Chatterfly and similar voice tools grab them before the IME)",
-  "按下遥控器语音键时注入的组合键；用点选方式设置，避免被输入法抢走按键":
-    "Chord injected when the remote voice key is pressed; pick it instead of typing it, so the IME can't steal the keys",
+  请配置成与输入法相同的组合键: "Set it to the same combo as your IME",
   全按键支持: "Full-key support",
   全键支持: "Full-key support",
   方案激活: "Profile activation",
@@ -1393,7 +1392,7 @@ const ENGLISH = {
   "也可以新建方案，或从模板快速创建。": "You can also create a profile, or start from a template.",
   "从顶部宏库选择，或新建一个宏。": "Pick a macro from the library above, or create a new one.",
   语音播放的音量增益: "Volume gain for voice playback",
-  遥控器语音转写注入的目标输入法: "Input method that remote voice transcription is typed into",
+  配置按下遥控器语音键时调用的输入法: "The IME invoked when you press the remote voice key",
   语音热键: "Voice hotkey",
   "登录 Windows 后自动启动声键": "Start Shengjian automatically after Windows sign-in",
   "启动时不弹出主窗口，只驻留系统托盘；需要时从托盘打开":

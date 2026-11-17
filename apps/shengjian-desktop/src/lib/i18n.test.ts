@@ -16,7 +16,10 @@ function sourceFiles(dir: string): string[] {
 
 /** A TS string literal may escape quotes/backslashes; accept either spelling. */
 function spellings(raw: string): string[] {
-  return [raw, raw.replace(/\\'/g, "'").replace(/\\"/g, '"').replace(/\\\\/g, "\\")];
+  const unescaped = raw.replace(/\\'/g, "'").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+  // 源码里的 `\n` 是换行转义：字典键在运行时是真实换行，提取出来的字面量还是反斜杠 n，
+  // 所以要再补一份"把 \n 解成换行"的拼写（多行文案，如设置页的两行说明）。
+  return [raw, unescaped, unescaped.replace(/\\n/g, "\n")];
 }
 
 function missingKeys(files: string[], extract: (source: string) => string[]): string[] {
