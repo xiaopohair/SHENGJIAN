@@ -15,6 +15,8 @@ export interface Toast {
   actionLabel?: string;
   onAction?: () => void;
   onClose?: () => void;
+  /** 这条提示会显示多久（毫秒）：ToastHost 用它画底部倒计时条。 */
+  durationMs: number;
 }
 
 interface ToastOptions {
@@ -69,6 +71,7 @@ export function pushToast(message: string, kind: ToastKind = "info", options: To
     message,
     kind,
     actionLabel: options.actionLabel,
+    durationMs: options.durationMs ?? 4500,
     onAction: options.onAction,
     onClose: options.onClose,
   });

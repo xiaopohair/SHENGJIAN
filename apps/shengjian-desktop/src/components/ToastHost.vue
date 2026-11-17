@@ -21,7 +21,7 @@ const ICONS = {
       :class="toast.kind"
       :role="toast.kind === 'error' || toast.kind === 'warning' ? 'alert' : 'status'"
     >
-      <component :is="ICONS[toast.kind]" :size="16" class="toast-icon" />
+      <component :is="ICONS[toast.kind]" :size="20" class="toast-icon" />
       <span class="toast-message">{{ toast.message }}</span>
       <button
         v-if="toast.actionLabel"
@@ -45,6 +45,12 @@ const ICONS = {
       >
         <X :size="14" />
       </button>
+      <!-- 底部倒计时条：一眼能看出"这条会自己消失"，也让它更容易被注意到。 -->
+      <span
+        class="toast-progress"
+        :style="{ animationDuration: `${toast.durationMs}ms` }"
+        aria-hidden="true"
+      />
     </div>
   </div>
 </template>
@@ -77,27 +83,72 @@ const ICONS = {
 .toast {
   display: flex;
   align-items: flex-start;
-  gap: 9px;
+  gap: 10px;
+  min-width: 360px;
   border: 1px solid var(--border-strong);
+  /* 左侧色条 + 更大字号：原来 13px + 普通描边，放在页面顶部很容易被当成背景。 */
+  border-left: 4px solid var(--border-strong);
   border-radius: var(--radius-md);
   background: var(--bg-elevated);
-  padding: 10px 10px 10px 12px;
+  padding: 14px 12px 14px 16px;
   color: var(--text);
-  font-size: var(--text-sm);
-  box-shadow: var(--shadow-md);
-  animation: toast-in var(--duration-base) var(--ease-out);
+  font-size: var(--text-base);
+  font-weight: 500;
+  line-height: 1.5;
+  box-shadow: var(--shadow-lg);
+  animation: toast-in 240ms var(--ease-out);
+  position: relative;
+  overflow: hidden;
+}
+
+.toast-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  width: 100%;
+  background: var(--border-strong);
+  transform-origin: left center;
+  animation: toast-progress linear forwards;
+}
+
+.toast.success .toast-progress {
+  background: var(--success);
+}
+
+.toast.error .toast-progress {
+  background: var(--danger);
+}
+
+.toast.warning .toast-progress {
+  background: var(--warning);
+}
+
+@keyframes toast-progress {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
 }
 
 .toast.success {
   border-color: color-mix(in srgb, var(--success) 55%, var(--border));
+  border-left-color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, var(--bg-elevated));
 }
 
 .toast.error {
   border-color: var(--danger);
+  border-left-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 14%, var(--bg-elevated));
 }
 
 .toast.warning {
   border-color: var(--warning);
+  border-left-color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 14%, var(--bg-elevated));
 }
 
 /* 「发现新版本」一类：品牌色描边 + 浅底 + 外发光，比普通提示更抓眼。 */
