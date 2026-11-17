@@ -58,6 +58,8 @@ withDefaults(
   color: var(--text-muted);
   font-size: var(--text-xs);
   line-height: 1.5;
+  /* 允许 hint 里用 \n 分成两行（用户要求的"两行说明"）。 */
+  white-space: pre-line;
 }
 
 .setting-row-control {

@@ -1138,7 +1138,11 @@ onMounted(async () => {
             <div class="settings-rows">
               <SettingRow
                 label="全按键支持服务"
-                hint="返回键和音量键需要全按键支持组件；首次安装会请求管理员授权。更新后台组件后，用「重启服务」让它立即生效。"
+                :hint="
+                  tr(
+                    '安装并开启组件后，小米遥控器才能自定义返回键和音量键。\n首次安装会请求管理员授权。组件更新后，点击「重启服务」立即生效。',
+                  )
+                "
               >
                 <div class="helper-control">
                   <StatusPill
@@ -1184,7 +1188,7 @@ onMounted(async () => {
               </Notice>
               <SettingRow
                 label="虚拟键盘（三键 / 任意组合）"
-                hint="装上 WinUHid 驱动后，遥控器能发出报告层做不到的组合（如 Ctrl+Shift+Alt、Alt+W）。未安装时自动回落，不影响现有功能。"
+                hint="安装后可解决豆包、ChatterFly等输入法设置多组合键后无影响的问题。"
               >
                 <div class="helper-control">
                   <StatusPill
