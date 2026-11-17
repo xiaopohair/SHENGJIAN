@@ -159,6 +159,80 @@ pub(crate) fn voice_synth_target(chord: &crate::send_input::KeyChord) -> Option<
         .then_some(VOICE_SYNTH_MODS_BASE | u16::from(mask))
 }
 
+// ---- 虚拟键盘后端（WinUHid，2026-11-17）------------------------------------
+//
+// 报告层能表达的只有「白名单内的单 usage」与「两键以内的纯修饰键掩码」；`Ctrl+Shift+Alt`、
+// `Alt+W` 这类组合被器件描述符挡死。虚拟键盘走的是另一台"真键盘"，没有这些限制：修饰键进
+// 修饰位、普通键进第一个键槽。真机验证见 `docs/winuhid-evaluation.md`。
+
+/// 查询助手是否有可用的虚拟键盘后端（回 `K ok <ver>` / `K no <reason>`）。
+pub(crate) const VIRTUAL_HID_QUERY_LINE: &str = "K ?";
+
+/// 释放行：全零报文，幂等（没建过设备也回 ack）。
+pub(crate) const VIRTUAL_HID_RELEASE_LINE: &str = "K -";
+
+/// 助手对 `K` 行的回执。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum VirtualHidReply {
+    /// 可用，携带驱动接口版本。
+    Ready(u32),
+    /// 不可用（DLL 缺失 / 驱动未装 / 被拒），附原因。
+    Unavailable(String),
+    /// 按下或释放已执行。
+    Ack,
+    /// 执行失败，附原因。
+    Failed(String),
+}
+
+/// 解析助手的 `K` 回执；不是 `K` 行返回 `None`（不吞别的行）。
+pub(crate) fn parse_virtual_hid_reply(line: &str) -> Option<VirtualHidReply> {
+    let mut parts = line.trim().splitn(3, ' ');
+    if parts.next()? != "K" {
+        return None;
+    }
+    match parts.next()? {
+        "ok" => Some(VirtualHidReply::Ready(parts.next()?.trim().parse().ok()?)),
+        "no" => Some(VirtualHidReply::Unavailable(
+            parts.next().unwrap_or("unknown").trim().to_owned(),
+        )),
+        // `K ack press` / `K ack release`：第三段只是来源，不参与判定。
+        "ack" => Some(VirtualHidReply::Ack),
+        "err" => Some(VirtualHidReply::Failed(
+            parts.next().unwrap_or("unknown").trim().to_owned(),
+        )),
+        _ => None,
+    }
+}
+
+/// 把和弦编成虚拟键盘的 `(修饰位, 单 usage)`。
+///
+/// 与报告层的区别：这里**不查白名单**，修饰键照位进修饰位、普通键进第一个键槽，所以
+/// `Ctrl+Shift+Alt`、`Alt+W` 都能表达。返回 `None` 只发生在"和弦里有两个以上普通键"
+/// （当前产品语义用不到，也超出启动键盘 6 键槽之外的表达）。
+pub(crate) fn virtual_hid_target(chord: &crate::send_input::KeyChord) -> Option<(u8, u16)> {
+    let mut mods = 0u8;
+    let mut usage = 0u16;
+    for key in &chord.keys {
+        if let Some(bit) = key.hid_modifier_bit() {
+            mods |= bit;
+            continue;
+        }
+        if usage != 0 {
+            return None;
+        }
+        usage = key.hid_usage()?;
+    }
+    if mods == 0 && usage == 0 {
+        return None;
+    }
+    Some((mods, usage))
+}
+
+/// 按下行：`K <mods:02X> <usage:04X>`，与助手侧 `parse_bridge_virtual_hid_line` 逐字符对齐。
+pub(crate) fn virtual_hid_press_line(mods: u8, usage: u16) -> String {
+    format!("K {mods:02X} {usage:04X}")
+}
+
 /// 报告层"语音键帧"结果的两种形态（助手转发的 agent 帧回执，2026-10-14）。
 ///
 /// 来源：agent 每次看到语音键按下帧时产生的 `synth:frame` 日志行（经助手解析成
@@ -2144,6 +2218,75 @@ mod tests {
             voice_synth_line(Some(VOICE_SYNTH_MODS_BASE | 0x11)),
             "S 1E11"
         );
+    }
+
+    #[test]
+    fn virtual_hid_target_encodes_combos_the_report_layer_cannot() {
+        // 三键组合：报告层做不到（第三槽不产生事件），虚拟键盘可以。
+        assert_eq!(
+            virtual_hid_target(&chord(&[
+                KeyCode::LeftControl,
+                KeyCode::LeftShift,
+                KeyCode::LeftAlt
+            ])),
+            Some((0x07, 0))
+        );
+        // 修饰键 + 普通键：报告层返回 None，虚拟键盘按 (mods, usage) 表达。
+        assert_eq!(
+            virtual_hid_target(&chord(&[KeyCode::LeftAlt, KeyCode::A])),
+            Some((0x04, 0x04))
+        );
+        // 两条后端能力有交集：报告层能发的两键组合，虚拟键盘也能发。
+        assert_eq!(
+            virtual_hid_target(&chord(&[KeyCode::LeftControl, KeyCode::LeftAlt])),
+            Some((0x05, 0))
+        );
+        // 单键：修饰键进修饰位，普通键进第一个键槽。
+        assert_eq!(
+            virtual_hid_target(&chord(&[KeyCode::RightAlt])),
+            Some((0x40, 0))
+        );
+        assert_eq!(virtual_hid_target(&chord(&[KeyCode::A])), Some((0, 0x04)));
+        assert_eq!(virtual_hid_target(&chord(&[])), None);
+        // 两个普通键：当前产品语义用不到，明确返回 None 让调用方回落。
+        assert_eq!(virtual_hid_target(&chord(&[KeyCode::A, KeyCode::B])), None);
+    }
+
+    #[test]
+    fn virtual_hid_lines_match_the_helper_protocol() {
+        // 与 helper 侧 parse_bridge_virtual_hid_line 逐字符对齐。
+        assert_eq!(virtual_hid_press_line(0x07, 0), "K 07 0000");
+        assert_eq!(virtual_hid_press_line(0, 0x00E6), "K 00 00E6");
+        assert_eq!(VIRTUAL_HID_QUERY_LINE, "K ?");
+        assert_eq!(VIRTUAL_HID_RELEASE_LINE, "K -");
+    }
+
+    #[test]
+    fn parses_helper_virtual_hid_replies() {
+        assert_eq!(
+            parse_virtual_hid_reply("K ok 1"),
+            Some(VirtualHidReply::Ready(1))
+        );
+        assert_eq!(
+            parse_virtual_hid_reply("K no dll_missing"),
+            Some(VirtualHidReply::Unavailable("dll_missing".into()))
+        );
+        assert_eq!(
+            parse_virtual_hid_reply("K ack press"),
+            Some(VirtualHidReply::Ack)
+        );
+        assert_eq!(
+            parse_virtual_hid_reply("K ack release"),
+            Some(VirtualHidReply::Ack)
+        );
+        assert_eq!(
+            parse_virtual_hid_reply("K err submit_failed"),
+            Some(VirtualHidReply::Failed("submit_failed".into()))
+        );
+        // 非 K 行一律不接管，避免把心跳/边沿行当成回执。
+        assert_eq!(parse_virtual_hid_reply("S 1E05"), None);
+        assert_eq!(parse_virtual_hid_reply("P 123"), None);
+        assert_eq!(parse_virtual_hid_reply("K"), None);
     }
 
     #[test]
