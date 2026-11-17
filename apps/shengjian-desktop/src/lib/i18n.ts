@@ -1164,8 +1164,8 @@ const ENGLISH = {
   语音输出设备: "Voice output device",
   "语音输出设备：{names}": "Voice output device: {names}",
   "语音输出设备：{name}": "Voice output device: {name}",
-  "遥控器语音输出到的设备；未设置时连接后自动选 CABLE":
-    "Device the remote's voice plays through; CABLE is selected automatically after connecting when unset.",
+  "按遥控器语音键输出到的虚拟音频设备。未设置时，遥控器连接后自动选 VB CABLE":
+    "Virtual audio device the remote voice key plays into. If unset, VB-CABLE is chosen automatically once the remote connects.",
   虚拟音频设备: "Virtual audio device",
   未检测到: "Not found",
   设备未启用: "Device disabled",

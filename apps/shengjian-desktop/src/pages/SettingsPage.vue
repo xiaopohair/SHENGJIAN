@@ -1069,7 +1069,7 @@ onMounted(async () => {
 
               <SettingRow
                 label="语音输出设备"
-                hint="遥控器语音输出到的设备；未设置时连接后自动选 CABLE"
+                hint="按遥控器语音键输出到的虚拟音频设备。未设置时，遥控器连接后自动选 VB CABLE"
               >
                 <SelectInput
                   :model-value="endpointValue"
