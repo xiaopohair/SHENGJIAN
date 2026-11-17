@@ -159,6 +159,17 @@ public static class ShengjianRootDev
     private static extern bool UpdateDriverForPlugAndPlayDevicesW(IntPtr hwndParent, string hardwareId,
         string fullInfPath, uint installFlags, out bool rebootRequired);
 
+    /// 只给"已经存在的实例"更新驱动（不创建设备）。
+    /// 用于 SetupDiCreateDeviceInfo 报 ERROR_DEVINST_ALREADY_EXISTS 的兜底：
+    /// 幻影实例虽然枚举不到，但 UpdateDriver 仍可能把它唤回来。
+    public static string UpdateOnly(string hardwareId, string infPath, out bool rebootRequired)
+    {
+        rebootRequired = false;
+        if (!UpdateDriverForPlugAndPlayDevicesW(IntPtr.Zero, hardwareId, infPath, INSTALLFLAG_FORCE, out rebootRequired))
+            return "update_driver_failed:" + Marshal.GetLastWin32Error();
+        return null;
+    }
+
     /// <returns>失败原因；成功返回 null。</returns>
     public static string CreateAndInstall(string hardwareId, string infPath, out bool rebootRequired)
     {
@@ -199,11 +210,20 @@ public static class ShengjianRootDev
 $reboot = $false
 $failure = [ShengjianRootDev]::CreateAndInstall('Root\WinUHid', (Resolve-Path -LiteralPath $infPath).Path, [ref]$reboot)
 if ($failure) {
-    # 收尾：删掉可能已注册的空设备，别留一个无驱动的幽灵节点
-    $orphan = Get-WinUHidDevice
-    if ($orphan) { & pnputil.exe /remove-device $orphan.InstanceId | Out-Null }
-    Write-Result 'error' $failure
-    exit 5
+    # 兜底：实例可能存在但枚举不到（ERROR_DEVINST_ALREADY_EXISTS，0xE0000205）。
+    # 这时直接给已存在的实例更新驱动，成功的话设备会重新出现。
+    Write-Result 'create_failed' $failure
+    $reboot2 = $false
+    $fallback = [ShengjianRootDev]::UpdateOnly('Root\WinUHid', (Resolve-Path -LiteralPath $infPath).Path, [ref]$reboot2)
+    if ($fallback) {
+        $orphan = Get-WinUHidDevice
+        if ($orphan) { & pnputil.exe /remove-device $orphan.InstanceId | Out-Null }
+        Write-Result 'error' $failure
+        Write-Result 'fallback_error' $fallback
+        exit 5
+    }
+    Write-Result 'fallback' 'update_only_ok'
+    if ($reboot2) { Write-Result 'reboot_required' 'true' }
 }Write-Result 'driver_installed' 'true'
 if ($reboot) { Write-Result 'reboot_required' 'true' }
 
