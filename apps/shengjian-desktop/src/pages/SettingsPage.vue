@@ -27,6 +27,7 @@ import {
   getForegroundExecutable,
   getHostCapabilities,
   getRc003HelperInstalled,
+  getVirtualHidStatus,
   getRemoteBattery,
   getSettings,
   importConfiguration,
@@ -259,6 +260,7 @@ async function restartHelperHost() {
     };
     pushToast(tr("已重启全按键支持服务"), "success");
     await refreshHelperInstalled();
+    await refreshVirtualHid();
   } catch (cause) {
     error.value = errorMessage(cause);
   } finally {
@@ -837,8 +839,21 @@ async function importBackup() {
   }
 }
 
+/** 虚拟键盘后端（WinUHid）状态：只读展示，未安装时功能自动回落，不影响使用。 */
+const virtualHid = shallowRef<{ available: boolean; driver_version: number }>({
+  available: false,
+  driver_version: 0,
+});
+
+async function refreshVirtualHid() {
+  virtualHid.value = await getVirtualHidStatus().catch(() => ({
+    available: false,
+    driver_version: 0,
+  }));
+}
+
 onMounted(async () => {
-  await Promise.all([load(), loadVoiceToolCatalog(), loadAudioDependency()]);
+  await Promise.all([load(), loadVoiceToolCatalog(), loadAudioDependency(), refreshVirtualHid()]);
 });
 </script>
 
@@ -1071,6 +1086,24 @@ onMounted(async () => {
                   </Button>
                 </span>
               </Notice>
+              <SettingRow
+                label="虚拟键盘（三键 / 任意组合）"
+                hint="装上 WinUHid 驱动后，遥控器能发出报告层做不到的组合（如 Ctrl+Shift+Alt、Alt+W）。未安装时自动回落，不影响现有功能。"
+              >
+                <div class="helper-control">
+                  <StatusPill
+                    :label="trDynamic(virtualHid.available ? '可用' : '未安装')"
+                    :tone="virtualHid.available ? 'success' : 'warning'"
+                    dot
+                  />
+                  <span v-if="virtualHid.available" class="helper-notice-text">
+                    driver v{{ virtualHid.driver_version }}
+                  </span>
+                  <span v-else class="helper-notice-text">
+                    {{ tr("需要先安装 WinUHid 驱动") }}
+                  </span>
+                </div>
+              </SettingRow>
             </div>
           </Card>
 

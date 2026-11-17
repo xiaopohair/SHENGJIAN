@@ -393,6 +393,10 @@ const ENGLISH = {
   "将遥控器靠近电脑或更换电池。": "Move the remote closer to the PC or replace the battery.",
   可用: "Available",
   不可用: "Unavailable",
+  "虚拟键盘（三键 / 任意组合）": "Virtual keyboard (3-key / any combo)",
+  "需要先安装 WinUHid 驱动": "Install the WinUHid driver first",
+  "装上 WinUHid 驱动后，遥控器能发出报告层做不到的组合（如 Ctrl+Shift+Alt、Alt+W）。未安装时自动回落，不影响现有功能。":
+    "With the WinUHid driver installed, the remote can send combos the report layer cannot (e.g. Ctrl+Shift+Alt, Alt+W). Without it the app falls back automatically.",
   已安装: "Installed",
   未安装: "Not installed",
   已选择: "Selected",

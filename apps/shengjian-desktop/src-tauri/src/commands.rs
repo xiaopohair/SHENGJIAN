@@ -315,6 +315,24 @@ pub fn rc003_helper_installed(state: State<'_, AppState>) -> bool {
     state.host.helper_installed()
 }
 
+/// 虚拟键盘后端（WinUHid）状态，给设置页显示用。
+///
+/// `available` 由桥接线程在 hello 时发 `K ?` 得到：驱动没装 / DLL 缺失时为 false，
+/// 此时语音按键会自动回落报告层或注入，功能不受影响，只是发不出三键组合。
+#[derive(Debug, Serialize)]
+pub struct VirtualHidStatus {
+    pub available: bool,
+    pub driver_version: u32,
+}
+
+#[tauri::command]
+pub fn virtual_hid_status() -> VirtualHidStatus {
+    VirtualHidStatus {
+        available: shengjian_windows::rc003_bridge::virtual_hid_ready(),
+        driver_version: shengjian_windows::rc003_bridge::virtual_hid_version(),
+    }
+}
+
 #[tauri::command]
 pub fn install_rc003_helper(
     app: tauri::AppHandle,

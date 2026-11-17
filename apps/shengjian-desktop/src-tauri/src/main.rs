@@ -224,6 +224,7 @@ fn main() {
             commands::get_autostart_enabled,
             commands::set_autostart_enabled,
             commands::rc003_helper_installed,
+            commands::virtual_hid_status,
             commands::install_rc003_helper,
             commands::uninstall_rc003_helper,
             commands::restart_rc003_helper,

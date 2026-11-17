@@ -182,6 +182,16 @@ export async function installRc003Helper(): Promise<void> {
   return invoke<void>("install_rc003_helper");
 }
 
+/** 虚拟键盘后端（WinUHid）状态：设置页只读展示，未安装时功能自动回落。 */
+export interface VirtualHidStatus {
+  available: boolean;
+  driver_version: number;
+}
+
+export async function getVirtualHidStatus(): Promise<VirtualHidStatus> {
+  return invoke<VirtualHidStatus>("virtual_hid_status");
+}
+
 /** 卸载全按键支持服务：提权移除计划任务（弹一次 UAC）。 */
 export async function uninstallRc003Helper(): Promise<void> {
   return invoke<void>("uninstall_rc003_helper");

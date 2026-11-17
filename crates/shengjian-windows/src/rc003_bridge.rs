@@ -183,12 +183,12 @@ static VIRTUAL_HID_DIRTY: AtomicBool = AtomicBool::new(false);
 static VIRTUAL_HID_HELD: AtomicBool = AtomicBool::new(false);
 
 /// 虚拟键盘后端是否可用（助手回了 `K ok`）。
-pub(crate) fn virtual_hid_ready() -> bool {
+pub fn virtual_hid_ready() -> bool {
     VIRTUAL_HID_READY.load(Ordering::Relaxed)
 }
 
 /// 虚拟键盘驱动接口版本；不可用时为 0。
-pub(crate) fn virtual_hid_version() -> u32 {
+pub fn virtual_hid_version() -> u32 {
     VIRTUAL_HID_VERSION.load(Ordering::Relaxed)
 }
 
