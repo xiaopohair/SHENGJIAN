@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$Version,
     [string]$Arch = "x64",
     [switch]$SkipBuild
@@ -37,14 +37,22 @@ if (-not (Test-Path -LiteralPath $exe)) {
     throw "application executable not found: $exe (run without -SkipBuild first)"
 }
 $resources = Join-Path $srcTauri "resources"
+# 与 tauri.conf.json 的 bundle.resources 保持一致：便携版直接复用同一份资源目录。
 $requiredResources = @(
-    "rc003\shengjian-helper.exe",
-    "rc003\frida-gadget.dll",
+    "hid-host\shengjian-helper.exe",
+    "hid-host\frida-gadget.dll",
+    "hid-host\WinUHid.dll",
+    "hid-host\winuhid-driver\install-driver.ps1",
+    "hid-host\winuhid-driver\WinUHidDriver.inf",
+    "hid-host\winuhid-driver\WinUHidDriver.dll",
+    "hid-host\winuhid-driver\WinUHidDriver.cat",
+    "hid-host\winuhid-driver\WinUHidCertificate.cer",
     "licenses\LICENSE",
     "licenses\LICENSE-OFL.txt",
     "licenses\ATTRIBUTION.md",
     "licenses\THIRD_PARTY_NOTICES.md",
-    "licenses\COPYING.frida-gadget"
+    "licenses\COPYING.frida-gadget",
+    "licenses\COPYING.winuhid"
 )
 foreach ($relative in $requiredResources) {
     if (-not (Test-Path -LiteralPath (Join-Path $resources $relative))) {
