@@ -182,9 +182,11 @@ static VIRTUAL_HID_DIRTY: AtomicBool = AtomicBool::new(false);
 /// 这一轮语音是否真的按下过虚拟键盘（决定会话结束时要不要补释放）。
 static VIRTUAL_HID_HELD: AtomicBool = AtomicBool::new(false);
 /// 待执行的驱动动作（`install` / `uninstall`）。
-static VIRTUAL_HID_DRIVER_ACTION: Mutex<Option<&'static str>> = Mutex::new(None);
+static VIRTUAL_HID_DRIVER_ACTION: Mutex<Option<(&'static str, Instant)>> = Mutex::new(None);
 /// 驱动动作待发送标志。
 static VIRTUAL_HID_DRIVER_DIRTY: AtomicBool = AtomicBool::new(false);
+/// 驱动动作的请求有效期：超过这个时间还没发出去就丢弃。
+const VIRTUAL_HID_DRIVER_TTL: Duration = Duration::from_secs(30);
 /// 是否需要在下一个周期重发 `K ?`（驱动装/卸后刷新可用性）。
 static VIRTUAL_HID_REQUERY: AtomicBool = AtomicBool::new(false);
 
@@ -201,7 +203,7 @@ pub fn request_virtual_hid_refresh() {
 /// `D install` / `D uninstall`。结果看诊断日志的 `[WINUHID-DRIVER]` 行与虚拟键盘可用性。
 pub fn request_virtual_hid_driver(action: &'static str) {
     if let Ok(mut current) = VIRTUAL_HID_DRIVER_ACTION.lock() {
-        *current = Some(action);
+        *current = Some((action, Instant::now()));
     }
     VIRTUAL_HID_DRIVER_DIRTY.store(true, Ordering::Relaxed);
 }
@@ -2018,7 +2020,10 @@ fn handle_connection(
             // 驱动安装/卸载：交给提权助手执行（`D install` / `D uninstall`），不需要 UAC。
             if VIRTUAL_HID_DRIVER_DIRTY.swap(false, Ordering::Relaxed) {
                 let action = *lock(&VIRTUAL_HID_DRIVER_ACTION);
-                if let Some(action) = action {
+                // 只发"刚刚点的"那次：助手掉线期间积压的请求不能等几分钟后才执行
+                // （2026-11-17 review：实测点安装时桥断了，重连后才突然装驱动）。
+                let action = action.filter(|(_, at)| at.elapsed() < VIRTUAL_HID_DRIVER_TTL);
+                if let Some((action, _)) = action {
                     if write_line(&mut writer, &format!("D {action}")).is_err() {
                         drop_reason = "virtual_hid_driver_write_error";
                         break;

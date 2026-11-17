@@ -119,7 +119,9 @@ impl WinUHid {
                 start: unsafe { std::mem::transmute(resolve("WinUHidStartDevice")?) },
                 submit: unsafe { std::mem::transmute(resolve("WinUHidSubmitInputReport")?) },
                 destroy: unsafe { std::mem::transmute(resolve("WinUHidDestroyDevice")?) },
-                version: unsafe { std::mem::transmute(resolve("WinUHidGetDriverInterfaceVersion")?) },
+                version: unsafe {
+                    std::mem::transmute(resolve("WinUHidGetDriverInterfaceVersion")?)
+                },
             })
         })();
         match loaded {
@@ -199,13 +201,7 @@ impl VirtualKeyboard {
     }
 
     fn submit_report(&self, report: &[u8; REPORT_LEN]) -> Result<(), String> {
-        let ok = unsafe {
-            (self.submit)(
-                self.device,
-                report.as_ptr(),
-                REPORT_LEN as u32,
-            )
-        };
+        let ok = unsafe { (self.submit)(self.device, report.as_ptr(), REPORT_LEN as u32) };
         if ok == 0 {
             Err(format!(
                 "WinUHidSubmitInputReport 失败（GetLastError={}）",
@@ -254,5 +250,3 @@ mod tests {
         assert_eq!(report_bytes(0, 0), [0u8; REPORT_LEN]);
     }
 }
-
-

@@ -58,6 +58,11 @@ pub struct PlatformHost {
     custom_hotkey: Mutex<Option<KeyChord>>,
     /// 用户手动暂停按钮监听时置位：期间设置页再开启「全按键支持」也不能重新接管。
     listening_paused: AtomicBool,
+    /// 「全按键支持」当前是否开着。
+    ///
+    /// 后台的拉起重试线程要读它：用户中途把开关关掉时，重试必须立刻放弃，
+    /// 否则会出现"关了开关、助手又被拉起来"（2026-11-17 review 发现）。
+    enhanced_enabled: Arc<AtomicBool>,
 }
 
 impl PlatformHost {
@@ -67,6 +72,7 @@ impl PlatformHost {
             current_tool: Mutex::new(None),
             custom_hotkey: Mutex::new(None),
             listening_paused: AtomicBool::new(false),
+            enhanced_enabled: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -256,10 +262,14 @@ impl HostPlatform for PlatformHost {
             return;
         }
         self.platform.set_enhanced_capture_enabled(enabled);
+        self.enhanced_enabled.store(enabled, Ordering::Relaxed);
         if enabled {
             helper::start_helper_task();
             // 一次拉起不够稳：后台继续盯，连不上就重试（见 ensure_helper_running）。
-            ensure_helper_running(std::sync::Arc::clone(&self.platform));
+            ensure_helper_running(
+                std::sync::Arc::clone(&self.platform),
+                std::sync::Arc::clone(&self.enhanced_enabled),
+            );
         } else {
             helper::stop_helper_task();
         }
@@ -532,12 +542,18 @@ mod tests {
 /// 兜底拉起助手：`schtasks /Run` 经常"命令成功但助手很快退出"（换代 stale tap、
 /// 任务刚注册、宿主还在重建），用户看到的就是"全按键支持已安装但按了没反应"。
 /// 这里在后台盯 60 秒：桥接没连上就再拉起一次，最多 6 次。
-fn ensure_helper_running(platform: std::sync::Arc<shengjian_windows::WindowsPlatform>) {
+fn ensure_helper_running(
+    platform: std::sync::Arc<shengjian_windows::WindowsPlatform>,
+    enabled: std::sync::Arc<std::sync::atomic::AtomicBool>,
+) {
     std::thread::spawn(move || {
         use shengjian_windows::hid_bridge::BridgePhase;
         for _ in 0..6 {
             std::thread::sleep(std::time::Duration::from_secs(5));
-            if matches!(platform.hid_bridge_snapshot().phase, BridgePhase::Connected) {
+            // 已连上，或用户中途关了开关 → 立刻停手（别把服务又拉起来）。
+            if matches!(platform.hid_bridge_snapshot().phase, BridgePhase::Connected)
+                || !enabled.load(std::sync::atomic::Ordering::Relaxed)
+            {
                 return;
             }
             helper::start_helper_task();

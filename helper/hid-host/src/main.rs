@@ -4721,6 +4721,14 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
     }
 
     /// 在独立线程里跑随包脚本，结果落一行 `[WINUHID-DRIVER]`（不阻塞桥接心跳）。
+    /// 驱动安装脚本**内嵌**在助手二进制里。
+    ///
+    /// 为什么不信磁盘上那份：助手是提权的，而 `resources/hid-host/` 在用户的
+    /// `%LOCALAPPDATA%` 下——任何本机进程都能改那个 `.ps1`，改完等用户点一次「安装」
+    /// 就等于拿到管理员执行权（2026-11-17 review 发现的本地提权面）。
+    /// 现在只运行自己带的那份：写进受保护的运行时目录再执行。
+    const DRIVER_SCRIPT: &[u8] = include_bytes!("../vendor/winuhid-driver/install-driver.ps1");
+
     fn spawn_driver_action(action: &'static str, logger: &Logger) {
         let logger = Logger::with_shared(logger.fallback.clone(), logger.shared.clone());
         let _ = std::thread::Builder::new()
@@ -4733,11 +4741,47 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
                 else {
                     logger.kv(
                         "[WINUHID-DRIVER]",
-                        &[("action", action.into()), ("result", "missing_package".into())],
+                        &[
+                            ("action", action.into()),
+                            ("result", "missing_package".into()),
+                        ],
                     );
                     return;
                 };
-                let script = package_dir.join("install-driver.ps1");
+                // 脚本取自二进制内嵌副本，写到受保护的运行时目录再执行
+                // （不执行用户可写目录里的 .ps1）。
+                let Some(base) = std::env::var_os("ProgramData") else {
+                    logger.kv(
+                        "[WINUHID-DRIVER]",
+                        &[
+                            ("action", action.into()),
+                            ("result", "no_programdata".into()),
+                        ],
+                    );
+                    return;
+                };
+                let script_dir = PathBuf::from(base).join("Shengjian").join("hid-host");
+                if std::fs::create_dir_all(&script_dir).is_err() {
+                    logger.kv(
+                        "[WINUHID-DRIVER]",
+                        &[
+                            ("action", action.into()),
+                            ("result", "runtime_dir_failed".into()),
+                        ],
+                    );
+                    return;
+                }
+                let script = script_dir.join("winuhid-install-driver.ps1");
+                if std::fs::write(&script, DRIVER_SCRIPT).is_err() {
+                    logger.kv(
+                        "[WINUHID-DRIVER]",
+                        &[
+                            ("action", action.into()),
+                            ("result", "script_write_failed".into()),
+                        ],
+                    );
+                    return;
+                }
                 let started = Instant::now();
                 let output = std::process::Command::new("powershell")
                     .args([
@@ -4763,14 +4807,8 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
                             "[WINUHID-DRIVER]",
                             &[
                                 ("action", action.into()),
-                                (
-                                    "exit",
-                                    output.status.code().unwrap_or(-1).to_string(),
-                                ),
-                                (
-                                    "elapsed_ms",
-                                    started.elapsed().as_millis().to_string(),
-                                ),
+                                ("exit", output.status.code().unwrap_or(-1).to_string()),
+                                ("elapsed_ms", started.elapsed().as_millis().to_string()),
                                 ("output", text.chars().take(240).collect()),
                             ],
                         );
@@ -5443,12 +5481,12 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
     /// （两边各有一份常量，靠自检核对字符串、靠联调核对行为）。
     const SCHEDULED_TASK_NAME: &str = "Shengjian HID Host";
 
-/// 改名前的任务名（2026-11-17：`rc003-helper` → `hid-host`）。安装新版时一并删掉，
-/// 免得机器上同时存在两个任务、旧的那个还指向已经不存在的老路径。
-const LEGACY_SCHEDULED_TASK_NAME: &str = "Shengjian RC003 Helper";
+    /// 改名前的任务名（2026-11-17：`rc003-helper` → `hid-host`）。安装新版时一并删掉，
+    /// 免得机器上同时存在两个任务、旧的那个还指向已经不存在的老路径。
+    const LEGACY_SCHEDULED_TASK_NAME: &str = "Shengjian RC003 Helper";
 
-/// 改名前的运行时目录名（`%ProgramData%\Shengjian\rc003-helper`）。
-const LEGACY_RUNTIME_DIR_NAME: &str = "rc003-helper";
+    /// 改名前的运行时目录名（`%ProgramData%\Shengjian\rc003-helper`）。
+    const LEGACY_RUNTIME_DIR_NAME: &str = "rc003-helper";
 
     /// 任务注册时间戳（纯函数）：Task Scheduler XML 的 `<Date>` 用本地时间
     /// `YYYY-MM-DDTHH:MM:SS`——与 `schtasks` 命令行自己写出的形态一致。
@@ -9424,8 +9462,7 @@ const LEGACY_RUNTIME_DIR_NAME: &str = "rc003-helper";
         );
 
         // 17) 令牌跨运行稳定 + 分代目录回收
-        let tmp =
-            std::env::temp_dir().join(format!("hid-host-selftest-{}", std::process::id()));
+        let tmp = std::env::temp_dir().join(format!("hid-host-selftest-{}", std::process::id()));
         let _ = fs::remove_dir_all(&tmp);
         let quiet = Logger::new(None);
         let token_detail = |t1: &str, from1: bool, t2: &str, from2: bool, t3: Option<&str>| {
@@ -9663,7 +9700,9 @@ const LEGACY_RUNTIME_DIR_NAME: &str = "rc003-helper";
         check(
             "内嵌 agent：语音键热键合成白名单与门禁（豆包支持）",
             AGENT_JS.contains("var SYNTH_FROM_WHITELIST = [0x003E];")
-                && AGENT_JS.contains("var SYNTH_TO_WHITELIST = [0x00E6, 0x00E2, 0x1E11, 0x1E05, 0x1E03, 0x1E07];")
+                && AGENT_JS.contains(
+                    "var SYNTH_TO_WHITELIST = [0x00E6, 0x00E2, 0x1E11, 0x1E05, 0x1E03, 0x1E07];",
+                )
                 && AGENT_JS.contains("function synthSetIn(")
                 && AGENT_JS.contains("if (cmd.type === 'synth')")
                 && AGENT_JS.contains("type: 'synth_ack'")
@@ -9967,10 +10006,7 @@ const LEGACY_RUNTIME_DIR_NAME: &str = "rc003-helper";
             second: 5,
             ms: 0,
         };
-        let xml = task_xml(
-            std::path::Path::new("C:\\fake\\hid-host.exe"),
-            sample_local,
-        );
+        let xml = task_xml(std::path::Path::new("C:\\fake\\hid-host.exe"), sample_local);
         let create = task_create_from_xml_args(std::path::Path::new("C:\\Temp\\rc003-task.xml"));
         let create_text = create.join(" ");
         check(
@@ -10030,10 +10066,8 @@ const LEGACY_RUNTIME_DIR_NAME: &str = "rc003-helper";
                 .ends_with(std::path::Path::new("Shengjian").join("rc003-uninstall-cleanup")),
             format!("{}", uninstall_cleanup_signal_path().display()),
         );
-        let cleanup_root = std::env::temp_dir().join(format!(
-            "hid-host-cleanup-selftest-{}",
-            std::process::id()
-        ));
+        let cleanup_root =
+            std::env::temp_dir().join(format!("hid-host-cleanup-selftest-{}", std::process::id()));
         let _ = fs::remove_dir_all(&cleanup_root);
         let nested = cleanup_root.join("gen-abc");
         let _ = fs::create_dir_all(&nested);
@@ -11381,10 +11415,7 @@ const LEGACY_RUNTIME_DIR_NAME: &str = "rc003-helper";
         #[test]
         fn availability_reports_three_states() {
             assert_eq!(virtual_hid_availability(None), "K no dll_missing");
-            assert_eq!(
-                virtual_hid_availability(Some(0)),
-                "K no driver_unavailable"
-            );
+            assert_eq!(virtual_hid_availability(Some(0)), "K no driver_unavailable");
             assert_eq!(virtual_hid_availability(Some(1)), "K ok 1");
         }
 
@@ -11936,4 +11967,3 @@ const LEGACY_RUNTIME_DIR_NAME: &str = "rc003-helper";
         }
     }
 }
-
