@@ -272,7 +272,7 @@ watch(activeTab, (tab) => {
       aria-labelledby="tab-transcripts"
     >
       <Card class="stack">
-        <SectionHeader title="语音记录" hint="只保存转写文字，不保存音频。">
+        <SectionHeader title="语音记录" hint="只保存语音输入法识别的文字记录，不保存音频。">
           <template #actions>
             <span class="muted">{{ transcripts.length }} {{ tr("条") }}</span>
             <IconButton

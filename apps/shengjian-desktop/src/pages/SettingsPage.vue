@@ -1187,7 +1187,7 @@ onMounted(async () => {
                 </span>
               </Notice>
               <SettingRow
-                label="虚拟键盘（三键 / 任意组合）"
+                label="虚拟键盘驱动（WinUHid）"
                 hint="安装后可解决豆包、ChatterFly等输入法设置多组合键后没反应的问题。"
               >
                 <div class="helper-control">
@@ -1273,7 +1273,7 @@ onMounted(async () => {
                 <span class="helper-notice-text">{{ hotkeyBackendHint }}</span>
               </Notice>
 
-              <SettingRow label="语音记录" hint="只保存转写文字，不保存音频。">
+              <SettingRow label="语音记录" hint="只保存语音输入法识别的文字记录，不保存音频。">
                 <Switch v-model="transcriptHistory" :label="trDynamic('语音记录')" />
               </SettingRow>
             </div>

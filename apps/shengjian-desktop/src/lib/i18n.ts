@@ -227,7 +227,8 @@ const ENGLISH = {
   "本次运行内的语音状态变化。": "Voice state changes within this app session.",
   "本次运行内的按键与手势事件。": "Button and gesture events within this app session.",
   "最近 50 次运行记录，持久保存。": "The latest 50 runs, persisted across restarts.",
-  "只保存转写文字，不保存音频。": "Only transcript text is stored; audio is never saved.",
+  "只保存语音输入法识别的文字记录，不保存音频。":
+    "Only text recognized by your voice IME is saved; audio is not saved.",
   暂无语音事件: "No voice events",
   暂无按键事件: "No button events",
   暂无宏运行记录: "No macro runs",
@@ -416,7 +417,7 @@ const ENGLISH = {
   "卸载虚拟键盘驱动？": "Uninstall the virtual keyboard driver?",
   "会移除 Root\\WinUHid 设备与驱动包；证书保留在受信任发布者里。虚拟键盘后端随即不可用，语音热键自动回落报告层。":
     "Removes the Root\\WinUHid device and driver package; the signing certificate stays trusted. The virtual keyboard backend becomes unavailable and voice hotkeys fall back to the report layer.",
-  "虚拟键盘（三键 / 任意组合）": "Virtual keyboard (3-key / any combo)",
+  "虚拟键盘驱动（WinUHid）": "Virtual keyboard driver (WinUHid)",
   "需要先安装 WinUHid 驱动": "Install the WinUHid driver first",
   "装上 WinUHid 驱动后，遥控器能发出报告层做不到的组合（如 Ctrl+Shift+Alt、Alt+W）。未安装时自动回落，不影响现有功能。":
     "With the WinUHid driver installed, the remote can send combos the report layer cannot (e.g. Ctrl+Shift+Alt, Alt+W). Without it the app falls back automatically.",
