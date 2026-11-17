@@ -1,4 +1,4 @@
-# RC003 enhanced-capture helper -- launcher (see run-helper*.cmd for right-click entry).
+﻿# RC003 enhanced-capture helper -- launcher (see run-helper*.cmd for right-click entry).
 #
 # Why a launcher exists: the helper must run ELEVATED (the target WUDFHost.exe
 # lives in session 0, so a normal token cannot inject into it), and an agent

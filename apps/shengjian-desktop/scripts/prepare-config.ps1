@@ -1,4 +1,4 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 $appRoot = Split-Path -Parent $PSScriptRoot
 $repoRoot = Split-Path -Parent (Split-Path -Parent $appRoot)
 $source = Join-Path $repoRoot "config"

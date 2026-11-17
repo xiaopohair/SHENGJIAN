@@ -4,9 +4,9 @@ import { Check, CheckCircle2, Keyboard, Mic, Radio, ShieldCheck } from "lucide-v
 import {
   errorMessage,
   getAudioDependencyStatus,
-  getRc003HelperInstalled,
+  getHidHostInstalled,
   getSettings,
-  installRc003Helper,
+  installHidHost,
   listAudioEndpoints,
   openExternalUrl,
   saveSettings,
@@ -59,7 +59,7 @@ const audioDependency = shallowRef<AudioDependencyStatus | null>(null);
 const audioDependencyLoading = shallowRef(false);
 const audioDependencyError = shallowRef<string | null>(null);
 const rc003Capture = shallowRef(false);
-const rc003HelperInstalled = shallowRef(false);
+const hidHostInstalled = shallowRef(false);
 const helperBusy = shallowRef(false);
 /** 安装全按键支持服务的长流程提示：等授权用常驻 Notice，结果用 Toast（§4.1）。 */
 const helperNotice = shallowRef<{ text: string; kind: "info" | "error" } | null>(null);
@@ -160,7 +160,7 @@ const helperRequired = computed(
   () => voiceToolNeedsHelper.value && supportsKeyEnhancementCapture.value,
 );
 const helperReady = computed(
-  () => !helperRequired.value || (rc003Capture.value && rc003HelperInstalled.value),
+  () => !helperRequired.value || (rc003Capture.value && hidHostInstalled.value),
 );
 watch(
   helperRequired,
@@ -305,15 +305,15 @@ async function installHelper() {
   helperBusy.value = true;
   helperNotice.value = null;
   try {
-    await installRc003Helper();
+    await installHidHost();
     helperNotice.value = {
       text: tr("已请求管理员授权；完成 UAC 后会自动刷新状态。"),
       kind: "info",
     };
     window.clearInterval(helperPoll);
     helperPoll = window.setInterval(async () => {
-      rc003HelperInstalled.value = await getRc003HelperInstalled();
-      if (rc003HelperInstalled.value) {
+      hidHostInstalled.value = await getHidHostInstalled();
+      if (hidHostInstalled.value) {
         window.clearInterval(helperPoll);
         // 结果走 Toast；这条常驻提示只留给「还在等授权」。
         helperNotice.value = null;
@@ -392,7 +392,7 @@ onMounted(async () => {
     audioEndpointId.value = String(settings.value.global.audio_endpoint_id ?? "");
     rc003Capture.value = settings.value.global.rc003_capture_enabled ?? false;
     endpoints.value = await listAudioEndpoints().catch(() => []);
-    rc003HelperInstalled.value = await getRc003HelperInstalled().catch(() => false);
+    hidHostInstalled.value = await getHidHostInstalled().catch(() => false);
   } catch (cause) {
     error.value = errorMessage(cause);
   }
@@ -563,16 +563,16 @@ onUnmounted(() => {
               }}</Checkbox>
               <div v-if="rc003Capture" class="capture-actions">
                 <StatusPill
-                  :label="trDynamic(rc003HelperInstalled ? '已安装' : '未安装')"
-                  :tone="rc003HelperInstalled ? 'success' : 'warning'"
+                  :label="trDynamic(hidHostInstalled ? '已安装' : '未安装')"
+                  :tone="hidHostInstalled ? 'success' : 'warning'"
                 />
                 <Button
                   size="sm"
-                  :variant="rc003HelperInstalled ? 'secondary' : 'primary'"
+                  :variant="hidHostInstalled ? 'secondary' : 'primary'"
                   :disabled="helperBusy"
                   @click="installHelper"
                 >
-                  {{ trDynamic(helperBusy ? "安装中" : rc003HelperInstalled ? "更新" : "安装") }}
+                  {{ trDynamic(helperBusy ? "安装中" : hidHostInstalled ? "更新" : "安装") }}
                 </Button>
               </div>
             </div>

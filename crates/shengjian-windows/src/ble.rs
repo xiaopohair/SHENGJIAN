@@ -334,8 +334,8 @@ fn dbfs_from_magnitude(magnitude: f64) -> f32 {
 }
 
 fn voice_effect_verdict(
-    before: Option<crate::rc003_bridge::VoiceFrameStamp>,
-    latest: Option<crate::rc003_bridge::VoiceFrameStamp>,
+    before: Option<crate::hid_bridge::VoiceFrameStamp>,
+    latest: Option<crate::hid_bridge::VoiceFrameStamp>,
     press_at: Instant,
     slack: Duration,
 ) -> VoiceEffectVerdict {
@@ -455,7 +455,7 @@ mod voice_level_tests {
 #[cfg(test)]
 mod voice_effect_verdict_tests {
     use super::{voice_effect_verdict, VoiceEffectVerdict};
-    use crate::rc003_bridge::VoiceFrameStamp;
+    use crate::hid_bridge::VoiceFrameStamp;
     use std::time::{Duration, Instant};
 
     fn frame(seq: u64, replaced: bool, reason: &str, at: Instant) -> VoiceFrameStamp {
@@ -2743,14 +2743,14 @@ fn handle_control(
             let attempt_hotkey = lock(voice_hold_hotkey).clone();
             let synth_target = attempt_hotkey
                 .as_ref()
-                .and_then(crate::rc003_bridge::voice_synth_target);
+                .and_then(crate::hid_bridge::voice_synth_target);
             // 虚拟键盘后端（WinUHid）：报告层表达不了的组合（三键 / 修饰键+字母）走这里。
             // 三条路径互斥且按能力排优先级：报告层 → 虚拟键盘 → SendInput 注入；
             // 虚拟键盘不可用（驱动没装/助手旧版）时这里为 None，静默回落注入。
-            let virtual_target = if !synth_gate && crate::rc003_bridge::virtual_hid_ready() {
+            let virtual_target = if !synth_gate && crate::hid_bridge::virtual_hid_ready() {
                 attempt_hotkey
                     .as_ref()
-                    .and_then(crate::rc003_bridge::virtual_hid_target)
+                    .and_then(crate::hid_bridge::virtual_hid_target)
             } else {
                 None
             };
@@ -2812,7 +2812,7 @@ fn handle_control(
             }
             if let Some(target) = virtual_target {
                 // 虚拟键盘按下：与报告层同样"跳过注入"，但由助手侧另一台键盘发键。
-                crate::rc003_bridge::begin_virtual_hid_press(target);
+                crate::hid_bridge::begin_virtual_hid_press(target);
                 gatt_note(format!(
                     "chord_press result=skipped reason=virtual_hid_active session={session_id} mods={:02X} usage={:04X}",
                     target.0, target.1
@@ -2830,7 +2830,7 @@ fn handle_control(
                 // 生效判据的按下时刻与基线：必须在此刻取——IME 切换等后续动作可能耗时，
                 // 之后取会把期间到达的帧证据误算进基线（见 spawn_voice_effect_check）。
                 let effect_press_at = Instant::now();
-                let effect_before = crate::rc003_bridge::voice_frame_stamp();
+                let effect_before = crate::hid_bridge::voice_frame_stamp();
                 gatt_note(format!(
                     "chord_press result=skipped reason=report_layer_synth_active session={session_id} note=OS 已在报告层收到合成快捷键，注入路径停用"
                 ));
@@ -3088,7 +3088,7 @@ fn spawn_voice_synth_guard(
             // 只对「报告层真能合成」的和弦动手：白名单外的组合根本没被合成过，
             // 补抬起会误伤用户正在按的物理键。
             let synth_chord = synth_chord
-                .filter(|chord| crate::rc003_bridge::voice_synth_target(chord).is_some());
+                .filter(|chord| crate::hid_bridge::voice_synth_target(chord).is_some());
             // 只用于日志：查询不可靠，但它能告诉现场"系统当时认为按着哪个键"。
             let still_down = crate::send_input_windows::synth_key_down();
             if !should_release_stuck_voice_synth(report_layer_active, tool, synth_chord.as_ref()) {
@@ -3267,7 +3267,7 @@ fn release_voice_hold_hotkey(send_input: &SendInputRuntime, held_hotkey: &mut Op
     crate::key_suppressor::set_session_active(false);
     // 虚拟键盘若这一轮按下过，会话结束时补释放（`K -`，助手侧幂等）。
     // 放在这里而不是各个 close 分支：所有结束路径都会经过本函数。
-    crate::rc003_bridge::end_virtual_hid_press();
+    crate::hid_bridge::end_virtual_hid_press();
     if let Some(chord) = held_hotkey.take() {
         // 功能点日志：释放结果（与 chord_press 成对，粘键排查的另一半）。
         let result = send_input.release(&chord);
@@ -4459,7 +4459,7 @@ fn spawn_wetype_check(
 fn spawn_voice_effect_check(
     session_id: u8,
     tool: Option<VoiceToolKind>,
-    before: Option<crate::rc003_bridge::VoiceFrameStamp>,
+    before: Option<crate::hid_bridge::VoiceFrameStamp>,
     press_at: Instant,
 ) {
     let _ = std::thread::Builder::new()
@@ -4468,25 +4468,25 @@ fn spawn_voice_effect_check(
             std::thread::sleep(Duration::from_millis(VOICE_EFFECT_CHECK_MS));
             let verdict = voice_effect_verdict(
                 before,
-                crate::rc003_bridge::voice_frame_stamp(),
+                crate::hid_bridge::voice_frame_stamp(),
                 press_at,
                 Duration::from_millis(VOICE_EFFECT_SLACK_MS),
             );
             match verdict {
                 VoiceEffectVerdict::Replaced => {
-                    crate::rc003_bridge::note_voice_effect_verdict(true);
+                    crate::hid_bridge::note_voice_effect_verdict(true);
                     gatt_note(format!(
                         "voice_effect session={session_id} result=replaced window_ms={VOICE_EFFECT_CHECK_MS}"
                     ));
                 }
                 VoiceEffectVerdict::Skipped(reason) => {
-                    crate::rc003_bridge::note_voice_effect_verdict(false);
+                    crate::hid_bridge::note_voice_effect_verdict(false);
                     gatt_note(format!(
                         "voice_effect session={session_id} result=missing reason=agent_skip skip_reason={reason} window_ms={VOICE_EFFECT_CHECK_MS}"
                     ));
                 }
                 VoiceEffectVerdict::Missing => {
-                    crate::rc003_bridge::note_voice_effect_verdict(false);
+                    crate::hid_bridge::note_voice_effect_verdict(false);
                     // 豆包按设计丢弃注入键：缺失即"本次按下必然没生效"，没有可用的
                     // 注入兜底（token 与既有 fallback 行一致，供日志分流）。
                     let note = if matches!(tool, Some(VoiceToolKind::Doubao)) {

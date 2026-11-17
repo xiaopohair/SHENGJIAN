@@ -28,7 +28,7 @@
 //!
 //! ## 方向与发现机制：为什么是「主程序监听、助手连接」
 //!
-//! - 助手是**提权**进程，其运行时目录在 `%ProgramData%\Shengjian\rc003-helper`；
+//! - 助手是**提权**进程，其运行时目录在 `%ProgramData%\Shengjian\hid-host`；
 //!   主程序是普通权限，默认**读不到**该目录的写入（也不该去猜）。
 //! - 反过来则权限确定成立：主程序在 `%LOCALAPPDATA%\Shengjian\` 下写桥接描述文件，
 //!   提权助手读取用户目录**没有障碍**。
@@ -322,7 +322,7 @@ pub(crate) struct VoiceFrameStamp {
 /// 最近一次帧结果 + 「按下生效判定」的连续缺失计数。
 ///
 /// 模块级静态（与 `key_gate` 的门控原子同模式）：BLE 侧的按下判定线程要跨组件
-/// 读取证据，而 `Rc003Bridge` 实例在另一支队里、按装配顺序拿不到（同取舍见
+/// 读取证据，而 `HidBridge` 实例在另一支队里、按装配顺序拿不到（同取舍见
 /// `voice_synth_active` 的说明）。
 #[derive(Default)]
 struct VoiceFrameState {
@@ -352,7 +352,7 @@ pub(crate) fn note_voice_frame(replaced: bool, reason: &str) {
         state.seq
     };
     note(format!(
-        "rc003_bridge event=voice_frame state={} reason={} seq={seq}",
+        "hid_bridge event=voice_frame state={} reason={} seq={seq}",
         if replaced { "replaced" } else { "skipped" },
         reason
     ));
@@ -732,7 +732,7 @@ fn generate_token() -> String {
 
 #[cfg(windows)]
 fn named_pipe_name() -> &'static str {
-    r"\\.\pipe\Shengjian.Rc003Bridge"
+    r"\\.\pipe\Shengjian.HidBridge"
 }
 
 /// 跨线程共享的桥接状态。
@@ -833,7 +833,7 @@ fn set_synth_gate(active: bool, reason: &str) {
     crate::key_gate::set_voice_synth_active(active);
     if before != active {
         note(format!(
-            "rc003_bridge event=voice_synth_gate active={active} reason={reason}"
+            "hid_bridge event=voice_synth_gate active={active} reason={reason}"
         ));
     }
 }
@@ -967,7 +967,7 @@ struct CurrentConn {
 }
 
 /// RC003 报告层按键传输桥接。随平台生命周期存活（`Drop` 即停止监听并清理描述文件）。
-pub struct Rc003Bridge {
+pub struct HidBridge {
     stop: Arc<AtomicBool>,
     shared: Arc<Mutex<BridgeShared>>,
     current: Arc<Mutex<Option<CurrentConn>>>,
@@ -983,7 +983,7 @@ pub struct Rc003Bridge {
     port: u16,
 }
 
-impl Rc003Bridge {
+impl HidBridge {
     /// 按约定目录启动（生产路径）。
     pub fn start(sender: Sender<EngineMessage>) -> Arc<Self> {
         Self::start_in(default_bridge_dir(), sender)
@@ -1008,7 +1008,7 @@ impl Rc003Bridge {
             Err(error) => {
                 lock(&shared).phase = BridgePhase::Failed;
                 note(format!(
-                    "rc003_bridge phase=failed reason=bind_error detail={error}"
+                    "hid_bridge phase=failed reason=bind_error detail={error}"
                 ));
                 return Arc::new(Self {
                     stop,
@@ -1052,7 +1052,7 @@ impl Rc003Bridge {
                 // 监听已成功但描述文件写不出：助手将无法发现我们 → 相当于不可用。
                 // 如实记录，不把"监听成功"当成"桥接可用"。
                 note(format!(
-                    "rc003_bridge phase=degraded reason=descriptor_write_failed detail={error}"
+                    "hid_bridge phase=degraded reason=descriptor_write_failed detail={error}"
                 ));
                 None
             }
@@ -1063,7 +1063,7 @@ impl Rc003Bridge {
             state.phase = BridgePhase::Listening;
         }
         note(format!(
-            "rc003_bridge phase=listening port={port} descriptor={}",
+            "hid_bridge phase=listening port={port} descriptor={}",
             file.as_ref()
                 .map(|p| p.display().to_string())
                 .unwrap_or_else(|| "none".to_string())
@@ -1231,7 +1231,7 @@ impl Rc003Bridge {
     pub fn request_retarget(&self) {
         // 每次都记一条：这条日志是"请求确实发出去了"的唯一凭据（换机链路排查用）。
         self.retarget_requested.store(true, Ordering::Relaxed);
-        note("rc003_bridge event=retarget_requested".to_owned());
+        note("hid_bridge event=retarget_requested".to_owned());
     }
 
     /// 报告层合成门禁判据：已收到与当前目标一致的 agent 回执（`A` 行，经
@@ -1246,7 +1246,7 @@ impl Rc003Bridge {
     }
 }
 
-impl Drop for Rc003Bridge {
+impl Drop for HidBridge {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::Relaxed);
         // 桥没了 = 合成通道没了：门禁必须回落（正常路径连接收尾已清，
@@ -1320,7 +1320,7 @@ fn write_bridge_file(
 /// 该行只记原因、助手进程号与累计次数：不含 token 值、不含任何路径。
 fn deny_note(reason: &str, helper_pid: u32, denied_total: u64) -> String {
     format!(
-        "rc003_bridge event=helper_denied reason={reason} helper_pid={helper_pid} \
+        "hid_bridge event=helper_denied reason={reason} helper_pid={helper_pid} \
          denied_total={denied_total} retryable=true"
     )
 }
@@ -1353,8 +1353,8 @@ fn accept_loop(
                 Ok(pipe) => Some(pipe),
                 Err(error) => {
                     note(format!(
-                    "rc003_bridge transport=pipe phase=failed reason=create_error detail={error}"
-                ));
+                        "hid_bridge transport=pipe phase=failed reason=create_error detail={error}"
+                    ));
                     None
                 }
             });
@@ -1383,7 +1383,7 @@ fn accept_loop(
             }
             Err(ref error) if error.kind() == ErrorKind::WouldBlock => {}
             Err(error) => {
-                note(format!("rc003_bridge event=accept_error detail={error}"));
+                note(format!("hid_bridge event=accept_error detail={error}"));
             }
         }
 
@@ -1412,7 +1412,7 @@ fn accept_loop(
                 Ok(false) => {}
                 Err(error) => {
                     note(format!(
-                        "rc003_bridge transport=pipe event=accept_error detail={error}"
+                        "hid_bridge transport=pipe event=accept_error detail={error}"
                     ));
                     pending_pipe = pipe_name
                         .as_deref()
@@ -1442,7 +1442,7 @@ fn adopt_connection(
     let clone = match stream.try_clone() {
         Ok(clone) => clone,
         Err(error) => {
-            note(format!("rc003_bridge event=clone_failed detail={error}"));
+            note(format!("hid_bridge event=clone_failed detail={error}"));
             return;
         }
     };
@@ -1466,7 +1466,7 @@ fn adopt_connection(
     if replaced {
         clear_ownership(shared);
         note(format!(
-            "rc003_bridge event=replaced_by_new_connection from={source}"
+            "hid_bridge event=replaced_by_new_connection from={source}"
         ));
     }
     let thread_stop = Arc::clone(stop);
@@ -1494,7 +1494,7 @@ fn adopt_connection(
             )
         });
     if spawned.is_err() {
-        note("rc003_bridge event=conn_thread_spawn_failed".to_string());
+        note("hid_bridge event=conn_thread_spawn_failed".to_string());
         let mut guard = lock(current);
         if guard.as_ref().map(|conn| conn.id == my_id).unwrap_or(false) {
             *guard = None;
@@ -1557,7 +1557,7 @@ fn handle_connection(
     let read_stream = match stream.try_clone() {
         Ok(clone) => clone,
         Err(error) => {
-            note(format!("rc003_bridge event=clone_failed detail={error}"));
+            note(format!("hid_bridge event=clone_failed detail={error}"));
             return;
         }
     };
@@ -1609,23 +1609,23 @@ fn handle_connection(
                         VIRTUAL_HID_READY.store(true, Ordering::Relaxed);
                         VIRTUAL_HID_VERSION.store(version, Ordering::Relaxed);
                         note(format!(
-                            "rc003_bridge event=virtual_hid_ready driver_version={version}"
+                            "hid_bridge event=virtual_hid_ready driver_version={version}"
                         ));
                     }
                     VirtualHidReply::Unavailable(reason) => {
                         VIRTUAL_HID_READY.store(false, Ordering::Relaxed);
                         note(format!(
-                            "rc003_bridge event=virtual_hid_unavailable reason={reason}"
+                            "hid_bridge event=virtual_hid_unavailable reason={reason}"
                         ));
                     }
                     VirtualHidReply::Ack => {
-                        note("rc003_bridge event=virtual_hid_ack".to_owned());
+                        note("hid_bridge event=virtual_hid_ack".to_owned());
                     }
                     VirtualHidReply::Failed(reason) => {
                         // 提交失败通常意味着设备已失效：立刻标不可用，让下一按回落。
                         VIRTUAL_HID_READY.store(false, Ordering::Relaxed);
                         note(format!(
-                            "rc003_bridge event=virtual_hid_failed reason={reason}"
+                            "hid_bridge event=virtual_hid_failed reason={reason}"
                         ));
                     }
                 }
@@ -1693,7 +1693,7 @@ fn handle_connection(
                         // 而新会话其实还没回执任何东西（issue #264 同型）。
                         clear_ownership(shared);
                         note(format!(
-                            "rc003_bridge event=helper_authenticated helper_pid={helper_pid} version={version} transport={} auth={}",
+                            "hid_bridge event=helper_authenticated helper_pid={helper_pid} version={version} transport={} auth={}",
                             writer.transport(),
                             if writer.uses_os_identity() { "os_pipe_acl" } else { "token" }
                         ));
@@ -1725,7 +1725,7 @@ fn handle_connection(
                         if VOICE_GATE_DECLARE {
                             let gate_ok = write_line(&mut writer, &voice_gate_line()).is_ok();
                             note(format!(
-                                "rc003_bridge event=voice_gate_sent on=true scope=hello write_ok={gate_ok}"
+                                "hid_bridge event=voice_gate_sent on=true scope=hello write_ok={gate_ok}"
                             ));
                         }
                         // 虚拟键盘能力查询（WinUHid 后端）：旧助手不认识 `K` 行，忽略即可，
@@ -1733,18 +1733,18 @@ fn handle_connection(
                         let virtual_query_ok =
                             write_line(&mut writer, VIRTUAL_HID_QUERY_LINE).is_ok();
                         note(format!(
-                            "rc003_bridge event=virtual_hid_query write_ok={virtual_query_ok} scope=hello"
+                            "hid_bridge event=virtual_hid_query write_ok={virtual_query_ok} scope=hello"
                         ));
                         crate::key_gate::set_voice_synth_active(false);
                         note(format!(
-                            "rc003_bridge event=voice_synth_sent to={} scope=hello await=ack write_ok={}",
+                            "hid_bridge event=voice_synth_sent to={} scope=hello await=ack write_ok={}",
                             synth_current
                                 .map(|u| format!("0x{u:04X}"))
                                 .unwrap_or_else(|| "off".to_owned()),
                             synth_sent_at.is_some()
                         ));
                         note(
-                            "rc003_bridge event=voice_synth_gate active=false reason=hello"
+                            "hid_bridge event=voice_synth_gate active=false reason=hello"
                                 .to_owned(),
                         );
                     }
@@ -1780,7 +1780,7 @@ fn handle_connection(
                                 .collect::<Vec<_>>()
                                 .join(",");
                             note(format!(
-                                "rc003_bridge event=first_edge pressed={pressed} \
+                                "hid_bridge event=first_edge pressed={pressed} \
                                  note=边沿已投递给映射引擎，此后按键动作由映射配置决定"
                             ));
                         }
@@ -1805,7 +1805,7 @@ fn handle_connection(
                     };
                     if changed {
                         note(format!(
-                            "rc003_bridge event=helper_recovering active={active} \
+                            "hid_bridge event=helper_recovering active={active} \
                              note={}",
                             if active {
                                 "助手在做设备节点恢复，暂缓按捕获失效重启"
@@ -1872,7 +1872,7 @@ fn handle_connection(
                         let owned = lock(shared).owned.len();
                         set_synth_gate(synth_gate_active(to.is_some(), owned), "ack");
                         note(format!(
-                            "rc003_bridge event=voice_synth_ack to={} active={} confirm=agent owned_usages={owned}",
+                            "hid_bridge event=voice_synth_ack to={} active={} confirm=agent owned_usages={owned}",
                             to.map(|u| format!("0x{u:04X}"))
                                 .unwrap_or_else(|| "off".to_owned()),
                             crate::key_gate::voice_synth_active()
@@ -1880,7 +1880,7 @@ fn handle_connection(
                     } else {
                         // 迟到/旧值回执：不改门禁、不当确认（期望值刚变更时的正常竞态）。
                         note(format!(
-                            "rc003_bridge event=voice_synth_ack to={} stale=true expected={}",
+                            "hid_bridge event=voice_synth_ack to={} stale=true expected={}",
                             to.map(|u| format!("0x{u:04X}"))
                                 .unwrap_or_else(|| "off".to_owned()),
                             desired
@@ -1890,7 +1890,7 @@ fn handle_connection(
                     }
                 }
                 BridgeLine::Bye { reason } => {
-                    note(format!("rc003_bridge event=helper_bye reason={reason}"));
+                    note(format!("hid_bridge event=helper_bye reason={reason}"));
                     drop_reason = "helper_bye";
                     break 'outer;
                 }
@@ -1953,7 +1953,7 @@ fn handle_connection(
                     synth_resend_attempts = 0;
                     crate::key_gate::set_voice_synth_active(false);
                     note(format!(
-                        "rc003_bridge event=voice_synth_sent to={} scope=update await=ack",
+                        "hid_bridge event=voice_synth_sent to={} scope=update await=ack",
                         synth_current
                             .map(|u| format!("0x{u:04X}"))
                             .unwrap_or_else(|| "off".to_owned())
@@ -1972,7 +1972,7 @@ fn handle_connection(
                     // 前 3 次逐条、之后每 60 次一条（与助手侧失败折叠同模式）。
                     if synth_resend_attempts <= 3 || synth_resend_attempts % 60 == 0 {
                         note(format!(
-                            "rc003_bridge event=voice_synth_resend to={} attempt={}",
+                            "hid_bridge event=voice_synth_resend to={} attempt={}",
                             synth_current
                                 .map(|u| format!("0x{u:04X}"))
                                 .unwrap_or_else(|| "off".to_owned()),
@@ -1988,7 +1988,7 @@ fn handle_connection(
                     drop_reason = "retarget_write_error";
                     break;
                 }
-                note("rc003_bridge event=retarget_sent".to_owned());
+                note("hid_bridge event=retarget_sent".to_owned());
             }
             // 虚拟键盘按下/释放（与 `R` 行同模式：置位即写一次、写失败按断线处理）。
             // 契约：助手对 `K -` 幂等回 ack；按下失败会回 `K err` 并把可用性打成 false。
@@ -2005,9 +2005,7 @@ fn handle_connection(
                     drop_reason = "virtual_hid_write_error";
                     break;
                 }
-                note(format!(
-                    "rc003_bridge event=virtual_hid_sent target={label}"
-                ));
+                note(format!("hid_bridge event=virtual_hid_sent target={label}"));
             }
             // 驱动装/卸后重问一次可用性（UI 靠这个翻状态）。
             if VIRTUAL_HID_REQUERY.swap(false, Ordering::Relaxed) {
@@ -2015,7 +2013,7 @@ fn handle_connection(
                     drop_reason = "virtual_hid_query_write_error";
                     break;
                 }
-                note("rc003_bridge event=virtual_hid_query scope=refresh".to_owned());
+                note("hid_bridge event=virtual_hid_query scope=refresh".to_owned());
             }
             // 驱动安装/卸载：交给提权助手执行（`D install` / `D uninstall`），不需要 UAC。
             if VIRTUAL_HID_DRIVER_DIRTY.swap(false, Ordering::Relaxed) {
@@ -2026,7 +2024,7 @@ fn handle_connection(
                         break;
                     }
                     note(format!(
-                        "rc003_bridge event=virtual_hid_driver_sent action={action}"
+                        "hid_bridge event=virtual_hid_driver_sent action={action}"
                     ));
                 }
             }
@@ -2116,7 +2114,7 @@ fn handle_connection(
         }
     }
     note(format!(
-        "rc003_bridge event=closed reason={drop_reason} edges={session_edges} \
+        "hid_bridge event=closed reason={drop_reason} edges={session_edges} \
          released={released_count} dropped={}",
         lock(shared).usages_dropped
     ));
@@ -2487,7 +2485,7 @@ mod tests {
             "shengjian-bridge-synth-test-{}",
             std::process::id()
         ));
-        let bridge = Rc003Bridge::start_in(dir, sender);
+        let bridge = HidBridge::start_in(dir, sender);
         bridge.set_voice_synth(Some(0x00E6));
         assert_eq!(*lock(&bridge.voice_synth_to), Some(0x00E6));
         // 重复写同值幂等（日志不重复刷屏）。
@@ -2629,7 +2627,7 @@ mod tests {
         ));
         let _ = std::fs::remove_dir_all(&dir);
         let (sender, _receiver) = channel();
-        let bridge = Rc003Bridge::start_in(dir.clone(), sender);
+        let bridge = HidBridge::start_in(dir.clone(), sender);
 
         let descriptor_path = dir.join(BRIDGE_FILE_NAME);
         let text = std::fs::read_to_string(&descriptor_path).expect("描述文件必须已写出");
@@ -2720,10 +2718,10 @@ mod tests {
 
     #[test]
     fn descriptor_body_publishes_optional_pipe_and_log_fields() {
-        let body = descriptor_body(53124, Some(r"\\.\pipe\Shengjian.Rc003Bridge"), "tok", None);
+        let body = descriptor_body(53124, Some(r"\\.\pipe\Shengjian.HidBridge"), "tok", None);
         assert!(body.starts_with("version=2\nport=53124\n"), "{body:?}");
         assert!(
-            body.contains("pipe=\\\\.\\pipe\\Shengjian.Rc003Bridge\n"),
+            body.contains("pipe=\\\\.\\pipe\\Shengjian.HidBridge\n"),
             "{body:?}"
         );
         assert!(body.contains("token=tok\n"), "{body:?}");
@@ -2772,13 +2770,13 @@ mod tests {
         ));
         let _ = std::fs::remove_dir_all(&dir);
         let (sender, receiver) = channel();
-        let bridge = Rc003Bridge::start_in(dir.clone(), sender);
+        let bridge = HidBridge::start_in(dir.clone(), sender);
         bridge.set_capture_targets(true, mask(&[RemoteButton::Back]));
         let text = std::fs::read_to_string(dir.join(BRIDGE_FILE_NAME)).expect("描述文件");
         let pipe = text
             .lines()
             .find_map(|line| line.strip_prefix("pipe="))
-            .filter(|line| line.starts_with(r"\\.\pipe\Shengjian.Rc003Bridge"))
+            .filter(|line| line.starts_with(r"\\.\pipe\Shengjian.HidBridge"))
             .unwrap_or_else(|| {
                 panic!(
                     "计划任务 Helper 的 TCP loopback 会被本机 WFP/TUN 重定向，描述文件必须发布命名管道：{text:?}"
@@ -2874,7 +2872,7 @@ mod tests {
         ));
         let _ = std::fs::remove_dir_all(&dir);
         let (sender, _receiver) = channel();
-        let bridge = Rc003Bridge::start_in(dir.clone(), sender);
+        let bridge = HidBridge::start_in(dir.clone(), sender);
         bridge.set_voice_synth(Some(0x00E6));
         // 所有权只在目标集非空时成立：先给一个真实目标（三键恒在，见模块文档）。
         bridge.set_capture_targets(true, mask(&[RemoteButton::Back]));
@@ -2883,7 +2881,7 @@ mod tests {
         let pipe = text
             .lines()
             .find_map(|line| line.strip_prefix("pipe="))
-            .filter(|line| line.starts_with(r"\\.\pipe\Shengjian.Rc003Bridge"))
+            .filter(|line| line.starts_with(r"\\.\pipe\Shengjian.HidBridge"))
             .expect("描述文件必须发布命名管道");
         let deadline = Instant::now() + Duration::from_secs(2);
         let mut stream = loop {
@@ -2917,7 +2915,7 @@ mod tests {
         );
         // 关键判据 ①：仅"写出 S 行"不得置门禁为真。
         assert!(
-            !Rc003Bridge::voice_synth_active(),
+            !HidBridge::voice_synth_active(),
             "未收到 agent 回执前门禁必须保持 false（失败要走注入兜底，不能静默吞掉）"
         );
 
@@ -2939,7 +2937,7 @@ mod tests {
         stream.write_all(b"A 00E2\n").unwrap();
         stream.flush().unwrap();
         std::thread::sleep(Duration::from_millis(120));
-        assert!(!Rc003Bridge::voice_synth_active(), "旧值回执不得置门禁为真");
+        assert!(!HidBridge::voice_synth_active(), "旧值回执不得置门禁为真");
 
         // 关键判据 ③：与期望一致的回执**只说明配置被接受**，还没有所有权租约
         // ⇒ 门禁仍为 false（旧实现会在这一行错误地置真）。
@@ -2947,7 +2945,7 @@ mod tests {
         stream.flush().unwrap();
         std::thread::sleep(Duration::from_millis(200));
         assert!(
-            !Rc003Bridge::voice_synth_active(),
+            !HidBridge::voice_synth_active(),
             "只有配置回执、没有所有权时门禁必须保持 false（否则按下会走已经没人改写的报告层）"
         );
 
@@ -2962,11 +2960,11 @@ mod tests {
         stream.write_all(ownership.as_bytes()).unwrap();
         stream.flush().unwrap();
         let deadline = Instant::now() + Duration::from_secs(2);
-        while !Rc003Bridge::voice_synth_active() && Instant::now() < deadline {
+        while !HidBridge::voice_synth_active() && Instant::now() < deadline {
             std::thread::sleep(Duration::from_millis(10));
         }
         assert!(
-            Rc003Bridge::voice_synth_active(),
+            HidBridge::voice_synth_active(),
             "回执 + 所有权同时成立后门禁必须置真"
         );
 
@@ -2990,7 +2988,7 @@ mod tests {
         ));
         let _ = std::fs::remove_dir_all(&dir);
         let (sender, _receiver) = channel();
-        let bridge = Rc003Bridge::start_in(dir.clone(), sender);
+        let bridge = HidBridge::start_in(dir.clone(), sender);
         let text = std::fs::read_to_string(dir.join(BRIDGE_FILE_NAME)).expect("描述文件");
         let pipe = text
             .lines()
@@ -3133,7 +3131,7 @@ mod tests {
             std::env::temp_dir().join(format!("shengjian-bridge-trikeys-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let (sender, _receiver) = channel();
-        let bridge = Rc003Bridge::start_in(dir.clone(), sender);
+        let bridge = HidBridge::start_in(dir.clone(), sender);
 
         bridge.set_capture_targets(true, 0);
         assert_eq!(
@@ -3161,7 +3159,7 @@ mod tests {
             std::env::temp_dir().join(format!("shengjian-bridge-targets-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let (sender, _receiver) = channel();
-        let bridge = Rc003Bridge::start_in(dir.clone(), sender);
+        let bridge = HidBridge::start_in(dir.clone(), sender);
 
         bridge.set_capture_targets(true, mask(&[RemoteButton::Home]));
         assert_eq!(
@@ -3207,7 +3205,7 @@ mod tests {
             std::env::temp_dir().join(format!("shengjian-bridge-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let (sender, receiver) = channel();
-        let bridge = Rc003Bridge::start_in(dir.clone(), sender);
+        let bridge = HidBridge::start_in(dir.clone(), sender);
         bridge.set_capture_targets(true, mask(&[RemoteButton::Back, RemoteButton::VolumeUp]));
 
         let descriptor_path = dir.join(BRIDGE_FILE_NAME);
@@ -3405,7 +3403,7 @@ mod tests {
             std::env::temp_dir().join(format!("shengjian-bridge-replace-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let (sender, receiver) = channel();
-        let bridge = Rc003Bridge::start_in(dir.clone(), sender);
+        let bridge = HidBridge::start_in(dir.clone(), sender);
         bridge.set_capture_targets(true, mask(&[RemoteButton::Back, RemoteButton::VolumeUp]));
 
         let text = std::fs::read_to_string(dir.join(BRIDGE_FILE_NAME)).expect("描述文件");
@@ -3485,7 +3483,7 @@ mod tests {
             std::env::temp_dir().join(format!("shengjian-bridge-watchdog-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let (sender, receiver) = channel();
-        let bridge = Rc003Bridge::start_in(dir.clone(), sender);
+        let bridge = HidBridge::start_in(dir.clone(), sender);
         bridge.set_capture_targets(true, mask(&[RemoteButton::Back]));
 
         let text = std::fs::read_to_string(dir.join(BRIDGE_FILE_NAME)).expect("描述文件");
@@ -3571,7 +3569,7 @@ mod tests {
         ));
         let _ = std::fs::remove_dir_all(&dir);
         let (sender, _receiver) = channel();
-        let bridge = Rc003Bridge::start_in(dir.clone(), sender);
+        let bridge = HidBridge::start_in(dir.clone(), sender);
         bridge.set_capture_targets(true, mask(&[RemoteButton::Back]));
         bridge.set_voice_synth(Some(0x00E6));
 
@@ -3599,7 +3597,7 @@ mod tests {
         stream.flush().unwrap();
         std::thread::sleep(Duration::from_millis(400));
         assert!(
-            !Rc003Bridge::voice_synth_active(),
+            !HidBridge::voice_synth_active(),
             "没有所有权租约时，门禁必须为 false（否则按下会走已不在的报告层）"
         );
 
@@ -3610,7 +3608,7 @@ mod tests {
         stream.flush().unwrap();
         assert!(
             wait_until(Duration::from_secs(3), || {
-                Rc003Bridge::voice_synth_active()
+                HidBridge::voice_synth_active()
             }),
             "配置回执 + 所有权同时成立时，门禁必须举起"
         );
@@ -3619,7 +3617,7 @@ mod tests {
         //    所有权超时后门禁必须自己落下，否则界面与路径选择继续"全绿"。
         assert!(
             wait_until(Duration::from_secs(6), || {
-                !Rc003Bridge::voice_synth_active()
+                !HidBridge::voice_synth_active()
             }),
             "所有权超时后门禁必须落下（旧实现只在 socket 断开时清，永远不会清）"
         );
@@ -3632,7 +3630,7 @@ mod tests {
         stream.flush().unwrap();
         assert!(
             wait_until(Duration::from_secs(3), || {
-                Rc003Bridge::voice_synth_active()
+                HidBridge::voice_synth_active()
             }),
             "重新接管 + 重新回执后门禁必须能复归（瞬时超时不得把它永久打死）"
         );
@@ -3665,7 +3663,7 @@ mod tests {
         ));
         let _ = std::fs::remove_dir_all(&dir);
         let (sender, _receiver) = channel();
-        let bridge = Rc003Bridge::start_in(dir.clone(), sender);
+        let bridge = HidBridge::start_in(dir.clone(), sender);
         bridge.set_capture_targets(true, mask(&[RemoteButton::Back]));
         bridge.set_voice_synth(Some(0x00E6));
 
@@ -3695,7 +3693,7 @@ mod tests {
         stream.flush().unwrap();
         assert!(
             wait_until(Duration::from_secs(3), || {
-                Rc003Bridge::voice_synth_active()
+                HidBridge::voice_synth_active()
             }),
             "回执 + 所有权时门禁必须举起（前置 sanity，否则后面的负断言没有意义）"
         );
@@ -3707,7 +3705,7 @@ mod tests {
         stream.flush().unwrap();
         assert!(
             wait_until(Duration::from_secs(3), || {
-                !Rc003Bridge::voice_synth_active()
+                !HidBridge::voice_synth_active()
             }),
             "off 回执到达后门禁必须落下"
         );
@@ -3725,7 +3723,7 @@ mod tests {
         // 负断言：观察窗 1 秒（桥线程处理 + 续约周期裕量）。
         std::thread::sleep(Duration::from_secs(1));
         assert!(
-            !Rc003Bridge::voice_synth_active(),
+            !HidBridge::voice_synth_active(),
             "合成已关闭（off 已回执）时，所有权续约不得把门禁重新举起——\
              否则注入路径被跳过而报告层无人改写，微信等输入工具收不到快捷键"
         );

@@ -5,7 +5,7 @@ RC003 增强捕获轨（Return/音量键完整捕获）的独立提权 helper，
 ## 构建
 
 ```powershell
-cd helper/rc003
+cd helper/hid-host
 cargo build
 ```
 

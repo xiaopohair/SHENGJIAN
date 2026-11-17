@@ -350,7 +350,7 @@ mod windows_impl {
     /// 遥控器在线状态（BLE 连接相位推导，ble.rs 在相位提交点同步）。
     /// 常驻抑制键仅在线时接管；离线恢复物理键盘原生透传（不劫持）。
     static REMOTE_CONNECTED: AtomicBool = AtomicBool::new(false);
-    /// 语音键报告层合成生效门禁（2026-09-29）：rc003_bridge 在「助手已连接
+    /// 语音键报告层合成生效门禁（2026-09-29）：hid_bridge 在「助手已连接
     /// 且 S 行（合成目标）写出成功」时置位，连接收尾/桥 Drop 时回落。
     /// ble.rs 据此停用 SendInput 注入路径（防止同一语音会话双写互扰，
     /// 2026-09-29 run8 真机实证）。模块级原子与 ENHANCED_OWNED_MASK 同模式。
@@ -362,7 +362,7 @@ mod windows_impl {
     /// 2026-09-28 TV 键偶发拦截调查：增强所有权丢失窗口（ownership_timeout /
     /// ownership_released → ownership_resumed）内，方案 C 常驻抑制接管 TV，
     /// 物理键盘同名键（反引号 VK 0xC0）随之被吞——该窗口此前只知起点不知
-    /// 终点与影响面。本计数由所有权沿日志（rc003_bridge）读快照，分析时
+    /// 终点与影响面。本计数由所有权沿日志（hid_bridge）读快照，分析时
     /// 做差即得窗口内被吞按压次数。钩子线程内只做 fetch_add（无锁无 IO）。
     static PERSISTENT_SWALLOW_TOTAL: AtomicU64 = AtomicU64::new(0);
     /// 物理键观察窗口（第⑤步「手动输入检测」前置，探针④）：窗口内统计
@@ -997,7 +997,7 @@ mod windows_impl {
     }
 
     /// 语音键报告层合成门禁（见 VOICE_SYNTH_ACTIVE 注释）。
-    /// 写入方：rc003_bridge（鉴权后置位 / 变更 / 收尾回落）；读取方：ble.rs。
+    /// 写入方：hid_bridge（鉴权后置位 / 变更 / 收尾回落）；读取方：ble.rs。
     pub fn set_voice_synth_active(active: bool) {
         VOICE_SYNTH_ACTIVE.store(active, Ordering::Relaxed);
     }

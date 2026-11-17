@@ -374,16 +374,16 @@ impl HostPlatform for PlatformHost {
 
     fn install_helper(&self, app: &tauri::AppHandle) -> Result<(), HostError> {
         helper::request_helper_task_install(app)
-            .map_err(|message| HostError::new("rc003-helper", message))
+            .map_err(|message| HostError::new("hid-host", message))
     }
 
     fn uninstall_helper(&self, app: &tauri::AppHandle) -> Result<(), HostError> {
         helper::request_helper_task_remove(app)
-            .map_err(|message| HostError::new("rc003-helper", message))
+            .map_err(|message| HostError::new("hid-host", message))
     }
 
     fn restart_helper(&self) -> Result<(), HostError> {
-        helper::restart_helper_task().map_err(|message| HostError::new("rc003-helper", message))
+        helper::restart_helper_task().map_err(|message| HostError::new("hid-host", message))
     }
 
     fn open_diagnostic_log_folder(&self) -> Result<(), HostError> {

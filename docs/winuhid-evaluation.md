@@ -97,7 +97,7 @@ PowerShell 控制台里发键，键到了但语音条没出现，很容易误判
 
 代码已落地（`53aa2f9` / `f7e11fa` / `a74ae1e`）：
 
-- **助手侧**：`helper/rc003/src/virtual_hid.rs` 动态加载 `WinUHid.dll`，创建标准启动键盘
+- **助手侧**：`helper/hid-host/src/virtual_hid.rs` 动态加载 `WinUHid.dll`，创建标准启动键盘
   （63 字节描述符、8 字节报文），`press(mods, usage)` / `release()`；桥接新增 `K` 行
   （`K ?` 查询、`K <mods> <usage>` 按下、`K -` 释放），回 `K ok/no/ack/err`。
 - **主程序侧**：hello 发 `K ?`；回执驱动可用性；语音按下按

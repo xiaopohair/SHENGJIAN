@@ -8,9 +8,9 @@ import type { AudioDependencyStatus, SettingsDocument } from "../lib/types";
 vi.mock("../lib/api", () => ({
   errorMessage: (cause: unknown) => String(cause),
   getAudioDependencyStatus: vi.fn(),
-  getRc003HelperInstalled: vi.fn(async () => false),
+  getHidHostInstalled: vi.fn(async () => false),
   getSettings: vi.fn(),
-  installRc003Helper: vi.fn(async () => undefined),
+  installHidHost: vi.fn(async () => undefined),
   listAudioEndpoints: vi.fn(async () => []),
   openExternalUrl: vi.fn(async () => undefined),
   saveSettings: vi.fn(async () => undefined),

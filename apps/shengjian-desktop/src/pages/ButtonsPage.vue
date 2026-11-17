@@ -67,8 +67,8 @@ import {
   getMacroLibrary,
   getRecommendedButtonProfiles,
   getSettings,
-  getRc003HelperInstalled,
-  installRc003Helper,
+  getHidHostInstalled,
+  installHidHost,
   getRecommendedMacros,
   saveButtonProfiles,
   saveSettings,
@@ -615,7 +615,7 @@ async function loadSettingsDocument() {
   try {
     const [settings, helperInstalled] = await Promise.all([
       getSettings(),
-      getRc003HelperInstalled(),
+      getHidHostInstalled(),
     ]);
     settingsDocument.value = settings;
     enhancedCapture.value = settings.global.rc003_capture_enabled ?? false;
@@ -629,7 +629,7 @@ async function loadSettingsDocument() {
 async function waitForHelperInstalled(timeoutMs = 60_000): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (await getRc003HelperInstalled().catch(() => false)) return true;
+    if (await getHidHostInstalled().catch(() => false)) return true;
     await new Promise((resolve) => window.setTimeout(resolve, 1000));
   }
   return false;
@@ -654,7 +654,7 @@ async function toggleEnhancedCapture(value: boolean) {
       kind: "info",
     };
     try {
-      await installRc003Helper();
+      await installHidHost();
       const installed = await waitForHelperInstalled();
       if (!installed) {
         helperNotice.value = {

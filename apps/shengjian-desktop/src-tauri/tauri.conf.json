@@ -68,13 +68,16 @@
       "resources/config/voice-tool-presets.json",
       "resources/config/button-profiles.json",
       "resources/config/recommended-macros.json",
-      "resources/rc003/shengjian-helper.exe",
-      "resources/rc003/frida-gadget.dll",
+      "resources/hid-host/shengjian-helper.exe",
+      "resources/hid-host/frida-gadget.dll",
+      "resources/hid-host/WinUHid.dll",
+      "resources/hid-host/winuhid-driver/*",
       "resources/licenses/LICENSE",
       "resources/licenses/LICENSE-OFL.txt",
       "resources/licenses/ATTRIBUTION.md",
       "resources/licenses/THIRD_PARTY_NOTICES.md",
-      "resources/licenses/COPYING.frida-gadget"
+      "resources/licenses/COPYING.frida-gadget",
+      "resources/licenses/COPYING.winuhid"
     ],
     "icon": [
       "icons/32x32.png",

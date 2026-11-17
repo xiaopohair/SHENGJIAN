@@ -36,7 +36,7 @@ shengjian-testkit
   ├─ InMemorySettingsStore / RecordingSink
   └─ 集成测试
 
-helper/rc003
+helper/hid-host
   └─ 独立原生 helper（提权计划任务 / 增强捕获）
 ```
 
@@ -59,7 +59,7 @@ helper/rc003
 - `DeviceCatalog::load_dir` / `resolve` 支持运行时 profile 加载，并优先用 `device_id`、其次型号/蓝牙名匹配；RC001/ARN9 的真实身份仍未确认。
 - `CoreEngine::disconnect` 在断连时强制释放 voice 与按键手势状态，`shutdown` 是幂等退出路径。
 - `shengjian-windows` 仍保留其原有平台内部结构（`WindowsPlatform`、`ble.rs`、`audio.rs` 等），adapter 只做翻译，不重写平台逻辑。
-- `helper/rc003` 是独立 workspace，不参与顶层 `cargo test --workspace`；它只通过原有的桥接/计划任务边界与平台层交互。
+- `helper/hid-host` 是独立 workspace，不参与顶层 `cargo test --workspace`；它只通过原有的桥接/计划任务边界与平台层交互。
 - 桌面外壳在 `apps/shengjian-desktop`（Tauri 2 + Vue 3），通过 `HostPlatform` 使用 core；core 不依赖 Tauri/Vue/Windows UI。
 - `apps/shengjian-windows-host` 是 headless 宿主：start live engine、scan/run、JSON 事件、legacy settings/mappings/profiles 迁移；`run --profiles` 每 500ms 检测前台变化，仅在 profile 变化时重应用映射。它依赖 core，反向不允许。
 - `WindowsRemoteLink` 在 adapter 内部保留平台 device path，contract 的 `RemoteId` 只暴露 opaque token；core 事件不含蓝牙地址，raw-input 诊断只记录路径存在性。
@@ -89,5 +89,5 @@ helper/rc003
 
 1. 复核 RC001/ARN9 设备身份，通过后再启用 profile 运行时匹配（见 `device-identity.md`）。
    方案按设备型号配置分两步：第一步只做模型结构并让 RC003 生效，计划见 `plan-device-model-profiles.md`。
-2. 决定是否把 `helper/rc003` 并入顶层 workspace，统一 `cargo test --workspace` 覆盖。
+2. 决定是否把 `helper/hid-host` 并入顶层 workspace，统一 `cargo test --workspace` 覆盖。
 3. 对外发布前实跑 GitHub Actions（tag → release workflow），并视授权启用 SignPath 签名与 ARM64。

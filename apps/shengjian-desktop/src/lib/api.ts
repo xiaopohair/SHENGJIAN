@@ -174,12 +174,12 @@ export async function setAutostartEnabled(enabled: boolean): Promise<void> {
   return invoke<void>("set_autostart_enabled", { enabled });
 }
 
-export async function getRc003HelperInstalled(): Promise<boolean> {
-  return invoke<boolean>("rc003_helper_installed");
+export async function getHidHostInstalled(): Promise<boolean> {
+  return invoke<boolean>("hid_host_installed");
 }
 
-export async function installRc003Helper(): Promise<void> {
-  return invoke<void>("install_rc003_helper");
+export async function installHidHost(): Promise<void> {
+  return invoke<void>("install_hid_host");
 }
 
 /** 虚拟键盘后端（WinUHid）状态：设置页只读展示，未安装时功能自动回落。 */
@@ -207,8 +207,8 @@ export async function refreshVirtualHidStatus(): Promise<void> {
 }
 
 /** 卸载全按键支持服务：提权移除计划任务（弹一次 UAC）。 */
-export async function uninstallRc003Helper(): Promise<void> {
-  return invoke<void>("uninstall_rc003_helper");
+export async function uninstallHidHost(): Promise<void> {
+  return invoke<void>("uninstall_hid_host");
 }
 
 /**
@@ -217,8 +217,8 @@ export async function uninstallRc003Helper(): Promise<void> {
  * 后台 agent 换代后，宿主若是共享进程，助手会拒绝自我刷新；重启任务让它重新
  * 扫描宿主并注入当前版本。
  */
-export async function restartRc003Helper(): Promise<void> {
-  return invoke<void>("restart_rc003_helper");
+export async function restartHidHost(): Promise<void> {
+  return invoke<void>("restart_hid_host");
 }
 
 export async function listAudioEndpoints(): Promise<AudioEndpoint[]> {

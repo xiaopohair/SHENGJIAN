@@ -44,6 +44,8 @@ fn main() {
         ))
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            // 迁移（改名）：旧布局目录尽力清理一次（旧助手进程还在时会失败，忽略）。
+            helper::cleanup_legacy_layout(&app.handle());
             app.manage(splash::StartupClock::default());
             platform::initialize_diagnostics();
             catalog::initialize(app.handle());
@@ -223,14 +225,14 @@ fn main() {
             commands::preview_import_macro_library,
             commands::get_autostart_enabled,
             commands::set_autostart_enabled,
-            commands::rc003_helper_installed,
+            commands::hid_host_installed,
             commands::virtual_hid_status,
             commands::install_virtual_hid_driver,
             commands::uninstall_virtual_hid_driver,
             commands::refresh_virtual_hid_status,
-            commands::install_rc003_helper,
-            commands::uninstall_rc003_helper,
-            commands::restart_rc003_helper,
+            commands::install_hid_host,
+            commands::uninstall_hid_host,
+            commands::restart_hid_host,
             commands::host_capabilities,
             commands::remote_battery,
             commands::voice_level,

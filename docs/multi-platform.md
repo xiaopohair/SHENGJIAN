@@ -9,7 +9,7 @@
 ```text
 crates/                      # 平台无关 core workspace
 apps/shengjian-desktop/ # 共享 Tauri/Vue 前端 + Windows host
-helper/rc003/                # Windows 专用提权 helper
+helper/hid-host/                # Windows 专用提权 helper
 apps/shengjian-windows-host/
 ```
 

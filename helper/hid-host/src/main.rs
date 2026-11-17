@@ -1,4 +1,4 @@
-//! rc003-helper —— RC003 增强捕获轨（路线 A）的提权助手（产品化 spike）。
+//! hid-host —— RC003 增强捕获轨（路线 A）的提权助手（产品化 spike）。
 //!
 //! 它做什么
 //! --------
@@ -1867,7 +1867,7 @@ mod imp {
             let text = redact_personal_paths(msg);
             println!("{text}");
             let record = format!(
-                "{} pid={} component=rc003-helper {}",
+                "{} pid={} component=hid-host {}",
                 utc_stamp(),
                 std::process::id(),
                 text
@@ -2089,7 +2089,7 @@ mod imp {
 
     fn default_runtime_dir() -> PathBuf {
         let base = std::env::var("ProgramData").unwrap_or_else(|_| "C:\\ProgramData".to_string());
-        PathBuf::from(base).join("Shengjian").join("rc003-helper")
+        PathBuf::from(base).join("Shengjian").join("hid-host")
     }
 
     /// 解析 `--canary-usage` 的取值：十六进制，支持 `0x4A` / `4a` / `74`，逗号分隔多个。
@@ -2160,7 +2160,7 @@ mod imp {
     ///
     /// **2026-09-23 起默认跨运行稳定**（落盘在运行时目录的 `session.token`）。原因是
     /// 一个此前的设计盲点：agent 脚本里的重连循环本来就是为"助手重启但注入未重做"准备的
-    /// （见 `rc003_agent.js` 的 `ensureConnected` 注释），可**每次运行都换令牌**时，
+    /// （见 `hid_agent.js` 的 `ensureConnected` 注释），可**每次运行都换令牌**时，
     /// 常驻的 agent 用旧令牌 hello 会被助手当冒充者拒掉，于是那条重连路径**永远走不通**——
     /// 用户每次重跑都得重新注入，而重新注入又会被上一代的 DLL 占用挡住。
     /// 想换令牌请显式加 `--new-token`（此时必须同时能把旧 tap 清掉，见 `[STALE-TAP]`）。
@@ -2191,7 +2191,7 @@ mod imp {
                         x64 = frida-gadget.dll，arm64 = frida-gadget-arm64.dll）\n\
   --uninstall-cleanup   删除运行时目录后退出（需提权；删不掉的文件安排到下次重启删除）。\n\
                         由卸载器调用；仍在运行的助手见到卸载标记也会自行执行\n\
-  --runtime-dir <PATH>  运行时目录（默认 %ProgramData%\\Shengjian\\rc003-helper）\n\
+  --runtime-dir <PATH>  运行时目录（默认 %ProgramData%\\Shengjian\\hid-host）\n\
   --duration <SEC>      运行多少秒后自动收尾（默认 0 = 一直运行）。\n\
                         到点会打 [TIMEUP] 并发 disarm；**会话存活期间同样生效**\n\
                         （2026-09-23 起；此前该上限在有 agent 连接时是失效的）\n\
@@ -2215,7 +2215,7 @@ mod imp {
                         助手读取它后回连主程序，把三键边沿转发过去 —— 见下方\n\
                         「三键为什么按下去没反应」。默认启用\n\
   --no-app-bridge       关闭转发：三键仍会被清空，但主程序侧的映射不会触发\n\
-  --install-task        【需管理员】注册计划任务 Shengjian RC003 Helper（最高权限、仅手动触发）。\n\
+  --install-task        【需管理员】注册计划任务 Shengjian HID Host（最高权限、仅手动触发）。\n\
                         主程序打开三键开关时装一次，之后用 schtasks /run 拉起，不再弹 UAC\n\
   --remove-task         【需管理员】移除上述计划任务（卸载 / 用户关闭并移除授权时用）\n\
   --task-status         查询计划任务是否存在（免提权）\n\
@@ -2904,7 +2904,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
     /// 回退端口的记忆文件（运行时目录内）。
     ///
     /// 为什么需要它：agent 的连接端口是**注入时**写死进 gadget `parameters` 的
-    /// （`rc003_agent.js` 只在 `init` 里取一次），助手重启后端口一变，宿主里那份
+    /// （`hid_agent.js` 只在 `init` 里取一次），助手重启后端口一变，宿主里那份
     /// tap 就再也连不回来——接管核验（`ATTACH_VERIFY_MS`）必然空等 8 s，随后升级为
     /// "结束宿主 + 干净首注"（独占宿主会真的重建 WUDFHost）。端口稳定时，重启退化
     /// 成正常的 `[HELLO]` 接管。
@@ -3316,7 +3316,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
 
         // agent 脚本与配置总是重写（它们是**下一次**注入读的东西，与当前宿主里
         // 已加载的实例无关；内容以编译期内联的 AGENT_JS 为准）。
-        let agent = target_dir.join("rc003_agent.js");
+        let agent = target_dir.join("hid_agent.js");
         fs::write(&agent, AGENT_JS).map_err(|e| format!("写入 agent 脚本失败: {e}"))?;
 
         let config = target_dir.join("frida-gadget.config");
@@ -3356,7 +3356,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
     fn serde_like_config(args: &Args) -> String {
         // 手写 JSON：本 crate 刻意零依赖。
         format!(
-            "{{\n  \"interaction\": {{\n    \"type\": \"script\",\n    \"path\": \"rc003_agent.js\",\n    \
+            "{{\n  \"interaction\": {{\n    \"type\": \"script\",\n    \"path\": \"hid_agent.js\",\n    \
              \"parameters\": {{\n      \"port\": {},\n      \"token\": \"{}\",\n      \
              \"mode\": \"{}\",\n      \"restore\": {},\n      \"leaseMs\": {}\n    }}\n  }}\n}}\n",
             args.port,
@@ -3562,7 +3562,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
 
     // ============================================================ 主程序桥接（捕获链第 ② 段）
 
-    /// 桥接协议版本。与主程序 `rc003_bridge::BRIDGE_PROTOCOL_VERSION` 必须一致：
+    /// 桥接协议版本。与主程序 `hid_bridge::BRIDGE_PROTOCOL_VERSION` 必须一致：
     /// 不一致时主程序会直接拒绝连接——宁可不可用，也不要跑一个"半懂"的协议。
     const BRIDGE_PROTOCOL_VERSION: u32 = 2;
     /// 回连重试间隔。
@@ -3688,7 +3688,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
     /// **方向**：主程序创建命名管道并写出描述文件（管道 + 兼容端口 + 令牌），
     /// 助手读取后**回连**；旧描述文件没有 pipe 字段时才回落 TCP loopback。
     /// 反向（助手监听、主程序连接）在权限上不成立：助手以管理员身份运行、运行时目录
-    /// 在 `%ProgramData%\Shengjian\rc003-helper`，普通权限的主程序既读不到那里的写入，
+    /// 在 `%ProgramData%\Shengjian\hid-host`，普通权限的主程序既读不到那里的写入，
     /// 也不该去猜。而"主程序写在 `%LOCALAPPDATA%`、提权助手去读"没有权限障碍。
     ///
     /// **边沿是绝对状态**：agent 只在集合变化时上报当前按下的 usage 集合，助手原样
@@ -3796,7 +3796,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
 
     /// 默认桥接描述文件：`%LOCALAPPDATA%\Shengjian\rc003-bridge.ini`。
     ///
-    /// 与主程序侧 `rc003_bridge::default_bridge_dir()` 必须指向同一位置——
+    /// 与主程序侧 `hid_bridge::default_bridge_dir()` 必须指向同一位置——
     /// 这条一致性由助手自检里的一项显式核对（避免"主程序写了、助手找不着"的静默失配）。
     fn default_app_bridge_path() -> PathBuf {
         let base = std::env::var("LOCALAPPDATA").unwrap_or_else(|_| {
@@ -4358,7 +4358,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
         best.map(|(_, path)| path)
     }
 
-    /// 解析描述文件（`key=value`）。规则与主程序侧 `rc003_bridge::parse_descriptor` 一致。
+    /// 解析描述文件（`key=value`）。规则与主程序侧 `hid_bridge::parse_descriptor` 一致。
     ///
     /// `log=`（2026-10-01 新增）：主程序**真实**的诊断日志路径。带上它，助手的
     /// 日志与主程序落进同一个文件——报障后一次拉取覆盖两段链路，而不是让用户
@@ -4581,7 +4581,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
 
     /// 从 agent 的 log 行抽取"报告层帧结果"（纯函数，单测 + 自检覆盖）。
     ///
-    /// 判据是**我们自己的 agent 脚本**产出的固定行首（见 rc003_agent.js 的
+    /// 判据是**我们自己的 agent 脚本**产出的固定行首（见 hid_agent.js 的
     /// synthTrace），代次由 AGENT_BUILD 与自检逐字锁死——不用通用解析。
     /// `synth:frame seen …` 不是结论（它只说明看到了按下），返回 `None`。
     fn parse_agent_voice_frame(msg: &str) -> Option<AgentVoiceFrame> {
@@ -4884,7 +4884,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
     }
 
     fn derived_bridge_pipe_name() -> &'static str {
-        r"\\.\pipe\Shengjian.Rc003Bridge"
+        r"\\.\pipe\Shengjian.HidBridge"
     }
 
     fn open_named_pipe(pipe: &str) -> std::io::Result<fs::File> {
@@ -5441,7 +5441,14 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
 
     /// 计划任务名。主程序靠它触发助手，所以**改名必须与主程序侧同步**
     /// （两边各有一份常量，靠自检核对字符串、靠联调核对行为）。
-    const SCHEDULED_TASK_NAME: &str = "Shengjian RC003 Helper";
+    const SCHEDULED_TASK_NAME: &str = "Shengjian HID Host";
+
+/// 改名前的任务名（2026-11-17：`rc003-helper` → `hid-host`）。安装新版时一并删掉，
+/// 免得机器上同时存在两个任务、旧的那个还指向已经不存在的老路径。
+const LEGACY_SCHEDULED_TASK_NAME: &str = "Shengjian RC003 Helper";
+
+/// 改名前的运行时目录名（`%ProgramData%\Shengjian\rc003-helper`）。
+const LEGACY_RUNTIME_DIR_NAME: &str = "rc003-helper";
 
     /// 任务注册时间戳（纯函数）：Task Scheduler XML 的 `<Date>` 用本地时间
     /// `YYYY-MM-DDTHH:MM:SS`——与 `schtasks` 命令行自己写出的形态一致。
@@ -5634,6 +5641,38 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
                     ),
                 ],
             );
+            // 迁移（改名）：删掉旧任务与旧运行时目录，避免两套并存。
+            let legacy_removed = run_task_command(
+                vec![
+                    "/Delete".into(),
+                    "/TN".into(),
+                    LEGACY_SCHEDULED_TASK_NAME.into(),
+                    "/F".into(),
+                ],
+                "清理旧任务",
+                &logger,
+            );
+            if legacy_removed {
+                logger.kv(
+                    "[TASK-MIGRATE]",
+                    &[("legacy_task_removed", LEGACY_SCHEDULED_TASK_NAME.into())],
+                );
+            }
+            if let Some(base) = std::env::var_os("ProgramData") {
+                let legacy_dir = PathBuf::from(base)
+                    .join("Shengjian")
+                    .join(LEGACY_RUNTIME_DIR_NAME);
+                if legacy_dir.is_dir() {
+                    let ok = std::fs::remove_dir_all(&legacy_dir).is_ok();
+                    logger.kv(
+                        "[TASK-MIGRATE]",
+                        &[
+                            ("legacy_runtime_dir", legacy_dir.display().to_string()),
+                            ("removed", ok.to_string()),
+                        ],
+                    );
+                }
+            }
             return true;
         }
 
@@ -5642,7 +5681,20 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
             logger.line("[STOP] --remove-task 需要管理员权限。");
             return false;
         }
-        run_task_command(task_delete_args(), "移除", logger)
+        let removed = run_task_command(task_delete_args(), "移除", logger);
+        // 旧名字也删一次（升级前装过旧版的机器）：不存在时 schtasks 会报错，
+        // 属于预期，不影响整体结果。
+        let _ = run_task_command(
+            vec![
+                "/Delete".into(),
+                "/TN".into(),
+                LEGACY_SCHEDULED_TASK_NAME.into(),
+                "/F".into(),
+            ],
+            "移除旧任务",
+            logger,
+        );
+        removed
     }
 
     /// 子进程 `schtasks` 必须显式 **CREATE_NO_WINDOW**：助手自身是 GUI 子系统、
@@ -6739,7 +6791,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
                      \x20 2) 设备管理器 → 找到 RC003 的 HID 设备 → 禁用再启用；\n\
                      \x20 3) 重启系统。\n\
                      清干净之后可以用探针确认（users=(none) 即为已释放）：\n\
-                     \x20 python hardware/RC003/probes/windows-restart-manager-probe.py C:\\ProgramData\\Shengjian\\rc003-helper\\frida-gadget.dll\n\
+                     \x20 python hardware/RC003/probes/windows-restart-manager-probe.py C:\\ProgramData\\Shengjian\\hid-host\\frida-gadget.dll\n\
                      本次仍可尝试实验性的并行注入（不保证，依赖 Frida 允许同进程双实例）：加 --new-generation。",
                 );
                 logger.line(&format!(
@@ -8754,7 +8806,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
             cfg.contains("\"type\": \"script\"")
                 && cfg.contains("\"port\": 47831")
                 && cfg.contains("\"token\": \"deadbeef\"")
-                && cfg.contains("rc003_agent.js"),
+                && cfg.contains("hid_agent.js"),
             cfg.replace('\n', " "),
         );
 
@@ -9373,7 +9425,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
 
         // 17) 令牌跨运行稳定 + 分代目录回收
         let tmp =
-            std::env::temp_dir().join(format!("rc003-helper-selftest-{}", std::process::id()));
+            std::env::temp_dir().join(format!("hid-host-selftest-{}", std::process::id()));
         let _ = fs::remove_dir_all(&tmp);
         let quiet = Logger::new(None);
         let token_detail = |t1: &str, from1: bool, t2: &str, from2: bool, t3: Option<&str>| {
@@ -9635,7 +9687,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
         // 24) 桥接描述文件解析（捕获链第 ② 段）。解析错一处，现象是
         //     "主程序在跑、助手也在跑，但三键就是不动"——日志上只有 APP-BRIDGE unavailable，
         //     而那是一条折叠日志，本身不会告诉你是哪一项不匹配。逐项钉住。
-        let good = "version=2\nport=53124\npipe=\\\\.\\pipe\\Shengjian.Rc003Bridge.999.deadbeef\ntoken=deadbeefcafe\npid=999\n";
+        let good = "version=2\nport=53124\npipe=\\\\.\\pipe\\Shengjian.HidBridge.999.deadbeef\ntoken=deadbeefcafe\npid=999\n";
         let parsed = parse_bridge_descriptor(good);
         check(
             "桥接描述文件：正常解析",
@@ -9644,7 +9696,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
                 .map(|t| {
                     t.port == 53124
                         && t.token == "deadbeefcafe"
-                        && t.pipe.as_deref() == Some(r"\\.\pipe\Shengjian.Rc003Bridge.999.deadbeef")
+                        && t.pipe.as_deref() == Some(r"\\.\pipe\Shengjian.HidBridge.999.deadbeef")
                 })
                 .unwrap_or(false),
             format!(
@@ -9660,7 +9712,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
         // 这是阳性对照：若解析器忽略 version，这条必然 FAIL。
         check(
             "桥接命名管道：固定本机名不依赖可被网络层改写的端口",
-            derived_bridge_pipe_name() == r"\\.\pipe\Shengjian.Rc003Bridge",
+            derived_bridge_pipe_name() == r"\\.\pipe\Shengjian.HidBridge",
             derived_bridge_pipe_name().to_owned(),
         );
         check(
@@ -9916,7 +9968,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
             ms: 0,
         };
         let xml = task_xml(
-            std::path::Path::new("C:\\fake\\rc003-helper.exe"),
+            std::path::Path::new("C:\\fake\\hid-host.exe"),
             sample_local,
         );
         let create = task_create_from_xml_args(std::path::Path::new("C:\\Temp\\rc003-task.xml"));
@@ -9935,7 +9987,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
                 && xml.contains("<RunLevel>HighestAvailable</RunLevel>")
                 && xml.contains("<Triggers />")
                 && !xml.contains("<TimeTrigger>")
-                && xml.contains("<Command>C:\\fake\\rc003-helper.exe</Command>")
+                && xml.contains("<Command>C:\\fake\\hid-host.exe</Command>")
                 && xml.contains("<Arguments>--follow-app</Arguments>")
                 && xml.contains("<Date>2026-10-13T09:30:05</Date>"),
             format!("xml_len={} create={create_text}", xml.len()),
@@ -9979,7 +10031,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
             format!("{}", uninstall_cleanup_signal_path().display()),
         );
         let cleanup_root = std::env::temp_dir().join(format!(
-            "rc003-helper-cleanup-selftest-{}",
+            "hid-host-cleanup-selftest-{}",
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&cleanup_root);
@@ -10261,8 +10313,8 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
     const GADGET_VERSION: &str = "17.18.0";
     /// agent 脚本随二进制内嵌，保证"运行的就是校验过的那一份"，不受运行时目录被改动影响。
     /// （写入运行时目录是为了让 Gadget 能按相对路径加载它；内容以本常量为准。）
-    const AGENT_JS: &str = include_str!("../agent/rc003_agent.js");
-    /// 内嵌 agent 的代次。必须与 `rc003_agent.js` 里的 `AGENT_BUILD` **逐字一致**
+    const AGENT_JS: &str = include_str!("../agent/hid_agent.js");
+    /// 内嵌 agent 的代次。必须与 `hid_agent.js` 里的 `AGENT_BUILD` **逐字一致**
     /// （自检第 23c 项钉住）。
     ///
     /// 为什么需要它：Gadget 一旦 LoadLibrary 进宿主，脚本就再也不会被重新读取
@@ -10635,7 +10687,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
 
         #[test]
         fn token_log_fields_never_carry_the_raw_value() {
-            let path = Path::new("C:\\ProgramData\\Shengjian\\rc003-helper\\session.token");
+            let path = Path::new("C:\\ProgramData\\Shengjian\\hid-host\\session.token");
             let joined = token_log_fields("file", Some(path), SAMPLE)
                 .iter()
                 .map(|(k, v)| format!("{k}={v}"))
@@ -10745,10 +10797,10 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
 
         #[test]
         fn pending_listing_detects_an_existing_entry_case_insensitively() {
-            let listing = "*1\\??\\C:\\ProgramData\\Shengjian\\rc003-helper\\frida-gadget.dll\0\0";
-            let path = PathBuf::from(r"c:\programdata\Shengjian\rc003-helper\frida-gadget.dll");
+            let listing = "*1\\??\\C:\\ProgramData\\Shengjian\\hid-host\\frida-gadget.dll\0\0";
+            let path = PathBuf::from(r"c:\programdata\Shengjian\hid-host\frida-gadget.dll");
             assert!(pending_reboot_listing_contains(listing, &path));
-            let other = PathBuf::from(r"C:\ProgramData\Shengjian\rc003-helper\rc003_agent.js");
+            let other = PathBuf::from(r"C:\ProgramData\Shengjian\hid-host\hid_agent.js");
             assert!(!pending_reboot_listing_contains(listing, &other));
             // 空清单绝不能误判成"已登记"（否则 locked 文件根本不会被安排删除）。
             assert!(!pending_reboot_listing_contains("", &path));
@@ -10759,13 +10811,13 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
             // 回归（2026-10-08 真机）：REG_MULTI_SZ 若用 `from_wide` 读会在第一个 `\0` 截断，
             // 目标不在第一条时判重永远未命中 → 每轮卸载各多登记一条。
             let first = "*1\\??\\C:\\Other\\app.dll\0";
-            let second = "*1\\??\\C:\\ProgramData\\Shengjian\\rc003-helper\\frida-gadget.dll\0";
+            let second = "*1\\??\\C:\\ProgramData\\Shengjian\\hid-host\\frida-gadget.dll\0";
             let bytes: Vec<u8> = format!("{first}{second}\0")
                 .encode_utf16()
                 .flat_map(|unit| unit.to_le_bytes())
                 .collect();
             let listing = multi_sz_bytes_to_string(&bytes);
-            let path = PathBuf::from(r"C:\ProgramData\Shengjian\rc003-helper\frida-gadget.dll");
+            let path = PathBuf::from(r"C:\ProgramData\Shengjian\hid-host\frida-gadget.dll");
             assert!(listing.contains("app.dll"), "两条都要保留，不能被截断");
             assert!(pending_reboot_listing_contains(&listing, &path));
         }
@@ -11140,7 +11192,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
 
         fn hello_line(token: &str, pid: u64) -> String {
             format!(
-                "{{\"type\":\"hello\",\"t\":0,\"token\":\"{token}\",\"agent\":\"rc003_agent/1\",\
+                "{{\"type\":\"hello\",\"t\":0,\"token\":\"{token}\",\"agent\":\"hid_agent/1\",\
                  \"build\":\"{AGENT_BUILD}\",\"pid\":{pid},\"mode\":\"clear\",\"restore\":true,\
                  \"lease_ms\":2000}}"
             )
@@ -11235,7 +11287,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
     }
 
     /// 从 agent 的 log 行抽取"报告层帧结果"（纯函数，供 `F` 行转发；
-    /// 判据是**我们自己的 agent 脚本**产出的固定行首，见 rc003_agent.js 的 synthTrace，
+    /// 判据是**我们自己的 agent 脚本**产出的固定行首，见 hid_agent.js 的 synthTrace，
     /// 代次由 AGENT_BUILD 与自检锁死——不用通用解析）：
     /// `synth:frame replace ok…` → Replaced；`synth:frame skip reason=…` → Skipped；
     /// 其它（含 `seen`）→ None。
@@ -11582,7 +11634,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
             // 已知环境变量的值优先替换成长名（保留"这是哪一类目录"的信息）。
             let with_var = redact_personal_paths(
                 &std::env::var("ProgramData")
-                    .map(|base| format!(r"{base}\Shengjian\rc003-helper\frida-gadget.dll"))
+                    .map(|base| format!(r"{base}\Shengjian\hid-host\frida-gadget.dll"))
                     .unwrap_or_default(),
             );
             assert!(
@@ -11614,7 +11666,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
             logger.line("shared_sink_line");
             let written = fs::read_to_string(&shared).expect("共用日志必须被写入");
             assert!(written.contains("shared_sink_line"), "{written}");
-            assert!(written.contains("component=rc003-helper"), "{written}");
+            assert!(written.contains("component=hid-host"), "{written}");
             assert!(!fallback.exists(), "共用日志可用时不得再写第二份文件");
 
             // 2) 共用日志不可用（父路径是个文件）→ 回退到助手自己的文件，绝不丢日志。

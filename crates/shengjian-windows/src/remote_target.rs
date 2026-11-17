@@ -108,7 +108,7 @@ pub fn read_file(path: &Path) -> Option<u64> {
 }
 
 pub fn target_file_path() -> PathBuf {
-    crate::rc003_bridge::default_bridge_dir().join(TARGET_FILE_NAME)
+    crate::hid_bridge::default_bridge_dir().join(TARGET_FILE_NAME)
 }
 
 /// 「上次连上的那一支遥控器」记录文件名（与目标文件同目录）。
@@ -124,7 +124,7 @@ pub const LAST_REMOTE_FILE_NAME: &str = "last-remote.ini";
 
 /// 记录文件路径（用户主动断开时这个文件会被删掉）。
 pub fn last_remote_file_path() -> PathBuf {
-    crate::rc003_bridge::default_bridge_dir().join(LAST_REMOTE_FILE_NAME)
+    crate::hid_bridge::default_bridge_dir().join(LAST_REMOTE_FILE_NAME)
 }
 
 /// 上次连接的那支遥控器。

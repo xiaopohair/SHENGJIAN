@@ -17,7 +17,7 @@ import {
 import {
   errorMessage,
   forgetRemote,
-  getRc003HelperInstalled,
+  getHidHostInstalled,
   getSettings,
   listAudioEndpoints,
   saveSettings,
@@ -77,7 +77,7 @@ const connectedAt = shallowRef<number | null>(null);
 const nowTick = shallowRef(Date.now());
 
 const { catalog: voiceToolCatalog, load: loadVoiceToolCatalog } = useVoiceToolCatalog();
-const rc003HelperInstalled = shallowRef(false);
+const hidHostInstalled = shallowRef(false);
 const settingsDocument = ref<SettingsDocument | null>(null);
 const settingsDeviceId = shallowRef<string | null>(null);
 let saveTimer: number | undefined;
@@ -123,7 +123,7 @@ const voiceChipLabel = computed(() => {
 });
 /** 全按键支持服务状态：按最后一次连上的型号判断，断开后也照常显示。 */
 const rc003ChipVisible = computed(
-  () => supportsKeyEnhancement(lastKnownModel.value) && rc003HelperInstalled.value,
+  () => supportsKeyEnhancement(lastKnownModel.value) && hidHostInstalled.value,
 );
 const deviceProductName = computed(() => {
   const key = deviceProductNameKey(remoteModel.value);
@@ -263,7 +263,7 @@ async function loadDeviceSettings() {
     settingsDocument.value = settings;
     settingsDeviceId.value = deviceId.value;
     endpoints.value = await listAudioEndpoints();
-    rc003HelperInstalled.value = await getRc003HelperInstalled();
+    hidHostInstalled.value = await getHidHostInstalled();
     applyDeviceOverride(settings);
     applyTopbarVoiceInputTool();
   } catch (cause) {

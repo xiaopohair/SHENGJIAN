@@ -8,7 +8,7 @@
 - [x] `shengjian-testkit`：假适配器、记录型事件 sink、集成测试。
 - [x] `shengjian-windows`：原有 Windows 平台实现迁入，编译和测试通过。
 - [x] `shengjian-profiles` / `shengjian-common-phrases`：迁入。
-- [x] `helper/rc003`：原生 helper 迁入。
+- [x] `helper/hid-host`：原生 helper 迁入。
 - [x] `profiles/`、`Testing/hardware-scripts/`、`contracts/ipc/`：迁入。
 - [x] 清除原产品命名（crate、环境变量、日志、helper、临时文件、便携格式）。
 
@@ -96,4 +96,4 @@
 
 - RC001 与 upstream `xiaomi-arn9` 的关系；当前平台层把 `"ARN9"` 映射为 `Rc003`。
 - 便携格式从旧标识改为 `shengjian-transfer` 后，旧导出文件不兼容。
-- `helper/rc003` 尚未并入顶层 workspace；需单独跑 `cargo test`。
+- `helper/hid-host` 尚未并入顶层 workspace；需单独跑 `cargo test`。

@@ -1,21 +1,21 @@
 ﻿$ErrorActionPreference = "Stop"
 $appRoot = Split-Path -Parent $PSScriptRoot
 $repoRoot = Split-Path -Parent (Split-Path -Parent $appRoot)
-$helperRoot = Join-Path $repoRoot "helper\rc003"
+$helperRoot = Join-Path $repoRoot "helper\hid-host"
 $sourceHelper = Join-Path $helperRoot "target\release\shengjian-helper.exe"
 $sourceGadget = Join-Path $helperRoot "vendor\frida-gadget.dll"
 $sourceWinUHid = Join-Path $helperRoot "vendor\winuhid.dll"
-$dest = Join-Path $appRoot "src-tauri\resources\rc003"
+$dest = Join-Path $appRoot "src-tauri\resources\hid-host"
 $licenseDest = Join-Path $appRoot "src-tauri\resources\licenses"
 
 if (-not (Test-Path -LiteralPath $sourceHelper)) {
-    throw "helper binary missing; run: cd helper/rc003 && cargo build --release"
+    throw "helper binary missing; run: cd helper/hid-host && cargo build --release"
 }
 if (-not (Test-Path -LiteralPath $sourceGadget)) {
-    throw "frida gadget missing; run: cd helper/rc003 && python vendor/fetch_frida_gadget.py"
+    throw "frida gadget missing; run: cd helper/hid-host && python vendor/fetch_frida_gadget.py"
 }
 if (-not (Test-Path -LiteralPath $sourceWinUHid)) {
-    throw "WinUHid client missing: helper/rc003/vendor/winuhid.dll（虚拟键盘后端的客户端）"
+    throw "WinUHid client missing: helper/hid-host/vendor/winuhid.dll（虚拟键盘后端的客户端）"
 }
 
 New-Item -ItemType Directory -Force -Path $dest | Out-Null
@@ -27,7 +27,7 @@ Copy-Item -LiteralPath $sourceWinUHid -Destination (Join-Path $dest "WinUHid.dll
 # 官方驱动包（含官方 CA 证书）与安装脚本：设置页的「驱动管理」直接调用它
 $sourceDriverDir = Join-Path $helperRoot "vendor\winuhid-driver"
 if (-not (Test-Path -LiteralPath $sourceDriverDir)) {
-    throw "WinUHid driver package missing: helper/rc003/vendor/winuhid-driver"
+    throw "WinUHid driver package missing: helper/hid-host/vendor/winuhid-driver"
 }
 $driverDest = Join-Path $dest "winuhid-driver"
 if (Test-Path -LiteralPath $driverDest) { Remove-Item -LiteralPath $driverDest -Recurse -Force }
@@ -47,4 +47,4 @@ foreach ($entry in $licenseFiles.GetEnumerator()) {
     }
     Copy-Item -LiteralPath $entry.Value -Destination (Join-Path $licenseDest $entry.Key) -Force
 }
-Write-Output "prepared RC003 helper and license resources in $dest"
+Write-Output "prepared HID host helper and license resources in $dest"

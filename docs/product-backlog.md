@@ -111,7 +111,7 @@
 ### 1. 共享宿主刷新：一键「重启宿主」 ✅ 已完成（2026-11-17）
 
 - **实现**：`helper::restart_helper_task`（`schtasks /End` + `/Run`，`/Run` 最多重试 6 次，失败时
-  把两条退出码一起回显）；`HostPlatform::restart_helper` → 命令 `restart_rc003_helper`；设置页
+  把两条退出码一起回显）；`HostPlatform::restart_helper` → 命令 `restart_hid_host`；设置页
   「遥控器 → 全按键支持服务」新增「重启宿主」按钮（仅已安装时显示，不需要管理员）。
 - **提示**：`[AGENT-STALE]` 的 note 现在直接指向这个按钮，不再只让人去 taskkill。
 - **验收证据**：2026-11-17 执行同一对动作后，助手重启并重新注入，日志出现新
@@ -130,7 +130,7 @@ HVCI 下可用；设备对象只允许管理员/ SYSTEM / UMDF 创建（正好�
 
 **产品化进展**：
 
-1. ✅ **键盘描述符与报文编码已沉到 Rust**（`helper/rc003/src/virtual_hid.rs` + 桥接 `K` 协议，
+1. ✅ **键盘描述符与报文编码已沉到 Rust**（`helper/hid-host/src/virtual_hid.rs` + 桥接 `K` 协议，
    提权助手持有虚拟设备）；2026-11-17 真机端到端通过：`Ctrl+Shift+Alt` → `path=virtual_hid`
    → 钩子三键 `flags=0x0` → Chatterfly 弹条并出字。
 2. ✅ **后端降级已接**：`report_layer → virtual_hid → send_input`，互斥、逐级回落、各有判据日志；

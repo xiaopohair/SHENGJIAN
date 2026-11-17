@@ -115,6 +115,9 @@ pub mod boot_type;
 /// 断连循环检测（纯逻辑）：识别"短时间内连续多次短会话"，只报告不恢复。
 #[cfg_attr(not(windows), allow(dead_code))]
 mod disconnect_loop;
+/// RC003 三键传输桥接。跨平台可编译（便于单测），但只在 Windows 平台上启动。
+#[cfg_attr(not(windows), allow(dead_code))]
+pub mod hid_bridge;
 pub mod key_gate;
 #[cfg(windows)]
 mod key_suppressor;
@@ -129,9 +132,6 @@ mod power;
 pub mod raw_input;
 #[cfg(windows)]
 mod raw_input_windows;
-/// RC003 三键传输桥接。跨平台可编译（便于单测），但只在 Windows 平台上启动。
-#[cfg_attr(not(windows), allow(dead_code))]
-pub mod rc003_bridge;
 #[cfg(any(windows, test))]
 mod reconnect;
 /// 「应用正在用的那支遥控器」的单一来源（2026-10-13）：把 BLE 会话的地址发布给
@@ -792,10 +792,10 @@ pub struct WindowsPlatform {
     raw_input: Arc<raw_input_windows::RawInputRuntime>,
     /// RC003 三键传输桥接：把提权助手手里的按键边沿送进 `button_mapping` 引擎。
     ///
-    /// 与 `key_gate` 同样是"持有即运行"：`Rc003Bridge::drop` 会停止监听并删除描述文件，
-    /// 因此它必须随平台生命周期保活。诊断见 [`Self::rc003_bridge_snapshot`]。
+    /// 与 `key_gate` 同样是"持有即运行"：`HidBridge::drop` 会停止监听并删除描述文件，
+    /// 因此它必须随平台生命周期保活。诊断见 [`Self::hid_bridge_snapshot`]。
     #[cfg(windows)]
-    rc003_bridge: Arc<rc003_bridge::Rc003Bridge>,
+    hid_bridge: Arc<hid_bridge::HidBridge>,
     #[cfg(windows)]
     enhanced_capture_enabled: Arc<AtomicBool>,
     #[cfg(windows)]
@@ -914,7 +914,7 @@ impl Default for WindowsPlatform {
             // RC003 三键传输桥接（捕获链第 ② 段）：主程序监听随机端口并写出描述文件，
             // 提权助手读取后回连。没有这一段，RC003 的三键只会被"清空"（Windows 侧
             // 零事件），边沿永远送不进映射引擎 —— 表现为"能配置但按下去没反应"。
-            let rc003_bridge = rc003_bridge::Rc003Bridge::start(button_mapping.sender());
+            let hid_bridge = hid_bridge::HidBridge::start(button_mapping.sender());
             // 遥控器 HID 活动通知接线（断连时遥控器醒来按键 → 立即重连）。
             let wake_runtime = Arc::clone(&runtime);
             key_suppressor::set_remote_hid_activity_notify(Box::new(move || {
@@ -948,7 +948,7 @@ impl Default for WindowsPlatform {
                 runtime,
                 audio,
                 raw_input,
-                rc003_bridge,
+                hid_bridge,
                 enhanced_capture_enabled: Arc::new(AtomicBool::new(false)),
                 send_input,
                 transcript_capture,
@@ -993,7 +993,7 @@ impl Default for WindowsPlatform {
 /// 1. `enhanced_capture_enabled` 原子量 store——`set_button_mappings` 推送目标集时
 ///    读它，任何后续映射保存都必须沿用当前开关意图；
 /// 2. `set_capture_targets` 把目标集下发给报告层：**三键恒在内**（返回/音量±，
-///    恒接管的理由见 `rc003_bridge::ALWAYS_CAPTURED_BUTTONS`）∪ 已启用映射的按键。
+///    恒接管的理由见 `hid_bridge::ALWAYS_CAPTURED_BUTTONS`）∪ 已启用映射的按键。
 ///    漏掉这一步就是 2026-09-28 真机回归（见
 ///    `WindowsPlatform::set_enhanced_capture_enabled` 文档）。
 ///
@@ -1007,16 +1007,16 @@ impl Default for WindowsPlatform {
 ///
 /// 独立成自由函数是为了离线单测：真实 `WindowsPlatform` 会写 `%LOCALAPPDATA%`
 /// 桥接描述文件并启动 WASAPI/钩子线程，不能进单测；本函数可在测试里用
-/// `Rc003Bridge::start_in` + 测试注入器驱动完整链路。
+/// `HidBridge::start_in` + 测试注入器驱动完整链路。
 #[cfg(windows)]
 pub(crate) fn apply_enhanced_capture_state(
     enhanced_capture_enabled: &AtomicBool,
     button_mapping: &ButtonMappingRuntime,
-    rc003_bridge: &rc003_bridge::Rc003Bridge,
+    hid_bridge: &hid_bridge::HidBridge,
     enabled: bool,
 ) {
     enhanced_capture_enabled.store(enabled, Ordering::Relaxed);
-    rc003_bridge.set_capture_targets(enabled, button_mapping.mappings().mapped_mask());
+    hid_bridge.set_capture_targets(enabled, button_mapping.mappings().mapped_mask());
 }
 
 impl WindowsPlatform {
@@ -1033,14 +1033,14 @@ impl WindowsPlatform {
     /// **刻意做成跨平台**：非 Windows 恒返回 `Default`（即 `phase=stopped`），
     /// 这样上层（Tauri 命令）不必自己写 cfg 分支，也不会因为平台差异
     /// 出现"某个平台上这个命令不存在"的裂缝。
-    pub fn rc003_bridge_snapshot(&self) -> rc003_bridge::BridgeSnapshot {
+    pub fn hid_bridge_snapshot(&self) -> hid_bridge::BridgeSnapshot {
         #[cfg(windows)]
         {
-            self.rc003_bridge.snapshot()
+            self.hid_bridge.snapshot()
         }
         #[cfg(not(windows))]
         {
-            rc003_bridge::BridgeSnapshot::default()
+            hid_bridge::BridgeSnapshot::default()
         }
     }
 
@@ -1127,8 +1127,8 @@ impl WindowsPlatform {
         {
             let synth_to = hotkey
                 .as_ref()
-                .and_then(|chord| rc003_bridge::voice_synth_target(chord));
-            self.rc003_bridge.set_voice_synth(synth_to);
+                .and_then(|chord| hid_bridge::voice_synth_target(chord));
+            self.hid_bridge.set_voice_synth(synth_to);
             // 判据先于现象：工具对注入键免疫、热键又进不了报告层时，这一按注定
             // 没反应（键盘能按出来 ≠ 遥控器能按出来），保存配置时就留痕。
             crate::ble::note_unsynthable_hotkey(
@@ -1159,7 +1159,7 @@ impl WindowsPlatform {
             let hotkey = lock(&self.voice_hold_hotkey).clone();
             let synth_enabled = hotkey
                 .as_ref()
-                .and_then(|chord| rc003_bridge::voice_synth_target(chord))
+                .and_then(|chord| hid_bridge::voice_synth_target(chord))
                 .is_some();
             crate::ble::note_unsynthable_hotkey(tool, hotkey.as_ref(), synth_enabled);
         }
@@ -1398,7 +1398,7 @@ impl WindowsPlatform {
         }
         self.button_mapping.set_mappings(mappings);
         #[cfg(windows)]
-        self.rc003_bridge.set_capture_targets(
+        self.hid_bridge.set_capture_targets(
             self.enhanced_capture_enabled.load(Ordering::Relaxed),
             mapped_mask,
         );
@@ -1436,7 +1436,7 @@ impl WindowsPlatform {
         apply_enhanced_capture_state(
             &self.enhanced_capture_enabled,
             &self.button_mapping,
-            &self.rc003_bridge,
+            &self.hid_bridge,
             enabled,
         );
         #[cfg(not(windows))]
@@ -1572,7 +1572,7 @@ impl WindowsPlatform {
             let address = crate::bluetooth_address_from_device_id(&device_id);
             crate::remote_target::set(address);
             if address.is_some() {
-                self.rc003_bridge.request_retarget();
+                self.hid_bridge.request_retarget();
             }
             self.runtime.connect(device_id)
         }
@@ -1623,7 +1623,7 @@ impl WindowsPlatform {
             let address = crate::bluetooth_address_from_device_id(&device_id);
             crate::remote_target::set(address);
             if address.is_some() {
-                self.rc003_bridge.request_retarget();
+                self.hid_bridge.request_retarget();
             }
             self.runtime.restore(device_id)
         }
@@ -2354,7 +2354,7 @@ mod tests {
                 .as_nanos()
         ));
         let _ = std::fs::remove_dir_all(&dir);
-        let bridge = rc003_bridge::Rc003Bridge::start_in(dir.clone(), sender);
+        let bridge = hid_bridge::HidBridge::start_in(dir.clone(), sender);
         let engine = ButtonMappingRuntime::new(
             Arc::new(NoopInjector),
             Arc::new(UsageCounters::default()),

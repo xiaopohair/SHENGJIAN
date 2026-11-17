@@ -311,7 +311,7 @@ pub fn set_autostart_enabled(app: tauri::AppHandle, enabled: bool) -> Result<(),
 }
 
 #[tauri::command]
-pub fn rc003_helper_installed(state: State<'_, AppState>) -> bool {
+pub fn hid_host_installed(state: State<'_, AppState>) -> bool {
     state.host.helper_installed()
 }
 
@@ -328,8 +328,8 @@ pub struct VirtualHidStatus {
 #[tauri::command]
 pub fn virtual_hid_status() -> VirtualHidStatus {
     VirtualHidStatus {
-        available: shengjian_windows::rc003_bridge::virtual_hid_ready(),
-        driver_version: shengjian_windows::rc003_bridge::virtual_hid_version(),
+        available: shengjian_windows::hid_bridge::virtual_hid_ready(),
+        driver_version: shengjian_windows::hid_bridge::virtual_hid_version(),
     }
 }
 
@@ -340,35 +340,41 @@ pub fn virtual_hid_status() -> VirtualHidStatus {
 /// 结果看诊断日志 `[WINUHID-DRIVER]` 与虚拟键盘可用性。
 #[tauri::command]
 pub fn install_virtual_hid_driver() -> Result<(), CommandError> {
-    shengjian_windows::rc003_bridge::request_virtual_hid_driver("install");
+    shengjian_windows::hid_bridge::request_virtual_hid_driver("install");
     Ok(())
 }
 
 #[tauri::command]
 pub fn uninstall_virtual_hid_driver() -> Result<(), CommandError> {
-    shengjian_windows::rc003_bridge::request_virtual_hid_driver("uninstall");
+    shengjian_windows::hid_bridge::request_virtual_hid_driver("uninstall");
     Ok(())
 }
 
 /// 重新查询虚拟键盘可用性：驱动装/卸后 UI 靠这个把状态刷新过来。
 #[tauri::command]
 pub fn refresh_virtual_hid_status() {
-    shengjian_windows::rc003_bridge::request_virtual_hid_refresh();
+    shengjian_windows::hid_bridge::request_virtual_hid_refresh();
 }
 
 #[tauri::command]
-pub fn install_rc003_helper(
+pub fn install_hid_host(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), CommandError> {
-    state.host.install_helper(&app).map_err(CommandError::from)
+    state
+        .host
+        .install_helper(&app)
+        .map_err(CommandError::from)?;
+    // 迁移（改名）：新版助手已就位，顺手清掉旧布局目录（旧助手还在跑时会失败，忽略）。
+    crate::helper::cleanup_legacy_layout(&app);
+    Ok(())
 }
 
 /// 卸载全按键支持服务：提权移除计划任务（会弹一次 UAC）。
 ///
 /// 只是移除服务；`rc003_capture_enabled` 由调用方（设置/连接页）一并置 false。
 #[tauri::command]
-pub fn uninstall_rc003_helper(
+pub fn uninstall_hid_host(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), CommandError> {
@@ -384,7 +390,7 @@ pub fn uninstall_rc003_helper(
 /// （日志 `[AGENT-REFRESH] reason=shared_host`），新 agent 永远不生效且没有报错。
 /// 重启任务会让助手重新扫描宿主、注入当前版本，用户不必再手动 taskkill 宿主。
 #[tauri::command]
-pub fn restart_rc003_helper(state: State<'_, AppState>) -> Result<(), CommandError> {
+pub fn restart_hid_host(state: State<'_, AppState>) -> Result<(), CommandError> {
     state.host.restart_helper().map_err(CommandError::from)
 }
 

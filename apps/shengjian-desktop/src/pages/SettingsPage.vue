@@ -26,7 +26,7 @@ import {
   getCurrentProcessId,
   getForegroundExecutable,
   getHostCapabilities,
-  getRc003HelperInstalled,
+  getHidHostInstalled,
   getVirtualHidStatus,
   refreshVirtualHidStatus,
   installVirtualHidDriver,
@@ -34,17 +34,17 @@ import {
   getRemoteBattery,
   getSettings,
   importConfiguration,
-  installRc003Helper,
+  installHidHost,
   listAudioEndpoints,
   openDiagnosticLogFolder,
   openExternalUrl,
   readDiagnosticLog,
   resetSettings,
-  restartRc003Helper,
+  restartHidHost,
   saveSettings,
   setAutostartEnabled,
   setTrayLanguage,
-  uninstallRc003Helper,
+  uninstallHidHost,
 } from "../lib/api";
 import { ONBOARDING_KEY, ACCENT_KEY, applyAccent, applyTheme } from "../lib/preferences";
 import { confirmAction } from "../lib/confirm";
@@ -174,7 +174,7 @@ const loading = shallowRef(true);
 const error = shallowRef<string | null>(null);
 
 /** 全按键支持服务（RC003 helper）：安装 / 更新 / 卸载都在设置里统一管理。 */
-const rc003HelperInstalled = shallowRef(false);
+const hidHostInstalled = shallowRef(false);
 const helperBusy = shallowRef(false);
 /**
  * 安装 / 卸载全按键支持服务的长流程提示（等 UAC、等轮询、装完还差用户开开关）。
@@ -192,8 +192,8 @@ const helperNotice = shallowRef<{
 let helperPoll: number | undefined;
 
 async function refreshHelperInstalled(): Promise<boolean> {
-  rc003HelperInstalled.value = await getRc003HelperInstalled().catch(() => false);
-  return rc003HelperInstalled.value;
+  hidHostInstalled.value = await getHidHostInstalled().catch(() => false);
+  return hidHostInstalled.value;
 }
 
 async function installHelper() {
@@ -203,7 +203,7 @@ async function installHelper() {
   error.value = null;
   window.clearInterval(helperPoll);
   try {
-    await installRc003Helper();
+    await installHidHost();
     helperNotice.value = {
       text: tr("已交给后台组件执行，完成后会自动刷新状态。"),
       kind: "info",
@@ -256,7 +256,7 @@ async function restartHelperHost() {
   error.value = null;
   window.clearInterval(helperPoll);
   try {
-    await restartRc003Helper();
+    await restartHidHost();
     helperNotice.value = {
       text: tr("服务已重启；新版本的后台组件从现在起生效。"),
       kind: "info",
@@ -287,7 +287,7 @@ async function uninstallHelper() {
   error.value = null;
   window.clearInterval(helperPoll);
   try {
-    await uninstallRc003Helper();
+    await uninstallHidHost();
     helperNotice.value = {
       text: tr("已请求管理员授权；完成 UAC 后会移除服务。"),
       kind: "info",
@@ -702,7 +702,7 @@ async function runHealthCheck() {
       currentPid,
     ] = await Promise.all([
       getHostCapabilities(),
-      getRc003HelperInstalled(),
+      getHidHostInstalled(),
       listAudioEndpoints(),
       getRemoteBattery(),
       getForegroundExecutable(),
@@ -1132,20 +1132,20 @@ onMounted(async () => {
               >
                 <div class="helper-control">
                   <StatusPill
-                    :label="trDynamic(rc003HelperInstalled ? '已安装' : '未安装')"
-                    :tone="rc003HelperInstalled ? 'success' : 'warning'"
+                    :label="trDynamic(hidHostInstalled ? '已安装' : '未安装')"
+                    :tone="hidHostInstalled ? 'success' : 'warning'"
                     dot
                   />
                   <Button
                     size="sm"
-                    :variant="rc003HelperInstalled ? 'secondary' : 'primary'"
+                    :variant="hidHostInstalled ? 'secondary' : 'primary'"
                     :disabled="helperBusy"
                     @click="installHelper"
                   >
-                    {{ trDynamic(rc003HelperInstalled ? "更新" : "安装") }}
+                    {{ trDynamic(hidHostInstalled ? "更新" : "安装") }}
                   </Button>
                   <Button
-                    v-if="rc003HelperInstalled"
+                    v-if="hidHostInstalled"
                     size="sm"
                     variant="secondary"
                     :disabled="helperBusy"
@@ -1154,7 +1154,7 @@ onMounted(async () => {
                     {{ tr("重启宿主") }}
                   </Button>
                   <Button
-                    v-if="rc003HelperInstalled"
+                    v-if="hidHostInstalled"
                     size="sm"
                     variant="danger"
                     :disabled="helperBusy"

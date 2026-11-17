@@ -19,7 +19,7 @@ jobs:
       - name: Test
         run: cargo test --workspace
       - name: Helper test
-        working-directory: helper/rc003
+        working-directory: helper/hid-host
         run: |
           cargo fmt -- --check
           cargo test
@@ -52,10 +52,10 @@ jobs:
         working-directory: apps/shengjian-desktop
         run: pnpm config:check
       - name: Build helper
-        working-directory: helper/rc003
+        working-directory: helper/hid-host
         run: cargo build --release
       - name: Fetch Frida gadget
-        working-directory: helper/rc003
+        working-directory: helper/hid-host
         run: python vendor/fetch_frida_gadget.py
       - name: Prepare helper resources
         working-directory: apps/shengjian-desktop

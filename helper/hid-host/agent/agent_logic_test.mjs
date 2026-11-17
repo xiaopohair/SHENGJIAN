@@ -1,5 +1,5 @@
 /**
- * rc003_agent.js 的逻辑回归台（不需要 frida、不需要提权、不需要遥控器）。
+ * hid_agent.js 的逻辑回归台（不需要 frida、不需要提权、不需要遥控器）。
  *
  * 为什么有这一层：`agent_selftest.py` 验证的是**传输与生命周期**（要 frida、要哑进程），
  * 它碰不到"这份报告到底动不动、改成什么样"的判定。而 2026-09-26 的真机事故恰好发生在
@@ -26,7 +26,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const AGENT = process.argv[2] ? resolve(HERE, process.argv[2]) : join(HERE, 'rc003_agent.js');
+const AGENT = process.argv[2] ? resolve(HERE, process.argv[2]) : join(HERE, 'hid_agent.js');
 
 const results = [];
 function check(name, cond, detail = '') {
@@ -123,7 +123,7 @@ const sandbox = {
 
 const src = readFileSync(AGENT, 'utf8');
 const ctx = createContext(sandbox);
-runInContext(src, ctx, { filename: 'rc003_agent.js' });
+runInContext(src, ctx, { filename: 'hid_agent.js' });
 
 /* ------------------------------------------------- 连上桩助手（租约要靠它） */
 

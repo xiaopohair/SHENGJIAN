@@ -83,18 +83,18 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build helper
-        working-directory: helper/rc003
+        working-directory: helper/hid-host
         run: cargo build --release
 
       - name: Fetch Frida gadget
-        working-directory: helper/rc003
+        working-directory: helper/hid-host
         run: python vendor/fetch_frida_gadget.py
 
       - name: Test core
         run: cargo test --workspace
 
       - name: Test helper
-        working-directory: helper/rc003
+        working-directory: helper/hid-host
         run: cargo test
 
       - name: Test desktop
@@ -273,7 +273,7 @@ jobs:
             ATTRIBUTION.md
             THIRD_PARTY_NOTICES.md
             brand/LICENSE-OFL.txt
-            helper/rc003/vendor/frida-gadget-COPYING
+            helper/hid-host/vendor/frida-gadget-COPYING
           fail_on_unmatched_files: true
           draft: false
           prerelease: false

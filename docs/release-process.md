@@ -63,7 +63,7 @@ pnpm build:portable
 `scripts/build-portable.ps1 -SkipBuild` 可跳过构建、直接复用 `target/release/shengjian-desktop.exe`，
 适合 CI 在签名后组装便携包。便携版依赖系统 WebView2 Runtime；设置、宏、历史与日志仍写入
 `%LOCALAPPDATA%\Shengjian`。RC003 helper 的计划任务指向便携目录，移动目录后需要重新安装；
-删除目录前以管理员身份运行 `resources\rc003\shengjian-helper.exe --remove-task`。
+删除目录前以管理员身份运行 `resources\hid-host\shengjian-helper.exe --remove-task`。
 
 ## 代码签名（SignPath）
 
@@ -194,7 +194,7 @@ workflow 会：
 - `ATTRIBUTION.md`
 - `THIRD_PARTY_NOTICES.md`
 - `brand/LICENSE-OFL.txt`
-- `helper/rc003/vendor/frida-gadget-COPYING`
+- `helper/hid-host/vendor/frida-gadget-COPYING`
 
 Release 正文来自 `docs/release-notes-<version>.md`（0.3.0 为 [release-notes-0.3.0.md](release-notes-0.3.0.md)）。
 正文在 tag 推送时就已定型，之后修改需用 `gh release edit` 同步，见[发布说明与 SHA-256](#发布说明与-sha-256)。
@@ -204,7 +204,7 @@ Release 正文来自 `docs/release-notes-<version>.md`（0.3.0 为 [release-note
 ### 本地校验命令（三个 Cargo workspace + 前端，一个都不能漏）
 
 仓库里有**三个独立的 Cargo workspace**：根 workspace、`apps/shengjian-desktop/src-tauri`（桌面宿主）、
-`helper/rc003`。`cargo fmt --all` / `cargo check --workspace` / `cargo test --workspace` 只覆盖**当前所在的那个**，
+`helper/hid-host`。`cargo fmt --all` / `cargo check --workspace` / `cargo test --workspace` 只覆盖**当前所在的那个**，
 在根目录跑完不代表桌面 crate 和 helper 也干净——2026-11 就因为漏跑桌面 crate 的 `cargo fmt`，
 CI 的 `Desktop Rust format` 连红三次。
 
@@ -221,7 +221,7 @@ cargo test
 cd ../../..
 
 # 3) RC003 helper（独立 workspace）
-cd helper/rc003
+cd helper/hid-host
 cargo test
 cargo build --release
 cd ../..
@@ -258,7 +258,7 @@ pnpm config:check
 
 - 项目：GPL-3.0-only，源码在 GitHub tag
 - Frida Gadget：wxWindows Library Licence
-  - 版本与摘要见 `helper/rc003/vendor/frida-gadget.lock.json`
+  - 版本与摘要见 `helper/hid-host/vendor/frida-gadget.lock.json`
   - 许可全文随包分发到 `resources/licenses/COPYING.frida-gadget`
 - 发布 Release 时同时上传 `LICENSE`、`ATTRIBUTION.md`、`THIRD_PARTY_NOTICES.md`
 

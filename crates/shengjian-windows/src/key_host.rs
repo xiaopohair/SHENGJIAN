@@ -9,7 +9,7 @@
 //! 钩子回调把可能被吞的按键作为**同步询问**（ASK/VERDICT，有界等待）发给主进程，
 //! 其余事件异步转发；任何失败（写入失败/等待超时/主进程缺席）一律放行 = fail-open。
 //!
-//! 协议（行分隔文本，风格与 `rc003_bridge` 一致，便于日志与抓包排查）：
+//! 协议（行分隔文本，风格与 `hid_bridge` 一致，便于日志与抓包排查）：
 //! - host→app: `HELLO v=1 pid=<pid> token=<token>`
 //! - app→host: `OK` | `DENY`
 //! - app→host: `PING` → host→app: `PONG`

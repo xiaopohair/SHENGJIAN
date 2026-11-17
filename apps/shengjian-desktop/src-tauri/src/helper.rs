@@ -1,6 +1,6 @@
 //! One-time-installed elevated RC003 helper task control.
 //!
-//! The task itself is registered with admin rights by `helper/rc003`
+//! The task itself is registered with admin rights by `helper/hid-host`
 //! (`--install-task`). This module only starts/stops it; no elevation is
 //! requested at runtime.
 
@@ -8,7 +8,13 @@ use std::path::PathBuf;
 use std::process::Command;
 use tauri::Manager;
 
-const TASK_NAME: &str = "Shengjian RC003 Helper";
+const TASK_NAME: &str = "Shengjian HID Host";
+
+/// 改名前的任务名（2026-11-17：`rc003-helper` → `hid-host`）。
+///
+/// 只用于「装过旧版」的机器上判断服务在不在：看到旧任务也算已安装，
+/// 用户点「更新」时新版助手会把它删掉（迁移在 `--install-task` 里）。
+const LEGACY_TASK_NAME: &str = "Shengjian RC003 Helper";
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -82,6 +88,59 @@ fn restart_outcome(stop_code: Option<i32>, start_code: Option<i32>) -> Result<()
 
 pub fn task_installed() -> bool {
     run_schtasks(&["/Query", "/TN", TASK_NAME])
+        || run_schtasks(&["/Query", "/TN", LEGACY_TASK_NAME])
+}
+
+/// 以管理员身份启动助手（UAC）。
+///
+/// 用 `ShellExecuteW(..., "runas", ...)` 而不是"隐藏 PowerShell 里 Start-Process -Verb RunAs"：
+/// 后者在部分环境里根本弹不出 UAC（2026-11-17 实测：用户连续两次都没看到窗口），
+/// 前者是资源管理器那条标准提权路径，MoteDeck 也是这么做的。
+#[cfg(windows)]
+fn run_elevated(exe: &std::path::Path, arguments: &str) -> Result<(), String> {
+    use std::os::windows::ffi::OsStrExt;
+
+    #[link(name = "shell32")]
+    extern "system" {
+        fn ShellExecuteW(
+            hwnd: *mut core::ffi::c_void,
+            operation: *const u16,
+            file: *const u16,
+            parameters: *const u16,
+            directory: *const u16,
+            show: i32,
+        ) -> isize;
+    }
+    const SW_SHOWNORMAL: i32 = 1;
+
+    fn wide(value: &std::ffi::OsStr) -> Vec<u16> {
+        value.encode_wide().chain(std::iter::once(0)).collect()
+    }
+
+    let verb = wide(std::ffi::OsStr::new("runas"));
+    let file = wide(exe.as_os_str());
+    let params = wide(std::ffi::OsStr::new(arguments));
+    let result = unsafe {
+        ShellExecuteW(
+            std::ptr::null_mut(),
+            verb.as_ptr(),
+            file.as_ptr(),
+            params.as_ptr(),
+            std::ptr::null(),
+            SW_SHOWNORMAL,
+        )
+    };
+    // ShellExecute 的约定：返回值 > 32 才是成功。
+    if result as usize > 32 {
+        Ok(())
+    } else {
+        Err(format!("elevation request failed (code {result})"))
+    }
+}
+
+#[cfg(not(windows))]
+fn run_elevated(_exe: &std::path::Path, _arguments: &str) -> Result<(), String> {
+    Err("helper task management is Windows-only".to_owned())
 }
 
 fn resource_candidates(app: &tauri::AppHandle) -> Vec<PathBuf> {
@@ -89,9 +148,22 @@ fn resource_candidates(app: &tauri::AppHandle) -> Vec<PathBuf> {
         return Vec::new();
     };
     vec![
-        resource_dir.join("resources/rc003/shengjian-helper.exe"),
+        resource_dir.join("resources/hid-host/shengjian-helper.exe"),
         resource_dir.join("rc003/shengjian-helper.exe"),
     ]
+}
+
+/// 迁移（改名）：清掉旧布局目录 `resources/rc003`。
+///
+/// 旧版助手就是从那个目录跑起来的，进程还在时删不掉——所以只做 best effort，
+/// 失败无所谓（下次启动再试），关键迁移动作在 `--install-task` 里（删旧任务）。
+pub fn cleanup_legacy_layout(app: &tauri::AppHandle) {
+    if let Ok(dir) = app.path().resource_dir() {
+        let legacy = dir.join("resources/rc003");
+        if legacy.is_dir() {
+            let _ = std::fs::remove_dir_all(&legacy);
+        }
+    }
 }
 
 pub fn bundled_helper_path(app: &tauri::AppHandle) -> Option<PathBuf> {
@@ -102,35 +174,15 @@ pub fn bundled_helper_path(app: &tauri::AppHandle) -> Option<PathBuf> {
 
 pub fn request_helper_task_install(app: &tauri::AppHandle) -> Result<(), String> {
     let helper =
-        bundled_helper_path(app).ok_or_else(|| "bundled RC003 helper is missing".to_owned())?;
-    let helper = helper.to_string_lossy().replace('\'', "''");
-    let script =
-        format!("Start-Process -FilePath '{helper}' -ArgumentList '--install-task' -Verb RunAs");
-    let mut command = Command::new("powershell");
-    command.args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &script]);
-    #[cfg(windows)]
-    command.creation_flags(CREATE_NO_WINDOW);
-    command
-        .spawn()
-        .map(|_| ())
-        .map_err(|error| format!("cannot start elevated helper installer: {error}"))
+        bundled_helper_path(app).ok_or_else(|| "bundled HID host helper is missing".to_owned())?;
+    run_elevated(&helper, "--install-task")
 }
 
 /// 提权移除计划任务（`helper --remove-task`）。和安装一样通过 RunAs 弹一次 UAC。
 pub fn request_helper_task_remove(app: &tauri::AppHandle) -> Result<(), String> {
     let helper =
-        bundled_helper_path(app).ok_or_else(|| "bundled RC003 helper is missing".to_owned())?;
-    let helper = helper.to_string_lossy().replace('\'', "''");
-    let script =
-        format!("Start-Process -FilePath '{helper}' -ArgumentList '--remove-task' -Verb RunAs");
-    let mut command = Command::new("powershell");
-    command.args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &script]);
-    #[cfg(windows)]
-    command.creation_flags(CREATE_NO_WINDOW);
-    command
-        .spawn()
-        .map(|_| ())
-        .map_err(|error| format!("cannot start elevated helper uninstaller: {error}"))
+        bundled_helper_path(app).ok_or_else(|| "bundled HID host helper is missing".to_owned())?;
+    run_elevated(&helper, "--remove-task")
 }
 
 #[cfg(test)]

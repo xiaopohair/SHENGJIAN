@@ -1,6 +1,6 @@
 'use strict';
 /*
- * rc003_agent.js —— RC003 增强捕获轨（路线 A）的 Gadget 侧 agent。
+ * hid_agent.js —— RC003 增强捕获轨（路线 A）的 Gadget 侧 agent。
  *
  * 定位
  * ----
@@ -656,7 +656,7 @@ function connectOnce() {
         type: 'hello',
         t: tConnect,
         token: params.token || '',
-        agent: 'rc003_agent/1',
+        agent: 'hid_agent/1',
         build: AGENT_BUILD,
         pid: Process.id,
         arch: Process.arch,
@@ -930,7 +930,7 @@ function installHook() {
                  2) **只有前两个槽生效**：u16 写 3/5/7 时 Ctrl+Shift+Alt 只到
                     Ctrl+Shift，第三槽写什么都不产生按键事件。
                  所以报告层每帧最多两个键；三键组合在 RC003 上不可表达，产品侧
-                 白名单也不再放行 0x1E07（见 rc003_bridge::VOICE_SYNTHABLE_MODS）。 */
+                 白名单也不再放行 0x1E07（见 hid_bridge::VOICE_SYNTHABLE_MODS）。 */
               var modUsages = SYNTH_MODS_USAGES[synthTo & 0xff] || [];
               for (var s = 0; s < 3; s++) {
                 var so = 3 + s * 2;
