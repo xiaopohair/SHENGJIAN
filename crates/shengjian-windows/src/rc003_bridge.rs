@@ -73,7 +73,7 @@ use std::collections::BTreeSet;
 use std::io::{BufRead, BufReader, ErrorKind, Read, Write};
 use std::net::{Ipv4Addr, Shutdown, SocketAddrV4, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread::JoinHandle;
@@ -170,6 +170,47 @@ pub(crate) const VIRTUAL_HID_QUERY_LINE: &str = "K ?";
 
 /// 释放行：全零报文，幂等（没建过设备也回 ack）。
 pub(crate) const VIRTUAL_HID_RELEASE_LINE: &str = "K -";
+
+/// 助手是否报告虚拟键盘可用（`K ok <ver>`）。
+static VIRTUAL_HID_READY: AtomicBool = AtomicBool::new(false);
+/// 可用时拿到的驱动接口版本（排障用）。
+static VIRTUAL_HID_VERSION: AtomicU32 = AtomicU32::new(0);
+/// 当前"按下中"的目标；`None` = 已释放。
+static VIRTUAL_HID_TARGET: Mutex<Option<(u8, u16)>> = Mutex::new(None);
+/// 目标变更标志：bridge 线程在下一周期写线并清位（与 `R`/`T` 行同模式）。
+static VIRTUAL_HID_DIRTY: AtomicBool = AtomicBool::new(false);
+/// 这一轮语音是否真的按下过虚拟键盘（决定会话结束时要不要补释放）。
+static VIRTUAL_HID_HELD: AtomicBool = AtomicBool::new(false);
+
+/// 虚拟键盘后端是否可用（助手回了 `K ok`）。
+pub(crate) fn virtual_hid_ready() -> bool {
+    VIRTUAL_HID_READY.load(Ordering::Relaxed)
+}
+
+/// 虚拟键盘驱动接口版本；不可用时为 0。
+pub(crate) fn virtual_hid_version() -> u32 {
+    VIRTUAL_HID_VERSION.load(Ordering::Relaxed)
+}
+
+/// 请求按下虚拟键盘和弦。只记状态，写线由 bridge 线程完成。
+pub(crate) fn begin_virtual_hid_press(target: (u8, u16)) {
+    VIRTUAL_HID_HELD.store(true, Ordering::Relaxed);
+    if let Ok(mut current) = VIRTUAL_HID_TARGET.lock() {
+        *current = Some(target);
+    }
+    VIRTUAL_HID_DIRTY.store(true, Ordering::Relaxed);
+}
+
+/// 会话结束时补释放；本轮没按下过就什么都不做（不制造无意义的 `K -`）。
+pub(crate) fn end_virtual_hid_press() {
+    if !VIRTUAL_HID_HELD.swap(false, Ordering::Relaxed) {
+        return;
+    }
+    if let Ok(mut current) = VIRTUAL_HID_TARGET.lock() {
+        *current = None;
+    }
+    VIRTUAL_HID_DIRTY.store(true, Ordering::Relaxed);
+}
 
 /// 助手对 `K` 行的回执。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1536,6 +1577,36 @@ fn handle_connection(
             };
             let line_bytes: Vec<u8> = pending.drain(..=position).collect();
             let raw = String::from_utf8_lossy(&line_bytes[..line_bytes.len() - 1]).into_owned();
+            // 虚拟键盘回执（`K ...`）：单独解析，不进 `BridgeLine`（它只描述业务行）。
+            if let Some(reply) = parse_virtual_hid_reply(&raw) {
+                last_rx = Instant::now();
+                match reply {
+                    VirtualHidReply::Ready(version) => {
+                        VIRTUAL_HID_READY.store(true, Ordering::Relaxed);
+                        VIRTUAL_HID_VERSION.store(version, Ordering::Relaxed);
+                        note(format!(
+                            "rc003_bridge event=virtual_hid_ready driver_version={version}"
+                        ));
+                    }
+                    VirtualHidReply::Unavailable(reason) => {
+                        VIRTUAL_HID_READY.store(false, Ordering::Relaxed);
+                        note(format!(
+                            "rc003_bridge event=virtual_hid_unavailable reason={reason}"
+                        ));
+                    }
+                    VirtualHidReply::Ack => {
+                        note("rc003_bridge event=virtual_hid_ack".to_owned());
+                    }
+                    VirtualHidReply::Failed(reason) => {
+                        // 提交失败通常意味着设备已失效：立刻标不可用，让下一按回落。
+                        VIRTUAL_HID_READY.store(false, Ordering::Relaxed);
+                        note(format!(
+                            "rc003_bridge event=virtual_hid_failed reason={reason}"
+                        ));
+                    }
+                }
+                continue;
+            }
             let parsed = match parse_bridge_line(&raw) {
                 Ok(parsed) => parsed,
                 Err(_) => {
@@ -1633,6 +1704,13 @@ fn handle_connection(
                                 "rc003_bridge event=voice_gate_sent on=true scope=hello write_ok={gate_ok}"
                             ));
                         }
+                        // 虚拟键盘能力查询（WinUHid 后端）：旧助手不认识 `K` 行，忽略即可，
+                        // 可用性保持 false → 上层继续走报告层/注入，不会误判。
+                        let virtual_query_ok =
+                            write_line(&mut writer, VIRTUAL_HID_QUERY_LINE).is_ok();
+                        note(format!(
+                            "rc003_bridge event=virtual_hid_query write_ok={virtual_query_ok} scope=hello"
+                        ));
                         crate::key_gate::set_voice_synth_active(false);
                         note(format!(
                             "rc003_bridge event=voice_synth_sent to={} scope=hello await=ack write_ok={}",
@@ -1887,6 +1965,25 @@ fn handle_connection(
                     break;
                 }
                 note("rc003_bridge event=retarget_sent".to_owned());
+            }
+            // 虚拟键盘按下/释放（与 `R` 行同模式：置位即写一次、写失败按断线处理）。
+            // 契约：助手对 `K -` 幂等回 ack；按下失败会回 `K err` 并把可用性打成 false。
+            if VIRTUAL_HID_DIRTY.swap(false, Ordering::Relaxed) {
+                let target = *lock(&VIRTUAL_HID_TARGET);
+                let (line, label) = match target {
+                    Some((mods, usage)) => (
+                        virtual_hid_press_line(mods, usage),
+                        format!("{mods:02X}/{usage:04X}"),
+                    ),
+                    None => (VIRTUAL_HID_RELEASE_LINE.to_owned(), "release".to_owned()),
+                };
+                if write_line(&mut writer, &line).is_err() {
+                    drop_reason = "virtual_hid_write_error";
+                    break;
+                }
+                note(format!(
+                    "rc003_bridge event=virtual_hid_sent target={label}"
+                ));
             }
             let ownership_expired = lock(shared)
                 .ownership_last_rx

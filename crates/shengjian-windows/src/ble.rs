@@ -96,9 +96,12 @@ fn is_wetype_tool(tool: Option<VoiceToolKind>) -> bool {
 
 /// 本次按下将走的注入路径（与下方 `chord_press` 分支条件严格同源；供日志与单测，
 /// 避免日志判据与分支判据各写一遍后漂移）。
-fn press_path(synth_gate: bool, has_hotkey: bool) -> &'static str {
+fn press_path(synth_gate: bool, has_hotkey: bool, virtual_hid: bool) -> &'static str {
     if synth_gate {
         "report_layer"
+    } else if virtual_hid {
+        // 报告层表达不了、但助手有虚拟键盘后端：由虚拟键盘发键（非注入）。
+        "virtual_hid"
     } else if has_hotkey {
         "send_input"
     } else {
@@ -360,10 +363,13 @@ mod voice_attempt_tests {
     #[test]
     fn attempt_path_mirrors_branch_precedence() {
         // 门禁优先：合成生效时 SendInput 分支必须不可达（双写互扰，2026-09-29）。
-        assert_eq!(press_path(true, true), "report_layer");
-        assert_eq!(press_path(true, false), "report_layer");
-        assert_eq!(press_path(false, true), "send_input");
-        assert_eq!(press_path(false, false), "none");
+        assert_eq!(press_path(true, true, false), "report_layer");
+        assert_eq!(press_path(true, false, false), "report_layer");
+        // 虚拟键盘排在注入之前：报告层表达不了时才轮到它。
+        assert_eq!(press_path(false, true, true), "virtual_hid");
+        assert_eq!(press_path(false, false, true), "virtual_hid");
+        assert_eq!(press_path(false, true, false), "send_input");
+        assert_eq!(press_path(false, false, false), "none");
     }
 
     #[test]
@@ -2738,6 +2744,16 @@ fn handle_control(
             let synth_target = attempt_hotkey
                 .as_ref()
                 .and_then(crate::rc003_bridge::voice_synth_target);
+            // 虚拟键盘后端（WinUHid）：报告层表达不了的组合（三键 / 修饰键+字母）走这里。
+            // 三条路径互斥且按能力排优先级：报告层 → 虚拟键盘 → SendInput 注入；
+            // 虚拟键盘不可用（驱动没装/助手旧版）时这里为 None，静默回落注入。
+            let virtual_target = if !synth_gate && crate::rc003_bridge::virtual_hid_ready() {
+                attempt_hotkey
+                    .as_ref()
+                    .and_then(crate::rc003_bridge::virtual_hid_target)
+            } else {
+                None
+            };
             let verify_marker = crate::ime::mic_marker_for(attempt_tool);
             let verify_baseline = verify_marker.and_then(crate::wetype_revive::mic_observation_for);
             let fg_probe = crate::ime::foreground_probe();
@@ -2751,7 +2767,7 @@ fn handle_control(
             gatt_note(format!(
                 "voice_attempt session={session_id} tool={} path={} synth={} synth_confirmed={} fg_self={} fg_pid={} fg_class={} fg_hkl={:#010X} fg_focus={} since_tool_select_ms={} since_hotkey_change_ms={} since_ime_switch_ms={}",
                 crate::ime::tool_label(attempt_tool),
-                press_path(synth_gate, attempt_hotkey.is_some()),
+                press_path(synth_gate, attempt_hotkey.is_some(), virtual_target.is_some()),
                 synth_label(synth_target),
                 synth_gate,
                 crate::ime::foreground_is_self(),
@@ -2782,7 +2798,11 @@ fn handle_control(
             // 2026-10-13 现场：报告层没生效时走 SendInput 注入——**豆包按设计丢弃注入键**
             // （LLKHF_INJECTED，见 docs/investigations/2026-09-04-avoid-driver-signing-input-paths.md），
             // 这一按必然出不了字。单列一行，让"按住语音键没反应"的报障一眼归因到路径。
-            if press_path(synth_gate, attempt_hotkey.is_some()) == "send_input"
+            if press_path(
+                synth_gate,
+                attempt_hotkey.is_some(),
+                virtual_target.is_some(),
+            ) == "send_input"
                 && attempt_tool.is_some_and(ignores_injected_keys)
             {
                 gatt_note(format!(
@@ -2790,7 +2810,23 @@ fn handle_control(
                     crate::ime::tool_label(attempt_tool)
                 ));
             }
-            if synth_gate {
+            if let Some(target) = virtual_target {
+                // 虚拟键盘按下：与报告层同样"跳过注入"，但由助手侧另一台键盘发键。
+                crate::rc003_bridge::begin_virtual_hid_press(target);
+                gatt_note(format!(
+                    "chord_press result=skipped reason=virtual_hid_active session={session_id} mods={:02X} usage={:04X}",
+                    target.0, target.1
+                ));
+                // 与报告层同款的输入法兜底对齐：合成/发键都早于切换，本按赶不上，
+                // 下一次按下生效（见报告层分支的说明）。
+                if let Some(tool) = *lock(voice_input_tool) {
+                    if let Err(error) =
+                        crate::ime::ensure_session_ime(tool, crate::ime::ImeSwitchScope::VoicePress)
+                    {
+                        lock(state).last_error = Some(error);
+                    }
+                }
+            } else if synth_gate {
                 // 生效判据的按下时刻与基线：必须在此刻取——IME 切换等后续动作可能耗时，
                 // 之后取会把期间到达的帧证据误算进基线（见 spawn_voice_effect_check）。
                 let effect_press_at = Instant::now();
@@ -3229,6 +3265,9 @@ fn abort_voice_session(
 /// 同时解除语音键 F5 抑制器的会话武装（覆盖停止/中止/断连/退出全部路径）。
 fn release_voice_hold_hotkey(send_input: &SendInputRuntime, held_hotkey: &mut Option<KeyChord>) {
     crate::key_suppressor::set_session_active(false);
+    // 虚拟键盘若这一轮按下过，会话结束时补释放（`K -`，助手侧幂等）。
+    // 放在这里而不是各个 close 分支：所有结束路径都会经过本函数。
+    crate::rc003_bridge::end_virtual_hid_press();
     if let Some(chord) = held_hotkey.take() {
         // 功能点日志：释放结果（与 chord_press 成对，粘键排查的另一半）。
         let result = send_input.release(&chord);
