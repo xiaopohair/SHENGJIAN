@@ -1138,7 +1138,7 @@ onMounted(async () => {
             <div class="settings-rows">
               <SettingRow
                 label="全按键支持服务"
-                hint="返回键和音量键需要全按键支持组件；首次安装会请求管理员授权。后台组件更新后，用「重启宿主」立即生效。"
+                hint="返回键和音量键需要全按键支持组件；首次安装会请求管理员授权。更新后台组件后，用「重启服务」让它立即生效。"
               >
                 <div class="helper-control">
                   <StatusPill
@@ -1161,7 +1161,7 @@ onMounted(async () => {
                     :disabled="helperBusy"
                     @click="restartHelperHost"
                   >
-                    {{ tr("重启宿主") }}
+                    {{ tr("重启服务") }}
                   </Button>
                   <Button
                     v-if="hidHostInstalled"

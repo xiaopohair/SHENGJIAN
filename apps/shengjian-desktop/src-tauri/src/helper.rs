@@ -55,7 +55,7 @@ pub fn stop_helper_task() -> bool {
 /// 2026-11-16 现场：宿主（WUDFHost）是共享进程时，助手会拒绝自我刷新
 /// （日志 `[AGENT-REFRESH] reason=shared_host`），换了 agent 之后会**静默**跑在
 /// 旧实例上，只能人工用管理员权限 taskkill 宿主。实测这对 `schtasks` 动作就能让
-/// 助手重新扫描宿主并注入新 agent——设置页那个「重启宿主」按钮走的就是这里。
+/// 助手重新扫描宿主并注入新 agent——设置页那个「重启服务」按钮走的就是这里。
 ///
 /// `/End` 对「本来没在跑」的任务返回非 0，不算失败；判据只看 `/Run` 是否成功。
 pub fn restart_helper_task() -> Result<(), String> {
