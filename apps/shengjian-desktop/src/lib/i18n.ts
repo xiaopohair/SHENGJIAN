@@ -394,8 +394,12 @@ const ENGLISH = {
   可用: "Available",
   不可用: "Unavailable",
   虚拟键盘驱动已就绪: "Virtual keyboard driver is ready",
-  "这个组合报告层发不出去，需要虚拟键盘驱动；没装的话按键到不了输入法（会回落成注入，部分输入法会忽略）。":
-    "This combo cannot be sent by the report layer and needs the virtual keyboard driver. Without it the keys never reach the IME (it falls back to injection, which some IMEs ignore).",
+  "这个组合需要「虚拟键盘」驱动：在上方「虚拟键盘」那一行点「安装」。":
+    "This combo needs the Virtual keyboard driver: click Install in the Virtual keyboard row above.",
+  "先安装「全按键支持服务」，这个组合才能用。":
+    "Install the All-key support service first to use this combo.",
+  "这个组合报告层发不出去，要靠虚拟键盘后端送达。当前后端不可用（服务没在运行，或驱动未安装），按键会回落成注入，部分输入法会忽略。":
+    "This combo cannot be sent by the report layer and needs the virtual keyboard backend. The backend is unavailable right now (service not running, or driver not installed), so keys fall back to injection, which some IMEs ignore.",
   "已交给后台组件执行，完成后会自动刷新状态。":
     "Handed to the background service; the status refreshes automatically when it finishes.",
   "驱动安装没有完成：看诊断日志里的 [WINUHID-DRIVER] 行（含失败码）。":

@@ -857,6 +857,16 @@ const hotkeyNeedsVirtualHid = computed(
   () => !virtualHid.value.available && hotkeyParts.value.length > 2,
 );
 
+/**
+ * 给普通用户看的一句话：不解释"报告层/注入"，只说要做什么。
+ * 两种来源分开：服务没装（先装服务） vs 服务在但驱动没装（装驱动）。
+ */
+const hotkeyBackendHint = computed(() =>
+  hidHostInstalled.value
+    ? tr("这个组合需要「虚拟键盘」驱动：在上方「虚拟键盘」那一行点「安装」。")
+    : tr("先安装「全按键支持服务」，这个组合才能用。"),
+);
+
 async function refreshVirtualHid() {
   virtualHid.value = await getVirtualHidStatus().catch(() => ({
     available: false,
@@ -1258,18 +1268,13 @@ onMounted(async () => {
                 </div>
               </SettingRow>
 
+              <Notice v-if="hotkeyNeedsVirtualHid" kind="warning">
+                <span class="helper-notice-text">{{ hotkeyBackendHint }}</span>
+              </Notice>
+
               <SettingRow label="语音记录" hint="只保存转写文字，不保存音频。">
                 <Switch v-model="transcriptHistory" :label="trDynamic('语音记录')" />
               </SettingRow>
-              <Notice v-if="hotkeyNeedsVirtualHid" kind="warning">
-                <span class="helper-notice-text">
-                  {{
-                    tr(
-                      "这个组合报告层发不出去，需要虚拟键盘驱动；没装的话按键到不了输入法（会回落成注入，部分输入法会忽略）。",
-                    )
-                  }}
-                </span>
-              </Notice>
             </div>
           </Card>
         </template>
