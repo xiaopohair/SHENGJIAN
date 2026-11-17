@@ -394,6 +394,8 @@ const ENGLISH = {
   可用: "Available",
   不可用: "Unavailable",
   虚拟键盘驱动已就绪: "Virtual keyboard driver is ready",
+  "这次更新与旧的后台组件不兼容：请在「设置 → 音频及语音 → 遥控器」里点一次「更新」，让全按键支持服务一起升级。":
+    "This update is not compatible with the old background component: click Update in Settings → Audio & voice → Remote so the All-key support service is upgraded too.",
   "这个组合需要「虚拟键盘」驱动：在上方「虚拟键盘」那一行点「安装」。":
     "This combo needs the Virtual keyboard driver: click Install in the Virtual keyboard row above.",
   "先安装「全按键支持服务」，这个组合才能用。":

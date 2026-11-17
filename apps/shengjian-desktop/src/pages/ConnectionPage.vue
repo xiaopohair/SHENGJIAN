@@ -52,6 +52,7 @@ import Card from "../components/ui/Card.vue";
 import EmptyState from "../components/ui/EmptyState.vue";
 import DeviceSettingsDrawer from "../components/DeviceSettingsDrawer.vue";
 import Notice from "../components/ui/Notice.vue";
+import { incompatibleHelperUpgrade } from "../lib/api";
 import SectionHeader from "../components/ui/SectionHeader.vue";
 import StatusPill from "../components/ui/StatusPill.vue";
 import { pushToast } from "../lib/toast";
@@ -154,6 +155,13 @@ const phaseFailure = computed(() => {
   const phase = String(store.phase);
   return phase === "failed" || phase === "error";
 });
+/** 升级提示：还留着改名前的旧任务/旧目录说明后台组件没跟着升级。 */
+const incompatibleUpgrade = shallowRef(false);
+
+async function refreshIncompatibleUpgrade() {
+  incompatibleUpgrade.value = await incompatibleHelperUpgrade().catch(() => false);
+}
+
 const hasConnectionNotices = computed(
   () =>
     autoConnecting.value ||
@@ -161,7 +169,8 @@ const hasConnectionNotices = computed(
     lowBattery.value ||
     Boolean(connectionError.value) ||
     phaseFailure.value ||
-    Boolean(settingsError.value),
+    Boolean(settingsError.value) ||
+    incompatibleUpgrade.value,
 );
 
 function isCurrent(remoteId: string): boolean {
@@ -600,6 +609,7 @@ onMounted(async () => {
     statusStore.refreshDeviceStatus(),
     loadDeviceSettings(),
     loadVoiceToolCatalog(),
+    refreshIncompatibleUpgrade(),
   ]);
   await autoConnectLast();
   // 从设置页跳过来：等数据加载完再展开抽屉。
@@ -640,6 +650,13 @@ onUnmounted(() => {
       <Notice v-if="connectionError" kind="error">{{ connectionError }}</Notice>
       <Notice v-else-if="phaseFailure" kind="error">{{ tr("连接失败，请重试") }}</Notice>
       <Notice v-if="settingsError" kind="error">{{ settingsError }}</Notice>
+      <Notice v-if="incompatibleUpgrade" kind="warning">
+        {{
+          tr(
+            "这次更新与旧的后台组件不兼容：请在「设置 → 音频及语音 → 遥控器」里点一次「更新」，让全按键支持服务一起升级。",
+          )
+        }}
+      </Notice>
     </div>
 
     <Card class="device-hero">

@@ -325,6 +325,14 @@ pub struct VirtualHidStatus {
     pub driver_version: u32,
 }
 
+/// 升级提示：还留着改名前的布局（旧任务 / 旧资源目录）时为 true。
+///
+/// 前端用它显示"这次更新不兼容旧后台组件，请点更新"——迁移完自动变 false。
+#[tauri::command]
+pub fn incompatible_helper_upgrade(app: tauri::AppHandle) -> bool {
+    crate::helper::legacy_layout_present(&app)
+}
+
 #[tauri::command]
 pub fn virtual_hid_status() -> VirtualHidStatus {
     VirtualHidStatus {

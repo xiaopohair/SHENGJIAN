@@ -188,6 +188,10 @@ export interface VirtualHidStatus {
   driver_version: number;
 }
 
+export async function incompatibleHelperUpgrade(): Promise<boolean> {
+  return invoke<boolean>("incompatible_helper_upgrade");
+}
+
 export async function getVirtualHidStatus(): Promise<VirtualHidStatus> {
   return invoke<VirtualHidStatus>("virtual_hid_status");
 }

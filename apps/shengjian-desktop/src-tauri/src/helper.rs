@@ -86,6 +86,20 @@ fn restart_outcome(stop_code: Option<i32>, start_code: Option<i32>) -> Result<()
     }
 }
 
+/// 是否还留着改名前的布局（旧任务或旧资源目录）。
+///
+/// 用来在升级后提示"这次更新不兼容旧后台组件"：用户点过一次「更新」、
+/// 迁移完成后这里就变 false，提示自动消失，不需要额外记状态。
+pub fn legacy_layout_present(app: &tauri::AppHandle) -> bool {
+    if run_schtasks(&["/Query", "/TN", LEGACY_TASK_NAME]) {
+        return true;
+    }
+    app.path()
+        .resource_dir()
+        .map(|dir| dir.join("resources/rc003").is_dir())
+        .unwrap_or(false)
+}
+
 pub fn task_installed() -> bool {
     run_schtasks(&["/Query", "/TN", TASK_NAME])
         || run_schtasks(&["/Query", "/TN", LEGACY_TASK_NAME])

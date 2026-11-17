@@ -227,6 +227,7 @@ fn main() {
             commands::set_autostart_enabled,
             commands::hid_host_installed,
             commands::virtual_hid_status,
+            commands::incompatible_helper_upgrade,
             commands::install_virtual_hid_driver,
             commands::uninstall_virtual_hid_driver,
             commands::refresh_virtual_hid_status,
