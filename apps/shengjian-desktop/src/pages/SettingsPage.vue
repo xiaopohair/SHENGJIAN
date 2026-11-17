@@ -1291,10 +1291,7 @@ onMounted(async () => {
                 <Switch v-model="autostart" :label="trDynamic('开机自动启动')" />
               </SettingRow>
 
-              <SettingRow
-                label="启动后隐藏到系统托盘"
-                hint="启动时不弹出主窗口，只驻留系统托盘；需要时从托盘打开"
-              >
+              <SettingRow label="启动后隐藏到系统托盘" hint="启动时不弹出主窗口，只驻留系统托盘">
                 <Switch v-model="startHiddenToTray" :label="trDynamic('启动后隐藏到系统托盘')" />
               </SettingRow>
 

@@ -717,8 +717,8 @@ const ENGLISH = {
   开机自动启动: "Start with Windows",
   "关闭窗口时隐藏到托盘（关闭则直接退出）": "Hide to tray on close (otherwise quit)",
   启动后隐藏到系统托盘: "Hide to system tray on startup",
-  "启动时不弹出主窗口，只驻留系统托盘；需要时从托盘打开。":
-    "Start without opening the main window and stay in the system tray; open it from the tray when needed.",
+  "启动时不弹出主窗口，只驻留系统托盘。":
+    "Do not open the main window on startup; stay in the system tray only.",
   启用全按键支持服务: "Enable full-key support service",
   "返回键和音量键需要安装全按键支持服务并开启才能使用；首次安装会请求管理员授权。":
     "Back and volume keys require the full-key support service to be installed and enabled; the first install asks for administrator permission.",
@@ -1397,8 +1397,8 @@ const ENGLISH = {
   配置按下遥控器语音键时调用的输入法: "The IME invoked when you press the remote voice key",
   语音热键: "Voice hotkey",
   "登录 Windows 后自动启动声键": "Start Shengjian automatically after Windows sign-in",
-  "启动时不弹出主窗口，只驻留系统托盘；需要时从托盘打开":
-    "Start hidden: the window stays in the system tray; open it from there when needed",
+  "启动时不弹出主窗口，只驻留系统托盘":
+    "Do not open the main window on startup; stay in the system tray only",
   关闭窗口时隐藏到托盘: "Hide to tray when closing the window",
   关闭后点窗口关闭按钮将直接退出应用: "When off, the window close button quits the app",
   "导出为单个 JSON，含设置、方案、宏库、语音记录与上次设备":
