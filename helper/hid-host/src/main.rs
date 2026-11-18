@@ -84,6 +84,12 @@ mod imp {
     /// RC003 的硬件 token（VID 0x2717 / PID 0x32B8 / REV 00a4），与仓库既有取证一致。
     const RC003_HARDWARE_TOKEN: &str = "vid&012717_pid&32b8_rev&00a4";
 
+    /// Chromecast Remote 的硬件 token（PnP id：VID 0x18D1 / PID 0x9450）。
+    ///
+    /// 与 RC003 不同源：Google 用 USB IF 源、我们那台是 `rev&011b`，
+    /// 所以只锁 VID/PID，不锁 REV（同 PID 不同批次都该认）。
+    const CHROMECAST_HARDWARE_TOKEN: &str = "vid&0218d1_pid&9450";
+
     /// 检测到宿主里跑的是上一代 agent 时自动刷新的冷却时间：
     /// 一台机器一小时内最多自动刷新一次，防"刷新→仍旧→再刷新"的循环。
     const AGENT_REFRESH_COOLDOWN_SECS: u64 = 3600;
@@ -843,6 +849,8 @@ mod imp {
         rc003_instance_id: Option<String>,
         /// 不保留设备名：它同样含设备接口路径，排错不需要它。
         is_rc003: bool,
+        /// 是否承载 Chromecast Remote（VID 0x18D1 / PID 0x9450）。
+        is_chromecast: bool,
     }
 
     /// RC003 识别判据（纯函数）：BTHLEDevice 枚举器 + HID 服务前缀 + 本型号硬件串。
@@ -852,6 +860,14 @@ mod imp {
         enumerator.eq_ignore_ascii_case("bthledevice")
             && folded.starts_with(&HID_SERVICE_PREFIX.to_lowercase())
             && folded.contains(RC003_HARDWARE_TOKEN)
+    }
+
+    /// Chromecast 识别判据（纯函数），与 [`device_is_rc003`] 同形。
+    fn device_is_chromecast(enumerator: &str, device: &str) -> bool {
+        let folded = device.to_lowercase();
+        enumerator.eq_ignore_ascii_case("bthledevice")
+            && folded.starts_with(&HID_SERVICE_PREFIX.to_lowercase())
+            && folded.contains(CHROMECAST_HARDWARE_TOKEN)
     }
 
     fn reg_subkeys(key: Handle) -> Vec<String> {
@@ -1479,15 +1495,20 @@ mod imp {
                         }
                     };
                     let is_rc003 = device_is_rc003(enumerator.as_str(), device.as_str());
+                    let is_chromecast =
+                        device_is_chromecast(enumerator.as_str(), device.as_str());
                     scan.entries.push(HostEntry {
                         pid,
                         enumerator: enumerator.clone(),
-                        rc003_instance_id: if is_rc003 {
+                        // 字段名沿用 rc003_*（历史原因），但**两个硬件族都要填**：
+                        // 地址消歧靠它，只填 RC003 会让 Chromecast 永远匹配不上。
+                        rc003_instance_id: if is_rc003 || is_chromecast {
                             Some(format!("{enumerator}\\{device}\\{instance}"))
                         } else {
                             None
                         },
                         is_rc003,
+                        is_chromecast,
                     });
                 }
                 unsafe { RegCloseKey(device_key) };
@@ -1899,8 +1920,22 @@ mod imp {
 
     // ============================================================ 参数
 
+    /// 目标硬件族。
+    ///
+    /// 一台机器上可能同时挂着 RC003 和 Chromecast 两个 HOGP 宿主，
+    /// 必须由调用方指定要服务哪一个；默认 RC003 保持既有行为不变。
+    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+    enum Hardware {
+        /// 默认：由宿主成员自行判定（单一硬件族直接选；两族同时在线时按目标地址收敛）。
+        Auto,
+        Rc003,
+        Chromecast,
+    }
+
     struct Args {
         target_pid: Option<u32>,
+        /// 目标硬件族：决定按哪条硬件串挑宿主（默认沿用 RC003）。
+        hardware: Hardware,
         port: u16,
         /// 调用方是否**显式**指定了 `--port`。
         ///
@@ -1975,6 +2010,7 @@ mod imp {
     fn parse_args() -> Result<Args, String> {
         let mut args = Args {
             target_pid: None,
+            hardware: Hardware::Auto,
             port: DEFAULT_PORT,
             port_explicit: false,
             token: String::new(),
@@ -2041,6 +2077,15 @@ mod imp {
                 "--install-task" => args.install_task = true,
                 "--remove-task" => args.remove_task = true,
                 "--task-status" => args.task_status = true,
+                "--hardware" => {
+                    let raw = value()?;
+                    args.hardware = match raw.trim().to_ascii_lowercase().as_str() {
+                        "auto" => Hardware::Auto,
+                        "rc003" => Hardware::Rc003,
+                        "chromecast" => Hardware::Chromecast,
+                        other => return Err(format!("--hardware 取值 {other:?} 无效（rc003 / chromecast）")),
+                    };
+                }
                 "--follow-app" => args.follow_app = true,
                 "--hide-window" => args.hide_window = true,
                 "--canary-usage" => {
@@ -3659,6 +3704,9 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
 
     enum BridgeOutbound {
         Edges(Vec<u16>),
+        /// Chromecast 消费页边沿（`0` = 松开）。与 `Edges` 分开：
+        /// 消费页 usage 与键盘页 usage 数值会撞车，不能混一个集合。
+        Consumer(u16),
         Ownership(BridgeCaptureTargets),
         /// agent 已应用语音键合成配置的确认（绝对状态；`None` = 关闭）。
         ///
@@ -3723,6 +3771,11 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
             self.last_connected_ms.load(Ordering::Relaxed)
         }
         /// 转发一份绝对状态（空 = 全部释放）。
+        /// 转发一条消费页（Chromecast）边沿；`0` 表示松开。
+        fn push_consumer(&self, usage: u16) {
+            let _ = self.tx.send(BridgeOutbound::Consumer(usage));
+        }
+
         fn push_edges(&self, usages: Vec<u16>) {
             let _ = self.tx.send(BridgeOutbound::Edges(usages));
         }
@@ -5171,6 +5224,18 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
                             }
                         }
                     }
+                    BridgeOutbound::Consumer(usage) => {
+                        if let Some(stream) = conn.as_mut() {
+                            if bridge_write_line(
+                                stream,
+                                &format!("C {} {:x}", now_ms(), usage),
+                            )
+                            .is_err()
+                            {
+                                conn = None;
+                            }
+                        }
+                    }
                     BridgeOutbound::Ownership(owned) => {
                         if let Some(stream) = conn.as_mut() {
                             let _ = bridge_write_line(
@@ -6163,6 +6228,21 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
                         .filter_map(|usage| u16::try_from(*usage).ok())
                         .collect();
                     bridge.push_edges(usages);
+                }
+            }
+            "consumer" => {
+                if !session.authenticated {
+                    return false;
+                }
+                let usage = extract_num(line, "usage")
+                    .and_then(|value| u16::try_from(value).ok())
+                    .unwrap_or(0);
+                logger.kv(
+                    "[CONSUMER]",
+                    &[("usage", format!("0x{usage:04X}"))],
+                );
+                if let Some(bridge) = bridge {
+                    bridge.push_consumer(usage);
                 }
             }
             "log" => {
@@ -8431,7 +8511,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
     fn host_pid_for_address(entries: &[HostEntry], address: u64) -> Option<u32> {
         entries
             .iter()
-            .filter(|entry| entry.is_rc003)
+            .filter(|entry| entry.is_rc003 || entry.is_chromecast)
             .filter(|entry| host_entry_matches_address(entry, address))
             .map(|entry| entry.pid)
             .next()
@@ -8564,7 +8644,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
                 ("no_host", scan.no_host.to_string()),
                 ("read_failures", scan.failures.len().to_string()),
                 (
-                    "rc003_instances",
+                    "target_instances",
                     entries.iter().filter(|e| e.is_rc003).count().to_string(),
                 ),
             ],
@@ -8581,8 +8661,19 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
             return Ok((pid, entries));
         }
 
-        let rc003: Vec<&HostEntry> = entries.iter().filter(|e| e.is_rc003).collect();
-        if rc003.is_empty() {
+        // 按调用方指定的硬件族挑宿主：一台机器上可能同时挂着 RC003 和
+        // Chromecast 两个 HOGP 宿主，选错会去服务别的设备（甚至触发结束宿主的
+        // 自动刷新闸门），所以这里只做"过滤"，不做任何猜测。
+        let wanted: Vec<&HostEntry> = entries
+            .iter()
+            .filter(|entry| match args.hardware {
+                // Auto：两族都算候选，后面再按目标地址收敛。
+                Hardware::Auto => entry.is_rc003 || entry.is_chromecast,
+                Hardware::Rc003 => entry.is_rc003,
+                Hardware::Chromecast => entry.is_chromecast,
+            })
+            .collect();
+        if wanted.is_empty() {
             // 分情形归因。**不要**笼统写"设备未连接"——上一版正是在这里把
             // "HostPid 读取宽度写错" 误报成 "设备未连接"，白白消耗一轮真机运行。
             // 错误信息不许断言未经检验的原因。
@@ -8604,12 +8695,12 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
             }
             return Err(11);
         }
-        let pids: BTreeSet<u32> = rc003.iter().map(|e| e.pid).collect();
+        let pids: BTreeSet<u32> = wanted.iter().map(|e| e.pid).collect();
         if pids.len() > 1 {
             // 两台同型号遥控器同时在线（2026-10-13 现场）时，先按主程序写出的
             // 「正在用的那支」目标地址消歧；选不出唯一一支时保持旧行为（拒绝盲选）。
             if let Some(address) = read_target_address(logger) {
-                let matched: BTreeSet<u32> = rc003
+                let matched: BTreeSet<u32> = wanted
                     .iter()
                     .filter(|entry| host_entry_matches_address(entry, address))
                     .map(|entry| entry.pid)
@@ -8807,6 +8898,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
         // 5) 配置生成：参数确实进了 parameters
         let args = Args {
             target_pid: None,
+            hardware: Hardware::Auto,
             port: 47831,
             port_explicit: true,
             token: "deadbeef".to_string(),
@@ -10361,7 +10453,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
     /// 注意：**不要**因此自动 disarm 旧实例——产品路径下"宿主里是上一代脚本"是常态
     /// （升级应用后宿主往往还活着），旧脚本照样能正确清三键，自动解除反而会把
     /// 升级后的捕获打断成"必须重启才恢复"。
-    const AGENT_BUILD: &str = "2026-11-16.two-slots";
+    const AGENT_BUILD: &str = "2026-11-18.chromecast-consumer";
     /// 锁定文件在编译期内联。三重作用：
     /// 1) **缺失即编译失败**：锁定文件被删/路径写错，构建直接报错，不会产出"看起来正常、
     ///    实际没登记完整性"的二进制（本常量写错路径时已实测触发编译错误）；
@@ -10632,6 +10724,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
                     pid: 100,
                     enumerator: "BTHLEDevice".to_string(),
                     is_rc003: true,
+                    is_chromecast: false,
                     rc003_instance_id: Some(
                         "BTHLEDevice\\{00001812-0000-1000-8000-00805F9B34FB}_DEV_VID&012717_PID&32B8_REV&00A4_E85540B1B76B\\9&2E2B90C9&1&0055".to_string()
                     ),
@@ -10640,6 +10733,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
                     pid: 200,
                     enumerator: "BTHLEDevice".to_string(),
                     is_rc003: true,
+                    is_chromecast: false,
                     rc003_instance_id: Some(
                         "BTHLEDevice\\{00001812-0000-1000-8000-00805F9B34FB}_DEV_VID&012717_PID&32B8_REV&00A4_C05D39C2D9DB\\9&220DF34&1&0055".to_string()
                     ),
@@ -10648,6 +10742,7 @@ Raw Input 与键盘钩子同样拿不到它们（那正是 kbdhid 丢弃的直�
                     pid: 300,
                     enumerator: "USB".to_string(),
                     is_rc003: false,
+                    is_chromecast: false,
                     rc003_instance_id: None,
                 },
             ];

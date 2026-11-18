@@ -44,7 +44,7 @@ pub struct CoreEngine {
     audio: Arc<AudioService>,
     settings: SettingsService,
     profiles: ButtonProfileService,
-    active_profile_id: Mutex<Option<String>>,
+    active_profile_id: Mutex<(Option<String>, Option<String>)>,
     profile_store: Mutex<Option<Arc<dyn ButtonProfilesStorePort>>>,
     mapping_store: Mutex<Option<Arc<dyn ButtonMappingStorePort>>>,
     catalog: DeviceCatalog,
@@ -156,7 +156,7 @@ impl CoreEngine {
             audio,
             settings,
             profiles,
-            active_profile_id: Mutex::new(None),
+            active_profile_id: Mutex::new((None, None)),
             profile_store: Mutex::new(None),
             mapping_store: Mutex::new(None),
             catalog,
@@ -370,20 +370,48 @@ impl CoreEngine {
     pub fn sync_foreground_if_changed(&self) -> bool {
         self.sync_device_model();
         let active = self.profiles.active_profile_id();
+        // 判重键必须**同时**包含型号（2026-11-18）：连上另一型号时 `active` 可能一直是
+        // `None`（用户没选方案），但型号默认方案的绑定已经变了——只按 active 判重会
+        // 认为"没变化"，合成好的映射永远推不下去（Chromecast 首连就是这个现象）。
+        let model = self.current_device_model();
+        let key = (model, active);
         let mut cached = self.active_profile_id.lock().expect("active profile id");
-        if *cached == active {
+        if *cached == key {
             return false;
         }
-        *cached = active;
+        *cached = key;
         drop(cached);
-        self.buttons.set_mappings(self.profiles.sync_foreground());
+        // 只保留一份实现：重算 + 推送 + 打日志统统走 `apply_effective_mappings`。
+        // 之前这里内联 `set_mappings`，与 `sync_foreground` 形成两条路径，
+        // 行为一旦分叉就极难从日志看出来（2026-11-18 排障踩过）。
+        self.apply_effective_mappings();
         true
     }
 
     fn apply_effective_mappings(&self) {
         let active = self.profiles.active_profile_id();
         let mappings = self.profiles.sync_foreground();
-        *self.active_profile_id.lock().expect("active profile id") = active;
+        // 排障（2026-11-18）：合成结果在这里定案，直接说清楚算出了什么。
+        crate::app_note(format!(
+            "map_apply model={:?} active={:?} enabled={} actions={} ok={:?} volume_up={:?}",
+            self.current_device_model(),
+            active,
+            mappings.enabled,
+            mappings.actions.len(),
+            mappings.action(
+                shengjian_contract::LogicalButton::Ok,
+                shengjian_contract::ButtonTrigger::Single
+            ),
+            mappings.action(
+                shengjian_contract::LogicalButton::VolumeUp,
+                shengjian_contract::ButtonTrigger::Single
+            ),
+        ));
+        let model = self.current_device_model();
+        // 平台注入层有独立的一张表：不同步过去，边沿到那边只会查到 Disabled
+        // （2026-11-18 真机：Chromecast 与小米三款的边沿都会进那套分发）。
+        self.buttons.forward_mappings_to_platform(&mappings);
+        *self.active_profile_id.lock().expect("active profile id") = (model, active);
         self.buttons.set_mappings(mappings);
     }
 

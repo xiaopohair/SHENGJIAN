@@ -22,10 +22,39 @@ pub enum RemoteButton {
     VolumeMute,
     VolumeUp,
     VolumeDown,
+    /// Chromecast Remote 专用（消费页 0x0077）。
+    Youtube,
+    /// Chromecast Remote 专用（消费页 0x0078）。
+    Netflix,
+    /// Chromecast Remote 专用（消费页 0x0189）。
+    InputSource,
 }
 
 /// 语义按键的稳定顺序：key_gate 的映射位掩码、UI 画布布局都依赖该表。
-pub const ALL_BUTTONS: [RemoteButton; 13] = [
+pub const ALL_BUTTONS: [RemoteButton; 16] = [
+    RemoteButton::Back,
+    RemoteButton::Ok,
+    RemoteButton::Tv,
+    RemoteButton::Home,
+    RemoteButton::Right,
+    RemoteButton::Left,
+    RemoteButton::Down,
+    RemoteButton::Up,
+    RemoteButton::Menu,
+    RemoteButton::Power,
+    RemoteButton::VolumeMute,
+    RemoteButton::VolumeUp,
+    RemoteButton::VolumeDown,
+    RemoteButton::Youtube,
+    RemoteButton::Netflix,
+    RemoteButton::InputSource,
+];
+
+/// 小米三款（RC001 / RC003 / ARN9）的按键布局子集。
+///
+/// 增强捕获表只覆盖这个子集：Chromecast 的按键不走 USB HID usage，
+/// 而是走 HOGP 的消费页报告（见 [`CHROMECAST_CONSUMER_BUTTON_USAGES`]）。
+pub const XIAOMI_BUTTONS: [RemoteButton; 13] = [
     RemoteButton::Back,
     RemoteButton::Ok,
     RemoteButton::Tv,
@@ -40,6 +69,49 @@ pub const ALL_BUTTONS: [RemoteButton; 13] = [
     RemoteButton::VolumeUp,
     RemoteButton::VolumeDown,
 ];
+
+/// Chromecast Remote 的消费页（Consumer Control）usage → 语义按键。
+///
+/// 实测 2026-11-18（见 docs/chromecast-remote.md）：报文固定 3 字节
+/// `[0x02][usage_lo][usage_hi]`，小端；松开为 `0x0000`。
+pub const CHROMECAST_CONSUMER_BUTTON_USAGES: [(RemoteButton, u16); 14] = [
+    (RemoteButton::Ok, 0x0041),
+    (RemoteButton::Up, 0x0042),
+    (RemoteButton::Down, 0x0043),
+    (RemoteButton::Left, 0x0044),
+    (RemoteButton::Right, 0x0045),
+    (RemoteButton::Home, 0x0223),
+    (RemoteButton::Back, 0x0224),
+    (RemoteButton::VolumeMute, 0x00E2),
+    (RemoteButton::VolumeUp, 0x00E9),
+    (RemoteButton::VolumeDown, 0x00EA),
+    (RemoteButton::Power, 0x019E),
+    (RemoteButton::InputSource, 0x0189),
+    (RemoteButton::Youtube, 0x0077),
+    (RemoteButton::Netflix, 0x0078),
+];
+
+/// 消费页报文 → 语义按键；`0x0000`（松开）与未知 usage 返回 `None`。
+pub fn button_for_consumer_usage(usage: u16) -> Option<RemoteButton> {
+    CHROMECAST_CONSUMER_BUTTON_USAGES
+        .iter()
+        .find_map(|(button, candidate)| (*candidate == usage).then_some(*button))
+}
+
+/// 解析 Chromecast 的 3 字节消费页报告。
+///
+/// 外层 `None` = 不是这种报告；内层 `None` = 松开。其余形状一律拒绝
+/// （宁可漏一个键，也不误判）。
+pub fn parse_consumer_report(report: &[u8]) -> Option<Option<RemoteButton>> {
+    if report.len() != 3 || report[0] != 0x02 {
+        return None;
+    }
+    let usage = u16::from_le_bytes([report[1], report[2]]);
+    if usage == 0 {
+        return Some(None);
+    }
+    button_for_consumer_usage(usage).map(Some)
+}
 
 /// Report ID 1 中可由增强捕获链路接管的全部语义按键。
 ///
@@ -101,6 +173,9 @@ impl RemoteButton {
             Self::VolumeMute => "button.volume_mute",
             Self::VolumeUp => "button.volume_up",
             Self::VolumeDown => "button.volume_down",
+            Self::Youtube => "button.youtube",
+            Self::Netflix => "button.netflix",
+            Self::InputSource => "button.input_source",
         }
     }
 
@@ -606,13 +681,13 @@ mod tests {
 
     #[test]
     fn enhanced_capture_usage_table_is_a_complete_bijection() {
-        assert_eq!(ENHANCED_CAPTURE_BUTTON_USAGES.len(), ALL_BUTTONS.len());
+        assert_eq!(ENHANCED_CAPTURE_BUTTON_USAGES.len(), XIAOMI_BUTTONS.len());
         let usages: BTreeSet<_> = ENHANCED_CAPTURE_BUTTON_USAGES
             .iter()
             .map(|(_, usage)| *usage)
             .collect();
-        assert_eq!(usages.len(), ALL_BUTTONS.len());
-        for button in ALL_BUTTONS {
+        assert_eq!(usages.len(), XIAOMI_BUTTONS.len());
+        for button in XIAOMI_BUTTONS {
             let usage = usage_for_button(button);
             assert_eq!(button_for_usage(usage), Some(button));
         }
@@ -681,5 +756,33 @@ mod tests {
         assert_eq!(releases.len(), 2);
         assert!(releases.iter().all(|edge| !edge.is_pressed));
         assert!(merger.release_all().is_empty());
+    }
+
+    #[test]
+    fn chromecast_consumer_reports_map_to_buttons() {
+        // 实测报文：3 字节，[0x02, usage_lo, usage_hi]，松开 0x0000。
+        assert_eq!(parse_consumer_report(&[0x02, 0xE9, 0x00]), Some(Some(RemoteButton::VolumeUp)));
+        assert_eq!(parse_consumer_report(&[0x02, 0x24, 0x02]), Some(Some(RemoteButton::Back)));
+        assert_eq!(parse_consumer_report(&[0x02, 0x9E, 0x01]), Some(Some(RemoteButton::Power)));
+        assert_eq!(parse_consumer_report(&[0x02, 0x77, 0x00]), Some(Some(RemoteButton::Youtube)));
+        assert_eq!(parse_consumer_report(&[0x02, 0x78, 0x00]), Some(Some(RemoteButton::Netflix)));
+        assert_eq!(parse_consumer_report(&[0x02, 0x89, 0x01]), Some(Some(RemoteButton::InputSource)));
+        assert_eq!(parse_consumer_report(&[0x02, 0x00, 0x00]), Some(None), "松开");
+        assert_eq!(parse_consumer_report(&[0x02, 0x07, 0x00]), None, "未知 usage 不猜");
+        assert_eq!(parse_consumer_report(&[0x01, 0x00, 0x28, 0x00]), None, "不是消费页报告");
+        assert_eq!(parse_consumer_report(&[0x02, 0x00]), None, "长度不对");
+    }
+
+    #[test]
+    fn chromecast_usage_table_is_a_bijection() {
+        let usages: BTreeSet<_> = CHROMECAST_CONSUMER_BUTTON_USAGES
+            .iter()
+            .map(|(_, usage)| *usage)
+            .collect();
+        assert_eq!(usages.len(), CHROMECAST_CONSUMER_BUTTON_USAGES.len());
+        for (button, usage) in CHROMECAST_CONSUMER_BUTTON_USAGES {
+            assert_eq!(button_for_consumer_usage(usage), Some(button));
+        }
+        assert_eq!(button_for_consumer_usage(0x0000), None, "松开不是按键");
     }
 }

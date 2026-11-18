@@ -36,6 +36,15 @@ impl ButtonService {
         self.mappings.lock().expect("button mappings").clone()
     }
 
+    /// 把映射同步给平台注入层。
+    ///
+    /// **只给 helper 旁路的设备用**（目前是 Chromecast）：它的边沿走
+    /// `EngineMessage::GateEdge` → 平台注入器，那边有独立的一张表。
+    /// Raw Input 设备的边沿走 `ButtonService` 自己执行，再同步过去会**双发**。
+    pub fn forward_mappings_to_platform(&self, mappings: &ButtonMappingSet) {
+        self.actions.set_button_mappings(mappings);
+    }
+
     pub fn set_mappings(&self, mappings: ButtonMappingSet) {
         *self.mappings.lock().expect("button mappings") = mappings.clone();
         self.recognizer

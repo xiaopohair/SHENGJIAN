@@ -270,6 +270,20 @@ impl SendInputRuntime {
             });
             return self.record(result, "LockWorkStation");
         }
+        // 计数诊断（2026-11-18，SHENGJIAN_DEBUG=1）：一次按键到底发生了几次 tap。
+        // 真机出现过"一次按键切换两次静音"，要先分清是单次 tap 产生两个事件，
+        // 还是有两条执行路径各 tap 一次。
+        if crate::ble::debug_log_enabled() {
+            crate::ble::gatt_note(format!(
+                "inject_tap keys={}",
+                chord
+                    .keys
+                    .iter()
+                    .map(|key| format!("{key:?}"))
+                    .collect::<Vec<_>>()
+                    .join("+")
+            ));
+        }
         let result = send_key_tap_with(&chord, real_send_input_batch);
         self.record(result, "SendInput")
     }

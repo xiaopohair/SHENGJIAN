@@ -43,6 +43,12 @@ pub trait AudioSinkPort: Send + Sync {
 
 pub trait ActionSinkPort: Send + Sync {
     fn execute(&self, action: &LogicalAction) -> CoreResult<()>;
+
+    /// 把**合成后**的按键映射推给平台注入层。
+    ///
+    /// 默认空实现：纯逻辑实现与测试替身不需要注入层。Windows 适配器会覆盖它，
+    /// 否则 helper 旁路（Chromecast）的边沿到了平台侧却查不到动作（2026-11-18）。
+    fn set_button_mappings(&self, _mappings: &shengjian_contract::ButtonMappingSet) {}
 }
 
 pub trait SettingsStorePort: Send + Sync {

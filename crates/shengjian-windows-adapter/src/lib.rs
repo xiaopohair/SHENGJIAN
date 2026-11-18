@@ -117,6 +117,7 @@ impl WindowsRemoteLink<WindowsPlatform> {
     }
 }
 
+
 impl<P: PlatformRemote> RemoteLinkPort for WindowsRemoteLink<P> {
     fn snapshot(&self) -> ConnectionSnapshot {
         snapshot_to_contract(
@@ -261,6 +262,8 @@ fn model_label(model: RemoteModel) -> Option<String> {
         RemoteModel::Rc003 => Some("RC003".to_owned()),
         // 型号标签是**按键方案隔离**的依据（大写型号号，见 docs/plan-device-model-profiles.md）。
         RemoteModel::Arn9 => Some("ARN9".to_owned()),
+        // 标签同时是按键方案隔离键：Chromecast 的 14 键布局与小���三款完全不同。
+        RemoteModel::Chromecast => Some("CHROMECAST".to_owned()),
         RemoteModel::Unknown => None,
     }
 }
@@ -273,6 +276,7 @@ fn device_id_for(model: RemoteModel) -> Option<DeviceId> {
         // 同 ATVV 服务、导航键 HID 码一致），但型号号不同、没有 TV 键，
         // 而且电池服务少了 RC003 上的 0x2BED 特征，值得单独记录。
         RemoteModel::Arn9 => Some(DeviceId::new("xiaomi-arn9")),
+        RemoteModel::Chromecast => Some(DeviceId::new("google-chromecast")),
         RemoteModel::Unknown => None,
     }
 }
@@ -370,6 +374,7 @@ impl WindowsAudioSink<WindowsPlatform> {
         Self::new(Arc::new(WindowsPlatform::default()))
     }
 }
+
 
 impl<P: PlatformAudio> AudioSinkPort for WindowsAudioSink<P> {
     fn snapshot(&self) -> ContractAudioSnapshot {
@@ -476,6 +481,9 @@ pub trait PlatformActions: Send + Sync {
     fn click_mouse(&self) -> CoreResult<()>;
     fn right_click_mouse(&self) -> CoreResult<()>;
     fn open_common_phrases(&self) -> CoreResult<()>;
+
+    /// 把按键映射推给平台注入运行时（默认空实现）。
+    fn set_button_mappings(&self, _mappings: shengjian_windows::send_input::ButtonMappings) {}
 }
 
 pub struct WindowsPlatformActions {
@@ -492,7 +500,12 @@ impl WindowsPlatformActions {
     }
 }
 
+
 impl PlatformActions for WindowsPlatformActions {
+    fn set_button_mappings(&self, mappings: shengjian_windows::send_input::ButtonMappings) {
+        self.platform.set_button_mappings(mappings);
+    }
+
     fn shortcut(&self, keys: &[String]) -> CoreResult<()> {
         let chord = parse_chord(keys)?;
         self.platform
@@ -607,7 +620,144 @@ impl WindowsActionSink<WindowsPlatformActions> {
     }
 }
 
+/// 契约层按键 → 注入层按键（两者枚举一一对应）。
+fn to_remote_button(button: LogicalButton) -> Option<RemoteButton> {
+    Some(match button {
+        LogicalButton::Back => RemoteButton::Back,
+        LogicalButton::Ok => RemoteButton::Ok,
+        LogicalButton::Tv => RemoteButton::Tv,
+        LogicalButton::Home => RemoteButton::Home,
+        LogicalButton::Right => RemoteButton::Right,
+        LogicalButton::Left => RemoteButton::Left,
+        LogicalButton::Down => RemoteButton::Down,
+        LogicalButton::Up => RemoteButton::Up,
+        LogicalButton::Menu => RemoteButton::Menu,
+        LogicalButton::Power => RemoteButton::Power,
+        LogicalButton::VolumeMute => RemoteButton::VolumeMute,
+        LogicalButton::VolumeUp => RemoteButton::VolumeUp,
+        LogicalButton::VolumeDown => RemoteButton::VolumeDown,
+        LogicalButton::Youtube => RemoteButton::Youtube,
+        LogicalButton::Netflix => RemoteButton::Netflix,
+        LogicalButton::InputSource => RemoteButton::InputSource,
+    })
+}
+
+/// 系统动作 → 等价的单键和弦（注入层没有系统动作变体）。
+fn system_action_chord(key: &str) -> Option<shengjian_windows::send_input::KeyChord> {
+    use shengjian_windows::send_input::KeyCode;
+    let code = match key {
+        "volume_up" => KeyCode::VolumeUp,
+        "volume_down" => KeyCode::VolumeDown,
+        "volume_mute" => KeyCode::VolumeMute,
+        _ => return None,
+    };
+    Some(shengjian_windows::send_input::KeyChord { keys: vec![code] })
+}
+
+fn to_move_direction(
+    direction: shengjian_contract::Direction,
+) -> shengjian_windows::send_input::MoveDirection {
+    use shengjian_windows::send_input::MoveDirection;
+    match direction {
+        shengjian_contract::Direction::Up => MoveDirection::Up,
+        shengjian_contract::Direction::Down => MoveDirection::Down,
+        shengjian_contract::Direction::Left => MoveDirection::Left,
+        shengjian_contract::Direction::Right => MoveDirection::Right,
+    }
+}
+
+/// 契约动作 → 注入层动作。**必须覆盖两边的全部变体**。
+///
+/// 为什么（2026-11-19 review）：注入层是边沿的唯一执行者（app 层那条
+/// `wire_button_source` 已停用），所以这里漏掉一个变体，对应按键的动作就静默失效。
+/// 第一版只映射了 Disabled / Shortcut / SystemAction，滚动、鼠标、运行宏、
+/// 打开应用、常用语、聚焦输入框六种动作会被丢成 Disabled。
+fn to_platform_action(action: &LogicalAction) -> shengjian_windows::send_input::ButtonAction {
+    use shengjian_contract::{Direction, MouseActionKind};
+    use shengjian_windows::send_input::ButtonAction as PlatformAction;
+    match action {
+        LogicalAction::Disabled => PlatformAction::Disabled,
+        LogicalAction::Shortcut { keys, .. } => match parse_chord(keys) {
+            Ok(chord) => PlatformAction::Shortcut { chord },
+            // 解析不了就保持不动，绝不猜键。
+            Err(_) => PlatformAction::Disabled,
+        },
+        LogicalAction::SystemAction { key } => system_action_chord(key)
+            .map(|chord| PlatformAction::Shortcut { chord })
+            .unwrap_or(PlatformAction::Disabled),
+        LogicalAction::OpenApp { app, .. } => PlatformAction::OpenApp {
+            target: app.clone(),
+        },
+        LogicalAction::FocusInput => PlatformAction::FocusInput,
+        LogicalAction::RunMacro { macro_id } => PlatformAction::RunMacro {
+            macro_id: macro_id.clone(),
+            // 注入层总是运行最新版本，版本号只作审计，这里留空。
+            macro_version: String::new(),
+        },
+        LogicalAction::CommonPhrase => PlatformAction::OpenCommonPhrases,
+        LogicalAction::Mouse {
+            kind,
+            direction,
+            amount,
+        } => match (kind, direction) {
+            (MouseActionKind::Scroll, Some(Direction::Up)) => PlatformAction::Scroll {
+                direction: shengjian_windows::send_input::ScrollDirection::Up,
+                steps: *amount,
+            },
+            (MouseActionKind::Scroll, Some(Direction::Down)) => PlatformAction::Scroll {
+                direction: shengjian_windows::send_input::ScrollDirection::Down,
+                steps: *amount,
+            },
+            (MouseActionKind::Move, Some(direction)) => PlatformAction::MouseMove {
+                direction: to_move_direction(*direction),
+                distance: *amount,
+            },
+            (MouseActionKind::Click, _) => PlatformAction::MouseClick {
+                kind: shengjian_windows::send_input::MouseClickKind::Left,
+            },
+            (MouseActionKind::RightClick, _) => PlatformAction::MouseClick {
+                kind: shengjian_windows::send_input::MouseClickKind::Right,
+            },
+            // 契约允许 `direction: None`；没有方向就无从注入，保持不动。
+            _ => PlatformAction::Disabled,
+        },
+    }
+}
+
+/// 把合成后的契约映射整份转成注入层映射。
+pub(crate) fn contract_to_platform_mappings(
+    mappings: &ButtonMappingSet,
+) -> shengjian_windows::send_input::ButtonMappings {
+    use shengjian_windows::send_input::ButtonActions as PlatformButtonActions;
+    let mut out = shengjian_windows::send_input::ButtonMappings::default();
+    out.enabled = mappings.enabled;
+    for (button, actions) in &mappings.actions {
+        let Some(remote) = to_remote_button(*button) else {
+            continue;
+        };
+        out.actions.insert(
+            remote,
+            PlatformButtonActions {
+                single: to_platform_action(&actions.single),
+                double: to_platform_action(&actions.double),
+                long: to_platform_action(&actions.long),
+                hold_repeat: actions.hold_repeat.map(|trigger| match trigger {
+                    shengjian_contract::ButtonTrigger::Single => shengjian_windows::send_input::ButtonTrigger::Single,
+                    shengjian_contract::ButtonTrigger::Double => shengjian_windows::send_input::ButtonTrigger::Double,
+                    shengjian_contract::ButtonTrigger::Long => shengjian_windows::send_input::ButtonTrigger::Long,
+                }),
+                ok_context_click: actions.ok_context_click,
+            },
+        );
+    }
+    out
+}
 impl<P: PlatformActions> ActionSinkPort for WindowsActionSink<P> {
+    fn set_button_mappings(&self, mappings: &ButtonMappingSet) {
+        self.backend
+            .set_button_mappings(contract_to_platform_mappings(mappings));
+    }
+
     fn execute(&self, action: &LogicalAction) -> CoreResult<()> {
         match action {
             LogicalAction::Disabled => Ok(()),
@@ -881,6 +1031,7 @@ impl WindowsButtonSource<WindowsPlatform> {
     }
 }
 
+
 impl<P: PlatformButtonSource> ButtonSourcePort for WindowsButtonSource<P> {
     fn subscribe_edges(&self, sink: Arc<dyn Fn(ContractButtonEdge) + Send + Sync>) {
         self.platform
@@ -909,6 +1060,9 @@ pub(crate) fn map_button(button: RemoteButton) -> LogicalButton {
         RemoteButton::VolumeMute => LogicalButton::VolumeMute,
         RemoteButton::VolumeUp => LogicalButton::VolumeUp,
         RemoteButton::VolumeDown => LogicalButton::VolumeDown,
+        RemoteButton::Youtube => LogicalButton::Youtube,
+        RemoteButton::Netflix => LogicalButton::Netflix,
+        RemoteButton::InputSource => LogicalButton::InputSource,
     }
 }
 
@@ -951,6 +1105,7 @@ impl WindowsVoiceSource {
         Self::new(Arc::new(WindowsPlatform::default()))
     }
 }
+
 
 impl VoiceSourcePort for WindowsVoiceSource {
     fn state(&self) -> VoiceState {
@@ -1438,7 +1593,10 @@ pub fn live_core_engine_with_platform(
     engine.wire_profile_store(Arc::new(WindowsProfileStore::live()));
     engine.wire_mapping_store(Arc::new(WindowsMappingStore::live()));
     engine.load_persisted_button_config();
-    engine.wire_button_source(Arc::new(WindowsButtonSource::new(Arc::clone(&platform))));
+    // 边沿的唯一执行者是平台注入器（`button_mapping`）：它负责查表、吞键与注入，
+    // 并发出 `button.edge` 事件给 UI。这里**不要**再 wire 一份到 app 层的 `ButtonService`——
+    // 两条路径都会执行动作，一次按键被做两遍（2026-11-18 真机：静音按一下就又取消了）。
+    // engine.wire_button_source(Arc::new(WindowsButtonSource::new(Arc::clone(&platform))));
     Ok((engine, platform))
 }
 
@@ -2215,5 +2373,86 @@ mod settings_tests {
         assert_eq!(document.global.gain_db, 7.0);
         assert_eq!(store.load().expect("effective").gain_db, 7.0);
         let _ = fs::remove_dir_all(dir);
+    }
+}
+#[cfg(test)]
+mod contract_to_platform_tests {
+    use super::*;
+    use shengjian_contract::ButtonMappingSet;
+
+    fn single(action: shengjian_contract::LogicalAction) -> ButtonMappingSet {
+        let mut mappings = ButtonMappingSet::default();
+        let mut actions = shengjian_contract::ButtonActions::default();
+        actions.single = action;
+        mappings.actions.insert(shengjian_contract::LogicalButton::Ok, actions);
+        mappings
+    }
+
+    /// review 回归守卫：注入层是唯一执行者，转换器必须覆盖每个动作变体。
+    #[test]
+    fn every_action_kind_survives_conversion() {
+        use shengjian_contract::{Direction, LogicalAction, MouseActionKind};
+        use shengjian_windows::send_input::ButtonAction as PlatformAction;
+
+        let cases: Vec<(LogicalAction, fn(&PlatformAction) -> bool, &str)> = vec![
+            (
+                LogicalAction::OpenApp {
+                    app: "cursor.exe".to_owned(),
+                    focus: Default::default(),
+                },
+                |action| matches!(action, PlatformAction::OpenApp { .. }),
+                "open-app",
+            ),
+            (
+                LogicalAction::FocusInput,
+                |action| matches!(action, PlatformAction::FocusInput),
+                "focus-input",
+            ),
+            (
+                LogicalAction::RunMacro {
+                    macro_id: "macro-1".to_owned(),
+                },
+                |action| matches!(action, PlatformAction::RunMacro { .. }),
+                "run-macro",
+            ),
+            (
+                LogicalAction::CommonPhrase,
+                |action| matches!(action, PlatformAction::OpenCommonPhrases),
+                "common-phrase",
+            ),
+            (
+                LogicalAction::Mouse {
+                    kind: MouseActionKind::Scroll,
+                    direction: Some(Direction::Down),
+                    amount: 3,
+                },
+                |action| matches!(action, PlatformAction::Scroll { .. }),
+                "scroll",
+            ),
+            (
+                LogicalAction::Mouse {
+                    kind: MouseActionKind::Move,
+                    direction: Some(Direction::Left),
+                    amount: 40,
+                },
+                |action| matches!(action, PlatformAction::MouseMove { .. }),
+                "mouse-move",
+            ),
+            (
+                LogicalAction::Mouse {
+                    kind: MouseActionKind::Click,
+                    direction: None,
+                    amount: 1,
+                },
+                |action| matches!(action, PlatformAction::MouseClick { .. }),
+                "mouse-click",
+            ),
+        ];
+
+        for (action, matches_expected, label) in cases {
+            let converted = contract_to_platform_mappings(&single(action));
+            let platform = &converted.actions[&shengjian_windows::raw_input::RemoteButton::Ok].single;
+            assert!(matches_expected(platform), "{label} 被转换丢失了");
+        }
     }
 }

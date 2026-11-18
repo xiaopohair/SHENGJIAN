@@ -70,6 +70,7 @@ const PROMOTION_QUIET_WINDOW: Duration = RECONNECT_BASE_DELAY;
 /// 恰为免费窗口；RC001 短按从不触窗）。宿主须周期发送 MIC_EXTEND(0x0E)
 /// 续期，2.5s 间隔留足余量。
 const MICROPHONE_EXTEND_INTERVAL: Duration = Duration::from_millis(2500);
+
 /// 语音流静默上限（2026-10-21 真机卡死事故）：ATVV 在按住期间持续推流，
 /// 即使不说话也有编码帧；若超过该时长一帧都没有，说明松手通知（`00`）
 /// 丢失或链路已半死。此时必须主动收尾并释放「按住说话」快捷键，
@@ -135,6 +136,42 @@ const VOICE_RATE_MIN_DURATION_MS: u64 = 800;
 ///
 /// 输入是**已解码并送入音频队列**的样本数与 `StreamStarted → StreamStopped`
 /// 的时长。返回 `None` = 不判定（太短或没有样本），界面与日志都不得据此提示。
+
+/// 诊断开关判定（纯函数）：`SHENGJIAN_DEBUG` 存在且不是 `0`/`false`/`off`/空 才为 true。
+pub(crate) fn debug_switch_enabled(raw: Option<&str>) -> bool {
+    match raw {
+        Some(value) => {
+            let text = value.trim().to_ascii_lowercase();
+            !(text.is_empty() || text == "0" || text == "false" || text == "off")
+        }
+        None => false,
+    }
+}
+
+/// 音频进度诊断（`atvv event=audio_progress`）是否开启。
+///
+/// 默认关闭：正常使用不需要每 0.5 秒一行日志；排查采样率/丢帧时设
+/// `SHENGJIAN_DEBUG=1` 再复现即可。每个进程只读一次环境变量。
+pub(crate) fn debug_log_enabled() -> bool {
+    static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ENABLED.get_or_init(|| {
+        let value = std::env::var("SHENGJIAN_DEBUG").ok();
+        debug_switch_enabled(value.as_deref())
+    })
+}
+
+/// 语音速率的分母：优先用「首帧→末帧」的音频跨度，缺失时回落到会话墙钟。
+///
+/// 为什么（2026-11-18）：会话墙钟包含 `STREAM_START`→首帧的延迟，以及松手后
+/// →`STREAM_STOP` 的尾巴；短会话里这两段占比很大，会把 16 kHz 的满速流算成 9~11 kHz
+/// （Chromecast Remote 实测），于是误报 `result=degraded`。
+fn audio_span_ms(first: Option<Instant>, last: Option<Instant>, stream_ms: u64) -> u64 {
+    match (first, last) {
+        (Some(first), Some(last)) if last > first => (last - first).as_millis() as u64,
+        _ => stream_ms,
+    }
+}
+
 fn classify_voice_audio_rate(samples: u64, duration_ms: u64) -> Option<(u32, VoiceAudioHealth)> {
     if samples == 0 || duration_ms < VOICE_RATE_MIN_DURATION_MS {
         return None;
@@ -1042,6 +1079,9 @@ fn worker_loop(
     // 最近一帧 ATVV 音频的到达时刻（2026-10-21）：STOP 丢失时用它判定
     // 链路已静默，主动收尾并释放按住说话快捷键。只在 Streaming 期间有意义。
     let mut last_voice_audio_at: Option<Instant> = None;
+    // 本次会话**第一帧**音频的到达时刻（2026-11-18）：用于按「首帧→末帧」算速率，
+    // 而不是拿会话墙钟当分母（后者会把起步延迟和松手后的尾巴算成"慢"）。
+    let mut first_voice_audio_at: Option<Instant> = None;
     // 提前重连的状态（2026-10-13，issue #206）：上次连接尝试结束的时刻，
     // 供安静窗判定；以及被安静窗抑制的触发累计数（折叠日志；成功提前或成功连上即清零，
     // 保证"首条"日志按 episode 计，不被上一轮的大数字吞掉）。
@@ -1571,6 +1611,7 @@ fn worker_loop(
                         &mut active_voice_samples,
                         &mut extend_deadline,
                         &mut last_voice_audio_at,
+        &mut first_voice_audio_at,
                         &mut voice_stream_started_at,
                         &sender,
                         &voice_session_epoch,
@@ -1642,11 +1683,13 @@ fn worker_loop(
                         &gain_db,
                         &mut voice_gain_log,
                         &mut last_voice_audio_at,
+        &mut first_voice_audio_at,
                         &bytes,
                         &usage,
                         &transcript_capture,
                         &mut voice_level,
                         &voice_level_dbfs,
+        &voice_stream_started_at,
                     );
                 }
             }
@@ -2567,6 +2610,7 @@ fn handle_control(
     active_voice_samples: &mut u64,
     extend_deadline: &mut Option<Instant>,
     last_voice_audio_at: &mut Option<Instant>,
+    first_voice_audio_at: &mut Option<Instant>,
     voice_stream_started_at: &mut Option<Instant>,
     sender: &Sender<WorkerMessage>,
     voice_session_epoch: &Arc<AtomicU64>,
@@ -2703,6 +2747,8 @@ fn handle_control(
             let epoch = voice_session_epoch.fetch_add(1, Ordering::SeqCst) + 1;
             *active_voice_samples = 0;
             *voice_stream_started_at = Some(Instant::now());
+            *first_voice_audio_at = None;
+
             if let Some(session) = session {
                 session.microphone_opened = true;
             }
@@ -2971,6 +3017,8 @@ fn handle_control(
             snapshot.last_error = None;
         }
         PipelineOutput::StreamStopped { generation, .. } => {
+            // 先把末帧时刻留在手边：下面立刻清零，而速率要用它当分母（2026-11-18）。
+            let last_audio_at = *last_voice_audio_at;
             *last_voice_audio_at = None;
             // 回眸：先记结束时刻，文字稳定等待与音频排空互不影响。
             let transcript_ended_at = voice_timestamp_ms();
@@ -3010,14 +3058,18 @@ fn handle_control(
                 lock(state).last_error = Some(error.to_string());
                 return;
             }
-            let duration_ms = voice_stream_started_at
+            // 度量口径（2026-11-18）：按「首帧→末帧」算，而不是会话墙钟。
+            // 会话墙钟含 STREAM_START→首帧的延迟、以及松手后→STREAM_STOP 的尾巴，
+            // 短会话会被系统性低估（Chromecast 实测 16 kHz 被报成 9.5 kHz）。
+            let stream_duration_ms = voice_stream_started_at
                 .take()
                 .map(|started| started.elapsed().as_millis() as u64)
                 .unwrap_or(0);
+            let duration_ms = audio_span_ms(*first_voice_audio_at, last_audio_at, stream_duration_ms);
             let samples = *active_voice_samples;
             if let Some((rate_hz, health)) = classify_voice_audio_rate(samples, duration_ms) {
                 gatt_note(format!(
-                    "voice_audio_rate result={} rate_hz={rate_hz} samples={samples} duration_ms={duration_ms} expected_hz={VOICE_EXPECTED_SAMPLE_RATE_HZ}",
+                    "voice_audio_rate result={} rate_hz={rate_hz} samples={samples} duration_ms={duration_ms} stream_ms={stream_duration_ms} expected_hz={VOICE_EXPECTED_SAMPLE_RATE_HZ}",
                     voice_audio_health_token(health)
                 ));
                 let mut snapshot = lock(state);
@@ -3134,17 +3186,34 @@ fn handle_audio(
     gain_db: &Mutex<f32>,
     voice_gain_log: &mut Option<(u64, f32)>,
     last_voice_audio_at: &mut Option<Instant>,
+    first_voice_audio_at: &mut Option<Instant>,
     bytes: &[u8],
     usage: &UsageCounters,
     transcript_capture: &crate::transcript_capture::TranscriptCaptureRuntime,
     voice_level: &mut VoiceLevelMeter,
     voice_level_dbfs: &AtomicI32,
+    voice_stream_started_at: &Option<Instant>,
 ) {
     if pipeline.state() != VoiceSessionState::Streaming {
         return;
     }
     // 收到任何音频字节都算链路仍然活着（即使解码失败，也不该误判为静默）。
     *last_voice_audio_at = Some(Instant::now());
+    if first_voice_audio_at.is_none() {
+        *first_voice_audio_at = Some(Instant::now());
+    }
+    // 诊断（2026-11-18）：每收满约 0.5 秒音频打一条「已收样本 / 已用墙钟」，
+    // 用来分辨丢帧是「起步晚」还是「持续漏」。rate_hz 应稳定在 16000 附近。
+    if let Some(started) = (*voice_stream_started_at).filter(|_| debug_log_enabled()) {
+        let frames = *active_voice_samples;
+        if frames % 8000 < 500 {
+            let elapsed_ms = started.elapsed().as_millis().max(1) as u64;
+            gatt_note(format!(
+                "atvv event=audio_progress samples={frames} elapsed_ms={elapsed_ms} rate_hz={}",
+                frames.saturating_mul(1000) / elapsed_ms
+            ));
+        }
+    }
     // 增益逐批刷新（对齐 Mac 每帧读 settings.gainDB 的语义）：用户在滑块上改动后，
     // 下一批音频立即按新值处理，不需要重开会话；重连后的新管道也因此拿到当前值。
     let effective_gain_db = *lock(gain_db);
@@ -3395,6 +3464,10 @@ impl PendingBleConnection {
     }
 
     fn finish(mut self, name: String, model: RemoteModel) -> BleSession {
+        // 型号已知时用产品正式名称显示（广播名只用于识别）。
+        let name = crate::remote_product_name(model)
+            .map(str::to_owned)
+            .unwrap_or(name);
         BleSession {
             connection_generation: self.connection_generation,
             battery_monitor: None,
@@ -5812,5 +5885,39 @@ mod tests {
         assert!(!no_session.contains("reason=stale_callback"));
         let active = connection_params_event_note(7, 7, true, observation);
         assert!(active.contains("reason=not_connected"));
+    }
+}
+#[cfg(test)]
+mod audio_span_tests {
+    use super::*;
+
+    #[test]
+    fn rate_denominator_uses_first_to_last_audio_frame() {
+        let start = Instant::now();
+        let first = start + Duration::from_millis(300);
+        let last = start + Duration::from_millis(1800);
+        // 首帧→末帧 1500ms，而不是会话墙钟 4200ms。
+        assert_eq!(audio_span_ms(Some(first), Some(last), 4200), 1500);
+        // 缺首帧或末帧 ⇒ 回落到会话墙钟。
+        assert_eq!(audio_span_ms(None, Some(last), 4200), 4200);
+        assert_eq!(audio_span_ms(Some(first), None, 4200), 4200);
+        // 末帧不晚于首帧（时钟异常）同样回落，不产生 0 或负数分母。
+        assert_eq!(audio_span_ms(Some(last), Some(first), 4200), 4200);
+    }
+}
+#[cfg(test)]
+mod debug_switch_tests {
+    use super::*;
+
+    #[test]
+    fn debug_switch_accepts_truthy_values_only() {
+        assert!(debug_switch_enabled(Some("1")));
+        assert!(debug_switch_enabled(Some("true")));
+        assert!(debug_switch_enabled(Some(" ON ")));
+        assert!(!debug_switch_enabled(None));
+        assert!(!debug_switch_enabled(Some("")));
+        assert!(!debug_switch_enabled(Some("0")));
+        assert!(!debug_switch_enabled(Some("false")));
+        assert!(!debug_switch_enabled(Some("off")));
     }
 }

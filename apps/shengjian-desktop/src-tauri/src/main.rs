@@ -50,6 +50,8 @@ fn main() {
             platform::initialize_diagnostics();
             catalog::initialize(app.handle());
 
+            // app 层日志接进诊断日志（否则映射合成的结果无处可见，2026-11-18）。
+            shengjian_app::set_log_hook(|message| shengjian_windows::gatt_note(message.to_owned()));
             let sink = Arc::new(events::TauriEventSink::new(app.handle().clone()));
             let (engine, windows_platform) =
                 platform::live_engine(sink).map_err(|error| error.to_string())?;

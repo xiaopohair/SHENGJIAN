@@ -46,6 +46,7 @@ pub fn normalized_model(model: Option<&str>) -> Option<String> {
 pub fn profile_buttons_for_model(model: Option<&str>) -> &'static [LogicalButton] {
     match normalized_model(model).as_deref() {
         Some("ARN9") => &ARN9_BUTTONS,
+        Some("CHROMECAST") => &CHROMECAST_BUTTONS,
         _ => &PROFILE_BUTTONS,
     }
 }
@@ -69,7 +70,7 @@ pub const PROFILE_BUTTONS: [LogicalButton; 12] = [
 ];
 
 pub fn is_profile_button(button: LogicalButton) -> bool {
-    PROFILE_BUTTONS.contains(&button)
+    PROFILE_BUTTONS.contains(&button) || CHROMECAST_BUTTONS.contains(&button)
 }
 
 /// ARN9（小米蓝牙语音遥控器普通款）的布局：与 RC003 相同，但**没有 TV 键**。
@@ -85,6 +86,27 @@ pub const ARN9_BUTTONS: [LogicalButton; 11] = [
     LogicalButton::Power,
     LogicalButton::VolumeUp,
     LogicalButton::VolumeDown,
+];
+
+/// Chromecast Remote 的布局：**没有 TV / Menu**，多了 YouTube / Netflix / 信源。
+///
+/// 14 键：这台设备的静音键**要在方案里绑定**才能生效（基础映射里没有它），
+/// 所以它和其它键一样进方案可编辑集合（2026-11-18 用户要求「静音键要真正静音」）。
+pub const CHROMECAST_BUTTONS: [LogicalButton; 14] = [
+    LogicalButton::Back,
+    LogicalButton::Ok,
+    LogicalButton::Home,
+    LogicalButton::Left,
+    LogicalButton::Right,
+    LogicalButton::Down,
+    LogicalButton::Up,
+    LogicalButton::Power,
+    LogicalButton::VolumeUp,
+    LogicalButton::VolumeDown,
+    LogicalButton::Youtube,
+    LogicalButton::Netflix,
+    LogicalButton::InputSource,
+    LogicalButton::VolumeMute,
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -135,7 +157,7 @@ impl ButtonProfile {
             voice_input_tool: None,
             device_model: normalized_model(model),
             is_default: true,
-            bindings: BTreeMap::new(),
+            bindings: model_default_bindings(model),
         }
     }
 
@@ -329,7 +351,9 @@ pub fn compose_profile_mappings(
     base: &ButtonMappingSet,
 ) -> ButtonMappingSet {
     let mut result = base.clone();
-    for button in PROFILE_BUTTONS {
+    // 按**该型号的布局**遍历，而不是固定的小米 12 键：Chromecast 的静音不在
+    // `PROFILE_BUTTONS` 里，用固定表会让它的默认方案绑定静默失效（2026-11-18）。
+    for &button in profile_buttons_for_model(profile.device_model.as_deref()) {
         let Some(triggers) = profile.bindings.get(&button) else {
             continue;
         };
@@ -360,7 +384,9 @@ pub fn compose_profile_mappings(
         );
     }
     if let Some(hold_repeat) = profile.hold_repeat {
-        for button in PROFILE_BUTTONS {
+        // 按**该型号的布局**遍历，而不是固定的小米 12 键：Chromecast 的静音不在
+    // `PROFILE_BUTTONS` 里，用固定表会让它的默认方案绑定静默失效（2026-11-18）。
+    for &button in profile_buttons_for_model(profile.device_model.as_deref()) {
             if let Some(actions) = result.actions.get_mut(&button) {
                 actions.hold_repeat = Some(hold_repeat);
             }
@@ -463,10 +489,11 @@ mod tests {
     }
 
     #[test]
-    fn tv_and_menu_are_profile_editable_but_mute_is_not() {
+        fn tv_and_menu_are_profile_editable_and_mute_is_model_scoped() {
         assert!(is_profile_button(LogicalButton::Tv));
         assert!(is_profile_button(LogicalButton::Menu));
-        assert!(!is_profile_button(LogicalButton::VolumeMute));
+        // 静音只对 Chromecast 可编辑（它在 CHROMECAST_BUTTONS 里），这里断言全局函数也認它。
+        assert!(is_profile_button(LogicalButton::VolumeMute));
     }
 
     #[test]
@@ -675,5 +702,209 @@ mod tests {
         // RC001 实机确认有 TV 键（2026-11-15），布局与 RC003 一致，不走 ARN9 的 11 键特例。
         assert!(profile_buttons_for_model(Some("RC001")).contains(&LogicalButton::Tv));
         assert_eq!(profile_buttons_for_model(Some("RC001")).len(), 12);
+    }
+}
+#[cfg(test)]
+mod chromecast_layout_tests {
+    use super::*;
+
+    #[test]
+    fn chromecast_layout_has_the_three_new_keys_and_no_tv_or_menu() {
+        let layout = profile_buttons_for_model(Some("Chromecast"));
+        assert_eq!(layout.len(), 14);
+        assert!(layout.contains(&LogicalButton::Youtube));
+        assert!(layout.contains(&LogicalButton::Netflix));
+        assert!(layout.contains(&LogicalButton::InputSource));
+        assert!(!layout.contains(&LogicalButton::Tv));
+        assert!(!layout.contains(&LogicalButton::Menu));
+        // 静音现在也在集合里：它必须能在方案里绑定才生效。
+        assert!(layout.contains(&LogicalButton::VolumeMute));
+        assert!(is_profile_button(LogicalButton::InputSource));
+        // 小米三款布局不变。
+        assert_eq!(profile_buttons_for_model(Some("ARN9")).len(), 11);
+        assert_eq!(profile_buttons_for_model(Some("RC003")).len(), 12);
+    }
+}
+
+/// 单个按键的「单击」绑定构造器（仅用于型号默认方案）。
+fn single_trigger(action: LogicalAction) -> TriggerBindings {
+    let mut triggers = BTreeMap::new();
+    triggers.insert(ButtonTrigger::Single, action);
+    triggers
+}
+
+fn shortcut(label: &str, keys: &[&str]) -> TriggerBindings {
+    single_trigger(LogicalAction::Shortcut {
+        label: label.to_owned(),
+        keys: keys.iter().map(|key| (*key).to_owned()).collect(),
+    })
+}
+
+fn system_action(key: &str) -> TriggerBindings {
+    single_trigger(LogicalAction::SystemAction {
+        key: key.to_owned(),
+    })
+}
+
+/// 型号默认方案的初始绑定（「连上即用」的基线）。
+///
+/// 分层是 `button-mappings.json` → **型号默认方案** → 当前方案，所以写在这里的动作
+/// 不需要用户手动复制任何推荐方案就会生效。目前只有 Chromecast Remote 有基线：
+/// 它的 14 个键里，方向/确定/返回/主页/音量/静音/电源有通用语义，
+/// 静音按既有约定归**基础映射**（不进型号布局），因此这里不绑定；
+/// YouTube / Netflix / 信源没有通用的 Windows 动作，保持未绑定。
+pub fn model_default_bindings(model: Option<&str>) -> BTreeMap<LogicalButton, TriggerBindings> {
+    let mut bindings: BTreeMap<LogicalButton, TriggerBindings> = BTreeMap::new();
+    // 小米三款（RC001 / RC003 / ARN9）：方向 / OK / 返回 / 音量±。
+    //
+    // 语义上没有歧义，全部映射到等价键盘输入：遥控器当方向+确认用。
+    // Home / 菜单 / TV / 电源保持未绑定——它们没有通用的 Windows 语义，
+    // 交给用户按需配置（2026-11-19 用户要求补上前六个键）。
+    if matches!(
+        normalized_model(model).as_deref(),
+        Some("RC001") | Some("RC003") | Some("ARN9")
+    ) {
+        bindings.insert(LogicalButton::Up, shortcut("上", &["up"]));
+        bindings.insert(LogicalButton::Down, shortcut("下", &["down"]));
+        bindings.insert(LogicalButton::Left, shortcut("左", &["left"]));
+        bindings.insert(LogicalButton::Right, shortcut("右", &["right"]));
+        bindings.insert(LogicalButton::Ok, shortcut("确定 / 回车", &["enter"]));
+        bindings.insert(LogicalButton::Back, shortcut("返回 / Esc", &["escape"]));
+        bindings.insert(LogicalButton::VolumeUp, system_action("volume_up"));
+        bindings.insert(LogicalButton::VolumeDown, system_action("volume_down"));
+        return bindings;
+    }
+    if normalized_model(model).as_deref() != Some("CHROMECAST") {
+        return bindings;
+    }
+    bindings.insert(LogicalButton::Ok, shortcut("确定 / 回车", &["enter"]));
+    bindings.insert(LogicalButton::Back, shortcut("返回 / Esc", &["escape"]));
+    bindings.insert(LogicalButton::Up, shortcut("上", &["up"]));
+    bindings.insert(LogicalButton::Down, shortcut("下", &["down"]));
+    bindings.insert(LogicalButton::Left, shortcut("左", &["left"]));
+    bindings.insert(LogicalButton::Right, shortcut("右", &["right"]));
+    bindings.insert(
+        LogicalButton::Home,
+        shortcut("新标签页", &["left_control", "t"]),
+    );
+    bindings.insert(LogicalButton::VolumeUp, system_action("volume_up"));
+    bindings.insert(LogicalButton::VolumeDown, system_action("volume_down"));
+    bindings.insert(LogicalButton::Power, shortcut("全屏", &["f11"]));
+    bindings.insert(LogicalButton::VolumeMute, system_action("volume_mute"));
+    bindings
+}
+
+#[cfg(test)]
+mod model_default_bindings_tests {
+    use super::*;
+
+    #[test]
+    fn chromecast_default_profile_ships_with_keyboard_mappings() {
+        let profile = ButtonProfile::default_for(Some("Chromecast"));
+        assert_eq!(profile.bindings.len(), 11);
+        assert_eq!(
+            profile.bindings[&LogicalButton::Ok][&ButtonTrigger::Single],
+            LogicalAction::Shortcut {
+                label: "确定 / 回车".to_owned(),
+                keys: vec!["enter".to_owned()],
+            }
+        );
+        assert_eq!(
+            profile.bindings[&LogicalButton::VolumeUp][&ButtonTrigger::Single],
+            LogicalAction::SystemAction {
+                key: "volume_up".to_owned(),
+            }
+        );
+        // YouTube / Netflix / 信源 没有通用动作，保持未绑定。
+        assert!(!profile.bindings.contains_key(&LogicalButton::Youtube));
+        assert!(!profile.bindings.contains_key(&LogicalButton::Netflix));
+        assert!(!profile.bindings.contains_key(&LogicalButton::InputSource));
+    }
+
+    #[test]
+    fn xiaomi_models_default_to_navigation_and_volume() {
+        for model in [Some("RC003"), Some("ARN9"), Some("RC001")] {
+            let profile = ButtonProfile::default_for(model);
+            assert_eq!(profile.bindings.len(), 8, "model={model:?}");
+
+            // 四个方向 + OK + 返回：等价键盘输入。
+            let expected = [
+                (LogicalButton::Up, "up"),
+                (LogicalButton::Down, "down"),
+                (LogicalButton::Left, "left"),
+                (LogicalButton::Right, "right"),
+                (LogicalButton::Ok, "enter"),
+                (LogicalButton::Back, "escape"),
+            ];
+            for (button, key) in expected {
+                let action = &profile.bindings[&button][&ButtonTrigger::Single];
+                let LogicalAction::Shortcut { keys, .. } = action else {
+                    panic!("{button:?} 应为快捷键，实际 {action:?}");
+                };
+                assert_eq!(keys, &vec![key.to_owned()], "model={model:?} button={button:?}");
+            }
+
+            // 音量± 仍是系统动作。
+            assert_eq!(
+                profile.bindings[&LogicalButton::VolumeUp][&ButtonTrigger::Single],
+                LogicalAction::SystemAction {
+                    key: "volume_up".to_owned(),
+                }
+            );
+            assert_eq!(
+                profile.bindings[&LogicalButton::VolumeDown][&ButtonTrigger::Single],
+                LogicalAction::SystemAction {
+                    key: "volume_down".to_owned(),
+                }
+            );
+
+            // Home / 菜单 / TV / 电源保持未绑定。
+            for button in [
+                LogicalButton::Home,
+                LogicalButton::Menu,
+                LogicalButton::Tv,
+                LogicalButton::Power,
+            ] {
+                assert!(
+                    !profile.bindings.contains_key(&button),
+                    "model={model:?} button={button:?}"
+                );
+            }
+        }
+        // 未知型号仍为空默认方案（通用兜底）。
+        assert!(ButtonProfile::default_for(None).bindings.is_empty());
+    }
+}
+#[cfg(test)]
+mod compose_model_layout_tests {
+    use super::*;
+
+    #[test]
+    fn chromecast_default_bindings_survive_composition_including_mute() {
+        let base = ButtonMappingSet::default();
+        let profile = ButtonProfile::default_for(Some("CHROMECAST"));
+        let effective = compose_profile_mappings(&profile, &base);
+        // 确定 → 回车
+        assert_eq!(
+            effective.action(LogicalButton::Ok, ButtonTrigger::Single),
+            LogicalAction::Shortcut {
+                label: "确定 / 回车".to_owned(),
+                keys: vec!["enter".to_owned()],
+            }
+        );
+        // 音量 + → 系统动作
+        assert_eq!(
+            effective.action(LogicalButton::VolumeUp, ButtonTrigger::Single),
+            LogicalAction::SystemAction {
+                key: "volume_up".to_owned(),
+            }
+        );
+        // 静音现在也在型号布局里，因此能合成为真正的系统静音。
+        assert_eq!(
+            effective.action(LogicalButton::VolumeMute, ButtonTrigger::Single),
+            LogicalAction::SystemAction {
+                key: "volume_mute".to_owned(),
+            }
+        );
     }
 }

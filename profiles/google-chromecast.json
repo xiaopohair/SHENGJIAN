@@ -1,0 +1,67 @@
+{
+  "$schema": "./schema.json",
+  "schemaVersion": 1,
+  "id": "google-chromecast",
+  "displayName": "Google Chromecast TV Remote",
+  "vendor": "Google",
+  "model": "G9N9N",
+  "support": {
+    "status": "research",
+    "notes": "Windows 真机探测 2026-11-18（见 docs/chromecast-remote.md）。身份：PnP ID 0x2A50 = source USB / VID 0x18D1 / PID 0x9450 / REV 0x011B；DIS 制造商 zhuhai_jieli、型号号 hid_mouse（不是产品型号）、序列号 25091QUH1000GOCR PVT/MP0.0.1、硬件 CR PVT/MP0.0.1、固件与软件均 0.0.1；电量 88%。8 个 GATT 服务：GAP / GATT / DIS / BAS / HID(0x1812，特征全部 Unreachable) / 0xAE40 / ATVV / D343BFC0。阻塞点有两个：(1) Windows 枚举出 5 个 HID 集合（键盘、Consumer、鼠标、厂商 0xFF01/1、厂商 0xFF80/0），但四个采集窗口（含 --no-gatt 对照、含重新配对之后）内遥控器没有投递任何 HID 上报，按音量+ 系统音量条也不弹出，说明设备侧 HID 链路没通；(2) 运行时扫描只放行小米名称白名单、型号号 hid_mouse 也无法映射成 RemoteModel，因此应用当前根本看不到这台设备。ATVV 已实测可用（2026-11-18 20:50，examples/atvv_handshake_probe）：GET_CAPS 回 version 0x0100 / codec 0x02 (16 kHz) / frame 247 字节；MIC_OPEN 后设备立即 STREAM_START，60 秒收到 3732 帧、477696 字节，解出 954902 采样（59.68 s）；人声段 RMS -20 ~ -45 dBFS、峰值触顶、削波 24 采样，安静段 -58 dBFS 底噪。麦克风真实收声，且不需要按任何键。2026-11-18 20:46 解除配对并重新配对后复测（600 s，--no-gatt）仍是 0 条 HID 上报；同时 Get-PnpDevice 显示 13 个相关节点全部 CM_PROB_NONE，HID over GATT 设备已正常绑定，所以不是 Windows 驱动问题。剩余假设：PVT 原型固件（硬件版本 CR PVT/MP0.0.1、固件 0.0.1）、HID 主机仍绑在 Chromecast、或音量/电源走 IR。"
+  },
+  "identity": {
+    "bluetoothNames": [
+      "Chromecast Remote"
+    ],
+    "modelNumbers": [
+      "hid_mouse"
+    ],
+    "hid": {
+      "vendorId": 6353,
+      "productId": 37968
+    }
+  },
+  "transports": [
+    {
+      "kind": "ble-gatt",
+      "role": "voice-input",
+      "status": "research",
+      "notes": "ATVV service AB5E0001 with 0002 write-nr+write / 0003 read+notify / 0004 read+notify — identical UUID triple to xiaomi-rc001/rc003/arn9. Verified on 2026-11-18 with examples/atvv_handshake_probe: GET_CAPS returns 0B 01 00 02 03 00 F7 01 00 (version 0x0100, codec 0x02 = 16 kHz, frame size 247 bytes), MIC_OPEN makes the device send STREAM_START immediately, and 60 s of capture yielded 3,732 audio notifications / 477,696 bytes -> 954,902 samples at 16 kHz. Speech segments reached full scale (24 clipped samples) against a -58 dBFS noise floor, so the microphone really works. Note the frame size is 247, not the Xiaomi 120, and the mic is hot: normal speaking distance already clips at 0 dB gain."
+    },
+    {
+      "kind": "ble-gatt",
+      "role": "control",
+      "status": "research",
+      "notes": "Two unexplained services: 0xAE40 (0xAE41 write-without-response, 0xAE42 notify) and Google D343BFC0 (BFC1-BFC4 write, BFC5 notify). Both CCCDs subscribed successfully and produced no notification during a 600 s window with heavy button pressing. No vendor characteristic was written."
+    },
+    {
+      "kind": "bluetooth-hid",
+      "role": "button-input",
+      "status": "unsupported",
+      "notes": "Windows binds five HID collections: Col01 keyboard (1/6, kbdhid), Col02 consumer (0x0C/1), Col03 mouse (1/2, mouhid, the accelerometer), Col04 vendor 0xFF01/1, Col05 vendor 0xFF80/0. None of them ever deliver input: Raw Input (keyboard/consumer/mouse/vendor pages, device-filtered) stayed empty across four capture windows including an unpair/re-pair cycle, a user-mode CreateFile+ReadFile on Col02/Col04/Col05 (which all open fine) also returned zero reports in 150 s, and Windows shows no volume OSD when the volume key is pressed. The reports are consumed inside the HOGP UMDF driver (WUDFHost.exe) and never reach hidclass. A read-only Frida probe hooked ntdll!NtDeviceIoControlFile for IOCTL 0x80018483 inside WUDFHost and captured 28 reports in 120 s: each is exactly 3 bytes [0x02][usage_lo][usage_hi] = report ID 0x02 plus a 16-bit Consumer Control usage, little endian, with 0x0000 on release. Measured usages: 0x0041 ok, 0x0042 up, 0x0043 down, 0x0044 left, 0x0045 right, 0x0223 home, 0x0224 back, 0x00E2 mute, 0x00E9 volume up, 0x00EA volume down, 0x019E power, 0x0189 input source, 0x0077 YouTube, 0x0078 Netflix. This unit is the B hardware variant (2-byte GATT payload, 3-byte IOCTL buffer); the A variant sends 8-byte [code,0...] reports instead. Reading them requires an elevated process injecting into WUDFHost."
+    }
+  ],
+  "capabilities": [
+    "voice-capture",
+    "button-input",
+    "device-status"
+  ],
+  "protocols": [
+    {
+      "id": "android-tv-voice-over-ble",
+      "status": "implemented",
+      "notes": "Verified end to end on 2026-11-18 with a write probe limited to AB5E0002: GET_CAPS answers with version 0x0100, codec 0x02 (16 kHz), frame size 247 bytes; MIC_OPEN produces STREAM_START and continuous audio immediately; MIC_CLOSE produces STREAM_STOP. Note that STREAM_START needs no button press from the remote."
+    }
+  ],
+  "platforms": [
+    {
+      "platform": "windows",
+      "status": "research",
+      "notes": "Discovered by the WinRT GATT path on 2026-11-18. Voice works (ATVV verified), buttons do not: after pairing the remote delivers no HID input reports at all, so every key and the volume rocker do nothing in Windows. Runtime still cannot use it for voice because the scan whitelist and model-number mapping exclude it, and because the mic is hot enough to clip at the 0 dB gain floor."
+    }
+  ],
+  "sources": [
+    "https://github.com/xiaopohair/SHENGJIAN"
+  ],
+  "notes": "Evidence gathered with crates/shengjian-windows/examples/gatt_probe (enum), examples/chromecast_probe (GATT notifications + Raw Input, device-filtered) and examples/atvv_handshake_probe (ATVV handshake, writes only to AB5E0002). Re-pairing was already tried and did not revive HID. If this device is ever admitted into Shengjian it should be voice-only: no button layout, and the trigger must be a host hotkey because the remote emits no key events. Do not add the name or model number to is_supported_remote_name / remote_model_from_model_number while this profile stays research."
+}

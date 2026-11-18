@@ -99,7 +99,7 @@ use serde::Serialize;
 
 use crate::button_mapping::EngineMessage;
 use crate::raw_input::{
-    button_for_usage, ButtonEdge, RemoteButton, ENHANCED_CAPTURE_BUTTON_USAGES,
+    button_for_consumer_usage, button_for_usage, ButtonEdge, RemoteButton, ENHANCED_CAPTURE_BUTTON_USAGES,
 };
 
 /// 语音键的 HID 键盘 usage：遥控器语音键同时以键盘 **F5（0x003E）** 上报
@@ -543,6 +543,13 @@ pub enum BridgeLine {
     Edges {
         usages: Vec<u16>,
     },
+    /// Chromecast 消费页边沿：`usage` 为 0 表示松开。
+    ///
+    /// 与 `Edges` 分开是必须的：消费页 usage 与键盘页 usage 数值会撞车
+    /// （例如 0x0041 在消费页是"确定"，在键盘页是另一个键），不能混进同一个集合。
+    ConsumerUsage {
+        usage: u16,
+    },
     Ping,
     /// 助手正在做设备节点级恢复（绝对状态）：`true` 期间主程序不应按
     /// 「捕获失效」重启助手，因为 `pnputil remove-device` 可能耗时一分钟以上。
@@ -641,6 +648,24 @@ pub fn parse_bridge_line(line: &str) -> Result<Option<BridgeLine>, String> {
                 .map_err(|_| "E 时间戳不是整数".to_string())?;
             let usages = parse_usage_payload(parts.next().unwrap_or("-"))?;
             Ok(Some(BridgeLine::Edges { usages }))
+        }
+        "C" => {
+            parts
+                .next()
+                .ok_or_else(|| "C 缺少时间戳".to_string())?
+                .parse::<u64>()
+                .map_err(|_| "C 时间戳不是整数".to_string())?;
+            let payload = parts.next().ok_or_else(|| "C 缺少 usage".to_string())?;
+            let token = if payload == "-" {
+                "0"
+            } else if payload.len() > 2 && (payload.starts_with("0x") || payload.starts_with("0X")) {
+                &payload[2..]
+            } else {
+                payload
+            };
+            let usage = u16::from_str_radix(token, 16)
+                .map_err(|_| format!("{token:?} 不是十六进制消费页 usage"))?;
+            Ok(Some(BridgeLine::ConsumerUsage { usage }))
         }
         "P" => Ok(Some(BridgeLine::Ping)),
         "R" => {
@@ -750,6 +775,8 @@ struct BridgeShared {
     malformed_total: u64,
     watchdog_release_total: u64,
     pressed: BTreeSet<u16>,
+    /// 消费页（Chromecast）当前按下的语义键；消费页只有单键概念。
+    consumer_button: Option<RemoteButton>,
     last_rx: Option<Instant>,
     owned: BTreeSet<u16>,
     ownership_last_rx: Option<Instant>,
@@ -772,6 +799,7 @@ impl Default for BridgeShared {
             malformed_total: 0,
             watchdog_release_total: 0,
             pressed: BTreeSet::new(),
+            consumer_button: None,
             last_rx: None,
             owned: BTreeSet::new(),
             ownership_last_rx: None,
@@ -1789,6 +1817,16 @@ fn handle_connection(
                         session_edges += 1;
                     }
                 }
+                BridgeLine::ConsumerUsage { usage } => {
+                    for edge in consumer_transition(shared, usage) {
+                        if sender.send(EngineMessage::GateEdge(edge)).is_err() {
+                            drop_reason = "engine_gone";
+                            break 'outer;
+                        }
+                        lock(shared).edges_applied += 1;
+                        session_edges += 1;
+                    }
+                }
                 BridgeLine::Ping => {}
                 BridgeLine::Recovering { active } => {
                     let changed = {
@@ -2089,6 +2127,7 @@ fn handle_connection(
                 state.watchdog_release_total += 1;
             }
             state.pressed.clear();
+    state.consumer_button = None;
             state.last_rx = None;
             if state.phase == BridgePhase::Connected {
                 state.phase = BridgePhase::Listening;
@@ -2197,6 +2236,41 @@ fn write_line(stream: &mut impl Write, line: &str) -> std::io::Result<()> {
 /// 应用一份绝对状态集合：过滤白名单 → 差分 → 逐按钮边沿。**调用方负责投递**。
 ///
 /// 差分是必要的：助手侧发的是"当前按下的集合"，而引擎要的是按键边沿。
+/// 消费页边沿 → 语义边沿。`usage == 0` 表示松开。
+///
+/// 消费页一次只报一个 usage，所以只跟踪单键状态；与键盘页的集合式
+/// [`apply_usages`] 分开维护，互不影响。未知 usage 不改状态（宁可漏，不误判）。
+fn consumer_transition(shared: &Arc<Mutex<BridgeShared>>, usage: u16) -> Vec<ButtonEdge> {
+    let next = if usage == 0 {
+        None
+    } else {
+        match button_for_consumer_usage(usage) {
+            Some(button) => Some(button),
+            None => return Vec::new(),
+        }
+    };
+    let mut state = lock(shared);
+    let previous = state.consumer_button;
+    if previous == next {
+        return Vec::new();
+    }
+    state.consumer_button = next;
+    let mut edges = Vec::new();
+    if let Some(button) = previous {
+        edges.push(ButtonEdge {
+            button,
+            is_pressed: false,
+        });
+    }
+    if let Some(button) = next {
+        edges.push(ButtonEdge {
+            button,
+            is_pressed: true,
+        });
+    }
+    edges
+}
+
 fn apply_usages(
     shared: &Arc<Mutex<BridgeShared>>,
     targets: &Arc<Mutex<CaptureTargets>>,
@@ -3749,5 +3823,72 @@ mod tests {
             std::thread::sleep(Duration::from_millis(50));
         }
         false
+    }
+}
+#[cfg(test)]
+mod chromecast_consumer_tests {
+    use super::*;
+
+    fn shared() -> Arc<Mutex<BridgeShared>> {
+        Arc::new(Mutex::new(BridgeShared::default()))
+    }
+
+    #[test]
+    fn parses_consumer_line() {
+        assert_eq!(
+            parse_bridge_line("C 1700000000000 e9").unwrap(),
+            Some(BridgeLine::ConsumerUsage { usage: 0x00E9 })
+        );
+        assert_eq!(
+            parse_bridge_line("C 1700000000000 0x224").unwrap(),
+            Some(BridgeLine::ConsumerUsage { usage: 0x0224 })
+        );
+        assert_eq!(
+            parse_bridge_line("C 1700000000000 -").unwrap(),
+            Some(BridgeLine::ConsumerUsage { usage: 0 })
+        );
+        assert!(parse_bridge_line("C 1700000000000 zz").is_err());
+        assert!(parse_bridge_line("C").is_err());
+    }
+
+    #[test]
+    fn consumer_edges_track_one_button_at_a_time() {
+        let state = shared();
+        let press = consumer_transition(&state, 0x00E9);
+        assert_eq!(
+            press,
+            vec![ButtonEdge { button: RemoteButton::VolumeUp, is_pressed: true }]
+        );
+        // 重复同一按键不产生边沿。
+        assert!(consumer_transition(&state, 0x00E9).is_empty());
+        // 换键：先放旧键，再按新键。
+        let change = consumer_transition(&state, 0x0224);
+        assert_eq!(
+            change,
+            vec![
+                ButtonEdge { button: RemoteButton::VolumeUp, is_pressed: false },
+                ButtonEdge { button: RemoteButton::Back, is_pressed: true },
+            ]
+        );
+        // 松开。
+        let release = consumer_transition(&state, 0);
+        assert_eq!(
+            release,
+            vec![ButtonEdge { button: RemoteButton::Back, is_pressed: false }]
+        );
+        assert!(consumer_transition(&state, 0).is_empty());
+    }
+
+    #[test]
+    fn unknown_consumer_usage_does_not_change_state() {
+        let state = shared();
+        assert!(consumer_transition(&state, 0x00E9).len() == 1);
+        // 0x0007 不在实测码表里：不改状态、不产生边沿。
+        assert!(consumer_transition(&state, 0x0007).is_empty());
+        let release = consumer_transition(&state, 0);
+        assert_eq!(
+            release,
+            vec![ButtonEdge { button: RemoteButton::VolumeUp, is_pressed: false }]
+        );
     }
 }

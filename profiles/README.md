@@ -4,6 +4,9 @@
 - `xiaomi-rc003.json`：小米蓝牙语音遥控器 2 Pro（RC003）；Windows implemented，macOS planned。
 - `xiaomi-arn9.json`：小米蓝牙语音遥控器 普通款（ARN9）；Windows 真机验收 implemented（2026-11-12）。
 - `xiaomi-rc001.json`：草案，`support.status = research`，不得用于运行时匹配。
+- `google-chromecast.json`：Google Chromecast Remote 草案，`support.status = research`，
+  2026-11-18 真机探测（见 [docs/chromecast-remote.md](../docs/chromecast-remote.md)）：
+  身份与 GATT 已探明；**语音（ATVV）实测可用**，但**按键在 Windows 上不产生任何 HID 上报**（重新配对后仍为零），只能按"纯语音麦克风"评估；不得用于运行时匹配。
 
 Profile 只描述设备事实，不是驱动。只有真实设备证据、adapter、测试和平台真机门都通过后，才能改成 `implemented`。
 

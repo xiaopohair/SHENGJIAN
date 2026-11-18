@@ -148,10 +148,16 @@ pub enum LogicalButton {
     VolumeMute,
     VolumeUp,
     VolumeDown,
+    /// Chromecast Remote 专用（消费页 0x0077）。
+    Youtube,
+    /// Chromecast Remote 专用（消费页 0x0078）。
+    Netflix,
+    /// Chromecast Remote 专用（消费页 0x0189）。
+    InputSource,
 }
 
 impl LogicalButton {
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 16] = [
         Self::Back,
         Self::Ok,
         Self::Tv,
@@ -165,6 +171,9 @@ impl LogicalButton {
         Self::VolumeMute,
         Self::VolumeUp,
         Self::VolumeDown,
+        Self::Youtube,
+        Self::Netflix,
+        Self::InputSource,
     ];
 }
 

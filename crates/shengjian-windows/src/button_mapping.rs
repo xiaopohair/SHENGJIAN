@@ -1192,6 +1192,24 @@ fn handle_edges(
         key_gate::swallowed_edge_count(),
         key_gate::leaked_down_count()
     ));
+    // 诊断（2026-11-18，`SHENGJIAN_DEBUG=1` 才输出）：边沿刚进分发层时，
+    // 直接把「这份映射表里这个键解析成什么」打出来。
+    // 用途：分辨「映射表里根本没有这个键」和「有但动作是 Disabled」。
+    if crate::ble::debug_log_enabled() {
+        let table = read_lock(mappings).clone();
+        let overlay = read_lock(profile_overlay).clone();
+        for edge in &edges {
+            crate::ble::gatt_note(format!(
+                "map_resolve button={:?} pressed={} table_enabled={} table_action={:?} overlay_present={} overlay_action={:?}",
+                edge.button,
+                edge.is_pressed,
+                table.enabled,
+                table.action(edge.button),
+                overlay.is_some(),
+                overlay.as_ref().map(|set| set.action(edge.button))
+            ));
+        }
+    }
     for edge in edges.iter().filter(|edge| edge.is_pressed) {
         usage.record_button_press(edge.button);
     }

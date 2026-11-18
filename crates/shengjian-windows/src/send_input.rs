@@ -1223,6 +1223,8 @@ pub fn native_key(button: RemoteButton) -> Option<KeyCode> {
         RemoteButton::VolumeDown => KeyCode::VolumeDown,
         RemoteButton::Tv => KeyCode::Oem3,
         RemoteButton::Back | RemoteButton::Power => return None,
+        // Chromecast 的三键在 Windows 上没有任何原生动作（报文不进 hidclass）。
+        RemoteButton::Youtube | RemoteButton::Netflix | RemoteButton::InputSource => return None,
     })
 }
 
@@ -1283,6 +1285,7 @@ pub fn plan_key_up(chord: &KeyChord) -> Result<Vec<PlannedKeyEvent>, SendInputEr
 }
 
 pub fn plan_key_tap(chord: &KeyChord) -> Result<Vec<PlannedKeyEvent>, SendInputError> {
+
     let mut events = plan_key_down(chord)?;
     events.extend(plan_key_up(chord)?);
     Ok(events)
@@ -2852,3 +2855,4 @@ mod tests {
         assert!(mappings.normalized().is_err(), "未来版本必须拒绝");
     }
 }
+

@@ -87,9 +87,13 @@
    [AGENT-STALE]。没有它，"改了 agent 但宿主里跑的还是上一代"是完全静默的——
    握手正常、命令照发、日志漂亮，只有按键行为是旧的（2026-09-26 哨兵键那次
    就是这样白跑了一轮：以为在验新逻辑，其实接管的是旧实例）。 */
-var AGENT_BUILD = '2026-11-16.two-slots';
+var AGENT_BUILD = '2026-11-18.chromecast-consumer';
 
 var TARGET_IOCTL = 0x80018483;
+
+/* Chromecast 消费页：上一次上报的 usage（去重，避免空闲帧刷屏）。 */
+var lastConsumerUsage = -1;
+var consumerSent = 0;
 var TARGET_USAGES = [
   0x00F1, 0x0028, 0x0035, 0x004A, 0x004F, 0x0050, 0x0051,
   0x0052, 0x0065, 0x0066, 0x007F, 0x0080, 0x0081
@@ -833,6 +837,28 @@ function installHook() {
 
         var inLen = args[7].toUInt32();
         var outLen = args[9].toUInt32();
+        /* Chromecast：消费页报告固定 3 字节 [0x02, usage_lo, usage_hi]，
+           与 RC003 的 9 字节键盘报告形状完全不同，所以先分流。
+           这条分支**只读**：绝不改写输出缓冲（本机 Windows 本来就不响应
+           这些报告，清键只会引入新的失败模式）。 */
+        if (outLen === 3) {
+          var consumerPtr = args[8];
+          if (consumerPtr !== null && !consumerPtr.isNull()) {
+            try {
+              if (consumerPtr.readU8() === 0x02) {
+                var usage = consumerPtr.add(1).readU16(); // 小端
+                if (usage !== lastConsumerUsage) {
+                  lastConsumerUsage = usage;
+                  consumerSent++;
+                  sendLine({ type: 'consumer', t: Date.now(), usage: usage });
+                }
+              }
+            } catch (e) {
+              logLine('consumer:read fail=' + String(e).slice(0, 80));
+            }
+          }
+          return;
+        }
         if (inLen !== 8 || outLen < 9) return;
 
         var outPtr = args[8];

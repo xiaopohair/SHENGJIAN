@@ -233,6 +233,13 @@ pub enum RemoteModel {
     /// 2026-11-12 真机探测：型号号 `ARN9`、软件版本 `A.4.2.0`、固件 `2671`。
     /// 见 `docs/device-identity.md`。
     Arn9,
+    /// Google Chromecast Remote（广播名 `Chromecast Remote`，PnP VID 0x18D1 / PID 0x9450）。
+    ///
+    /// 2026-11-18 真机探测（`docs/chromecast-remote.md`）：语音走 ATVV（16 kHz、
+    /// 帧长 247），按键**不经过默认 HID 输入路径**，只在 HOGP 驱动里可见，
+    /// 由提权 helper 读消费页报告（3 字节 `[0x02, usage_lo, usage_hi]`）。
+    /// DIS 型号号是 `hid_mouse`（不是产品型号），因此识别以广播名 + VID/PID 为准。
+    Chromecast,
     #[default]
     Unknown,
 }
@@ -1783,6 +1790,7 @@ pub fn is_supported_remote_name(raw_name: &str) -> bool {
             | "小米蓝牙遥控器2"
             | "小米蓝牙遥控器2 pro"
             | "arn9"
+            | "chromecast remote"
     )
 }
 
@@ -1807,6 +1815,8 @@ pub fn remote_model_from_name(raw_name: &str) -> RemoteModel {
         }
         // 广播名/型号代号里出现 ARN9 就是普通款（无 TV 键），不能并到 RC003。
         "arn9" => RemoteModel::Arn9,
+        // 广播名归一化后（去空白 + 小写）就是 chromecastremote。
+        "chromecastremote" => RemoteModel::Chromecast,
         _ => RemoteModel::Unknown,
     }
 }
@@ -1819,7 +1829,22 @@ pub fn remote_model_from_model_number(model_number: &str) -> Option<RemoteModel>
         // 真机证据（2026-11-12）：ARN9 的 GATT 型号号就是 `ARN9`，与 RC003 不是同一款
         // （无 TV 键、软件版本 A.4.2.0 vs A.7.0.6）。此前一律映射成 Rc003，会让 ARN9
         // 套上含 TV 键的 RC003 布局，也与 upstream `xiaomi-arn9.json` 相冲突。
+        // DIS 型号号：这台遥控器上报的是 `hid_mouse`（不是产品型号 G9N9N）。
+        // 该字符串较通用，所以型号号只作为辅助判据，广播名与 VID/PID 才是主判据。
+        "HID_MOUSE" => Some(RemoteModel::Chromecast),
         value if value.contains("ARN9") => Some(RemoteModel::Arn9),
+        _ => None,
+    }
+}
+
+/// 型号 → 产品正式名称（**只用于显示**）。
+///
+/// 识别一律用广播名 / 型号号，绝不能拿这个函数反推型号：这里返回的是给人看的名字，
+/// 例如 Chromecast 的广播名是 `Chromecast Remote`，而产品正式名是
+/// `Google Chromecast TV Remote`。
+pub fn remote_product_name(model: RemoteModel) -> Option<&'static str> {
+    match model {
+        RemoteModel::Chromecast => Some("Google Chromecast TV Remote"),
         _ => None,
     }
 }
@@ -1858,11 +1883,16 @@ fn scan_paired_remotes() -> Result<Vec<PairedRemote>, PlatformError> {
         if !is_supported_remote_name(&name) {
             continue;
         }
+        // 型号已知时用产品正式名称显示（广播名只用于识别）。
+        let model = remote_model_from_name(&name);
+        let name = remote_product_name(model)
+            .map(str::to_owned)
+            .unwrap_or(name);
         let id = device.Id().map_err(windows_error)?.to_string();
         remotes.push(PairedRemote {
             token: device_token(&id),
             id,
-            model: remote_model_from_name(&name),
+            model,
             name,
             is_supported_candidate: true,
         });
@@ -2601,6 +2631,51 @@ mod audio_dependency_tests {
             status.state,
             status.suggested_endpoint_id.is_some(),
             suggested_standard
+        );
+    }
+}
+#[cfg(test)]
+mod chromecast_model_tests {
+    use super::*;
+
+    #[test]
+    fn recognizes_chromecast_remote_by_name_and_model_number() {
+        assert!(is_supported_remote_name("Chromecast Remote"));
+        assert!(is_supported_remote_name("  chromecast remote  "));
+        assert_eq!(
+            remote_model_from_name("Chromecast Remote"),
+            RemoteModel::Chromecast
+        );
+        assert_eq!(
+            remote_model_from_model_number("hid_mouse"),
+            Some(RemoteModel::Chromecast)
+        );
+        // 小米三款不受影响。
+        assert_eq!(remote_model_from_name("ARN9"), RemoteModel::Arn9);
+        assert_eq!(
+            remote_model_from_model_number("RC003"),
+            Some(RemoteModel::Rc003)
+        );
+    }
+}
+#[cfg(test)]
+mod chromecast_display_name_tests {
+    use super::*;
+
+    #[test]
+    fn chromecast_uses_official_product_name_for_display() {
+        assert_eq!(
+            remote_product_name(RemoteModel::Chromecast),
+            Some("Google Chromecast TV Remote")
+        );
+        // 其它型号保持广播名（None = 不替换）。
+        assert_eq!(remote_product_name(RemoteModel::Rc003), None);
+        assert_eq!(remote_product_name(RemoteModel::Arn9), None);
+        assert_eq!(remote_product_name(RemoteModel::Unknown), None);
+        // 识别仍按广播名，不受显示名影响。
+        assert_eq!(
+            remote_model_from_name("Chromecast Remote"),
+            RemoteModel::Chromecast
         );
     }
 }
