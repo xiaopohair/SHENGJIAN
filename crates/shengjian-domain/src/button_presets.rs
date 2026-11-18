@@ -377,9 +377,19 @@ mod tests {
         let catalog = parse_catalog(DEFAULT_BUTTON_PRESETS_JSON).expect("embedded presets");
         assert_eq!(catalog.bundle_version, "2026.11.19");
         assert_eq!(catalog.profiles.len(), 6);
-        assert_eq!(catalog.profiles[0].profile.id, "preset.claude-code");
-        assert_eq!(catalog.profiles[4].profile.id, "preset.wps.presentation");
-        assert_eq!(catalog.profiles[5].profile.id, "preset.chromecast-remote");
+        // 聚合文件按目录排序生成（新增方案会改变下标），这里只断言成员，不锁顺序。
+        let ids: Vec<&str> = catalog
+            .profiles
+            .iter()
+            .map(|preset| preset.profile.id.as_str())
+            .collect();
+        for expected in [
+            "preset.claude-code",
+            "preset.wps.presentation",
+            "preset.chromecast-remote",
+        ] {
+            assert!(ids.contains(&expected), "缺少 {expected}：{ids:?}");
+        }
         validate_catalog(&catalog, no_macros).expect("embedded config must validate");
     }
 

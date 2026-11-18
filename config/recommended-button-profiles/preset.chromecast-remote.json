@@ -1,0 +1,47 @@
+{
+  "id": "preset.chromecast-remote",
+  "name": "Chromecast 遥控器按键",
+  "deviceModel": "CHROMECAST",
+  "compatibleModels": ["CHROMECAST"],
+  "appTargets": [],
+  "autoApply": false,
+  "holdRepeatByButton": {
+    "up": "single",
+    "down": "single",
+    "volume-up": "single",
+    "volume-down": "single"
+  },
+  "bindings": {
+    "ok": {
+      "single": { "type": "shortcut", "label": "确定 / 回车", "keys": ["enter"] }
+    },
+    "back": {
+      "single": { "type": "shortcut", "label": "返回 / Esc", "keys": ["escape"] }
+    },
+    "up": {
+      "single": { "type": "shortcut", "label": "上", "keys": ["up"] }
+    },
+    "down": {
+      "single": { "type": "shortcut", "label": "下", "keys": ["down"] }
+    },
+    "left": {
+      "single": { "type": "shortcut", "label": "左", "keys": ["left"] }
+    },
+    "right": {
+      "single": { "type": "shortcut", "label": "右", "keys": ["right"] }
+    },
+    "home": {
+      "single": { "type": "shortcut", "label": "新标签页", "keys": ["left_control", "t"] }
+    },
+    "volume-up": {
+      "single": { "type": "system-action", "key": "volume_up" }
+    },
+    "volume-down": {
+      "single": { "type": "system-action", "key": "volume_down" }
+    },
+
+    "power": {
+      "single": { "type": "shortcut", "label": "全屏", "keys": ["f11"] }
+    }
+  }
+}
