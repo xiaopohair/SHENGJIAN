@@ -24,13 +24,13 @@ Brand positioning, slogan, logo, and visual guidelines: [brand/BRAND.md](brand/B
 
 ## Current status
 
-- Version: `0.9.0` (built-in common-phrases panel and Settings table; reworked connection and settings pages; any remote key reconnects when disconnected; device test panel and top-bar listening switch; release titles are now the bare version)
-- Supported devices: RC003 (Xiaomi Bluetooth Voice Remote 2 Pro), RC001 (Xiaomi Bluetooth Voice Remote 2), ARN9 (Xiaomi Bluetooth Voice Remote); Windows x64
-- GitHub Release 0.9.0: <https://github.com/xiaopohair/SHENGJIAN/releases/tag/v0.9.0> (CI-built, unsigned); installer `shengjian_0.9.0_x64-setup.exe`; verify with the `SHA256SUMS` asset in the release
+- Version: `0.9.5` (0.9.4 added the Google Chromecast TV Remote; 0.9.5 fixes two global voice regressions introduced in 0.9.4 — the helper agent swallowed every 3-byte I/O, and the WeChat IME was routed to the virtual-keyboard path)
+- Supported devices: RC003 (Xiaomi Bluetooth Voice Remote 2 Pro), RC001 (Xiaomi Bluetooth Voice Remote 2), ARN9 (Xiaomi Bluetooth Voice Remote), **Google Chromecast TV Remote** (model `CHROMECAST`, 14 keys); Windows x64
+- GitHub Release 0.9.5: <https://github.com/xiaopohair/SHENGJIAN/releases/tag/v0.9.5> (CI-built, unsigned); installer `shengjian_0.9.5_x64-setup.exe`, portable `shengjian_0.9.5_x64-portable.zip`; verify with the `SHA256SUMS` asset in the release
 - Code signing: integrated with **SignPath Foundation** free open-source signing (built into the release workflow; enables automatically once configured); see [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md) and [docs/signing.md](docs/signing.md)
-- Verified on physical devices: RC003 (connection, voice, button gestures, automatic profile switching, Run macro, enhanced Back-key capture); ARN9 (connection, ATVV voice link, navigation keys, volume/Back capture); RC001 (GATT identity, 12-key layout incl. TV, two live voice sessions, TV key opens the common-phrases panel)
+- Verified on physical devices: RC003 (connection, voice, button gestures, automatic profile switching, Run macro, enhanced Back-key capture); ARN9 (connection, ATVV voice link, navigation keys, volume/Back capture); RC001 (GATT identity, 12-key layout incl. TV, two live voice sessions, TV key opens the common-phrases panel); Chromecast (connection, all 14 keys mapped and injected, ATVV voice at 16 kHz, mute / volume / Enter, pairing guide and profile-page hotspots)
 - Local release manifest: `release/<version>/manifest.json` (produced by a local build; the release asset is authoritative)
-- Release notes: `docs/release-notes-0.9.0.md`
+- Release notes: `docs/release-notes-0.9.5.md` (includes the 0.9.4 post-mortem)
 - GitHub repository: <https://github.com/xiaopohair/SHENGJIAN>; releases are produced by the Release workflow triggered by `v*` tags
 - No auto-updater
 
@@ -68,7 +68,7 @@ Brand positioning, slogan, logo, and visual guidelines: [brand/BRAND.md](brand/B
 - `shengjian-windows-adapter`: translates the Windows platform into core ports
 - `shengjian-testkit`: fake platform and integration tests
 - `apps/shengjian-windows-host`: headless scan/run/migrate
-- `helper/rc003`: elevated enhanced-capture helper in its own workspace
+- `helper/hid-host`: elevated enhanced-capture helper in its own workspace
 
 ## Project structure
 
@@ -78,7 +78,7 @@ apps/shengjian-windows-host/
 apps/shengjian-desktop/  # Tauri 2 + Vue 3 desktop host
   src-tauri/src/host.rs       # platform-agnostic HostPlatform abstraction
   src-tauri/src/platform/     # platform implementations (currently windows)
-helper/rc003/                 # RC003 Back/Volume-key enhanced-capture helper (own workspace)
+helper/hid-host/                 # RC003 Back/Volume-key enhanced-capture helper (own workspace)
 profiles/                     # DeviceProfile schema and device facts
 Testing/hardware-scripts/     # hardware signal script fixtures
 contracts/ipc/                # Windows runtime IPC contract fixtures
@@ -141,8 +141,8 @@ Running only `pnpm tauri build` also builds, but produces a Chinese filename; re
 Installer contents:
 
 - desktop app
-- `resources/rc003/shengjian-helper.exe`
-- `resources/rc003/frida-gadget.dll`
+- `resources/hid-host/shengjian-helper.exe`
+- `resources/hid-host/frida-gadget.dll`
 - `resources/licenses/`: GPL, ATTRIBUTION, third-party licenses, full Frida Gadget license, brand wordmark OFL notice (`LICENSE-OFL.txt`)
 
 ### Portable build (zip, no installer)
@@ -171,7 +171,7 @@ cargo check --workspace
 cargo test --workspace
 ```
 
-## RC003 enhanced-capture helper
+## Privileged helper (enhanced capture / key reading)
 
 The Back key and Volume ± keys are dropped by Windows at the HID→VK mapping stage and must be taken over by an elevated helper.
 
@@ -182,7 +182,7 @@ First use:
 3. Save settings
 4. The helper scheduled task is started/stopped by the app
 
-Details: [docs/rc003-helper-setup.md](docs/rc003-helper-setup.md).
+The same helper also reads the Chromecast remote's button reports (they never reach the OS Raw Input layer); Chromecast only needs that reading path, not the "full-key support" toggle. Details: [docs/hid-host-setup.md](docs/hid-host-setup.md), [docs/chromecast-remote.md](docs/chromecast-remote.md).
 
 ## Verification
 

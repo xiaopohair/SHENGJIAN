@@ -24,16 +24,26 @@
 
 ## 当前状态
 
-- 版本：`0.9.2`（修复：切换输入工具后旧语音热键仍显示且继续生效；Chatterfly 不再预置默认热键，改由用户点选。0.9.1 起语音热键支持纯修饰键组合 Ctrl+Alt / Ctrl+右Ctrl，报告层实测每帧最多两键、三键组合回落注入）
-- 已支持设备：RC003（小米蓝牙语音遥控器 2 Pro）、RC001（小米蓝牙语音遥控器 2）、ARN9（小米蓝牙语音遥控器）；Windows x64
-- GitHub Release 0.9.2：<https://github.com/xiaopohair/SHENGJIAN/releases/tag/v0.9.2>（CI 构建、未签名），安装包 `shengjian_0.9.2_x64-setup.exe`；校验值以 Release 内的 `SHA256SUMS` 为准
+- 版本：`0.9.5`（0.9.4 新增 Google Chromecast TV Remote 支持；0.9.5 修复 0.9.4 的两处语音全局失效——后台组件误吞 3 字节 I/O、微信输入法被排到虚拟键盘路径）
+- 已支持设备：RC003（小米蓝牙语音遥控器 2 Pro）、RC001（小米蓝牙语音遥控器 2）、ARN9（小米蓝牙语音遥控器）、
+  **Google Chromecast TV Remote**（型号 `CHROMECAST`，14 键）；Windows x64
+- GitHub Release 0.9.5：<https://github.com/xiaopohair/SHENGJIAN/releases/tag/v0.9.5>（CI 构建、未签名），
+  安装包 `shengjian_0.9.5_x64-setup.exe`、便携包 `shengjian_0.9.5_x64-portable.zip`；校验值以 Release 内的 `SHA256SUMS` 为准
 - 代码签名：已接入 **SignPath Foundation** 免费开源签名（release workflow 内置，配置后自动启用）；见 [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md) 与 [docs/signing.md](docs/signing.md)
-- 真机已验证：RC003（连接、语音、按键手势、方案自动切换、运行宏、返回键增强捕获）；ARN9（连接、ATVV 语音链路、导航键、音量/返回增强捕获）；RC001（GATT 身份、12 键布局含 TV、两次真实语音会话、TV 键唤起常用语面板）
+- 真机已验证：RC003（连接、语音、按键手势、方案自动切换、运行宏、返回键增强捕获）；ARN9（连接、ATVV 语音链路、导航键、音量/返回增强捕获）；RC001（GATT 身份、12 键布局含 TV、两次真实语音会话、TV 键唤起常用语面板）；Chromecast（连接、14 键映射与注入、ATVV 语音 16 kHz、静音 / 音量 / 回车、配对指南与方案页热区）
 - 本地发布清单：`release/<version>/manifest.json`（本地构建时生成，线上资产以 Release 为准）
-- 发布说明：`docs/release-notes-0.9.2.md`
+- 发布说明：`docs/release-notes-0.9.5.md`（含 0.9.4 的事故复盘与判据）
 - GitHub 仓库已创建并推送：<https://github.com/xiaopohair/SHENGJIAN>；发布由 `v*` tag 触发的 Release workflow 生成
 - 不包含自动更新器
 
+## 设备支持
+
+| 型号 | 产品 | 按键数 | 按键通道 | 语音 | 默认按键方案 |
+| --- | --- | --- | --- | --- | --- |
+| `RC003` | 小米蓝牙语音遥控器 2 Pro | 12（含 TV / 菜单） | Raw Input + 增强捕获 | ATVV | 方向 / OK / 返回 / 音量± |
+| `RC001` | 小米蓝牙语音遥控器 2 | 12（含 TV / 菜单） | Raw Input + 增强捕获 | ATVV | 同上 |
+| `ARN9` | 小米蓝牙语音遥控器 | 11（无 TV） | Raw Input + 增强捕获 | ATVV | 同上 |
+| `CHROMECAST` | Google Chromecast TV Remote | 14（含静音 / YouTube / Netflix / 信源） | 助手在 HOGP 驱动内读取 | ATVV | 确定→回车、返回→Esc、方向键、主页→Ctrl+T、电源→F11、音量±/静音→系统音量 |
 ## 功能
 
 ### 桌面宿主
@@ -47,7 +57,7 @@
 - 语音页：voice/audio 状态、实时电平、语音测试、语音输入工具、自定义语音热键、语音记录开关
 - 按键页：方案列表、编辑、激活；宽屏工作台 + 表格视图，未保存导航确认；导入 / 导出合并进「更多操作」菜单（单文件整库 / 单个·多个文件、逐文件真实进度、导入冲突预览）
 - 推荐应用、推荐按键方案、语音输入工具、推荐宏由 `config/*.json` 配置驱动（随安装包下发，可在发布前或安装目录中编辑，见 [docs/config-catalogs.md](docs/config-catalogs.md)）；推荐方案只读，复制后成为可编辑的用户方案
-- 方案编辑器：应用目标（支持应用选择器：预设/已安装/UWP/浏览文件；用当前前台）、当前前台填充、快捷键捕获、自动方案冲突提示、保存校验、按键级按住连发、方案语音工具覆盖、复制方案、12 键（含 TV、菜单）；常用语（内置，设置页维护多条，按键后弹出列表选择）
+- 方案编辑器：应用目标（支持应用选择器：预设/已安装/UWP/浏览文件；用当前前台）、当前前台填充、快捷键捕获、自动方案冲突提示、保存校验、按键级按住连发、方案语音工具覆盖、复制方案、按键数按型号（小米三款 12 键含 TV 与菜单，Chromecast 14 键含静音 / YouTube / Netflix / 信源）；常用语（内置，设置页维护多条，按键后弹出列表选择）
 - 设备测试：顶栏命令面板可随时打开「语音测试 / 按键测试」，只读、不写设置——语音落字用应用内原生测试板（输入法能正常落字、主窗口不重载），按键按型号列出应有按键并标出已检测/缺失
 - 顶栏监听开关：一枚「监听中 / 已暂停」胶囊，可随时暂停或恢复按键监听（语音与蓝牙连接不受影响）；从设置页返回时顶栏的输入法与增益会同步为「实际生效」值
 - 断连恢复：未连接时按遥控器任意键会自动连回上次那台；用户主动「断开」后不再自动连，重启时仍会尝试连接上次设备
@@ -56,7 +66,7 @@
 - 设置页：全局音频、主题、强调色、应用语言（中文/English/跟随系统）、开机自启、启动后隐藏到系统托盘、关闭行为、配置备份/恢复（设置、方案、宏库、语音记录、外观偏好、上次设备）、日志查看/诊断包、健康检查、恢复默认、分区选项卡；设置加载失败时仍可进入数据与诊断
 - 可访问性：页面 landmark/标题层级、表单 label、Tabs/命令面板/确认框焦点圈定、装饰图标隐藏；详见 `docs/ui-accessibility-report.md`
 - 关于页：深色底应用图标、应用版本、平台/构建/签名、运行信息、本机能力、支持的遥控器与平台状态、组件与许可；可打开日志目录、重新运行首次配置；启动后台检查 GitHub Releases（24 小时限频），发现新版本时用**关于页置顶更新横幅**（版本对比 + 查看更新 + 忽略此版本）、品牌色 Toast、侧栏「关于」脉动红点和托盘菜单提示，支持预发布筛选，不自动下载安装
-- 配对帮助：关于页支持型号行和首次配置扫描页均可打开；按 RC003 / RC001 / ARN9 三个型号展示组合键、Windows 蓝牙步骤与 TV 初始化提示（ARN9 无 TV 键，不显示该提示）
+- 配对帮助：关于页支持型号行和首次配置扫描页均可打开；按 RC003 / RC001 / ARN9 / Google Chromecast TV Remote 四个型号展示组合键与 Windows 蓝牙步骤（小米三款为「主页 + 菜单」，Chromecast 为「返回 + 主页」，其蓝牙名为 `Chromecast Remote`；ARN9 与 Chromecast 无 TV 键，不显示 TV 初始化提示）
 - 托盘、首次配置向导（含语音输入工具选择）、单实例
 - 方案/宏导入导出、诊断日志入口
 
@@ -69,7 +79,7 @@
 - `shengjian-windows-adapter`：把 Windows 平台翻译成 core ports
 - `shengjian-testkit`：假平台与集成测试
 - `apps/shengjian-windows-host`：headless scan/run/migrate
-- `helper/rc003`：独立 workspace 的提权增强捕获 helper
+- `helper/hid-host`：独立 workspace 的提权助手（增强捕获、按键读取与转发、虚拟键盘、驱动管理；0.9.3 由 `rc003-helper` 改名）
 
 ## 项目结构
 
@@ -79,7 +89,7 @@ apps/shengjian-windows-host/
 apps/shengjian-desktop/  # Tauri 2 + Vue 3 桌面宿主
   src-tauri/src/host.rs       # 平台无关 HostPlatform 抽象
   src-tauri/src/platform/     # 平台实现（当前 windows）
-helper/rc003/                 # RC003 返回/音量键增强捕获 helper（独立 workspace）
+helper/hid-host/              # 提权助手：增强捕获 / 按键读取转发 / 虚拟键盘（独立 workspace）
 profiles/                     # DeviceProfile schema 与设备事实
 Testing/hardware-scripts/     # 硬件信号脚本夹具
 contracts/ipc/                # Windows runtime IPC 契约夹具
@@ -135,15 +145,15 @@ pnpm build:installer
 
 `pnpm build:installer` = `tauri build` + 文件名归一化。Tauri 会先按 `productName` 产出 `声键_<version>_x64-setup.exe`，随后 `scripts/normalize-installer-name.ps1` 把它改名为 ASCII 小写的发布文件名：
 
-`apps/shengjian-desktop/src-tauri/target/release/bundle/nsis/shengjian_0.9.2_x64-setup.exe`
+`apps/shengjian-desktop/src-tauri/target/release/bundle/nsis/shengjian_0.9.5_x64-setup.exe`
 
 只跑 `pnpm tauri build` 也能构建，但产出的是中文文件名；发布、CI 与下载链接统一用 `shengjian_<version>_x64-setup.exe`。
 
 安装包包含：
 
 - 桌面 app
-- `resources/rc003/shengjian-helper.exe`
-- `resources/rc003/frida-gadget.dll`
+- `resources/hid-host/shengjian-helper.exe`
+- `resources/hid-host/frida-gadget.dll`
 - `resources/licenses/`：GPL、ATTRIBUTION、第三方许可、Frida Gadget 许可全文、品牌字标 OFL 声明（`LICENSE-OFL.txt`）
 
 ### 便携版（免安装 zip）
@@ -155,7 +165,7 @@ pnpm build:portable
 
 产物：`apps/shengjian-desktop/src-tauri/target/release/portable/shengjian_<version>_x64-portable.zip`，校验信息写入 `release/<version>/portable-manifest.json`。
 
-解压后运行 `shengjian-desktop.exe` 即可，无需安装。需要系统已安装 WebView2 Runtime（Windows 11 自带；Windows 10 多数机器已有）。设置、宏、历史与日志仍保存在 `%LOCALAPPDATA%\Shengjian`；RC003 helper 的计划任务指向当前目录，移动目录后需重新安装，删除目录前请以管理员身份运行 `resources\rc003\shengjian-helper.exe --remove-task`。便携版与安装版共用单实例标识和数据目录，不能同时运行。
+解压后运行 `shengjian-desktop.exe` 即可，无需安装。需要系统已安装 WebView2 Runtime（Windows 11 自带；Windows 10 多数机器已有）。设置、宏、历史与日志仍保存在 `%LOCALAPPDATA%\Shengjian`；助手的计划任务指向当前目录，移动目录后需重新安装，删除目录前请以管理员身份运行 `resources\hid-host\shengjian-helper.exe --remove-task`。便携版与安装版共用单实例标识和数据目录，不能同时运行。
 
 ### Headless host
 
@@ -172,24 +182,29 @@ cargo check --workspace
 cargo test --workspace
 ```
 
-## RC003 增强捕获 helper
+## 提权助手（增强捕获 / 按键读取）
 
-返回键/音量±在 Windows HID→VK 映射阶段会被系统丢弃，必须由提权 helper 接管。
+助手做三件事：小米遥控器的返回键与音量±在 Windows 的 HID→VK 映射阶段会被系统丢弃，
+需要它接管（增强捕获）；Chromecast 的按键报告完全不进系统的 Raw Input 层，需要它在 HOGP 驱动进程内读取后转发；
+以及虚拟键盘（WinUHid）与驱动管理。
 
-首次使用：
+首次使用（小米遥控器）：
 
 1. 打开「设置 → 音频及语音」，在「全按键支持服务」里点击安装 / 更新（确认 UAC）
-2. 在同一分组里打开「全按键支持」开关（三款小米遥控器通用，按电脑生效而不是按遥控器）
-3. helper 计划任务由 app 启动/停止；连接页设备卡上的「全按键支持 · 已安装」胶囊显示服务状态
+2. 在同一分组里打开「全按键支持」开关（按电脑生效而不是按遥控器）
+3. 助手计划任务由 app 启动/停止；连接页设备卡上的「全按键支持 · 已安装」胶囊显示服务状态
 
-细节见 [docs/rc003-helper-setup.md](docs/rc003-helper-setup.md)。
+Chromecast 只是**读取按键**，不需要「全按键支持」开关；它的按键走同一条助手通道，
+所以这两个能力共用同一个 helper 与同一份资源目录。
+
+细节见 [docs/hid-host-setup.md](docs/hid-host-setup.md)、[docs/chromecast-remote.md](docs/chromecast-remote.md)。
 
 ## 验证
 
-- 根 workspace：`cargo fmt --all -- --check`、`cargo check --workspace`、`cargo test --workspace` 通过（**766 passed**）
+- 根 workspace：`cargo fmt --all -- --check`、`cargo check --workspace`、`cargo test --workspace` 通过（**787 passed**）；`cargo clippy --workspace --all-targets` 0 error
 - 桌面 Rust：`cargo fmt -- --check`、`cargo test` 通过（**22 passed**）
-- 桌面前端：`pnpm lint`、`pnpm format:check`、`pnpm exec vitest run`（**241 passed**）、`pnpm build`、`pnpm config:check` 通过
-- 本地构建：安装包按 `productName` 生成后由 `scripts/normalize-installer-name.ps1` 归一化；本版本发布包由 CI 产出（`shengjian_0.9.2_x64-setup.exe`），`prepare-release.ps1` / `verify-release.ps1` 流程未改动
+- 桌面前端：`pnpm lint`、`pnpm format:check`、`pnpm exec vitest run`（**242 passed**）、`pnpm build`、`pnpm config:check` 通过
+- 本地构建：安装包按 `productName` 生成后由 `scripts/normalize-installer-name.ps1` 归一化；本版本发布包由 CI 产出（`shengjian_0.9.5_x64-setup.exe`），`prepare-release.ps1` / `verify-release.ps1` 流程未改动
 - 真机安装 / 启动 / 卸载：安装目录、快捷方式、卸载项、版本号清理正确；用户数据 `%LOCALAPPDATA%\Shengjian` 保留
 - 安装向导：欢迎页侧栏、页头品牌图、中文界面与「声键 安装」标题正常
 - 便携版：zip 解压到含空格/中文路径后启动正常；splash 窗口出现，主窗口就绪后自动关闭
@@ -205,24 +220,29 @@ cargo test --workspace
   - ATVV 语音链路：2.49 秒会话、36480 采样、peak −2.7 dBFS 无削波，识别结果入库
   - 导航六键（上/下/左/右/Home/菜单）映射正确
   - 音量 ± 与返回键走增强捕获（`0x80` / `0x81` / `0xF1`）
+- 真机 Google Chromecast TV Remote：
+  - 连接后显示为 Google Chromecast TV Remote · `CHROMECAST`（固件 0.0.1、电量读取正常）
+  - 14 个按键全部产生语义边沿并按型号默认方案注入（确定→回车、返回→Esc、方向键、主页→Ctrl+T、电源→F11、音量±/静音→系统音量）
+  - ATVV 语音：16 kHz 满速，`voice_audio_rate result=full`
+  - 配对指南与方案页产品图 / 热区对位正确
 
 ## 本地发布
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1 -Version 0.9.2
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -Version 0.9.2
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1 -Version 0.9.5
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -Version 0.9.5
 ```
 
 两个脚本从 `src-tauri/tauri.conf.json` 读取 `productName` 再拼安装包路径，品牌改名后不需要改脚本。
 `prepare-release.ps1` 写 `release/<version>/manifest.json`（`version` / `file` / `sizeBytes` / `sha256` /
 `builtAtUtc` / `signed`），`verify-release.ps1` 用它逐项比对本地安装包。
 
-GitHub Release 0.9.2（CI 构建）：
+GitHub Release 0.9.5（CI 构建）：
 
 ```text
-version=0.9.2
-installer=shengjian_0.9.2_x64-setup.exe
-portable=shengjian_0.9.2_x64-portable.zip
+version=0.9.5
+installer=shengjian_0.9.5_x64-setup.exe
+portable=shengjian_0.9.5_x64-portable.zip
 sha256/size：见 Release 内的 SHA256SUMS 与 manifest.json
 signed=false
 ```
