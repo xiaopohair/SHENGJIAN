@@ -2,6 +2,30 @@
 
 当前版本：`0.1.0`。F3（macOS/Linux adapter）、F4（自动更新）、F5（ARM64）已排除；SignPath 签名链路已接入 release workflow，启用需公开仓库与审核。
 
+## 待办：推荐按键方案按型号拆分（2026-11-19）
+
+**背景**：`config/button-profiles.json` 是由 `config/recommended-button-profiles/*.json` 聚合生成的，
+CI 用 `--check` 强制两者一致。这个"目录 → 聚合"的模型在新增方案时**每次都会踩**：
+
+- 只改聚合文件、忘了加源文件 → CI 的目录一致性校验失败（0.9.4 就是这个原因红的）；
+- 反过来只加源文件、忘了跑 `pnpm config:build` → 聚合没更新，界面看不到新方案；
+- `bundleVersion` 写在 `catalog.json` 里，改了聚合文件里的版本号会被下一次 build 覆盖；
+- 聚合按目录排序生成，新增方案会改变 `profiles[i]` 下标，任何按下标写的断言都会碎（0.9.5 又踩了一次）；
+- 方案的键集白名单（JS 校验 / Rust `is_profile_button`）两处维护，静音键那次两边不一致，
+  只能把绑定从模板里拿掉。
+
+**下个版本计划**：拆成"按型号一份"的文件，去掉聚合这一层。
+
+- `config/recommended-button-profiles/<MODEL>.json`（如 `CHROMECAST.json`、`RC003.json`、`generic.json`），
+  一份文件里放该型号的推荐方案与版本号；
+- 运行时按当前型号只读那一份，缺文件就用 `generic`，不再有全局聚合与全量重排；
+- 打包改为拷贝整个目录（`resources/config/recommended-button-profiles/*`），
+  安装包里不出现聚合文件；
+- 校验脚本从"目录 vs 聚合一致"降级为"单文件 schema + 键集白名单"，两处白名单合并成一份
+  （由 Rust 生成或由 JSON schema 驱动），彻底消除双份维护。
+
+**验收**：新增一个型号的推荐方案只需新增一个文件；`config:check` 通过；界面与安装包都拿到它；
+不再需要 `config:build`。
 ## P1 已完成
 
 - [x] C1 Profile 应用目标：读取当前前台应用并填入

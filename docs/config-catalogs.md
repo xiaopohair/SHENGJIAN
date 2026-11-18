@@ -380,3 +380,20 @@ pnpm config:import-profile --input ... --id preset.xxx `
   `ime.rs` 负责 TSF 身份解析（固定 GUID / 按显示名发现）与切换/观测
 - `crates/shengjian-domain/src/button_presets.rs` / `recommended_macros.rs`：推荐方案/推荐宏目录
 - `apps/shengjian-desktop/src/components/RecommendedProfilesDialog.vue`：推荐方案对话框与复制并使用
+
+## 已知痛点：聚合文件（2026-11-19）
+
+`config/button-profiles.json` 是**生成产物**（`pnpm config:build` 由 `config/recommended-button-profiles/`
+聚合），只改它会与源目录不一致、CI 直接失败；只改源目录不 build，界面又看不到。
+
+新增/修改推荐方案时的正确顺序：
+
+```powershell
+# 1. 只改源目录里的 <preset>.json（bundleVersion 在 catalog.json）
+# 2. 重新生成聚合文件
+cd apps/shengjian-desktop && pnpm config:build
+# 3. 校验目录与聚合一致（CI 用的就是这一步）
+pnpm config:check
+```
+
+下次重构方向：按型号拆分成独立文件、去掉聚合层（详见 `docs/product-backlog.md`）。
