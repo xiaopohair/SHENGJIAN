@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "bundleVersion": "2026.11.4",
+  "bundleVersion": "2026.11.19",
   "profiles": [
     {
       "id": "preset.claude-code",
@@ -421,7 +421,7 @@
         "home": { "single": { "type": "shortcut", "label": "新标签页", "keys": ["left_control", "t"] } },
         "volume-up": { "single": { "type": "system-action", "key": "volume_up" } },
         "volume-down": { "single": { "type": "system-action", "key": "volume_down" } },
-        "mute": { "single": { "type": "system-action", "key": "volume_mute" } },
+        "volume-mute": { "single": { "type": "system-action", "key": "volume_mute" } },
         "power": { "single": { "type": "shortcut", "label": "全屏", "keys": ["f11"] } }
       }
     }

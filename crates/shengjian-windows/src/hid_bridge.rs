@@ -99,7 +99,8 @@ use serde::Serialize;
 
 use crate::button_mapping::EngineMessage;
 use crate::raw_input::{
-    button_for_consumer_usage, button_for_usage, ButtonEdge, RemoteButton, ENHANCED_CAPTURE_BUTTON_USAGES,
+    button_for_consumer_usage, button_for_usage, ButtonEdge, RemoteButton,
+    ENHANCED_CAPTURE_BUTTON_USAGES,
 };
 
 /// 语音键的 HID 键盘 usage：遥控器语音键同时以键盘 **F5（0x003E）** 上报
@@ -658,7 +659,8 @@ pub fn parse_bridge_line(line: &str) -> Result<Option<BridgeLine>, String> {
             let payload = parts.next().ok_or_else(|| "C 缺少 usage".to_string())?;
             let token = if payload == "-" {
                 "0"
-            } else if payload.len() > 2 && (payload.starts_with("0x") || payload.starts_with("0X")) {
+            } else if payload.len() > 2 && (payload.starts_with("0x") || payload.starts_with("0X"))
+            {
                 &payload[2..]
             } else {
                 payload
@@ -2127,7 +2129,7 @@ fn handle_connection(
                 state.watchdog_release_total += 1;
             }
             state.pressed.clear();
-    state.consumer_button = None;
+            state.consumer_button = None;
             state.last_rx = None;
             if state.phase == BridgePhase::Connected {
                 state.phase = BridgePhase::Listening;
@@ -3857,7 +3859,10 @@ mod chromecast_consumer_tests {
         let press = consumer_transition(&state, 0x00E9);
         assert_eq!(
             press,
-            vec![ButtonEdge { button: RemoteButton::VolumeUp, is_pressed: true }]
+            vec![ButtonEdge {
+                button: RemoteButton::VolumeUp,
+                is_pressed: true
+            }]
         );
         // 重复同一按键不产生边沿。
         assert!(consumer_transition(&state, 0x00E9).is_empty());
@@ -3866,15 +3871,24 @@ mod chromecast_consumer_tests {
         assert_eq!(
             change,
             vec![
-                ButtonEdge { button: RemoteButton::VolumeUp, is_pressed: false },
-                ButtonEdge { button: RemoteButton::Back, is_pressed: true },
+                ButtonEdge {
+                    button: RemoteButton::VolumeUp,
+                    is_pressed: false
+                },
+                ButtonEdge {
+                    button: RemoteButton::Back,
+                    is_pressed: true
+                },
             ]
         );
         // 松开。
         let release = consumer_transition(&state, 0);
         assert_eq!(
             release,
-            vec![ButtonEdge { button: RemoteButton::Back, is_pressed: false }]
+            vec![ButtonEdge {
+                button: RemoteButton::Back,
+                is_pressed: false
+            }]
         );
         assert!(consumer_transition(&state, 0).is_empty());
     }
@@ -3888,7 +3902,10 @@ mod chromecast_consumer_tests {
         let release = consumer_transition(&state, 0);
         assert_eq!(
             release,
-            vec![ButtonEdge { button: RemoteButton::VolumeUp, is_pressed: false }]
+            vec![ButtonEdge {
+                button: RemoteButton::VolumeUp,
+                is_pressed: false
+            }]
         );
     }
 }

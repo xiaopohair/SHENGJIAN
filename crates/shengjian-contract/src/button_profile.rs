@@ -385,8 +385,8 @@ pub fn compose_profile_mappings(
     }
     if let Some(hold_repeat) = profile.hold_repeat {
         // 按**该型号的布局**遍历，而不是固定的小米 12 键：Chromecast 的静音不在
-    // `PROFILE_BUTTONS` 里，用固定表会让它的默认方案绑定静默失效（2026-11-18）。
-    for &button in profile_buttons_for_model(profile.device_model.as_deref()) {
+        // `PROFILE_BUTTONS` 里，用固定表会让它的默认方案绑定静默失效（2026-11-18）。
+        for &button in profile_buttons_for_model(profile.device_model.as_deref()) {
             if let Some(actions) = result.actions.get_mut(&button) {
                 actions.hold_repeat = Some(hold_repeat);
             }
@@ -489,7 +489,7 @@ mod tests {
     }
 
     #[test]
-        fn tv_and_menu_are_profile_editable_and_mute_is_model_scoped() {
+    fn tv_and_menu_are_profile_editable_and_mute_is_model_scoped() {
         assert!(is_profile_button(LogicalButton::Tv));
         assert!(is_profile_button(LogicalButton::Menu));
         // 静音只对 Chromecast 可编辑（它在 CHROMECAST_BUTTONS 里），这里断言全局函数也認它。
@@ -841,7 +841,11 @@ mod model_default_bindings_tests {
                 let LogicalAction::Shortcut { keys, .. } = action else {
                     panic!("{button:?} 应为快捷键，实际 {action:?}");
                 };
-                assert_eq!(keys, &vec![key.to_owned()], "model={model:?} button={button:?}");
+                assert_eq!(
+                    keys,
+                    &vec![key.to_owned()],
+                    "model={model:?} button={button:?}"
+                );
             }
 
             // 音量± 仍是系统动作。

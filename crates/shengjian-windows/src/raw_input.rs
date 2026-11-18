@@ -761,15 +761,45 @@ mod tests {
     #[test]
     fn chromecast_consumer_reports_map_to_buttons() {
         // 实测报文：3 字节，[0x02, usage_lo, usage_hi]，松开 0x0000。
-        assert_eq!(parse_consumer_report(&[0x02, 0xE9, 0x00]), Some(Some(RemoteButton::VolumeUp)));
-        assert_eq!(parse_consumer_report(&[0x02, 0x24, 0x02]), Some(Some(RemoteButton::Back)));
-        assert_eq!(parse_consumer_report(&[0x02, 0x9E, 0x01]), Some(Some(RemoteButton::Power)));
-        assert_eq!(parse_consumer_report(&[0x02, 0x77, 0x00]), Some(Some(RemoteButton::Youtube)));
-        assert_eq!(parse_consumer_report(&[0x02, 0x78, 0x00]), Some(Some(RemoteButton::Netflix)));
-        assert_eq!(parse_consumer_report(&[0x02, 0x89, 0x01]), Some(Some(RemoteButton::InputSource)));
-        assert_eq!(parse_consumer_report(&[0x02, 0x00, 0x00]), Some(None), "松开");
-        assert_eq!(parse_consumer_report(&[0x02, 0x07, 0x00]), None, "未知 usage 不猜");
-        assert_eq!(parse_consumer_report(&[0x01, 0x00, 0x28, 0x00]), None, "不是消费页报告");
+        assert_eq!(
+            parse_consumer_report(&[0x02, 0xE9, 0x00]),
+            Some(Some(RemoteButton::VolumeUp))
+        );
+        assert_eq!(
+            parse_consumer_report(&[0x02, 0x24, 0x02]),
+            Some(Some(RemoteButton::Back))
+        );
+        assert_eq!(
+            parse_consumer_report(&[0x02, 0x9E, 0x01]),
+            Some(Some(RemoteButton::Power))
+        );
+        assert_eq!(
+            parse_consumer_report(&[0x02, 0x77, 0x00]),
+            Some(Some(RemoteButton::Youtube))
+        );
+        assert_eq!(
+            parse_consumer_report(&[0x02, 0x78, 0x00]),
+            Some(Some(RemoteButton::Netflix))
+        );
+        assert_eq!(
+            parse_consumer_report(&[0x02, 0x89, 0x01]),
+            Some(Some(RemoteButton::InputSource))
+        );
+        assert_eq!(
+            parse_consumer_report(&[0x02, 0x00, 0x00]),
+            Some(None),
+            "松开"
+        );
+        assert_eq!(
+            parse_consumer_report(&[0x02, 0x07, 0x00]),
+            None,
+            "未知 usage 不猜"
+        );
+        assert_eq!(
+            parse_consumer_report(&[0x01, 0x00, 0x28, 0x00]),
+            None,
+            "不是消费页报告"
+        );
         assert_eq!(parse_consumer_report(&[0x02, 0x00]), None, "长度不对");
     }
 

@@ -1611,7 +1611,7 @@ fn worker_loop(
                         &mut active_voice_samples,
                         &mut extend_deadline,
                         &mut last_voice_audio_at,
-        &mut first_voice_audio_at,
+                        &mut first_voice_audio_at,
                         &mut voice_stream_started_at,
                         &sender,
                         &voice_session_epoch,
@@ -1683,13 +1683,13 @@ fn worker_loop(
                         &gain_db,
                         &mut voice_gain_log,
                         &mut last_voice_audio_at,
-        &mut first_voice_audio_at,
+                        &mut first_voice_audio_at,
                         &bytes,
                         &usage,
                         &transcript_capture,
                         &mut voice_level,
                         &voice_level_dbfs,
-        &voice_stream_started_at,
+                        &voice_stream_started_at,
                     );
                 }
             }
@@ -3065,7 +3065,8 @@ fn handle_control(
                 .take()
                 .map(|started| started.elapsed().as_millis() as u64)
                 .unwrap_or(0);
-            let duration_ms = audio_span_ms(*first_voice_audio_at, last_audio_at, stream_duration_ms);
+            let duration_ms =
+                audio_span_ms(*first_voice_audio_at, last_audio_at, stream_duration_ms);
             let samples = *active_voice_samples;
             if let Some((rate_hz, health)) = classify_voice_audio_rate(samples, duration_ms) {
                 gatt_note(format!(

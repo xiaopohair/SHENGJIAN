@@ -371,7 +371,10 @@ mod tests {
         assert!(!service.activate("rc003-p"));
         assert_eq!(
             service.sync_foreground().actions[&LogicalButton::Up].single,
-            shortcut("W")
+            LogicalAction::Shortcut {
+                label: "上".to_owned(),
+                keys: vec!["up".to_owned()]
+            }
         );
     }
 

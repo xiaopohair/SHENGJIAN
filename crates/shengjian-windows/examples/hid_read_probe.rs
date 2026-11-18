@@ -27,7 +27,9 @@ use windows::Win32::Foundation::{CloseHandle, GENERIC_READ, HANDLE};
 use windows::Win32::Storage::FileSystem::{
     CreateFileW, ReadFile, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
 };
-use windows::Win32::UI::Input::{GetRawInputDeviceInfoW, GetRawInputDeviceList, RAWINPUTDEVICELIST, RIDI_DEVICENAME};
+use windows::Win32::UI::Input::{
+    GetRawInputDeviceInfoW, GetRawInputDeviceList, RAWINPUTDEVICELIST, RIDI_DEVICENAME,
+};
 
 struct ProbeLog {
     file: Mutex<std::fs::File>,
@@ -58,9 +60,7 @@ fn hex(bytes: &[u8]) -> String {
 
 fn device_name(handle: HANDLE) -> Option<String> {
     let mut length: u32 = 0;
-    let rc = unsafe {
-        GetRawInputDeviceInfoW(Some(handle), RIDI_DEVICENAME, None, &mut length)
-    };
+    let rc = unsafe { GetRawInputDeviceInfoW(Some(handle), RIDI_DEVICENAME, None, &mut length) };
     if rc == u32::MAX || length == 0 {
         return None;
     }
@@ -83,7 +83,12 @@ fn device_name(handle: HANDLE) -> Option<String> {
 fn collection_tag(name: &str) -> String {
     let lower = name.to_ascii_lowercase();
     match lower.find("col") {
-        Some(position) => name[position..].chars().take(5).collect::<String>().trim_end_matches('#').to_string(),
+        Some(position) => name[position..]
+            .chars()
+            .take(5)
+            .collect::<String>()
+            .trim_end_matches('#')
+            .to_string(),
         None => "?".to_string(),
     }
 }
@@ -154,7 +159,10 @@ fn main() {
     while index < args.len() {
         match args[index].as_str() {
             "--seconds" => {
-                seconds = args.get(index + 1).and_then(|v| v.parse().ok()).unwrap_or(60);
+                seconds = args
+                    .get(index + 1)
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(60);
                 index += 2;
             }
             "--out" => {
@@ -162,11 +170,19 @@ fn main() {
                 index += 2;
             }
             "--vid" => {
-                vid = args.get(index + 1).cloned().unwrap_or(vid).to_ascii_lowercase();
+                vid = args
+                    .get(index + 1)
+                    .cloned()
+                    .unwrap_or(vid)
+                    .to_ascii_lowercase();
                 index += 2;
             }
             "--pid" => {
-                pid = args.get(index + 1).cloned().unwrap_or(pid).to_ascii_lowercase();
+                pid = args
+                    .get(index + 1)
+                    .cloned()
+                    .unwrap_or(pid)
+                    .to_ascii_lowercase();
                 index += 2;
             }
             "--all" => {
@@ -223,7 +239,8 @@ fn main() {
             continue;
         };
         let lower = name.to_ascii_lowercase();
-        let target = lower.contains(&format!("vid&02{vid}_pid&{pid}")) || lower.contains(&format!("vid&01{vid}_pid&{pid}"));
+        let target = lower.contains(&format!("vid&02{vid}_pid&{pid}"))
+            || lower.contains(&format!("vid&01{vid}_pid&{pid}"));
         if !target && !all {
             continue;
         }
@@ -259,7 +276,9 @@ fn main() {
     std::thread::sleep(Duration::from_secs(seconds));
 
     let total = TOTAL_REPORTS.load(Ordering::Relaxed);
-    emit(&format!("=== 采集结束 {seconds}s，共收到 {total} 条报告 ==="));
+    emit(&format!(
+        "=== 采集结束 {seconds}s，共收到 {total} 条报告 ==="
+    ));
     emit(if total > 0 {
         "结论：用户态能直接读到 HID 报告 —— 不需要 Frida，也不需要提权"
     } else {

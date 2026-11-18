@@ -29,6 +29,10 @@
 - 语音速率把「会话墙钟」当分母，短会话被系统性低估（16 kHz 报成 9~11 kHz）；改为按首帧→末帧计算。
 - 打包脚本 `build:installer` 不构建 helper，安装包会静默带上旧 helper；已把 helper 构建并入脚本。
 - 版本号统一：`src-tauri/Cargo.toml` 补到 0.9.4，诊断日志 `ver=` 不再落后于界面。
+- 推荐方案里的静音键名写成 `mute`（契约里是 `volume-mute`），导致内嵌目录解析失败；
+  已修正，`bundleVersion` 随之升到 `2026.11.19`。
+- 静音键纳入 Chromecast 方案布局后，`is_profile_button` 覆盖到全部 16 个逻辑键；
+  领域测试里那条「静音不可编辑」的反例随之移除。
 
 ### 变更
 

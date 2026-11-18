@@ -21,7 +21,7 @@ use std::sync::Mutex;
 use std::sync::OnceLock;
 use std::time::Instant;
 
-use windows::core::{GUID, Interface};
+use windows::core::{Interface, GUID};
 use windows::Devices::Bluetooth::GenericAttributeProfile::{
     GattCharacteristic, GattCharacteristicProperties,
     GattClientCharacteristicConfigurationDescriptorValue, GattCommunicationStatus,
@@ -172,7 +172,11 @@ fn find_characteristic(
     None
 }
 
-fn subscribe(tag: &str, characteristic: &GattCharacteristic, on_bytes: impl Fn(&[u8]) + 'static + Sync + Send) -> bool {
+fn subscribe(
+    tag: &str,
+    characteristic: &GattCharacteristic,
+    on_bytes: impl Fn(&[u8]) + 'static + Sync + Send,
+) -> bool {
     let properties = match characteristic.CharacteristicProperties() {
         Ok(properties) => properties,
         Err(_) => return false,
@@ -185,7 +189,8 @@ fn subscribe(tag: &str, characteristic: &GattCharacteristic, on_bytes: impl Fn(&
         emit(&format!("[atvv] {tag} 不可通知"));
         return false;
     };
-    match block::<_, _>(characteristic.WriteClientCharacteristicConfigurationDescriptorAsync(value)) {
+    match block::<_, _>(characteristic.WriteClientCharacteristicConfigurationDescriptorAsync(value))
+    {
         Some(GattCommunicationStatus::Success) => {}
         other => {
             emit(&format!("[atvv] {tag} CCCD 写入失败 status={other:?}"));
@@ -193,8 +198,8 @@ fn subscribe(tag: &str, characteristic: &GattCharacteristic, on_bytes: impl Fn(&
         }
     }
     let on_bytes = std::sync::Arc::new(on_bytes);
-    let handler = TypedEventHandler::<GattCharacteristic, GattValueChangedEventArgs>::new(
-        move |_, args| {
+    let handler =
+        TypedEventHandler::<GattCharacteristic, GattValueChangedEventArgs>::new(move |_, args| {
             if let Some(args) = args.as_ref() {
                 if let Ok(buffer) = args.CharacteristicValue() {
                     if let Ok(bytes) = buffer_to_vec(&buffer) {
@@ -203,8 +208,7 @@ fn subscribe(tag: &str, characteristic: &GattCharacteristic, on_bytes: impl Fn(&
                 }
             }
             Ok(())
-        },
-    );
+        });
     match characteristic.ValueChanged(&handler) {
         Ok(_) => {
             emit(&format!("[atvv] 订阅成功 {tag}（只读）"));
@@ -227,7 +231,10 @@ fn main() {
     while index < args.len() {
         match args[index].as_str() {
             "--seconds" => {
-                seconds = args.get(index + 1).and_then(|v| v.parse().ok()).unwrap_or(40);
+                seconds = args
+                    .get(index + 1)
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(40);
                 index += 2;
             }
             "--out" => {
@@ -280,7 +287,10 @@ fn main() {
     };
     emit(&format!(
         "已连接 name=\"{}\"",
-        device.Name().map(|name| name.to_string()).unwrap_or_default()
+        device
+            .Name()
+            .map(|name| name.to_string())
+            .unwrap_or_default()
     ));
 
     let service_uuid = GUID::from_u128(ATVV_SERVICE);
@@ -295,10 +305,16 @@ fn main() {
     };
 
     subscribe("CONTROL", &control, |bytes| {
-        emit(&format!("[CONTROL] len={} b=[{}]", bytes.len(), hex(bytes, 32)));
+        emit(&format!(
+            "[CONTROL] len={} b=[{}]",
+            bytes.len(),
+            hex(bytes, 32)
+        ));
     });
 
-    if let Some(audio) = find_characteristic(&device, service_uuid, GUID::from_u128(ATVV_AUDIO), "AUDIO") {
+    if let Some(audio) =
+        find_characteristic(&device, service_uuid, GUID::from_u128(ATVV_AUDIO), "AUDIO")
+    {
         subscribe("AUDIO", &audio, |bytes| {
             let frames = AUDIO_FRAMES.fetch_add(1, Ordering::Relaxed) + 1;
             AUDIO_BYTES.fetch_add(bytes.len() as u64, Ordering::Relaxed);
@@ -313,10 +329,13 @@ fn main() {
         });
     }
 
-
-
     if caps_only {
-        match find_characteristic(&device, service_uuid, GUID::from_u128(ATVV_TRANSMIT), "TRANSMIT") {
+        match find_characteristic(
+            &device,
+            service_uuid,
+            GUID::from_u128(ATVV_TRANSMIT),
+            "TRANSMIT",
+        ) {
             Some(transmit) => {
                 let bytes = [0x0A, 0x01, 0x00, 0x00, 0x03, 0x03];
                 match DataWriter::new() {

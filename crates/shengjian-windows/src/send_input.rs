@@ -1285,7 +1285,6 @@ pub fn plan_key_up(chord: &KeyChord) -> Result<Vec<PlannedKeyEvent>, SendInputEr
 }
 
 pub fn plan_key_tap(chord: &KeyChord) -> Result<Vec<PlannedKeyEvent>, SendInputError> {
-
     let mut events = plan_key_down(chord)?;
     events.extend(plan_key_up(chord)?);
     Ok(events)
@@ -2855,4 +2854,3 @@ mod tests {
         assert!(mappings.normalized().is_err(), "未来版本必须拒绝");
     }
 }
-

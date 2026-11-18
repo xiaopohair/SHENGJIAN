@@ -117,7 +117,6 @@ impl WindowsRemoteLink<WindowsPlatform> {
     }
 }
 
-
 impl<P: PlatformRemote> RemoteLinkPort for WindowsRemoteLink<P> {
     fn snapshot(&self) -> ConnectionSnapshot {
         snapshot_to_contract(
@@ -375,7 +374,6 @@ impl WindowsAudioSink<WindowsPlatform> {
     }
 }
 
-
 impl<P: PlatformAudio> AudioSinkPort for WindowsAudioSink<P> {
     fn snapshot(&self) -> ContractAudioSnapshot {
         audio_snapshot_to_contract(
@@ -499,7 +497,6 @@ impl WindowsPlatformActions {
         Self::new(Arc::new(WindowsPlatform::default()))
     }
 }
-
 
 impl PlatformActions for WindowsPlatformActions {
     fn set_button_mappings(&self, mappings: shengjian_windows::send_input::ButtonMappings) {
@@ -742,9 +739,15 @@ pub(crate) fn contract_to_platform_mappings(
                 double: to_platform_action(&actions.double),
                 long: to_platform_action(&actions.long),
                 hold_repeat: actions.hold_repeat.map(|trigger| match trigger {
-                    shengjian_contract::ButtonTrigger::Single => shengjian_windows::send_input::ButtonTrigger::Single,
-                    shengjian_contract::ButtonTrigger::Double => shengjian_windows::send_input::ButtonTrigger::Double,
-                    shengjian_contract::ButtonTrigger::Long => shengjian_windows::send_input::ButtonTrigger::Long,
+                    shengjian_contract::ButtonTrigger::Single => {
+                        shengjian_windows::send_input::ButtonTrigger::Single
+                    }
+                    shengjian_contract::ButtonTrigger::Double => {
+                        shengjian_windows::send_input::ButtonTrigger::Double
+                    }
+                    shengjian_contract::ButtonTrigger::Long => {
+                        shengjian_windows::send_input::ButtonTrigger::Long
+                    }
                 }),
                 ok_context_click: actions.ok_context_click,
             },
@@ -1031,7 +1034,6 @@ impl WindowsButtonSource<WindowsPlatform> {
     }
 }
 
-
 impl<P: PlatformButtonSource> ButtonSourcePort for WindowsButtonSource<P> {
     fn subscribe_edges(&self, sink: Arc<dyn Fn(ContractButtonEdge) + Send + Sync>) {
         self.platform
@@ -1105,7 +1107,6 @@ impl WindowsVoiceSource {
         Self::new(Arc::new(WindowsPlatform::default()))
     }
 }
-
 
 impl VoiceSourcePort for WindowsVoiceSource {
     fn state(&self) -> VoiceState {
@@ -2384,7 +2385,9 @@ mod contract_to_platform_tests {
         let mut mappings = ButtonMappingSet::default();
         let mut actions = shengjian_contract::ButtonActions::default();
         actions.single = action;
-        mappings.actions.insert(shengjian_contract::LogicalButton::Ok, actions);
+        mappings
+            .actions
+            .insert(shengjian_contract::LogicalButton::Ok, actions);
         mappings
     }
 
@@ -2451,7 +2454,8 @@ mod contract_to_platform_tests {
 
         for (action, matches_expected, label) in cases {
             let converted = contract_to_platform_mappings(&single(action));
-            let platform = &converted.actions[&shengjian_windows::raw_input::RemoteButton::Ok].single;
+            let platform =
+                &converted.actions[&shengjian_windows::raw_input::RemoteButton::Ok].single;
             assert!(matches_expected(platform), "{label} 被转换丢失了");
         }
     }

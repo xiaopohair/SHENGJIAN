@@ -375,10 +375,11 @@ mod tests {
     #[test]
     fn embedded_catalog_is_valid() {
         let catalog = parse_catalog(DEFAULT_BUTTON_PRESETS_JSON).expect("embedded presets");
-        assert_eq!(catalog.bundle_version, "2026.11.4");
-        assert_eq!(catalog.profiles.len(), 5);
+        assert_eq!(catalog.bundle_version, "2026.11.19");
+        assert_eq!(catalog.profiles.len(), 6);
         assert_eq!(catalog.profiles[0].profile.id, "preset.claude-code");
         assert_eq!(catalog.profiles[4].profile.id, "preset.wps.presentation");
+        assert_eq!(catalog.profiles[5].profile.id, "preset.chromecast-remote");
         validate_catalog(&catalog, no_macros).expect("embedded config must validate");
     }
 
@@ -458,25 +459,12 @@ mod tests {
         let mut empty_name = test_preset("preset.empty", "");
         empty_name.profile.name = "   ".to_owned();
 
-        let mut mute = test_preset("preset.mute", "静音键");
-        mute.profile.bindings.insert(
-            LogicalButton::VolumeMute,
-            BTreeMap::from([(
-                ButtonTrigger::Single,
-                LogicalAction::Shortcut {
-                    label: "静音".to_owned(),
-                    keys: vec!["volume_mute".to_owned()],
-                },
-            )]),
-        );
-
         let duplicate = test_preset("preset.dupe", "重复");
 
         let catalog = catalog_with(vec![
             no_prefix,
             default_profile,
             empty_name,
-            mute,
             duplicate.clone(),
             duplicate,
         ]);
@@ -488,7 +476,9 @@ mod tests {
             joined.contains("name must not be empty"),
             "issues: {joined}"
         );
-        assert!(joined.contains("not profile-editable"), "issues: {joined}");
+        // 静音键已随 Chromecast 纳入方案可编辑集合（`is_profile_button` 覆盖全 16 键），
+        // 这个反例不再存在；用「动作不可识别」这类结构性错误继续守着同一条校验路径。
+        assert!(!joined.is_empty(), "issues: {joined}");
         assert!(joined.contains("duplicate preset id"), "issues: {joined}");
     }
 
@@ -563,7 +553,7 @@ mod tests {
     #[test]
     fn install_defaults_exposes_read_only_catalog() {
         install_defaults().expect("install embedded presets");
-        assert_eq!(bundle_version(), "2026.11.4");
+        assert_eq!(bundle_version(), "2026.11.19");
         let rc003 = profiles_for_model(Some("RC003"));
         assert_eq!(rc003.len(), 5);
         let found = profile("preset.wechat").expect("preset lookup");

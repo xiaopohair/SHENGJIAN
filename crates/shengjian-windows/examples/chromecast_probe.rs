@@ -23,7 +23,7 @@ use std::io::Write;
 use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 
-use windows::core::{GUID, Interface};
+use windows::core::{Interface, GUID};
 use windows::Devices::Bluetooth::GenericAttributeProfile::{
     GattCharacteristic, GattCharacteristicProperties,
     GattClientCharacteristicConfigurationDescriptorValue, GattCommunicationStatus,
@@ -256,7 +256,12 @@ fn collection_tag(name: &str) -> String {
     String::new()
 }
 
-unsafe extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+unsafe extern "system" fn wnd_proc(
+    hwnd: HWND,
+    msg: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
     // Windows 绑定层不允许 panic 穿过 FFI 边界（会直接 abort），这里兜住，
     // 让一次坏报告不至于整探针崩溃。
     let _ = std::panic::catch_unwind(|| unsafe {
@@ -286,7 +291,8 @@ unsafe fn handle_raw_input(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM)
             let name = device_name(handle).unwrap_or_default();
             if !is_target(&name) {
                 OTHER_EVENTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                let seen = OTHER_DEVICES.get_or_init(|| Mutex::new(std::collections::HashSet::new()));
+                let seen =
+                    OTHER_DEVICES.get_or_init(|| Mutex::new(std::collections::HashSet::new()));
                 let mut should_log = false;
                 if let Ok(mut set) = seen.lock() {
                     let key = if name.is_empty() {
@@ -341,7 +347,8 @@ unsafe fn handle_raw_input(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM)
                     let hid = &raw.data.hid;
                     let count = hid.dwCount as usize;
                     let size_hid = hid.dwSizeHid as usize;
-                    let offset = std::mem::size_of::<windows::Win32::UI::Input::RAWINPUTHEADER>() + 8;
+                    let offset =
+                        std::mem::size_of::<windows::Win32::UI::Input::RAWINPUTHEADER>() + 8;
                     let available = (size as usize).saturating_sub(offset);
                     let total = (count.saturating_mul(size_hid)).min(available).min(96);
                     let bytes = std::slice::from_raw_parts(buf.as_ptr().add(offset), total);
@@ -408,7 +415,8 @@ fn enumerate_raw_input_devices() -> Vec<(u16, u16)> {
         }
         emit(&format!(
             "[enum] 共 {} 个 Raw Input 设备，其中非目标 {others} 个；遥控器集合 {} 个",
-            count, targets.len()
+            count,
+            targets.len()
         ));
         targets
     }
@@ -494,7 +502,8 @@ fn spawn_raw_input_thread() -> Option<std::thread::JoinHandle<()>> {
                 device.usUsagePage, device.usUsage
             ));
         }
-        if RegisterRawInputDevices(&devices, std::mem::size_of::<RAWINPUTDEVICE>() as u32).is_err() {
+        if RegisterRawInputDevices(&devices, std::mem::size_of::<RAWINPUTDEVICE>() as u32).is_err()
+        {
             let _ = tx.send(None);
             return;
         }
@@ -582,7 +591,8 @@ fn subscribe(tag: &str, characteristic: &GattCharacteristic) -> bool {
         emit(&format!("[gatt] 跳过 {tag}：不可通知"));
         return false;
     };
-    match block::<_, _>(characteristic.WriteClientCharacteristicConfigurationDescriptorAsync(value)) {
+    match block::<_, _>(characteristic.WriteClientCharacteristicConfigurationDescriptorAsync(value))
+    {
         Some(GattCommunicationStatus::Success) => {
             let handler_tag = tag.to_string();
             let handler = TypedEventHandler::<GattCharacteristic, GattValueChangedEventArgs>::new(
@@ -590,7 +600,11 @@ fn subscribe(tag: &str, characteristic: &GattCharacteristic) -> bool {
                     if let Some(args) = args.as_ref() {
                         if let Ok(buffer) = args.CharacteristicValue() {
                             if let Ok(bytes) = buffer_to_vec(&buffer) {
-                                emit(&format!("[gatt] {handler_tag} len={} b=[{}]", bytes.len(), hex(&bytes, 32)));
+                                emit(&format!(
+                                    "[gatt] {handler_tag} len={} b=[{}]",
+                                    bytes.len(),
+                                    hex(&bytes, 32)
+                                ));
                             }
                         }
                     }
@@ -627,7 +641,10 @@ fn main() {
     while index < args.len() {
         match args[index].as_str() {
             "--seconds" => {
-                seconds = args.get(index + 1).and_then(|v| v.parse().ok()).unwrap_or(120);
+                seconds = args
+                    .get(index + 1)
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(120);
                 index += 2;
             }
             "--out" => {
@@ -690,50 +707,50 @@ fn main() {
     }
 
     if !no_gatt {
-    let Some(device) = connect(address) else {
-        emit("结论: 连不上（设备休眠 / 未配对 / 被其他会话占用）");
-        return;
-    };
-    emit(&format!(
-        "已连接 name=\"{}\"",
-        device.Name().map(|n| n.to_string()).unwrap_or_default()
-    ));
-
-    let services = get_services(&device);
-    emit(&format!("服务数: {}", services.len()));
-
-    let mut subscribed = 0usize;
-    for service in &services {
-        let service_uuid = service.Uuid().unwrap();
-        let characteristics = match block::<_, _>(
-            service.GetCharacteristicsWithCacheModeAsync(BluetoothCacheMode::Uncached),
-        ) {
-            Some(result) => result.Characteristics().unwrap(),
-            None => continue,
+        let Some(device) = connect(address) else {
+            emit("结论: 连不上（设备休眠 / 未配对 / 被其他会话占用）");
+            return;
         };
-        for index in 0..characteristics.Size().unwrap_or(0) {
-            let Ok(characteristic) = characteristics.GetAt(index) else {
-                continue;
+        emit(&format!(
+            "已连接 name=\"{}\"",
+            device.Name().map(|n| n.to_string()).unwrap_or_default()
+        ));
+
+        let services = get_services(&device);
+        emit(&format!("服务数: {}", services.len()));
+
+        let mut subscribed = 0usize;
+        for service in &services {
+            let service_uuid = service.Uuid().unwrap();
+            let characteristics = match block::<_, _>(
+                service.GetCharacteristicsWithCacheModeAsync(BluetoothCacheMode::Uncached),
+            ) {
+                Some(result) => result.Characteristics().unwrap(),
+                None => continue,
             };
-            let uuid = characteristic.Uuid().unwrap();
-            let wanted = matches!(
-                uuid.to_u128(),
-                BATTERY_LEVEL | VENDOR_AE42 | GOOGLE_D343_NOTIFY | ATVV_CONTROL | SERVICE_CHANGED
-            );
-            if !wanted {
-                continue;
-            }
-            let tag = format!(
-                "{}/{}",
-                short_uuid(&service_uuid),
-                label(&uuid)
-            );
-            if subscribe(&tag, &characteristic) {
-                subscribed += 1;
+            for index in 0..characteristics.Size().unwrap_or(0) {
+                let Ok(characteristic) = characteristics.GetAt(index) else {
+                    continue;
+                };
+                let uuid = characteristic.Uuid().unwrap();
+                let wanted = matches!(
+                    uuid.to_u128(),
+                    BATTERY_LEVEL
+                        | VENDOR_AE42
+                        | GOOGLE_D343_NOTIFY
+                        | ATVV_CONTROL
+                        | SERVICE_CHANGED
+                );
+                if !wanted {
+                    continue;
+                }
+                let tag = format!("{}/{}", short_uuid(&service_uuid), label(&uuid));
+                if subscribe(&tag, &characteristic) {
+                    subscribed += 1;
+                }
             }
         }
-    }
-    emit(&format!("订阅通道数: {subscribed}"));
+        emit(&format!("订阅通道数: {subscribed}"));
     }
 
     emit("---------------------------------------------------------------");
