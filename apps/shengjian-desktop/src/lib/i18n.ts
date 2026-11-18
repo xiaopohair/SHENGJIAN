@@ -379,6 +379,11 @@ const ENGLISH = {
   在电脑上完成连接: "Finish pairing on your PC",
   "同时按住「主页键」和「菜单键」约 3 秒。":
     "Hold the Home and Menu keys together for about 3 seconds.",
+  "同时按住「返回」和「主页」键约 3 秒，指示灯闪烁即进入配对。":
+    "Hold Back and Home together for about 3 seconds; pairing starts when the LED blinks.",
+  "按 Chromecast 产品图对位；助理键为硬件语音键。":
+    "Aligned to the Chromecast product shot; the Assistant key is the hardware voice key.",
+  返回键: "Back key",
   "打开 Windows「设置 > 蓝牙和其他设备」。": "Open Windows Settings > Bluetooth & devices.",
   "选择「添加设备 > 蓝牙」。": "Choose Add device > Bluetooth.",
   "在列表中选择「{device}」。": "Select “{device}” from the list.",
@@ -948,6 +953,7 @@ const ENGLISH = {
   电源: "Power",
   "音量+": "Volume +",
   "音量-": "Volume -",
+  信源: "Input source",
   没有正在编辑的方案: "No profile is being edited",
   方案名称不能为空: "Profile name is required",
   开启自动应用时必须填写至少一个应用目标:

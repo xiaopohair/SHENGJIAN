@@ -170,7 +170,12 @@ export type LogicalButton =
   | "up"
   | "power"
   | "volume-up"
-  | "volume-down";
+  | "volume-down"
+  // Chromecast Remote 独有的键（2026-11-18）。
+  | "volume-mute"
+  | "youtube"
+  | "netflix"
+  | "input-source";
 
 export type LogicalAction =
   | { type: "disabled" }

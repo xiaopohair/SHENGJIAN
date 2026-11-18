@@ -7,6 +7,7 @@ import { normalizePairingModel, type PairingModel } from "../stores/pairing";
 import rc001Photo from "../assets/devices/xiaomi-rc001.png";
 import rc003Photo from "../assets/devices/xiaomi-rc003.png";
 import arn9Photo from "../assets/devices/xiaomi-arn9.png";
+import chromecastPhoto from "../assets/devices/google-chromecast.png";
 
 const props = defineProps<{
   initialModel?: string | null;
@@ -40,6 +41,10 @@ interface ModelInfo {
   bodyScale: number;
   /** 该型号是否有 TV 键：决定「先按 TV 完成初始化」这条提示是否显示。 */
   hasTvKey: boolean;
+  /** 顶部小标题里的品牌名（小米 / Google）；缺省按小米显示。 */
+  family?: string;
+  /** 第 1 步的配对手法文案；缺省用小米三款那一句。 */
+  caption?: string;
   hotspots: ButtonHotspot[];
 }
 
@@ -97,6 +102,24 @@ const MODELS: Record<PairingModel, ModelInfo> = {
       { label: "菜单键", x: 0.743, y: 0.447, side: "right" },
     ],
   },
+  // Google Chromecast TV Remote：335 x 1081 产品图。配对手法是「返回 + 主页」长按，
+  // 与小米的「主页 + 菜单」不同，所以第 1 步文案单独给。
+  CHROMECAST: {
+    nameKey: "Google Chromecast TV Remote",
+    bluetoothName: "Chromecast Remote",
+    image: chromecastPhoto,
+    width: 335,
+    height: 1081,
+    // 主体占画布高度 91.7%（小米 95.4%），按比例放大到与小米同样的视觉高度。
+    bodyScale: 1.0404,
+    hasTvKey: false,
+    family: "Google",
+    caption: "同时按住「返回」和「主页」键约 3 秒，指示灯闪烁即进入配对。",
+    hotspots: [
+      { label: "返回键", x: 0.266, y: 0.3696, side: "left" },
+      { label: "主页键", x: 0.2657, y: 0.487, side: "left" },
+    ],
+  },
 };
 
 const activeModel = ref<PairingModel>(normalizePairingModel(props.initialModel));
@@ -122,7 +145,7 @@ watch(
 <template>
   <DialogShell
     title-id="pairing-title"
-    :eyebrow="`Xiaomi Remote · ${activeModel}`"
+    :eyebrow="`${model.family ?? 'Xiaomi'} Remote · ${activeModel}`"
     :title="title"
     :subtitle="tr('首先选择型号，然后按步骤完成配对。')"
     @close="close"
@@ -152,7 +175,7 @@ watch(
           </div>
         </div>
 
-        <div class="remote-stage">
+        <div class="remote-stage" :class="{ 'photo-light': model.family === 'Google' }">
           <div class="remote-figure" :style="{ aspectRatio: `${model.width} / ${model.height}` }">
             <!-- 三张产品图常驻 DOM，切型号只切换显隐：换 <img src> 会让浏览器
                      丢弃当前位图重新解码，中间闪过一帧空白，切标签时看起来就是抖一下。 -->
@@ -183,7 +206,7 @@ watch(
         </div>
 
         <p class="visual-caption">
-          {{ tr("同时按住「主页键」和「菜单键」约 3 秒。") }}
+          {{ trDynamic(model.caption ?? "同时按住「主页键」和「菜单键」约 3 秒。") }}
         </p>
       </section>
 
@@ -327,6 +350,16 @@ watch(
     radial-gradient(circle at 50% 36%, rgba(90, 200, 170, 0.13), transparent 58%), #0b0f14;
   padding: var(--space-3) var(--space-3) 0;
   overflow: hidden;
+}
+
+/*
+ * Chromecast 的产品图是**透明背景** PNG，深色舞台会直接透出来；
+ * 小米三款的产品图自带浅色背景，所以只在 Google 机型上铺浅色底，避免只剩一团白。
+ */
+.remote-stage.photo-light {
+  background:
+    radial-gradient(circle at 50% 36%, rgba(255, 255, 255, 0.55), transparent 60%),
+    linear-gradient(180deg, #eef2f5, #dfe6ea);
 }
 
 .remote-figure {

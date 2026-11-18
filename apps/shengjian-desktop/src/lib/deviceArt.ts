@@ -1,6 +1,7 @@
 import rc001Line from "../assets/devices/xiaomi-rc001-line.png";
 import rc003Line from "../assets/devices/xiaomi-rc003-line.png";
 import arn9Line from "../assets/devices/xiaomi-arn9-line.png";
+import chromecastLine from "../assets/devices/google-chromecast-line.png";
 
 /**
  * 型号 → 系统现有的产品线稿（连接页用的是同一组资源）。
@@ -14,6 +15,9 @@ export function deviceLineArt(model?: string | null): string {
       return arn9Line;
     case "RC001":
       return rc001Line;
+    // Google Chromecast TV Remote（白色长条遥控器，按键布局与小米三款完全不同）。
+    case "CHROMECAST":
+      return chromecastLine;
     default:
       return rc003Line;
   }

@@ -1,10 +1,12 @@
 import { defineStore } from "pinia";
 
-export type PairingModel = "RC001" | "RC003" | "ARN9";
+export type PairingModel = "RC001" | "RC003" | "ARN9" | "CHROMECAST";
 
 export function normalizePairingModel(model?: string | null): PairingModel {
   if (model === "RC001") return "RC001";
   if (model === "ARN9") return "ARN9";
+  // Chromecast 有自己的配对手法与蓝牙名，不能落到小米的兜底上（2026-11-18）。
+  if (model === "CHROMECAST") return "CHROMECAST";
   return "RC003";
 }
 

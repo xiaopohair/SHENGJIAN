@@ -33,6 +33,37 @@ export function isDefaultProfile(profile: { isDefault?: boolean }): boolean {
 }
 
 /**
+ * Google Chromecast TV Remote：14 键。
+ *
+ * 与小米的本质差异：没有 TV / 菜单，多出静音、YouTube、Netflix、信源；
+ * 助理键是硬件语音键，不进方案。
+ */
+export const CHROMECAST_BUTTONS: Array<{ id: LogicalButton; label: string }> = [
+  { id: "back", label: "返回" },
+  { id: "ok", label: "OK" },
+  { id: "home", label: "主页" },
+  { id: "left", label: "左" },
+  { id: "right", label: "右" },
+  { id: "down", label: "下" },
+  { id: "up", label: "上" },
+  { id: "power", label: "电源" },
+  { id: "volume-up", label: "音量+" },
+  { id: "volume-down", label: "音量-" },
+  { id: "volume-mute", label: "静音" },
+  { id: "youtube", label: "YouTube" },
+  { id: "netflix", label: "Netflix" },
+  { id: "input-source", label: "信源" },
+];
+
+/** 所有型号的键并集：用于反查展示标签（布局本身仍按型号取）。 */
+const ALL_BUTTONS = [...PROFILE_BUTTONS, ...CHROMECAST_BUTTONS];
+
+/** 反查按键的展示标签；未知 id 原样返回。 */
+export function buttonLabel(id: LogicalButton): string {
+  return ALL_BUTTONS.find((button) => button.id === id)?.label ?? id;
+}
+
+/**
  * 某型号的按键布局。
  *
  * 真机确认 ARN9（普通款）**没有 TV 键**，其余位置与 RC003 一致；
@@ -42,6 +73,7 @@ export function profileButtonsForModel(
   model: string | null | undefined,
 ): Array<{ id: LogicalButton; label: string }> {
   const normalized = (model ?? "").trim().toUpperCase();
+  if (normalized === "CHROMECAST") return CHROMECAST_BUTTONS;
   if (normalized === "ARN9") {
     return PROFILE_BUTTONS.filter((button) => button.id !== "tv");
   }

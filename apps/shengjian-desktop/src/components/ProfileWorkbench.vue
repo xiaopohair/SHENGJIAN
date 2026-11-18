@@ -4,10 +4,11 @@ import { Search } from "lucide-vue-next";
 import rc003Image from "../assets/devices/xiaomi-rc003.png";
 import rc001Image from "../assets/devices/xiaomi-rc001.png";
 import arn9Image from "../assets/devices/xiaomi-arn9.png";
+import chromecastImage from "../assets/devices/google-chromecast.png";
 import {
-  PROFILE_BUTTONS,
   PROFILE_TRIGGERS,
   profileButtonsForModel,
+  buttonLabel,
   type ProfileDraft,
   type ProfileTrigger,
 } from "../lib/buttons";
@@ -83,6 +84,11 @@ const CAPS: Record<string, string> = {
   menu: "☰",
   "volume-up": "+",
   "volume-down": "−",
+  // Chromecast 独有的四个键（2026-11-18）：表格视图的键帽字形。
+  "volume-mute": "⊘",
+  youtube: "▶",
+  netflix: "N",
+  "input-source": "⇥",
 };
 
 // 触发总数必须跟着型号走：ARN9 无 TV 键，是 11×3 而不是 12×3。
@@ -146,10 +152,42 @@ const ARN9_HOTSPOTS: RemoteHotspot[] = [
   { id: "volume-down", x: 50.4, y: 60.27, w: 15.56, h: 4.88, shape: "circle" },
 ];
 
+/**
+ * Google Chromecast TV Remote：335 x 1081 产品图（与小米三款同一画布）。
+ *
+ * 坐标来自实测，不是目测：
+ * - 环形方向键用线稿量外沿/内沿：外圆 bbox x=27..302 y=63..337（圆心 49.0%/18.5%，
+ *   外半径 137.5px），内圆（OK）bbox x=113..215 y=148..250（直径 103px）。
+ *   四个方向取环带中径 (137.5+51.5)/2 = 94.5px 处的四个正方向点
+ * - 其余按键用产品图的暗连通域定圆心与直径（返回 100px、主页 100px、静音 97px、
+ *   YouTube/Netflix 102px、电源 58px、信源 59px）
+ * - 音量是**右侧边缘的长条**（Google 官方示意图的 `Volume buttons` 括号），
+ *   量到长条 y=22.4%..36.5%、x 中心 95.9%：上半 = 音量+，下半 = 音量−。
+ *   底部胶囊中间那个「−」是 **Mic**，不是音量，不标。
+ * - 助理键（右侧黑色圆）是**硬件语音键**，不是方案目标，不标热区。
+ */
+const CHROMECAST_HOTSPOTS: RemoteHotspot[] = [
+  { id: "up", x: 48.96, y: 9.76, w: 23.88, h: 7.4, shape: "circle" },
+  { id: "down", x: 48.96, y: 27.24, w: 23.88, h: 7.4, shape: "circle" },
+  { id: "left", x: 20.75, y: 18.5, w: 23.88, h: 7.4, shape: "circle" },
+  { id: "right", x: 77.16, y: 18.5, w: 23.88, h: 7.4, shape: "circle" },
+  { id: "ok", x: 48.96, y: 18.41, w: 30.75, h: 9.53, shape: "circle" },
+  { id: "back", x: 26.6, y: 36.96, w: 30.1, h: 9.3, shape: "circle" },
+  { id: "home", x: 26.57, y: 48.7, w: 30.15, h: 9.07, shape: "circle" },
+  { id: "volume-mute", x: 71.79, y: 48.84, w: 29.85, h: 8.79, shape: "circle" },
+  { id: "youtube", x: 26.72, y: 60.41, w: 30.45, h: 9.16, shape: "circle" },
+  { id: "netflix", x: 72.39, y: 60.5, w: 31.04, h: 9.16, shape: "circle" },
+  { id: "power", x: 27.01, y: 71.51, w: 17.31, h: 5.37, shape: "circle" },
+  { id: "volume-up", x: 94.6, y: 25.5, w: 8, h: 6.6, shape: "circle" },
+  { id: "volume-down", x: 94.6, y: 32.6, w: 8, h: 6.6, shape: "circle" },
+  { id: "input-source", x: 72.09, y: 71.6, w: 17.61, h: 5.37, shape: "circle" },
+];
+
 const modelKey = computed(() => (props.remoteModel ?? "").trim().toUpperCase());
 const remoteImage = computed(() => {
   if (modelKey.value === "ARN9") return arn9Image;
   if (modelKey.value === "RC001") return rc001Image;
+  if (modelKey.value === "CHROMECAST") return chromecastImage;
   return rc003Image;
 });
 /**
@@ -159,18 +197,22 @@ const remoteImage = computed(() => {
  * (35,30)-(297,1059)），实测按键位置偏差 <=2px（home/menu/back/tv/ok 均为 0.1~0.2px），
  * 所以不单独维护一份，避免两边坐标悄悄漂移。
  */
-const REMOTE_HOTSPOTS = computed(() =>
-  modelKey.value === "ARN9" ? ARN9_HOTSPOTS : RC003_HOTSPOTS,
-);
+const REMOTE_HOTSPOTS = computed(() => {
+  if (modelKey.value === "ARN9") return ARN9_HOTSPOTS;
+  if (modelKey.value === "CHROMECAST") return CHROMECAST_HOTSPOTS;
+  return RC003_HOTSPOTS;
+});
 const remoteAlt = computed(() => {
   if (modelKey.value === "ARN9") return tr("小米蓝牙语音遥控器");
   if (modelKey.value === "RC001") return tr("小米蓝牙语音遥控器 2");
+  if (modelKey.value === "CHROMECAST") return "Google Chromecast TV Remote";
   return tr("小米蓝牙语音遥控器 2 Pro");
 });
 /** 产品图说明：每张图各自对位，不要写成同一句。 */
 const productNote = computed(() => {
   if (modelKey.value === "ARN9") return tr("按 ARN9 产品图对位；语音键为硬件键。");
   if (modelKey.value === "RC001") return tr("按 RC001 产品图对位；语音键为硬件键。");
+  if (modelKey.value === "CHROMECAST") return trDynamic("按 Chromecast 产品图对位；助理键为硬件语音键。");
   return tr("按 RC003 产品图对位；语音键为硬件键。");
 });
 
@@ -183,8 +225,7 @@ function hotspotStyle(hotspot: RemoteHotspot) {
   };
 }
 
-const labelFor = (id: LogicalButton) =>
-  PROFILE_BUTTONS.find((button) => button.id === id)?.label ?? id;
+const labelFor = (id: LogicalButton) => buttonLabel(id);
 
 function actionFor(button: LogicalButton, trigger: ProfileTrigger): LogicalAction | undefined {
   return draft.value.bindings[button]?.[trigger];
@@ -318,6 +359,10 @@ const visibleButtons = computed(() => {
 const CAPTURE_ONLY_BUTTONS: LogicalButton[] = ["back", "volume-up", "volume-down"];
 
 function isCaptureOnly(button: LogicalButton): boolean {
+  // Chromecast Remote 的按键不走 Raw Input / 增强捕获：它的报告由 helper 在
+  // `WUDFHost` 内读走后经管道送来，所以返回与音量±**不依赖**「全按键支持」。
+  // 早期一律按小米的规则加锁，导致这三个热点点不动（2026-11-18 真机反馈）。
+  if (modelKey.value === "CHROMECAST") return false;
   return CAPTURE_ONLY_BUTTONS.includes(button);
 }
 
@@ -521,7 +566,6 @@ function selectCell(button: LogicalButton, trigger: ProfileTrigger) {
                     <span class="key-cap">{{ CAPS[button.id] }}</span>
                     <span>
                       <strong>{{ trDynamic(button.label) }}</strong>
-                      <small>{{ button.id }}</small>
                     </span>
                     <span v-if="isButtonModified(button.id)" class="modified-dot" />
                   </button>
