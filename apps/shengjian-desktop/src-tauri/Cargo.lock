@@ -3243,7 +3243,7 @@ dependencies = [
 
 [[package]]
 name = "shengjian-desktop"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "serde",
  "serde_json",

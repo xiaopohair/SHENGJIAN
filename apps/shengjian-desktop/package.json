@@ -1,7 +1,7 @@
 {
   "name": "shengjian-desktop",
   "private": true,
-  "version": "0.9.3",
+  "version": "0.9.4",
   "type": "module",
   "packageManager": "pnpm@10.15.0",
   "scripts": {
@@ -14,7 +14,7 @@
     "format:write": "prettier --write \"src/**/*.{vue,ts,css}\"",
     "preview": "vite preview",
     "tauri": "tauri",
-    "build:installer": "tauri build && powershell -NoProfile -ExecutionPolicy Bypass -File ../../scripts/normalize-installer-name.ps1",
+    "build:installer": "cargo build --release --manifest-path ../../helper/hid-host/Cargo.toml && tauri build && powershell -NoProfile -ExecutionPolicy Bypass -File ../../scripts/normalize-installer-name.ps1",
     "build:portable": "powershell -NoProfile -ExecutionPolicy Bypass -File ../../scripts/build-portable.ps1",
     "prepare:helper": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-helper.ps1",
     "prepare:config": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-config.ps1",
