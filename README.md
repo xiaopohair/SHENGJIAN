@@ -44,6 +44,7 @@
 | `RC001` | 小米蓝牙语音遥控器 2 | 12（含 TV / 菜单） | Raw Input + 增强捕获 | ATVV | 同上 |
 | `ARN9` | 小米蓝牙语音遥控器 | 11（无 TV） | Raw Input + 增强捕获 | ATVV | 同上 |
 | `CHROMECAST` | Google Chromecast TV Remote | 14（含静音 / YouTube / Netflix / 信源） | 助手在 HOGP 驱动内读取 | ATVV | 确定→回车、返回→Esc、方向键、主页→Ctrl+T、电源→F11、音量±/静音→系统音量 |
+
 ## 功能
 
 ### 桌面宿主
@@ -202,7 +203,7 @@ Chromecast 只是**读取按键**，不需要「全按键支持」开关；它�
 ## 验证
 
 - 根 workspace：`cargo fmt --all -- --check`、`cargo check --workspace`、`cargo test --workspace` 通过（**787 passed**）；`cargo clippy --workspace --all-targets` 0 error
-- 桌面 Rust：`cargo fmt -- --check`、`cargo test` 通过（**22 passed**）
+- 桌面 Rust：`cargo fmt -- --check`、`cargo test` 通过（**24 passed**）
 - 桌面前端：`pnpm lint`、`pnpm format:check`、`pnpm exec vitest run`（**242 passed**）、`pnpm build`、`pnpm config:check` 通过
 - 本地构建：安装包按 `productName` 生成后由 `scripts/normalize-installer-name.ps1` 归一化；本版本发布包由 CI 产出（`shengjian_0.9.5_x64-setup.exe`），`prepare-release.ps1` / `verify-release.ps1` 流程未改动
 - 真机安装 / 启动 / 卸载：安装目录、快捷方式、卸载项、版本号清理正确；用户数据 `%LOCALAPPDATA%\Shengjian` 保留
