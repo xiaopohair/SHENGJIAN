@@ -1,5 +1,27 @@
 # 变更记录
 
+## 0.9.5 — 2026-11-19
+
+**紧急修复：0.9.4 存在语音全局失效的严重缺陷，请务必升级。**
+
+### 修复
+
+- **所有机型语音失效（0.9.4 引入）**：helper 的 agent 为 Chromecast 消费页报告加的分支
+  只判「输出长度 3」就 `return`，把其它 3 字节 I/O 一并吞掉，导致 agent 的 usage 记账
+  归零（`owned_usages=0`）、报告层合成被判定不可用，输入法调不起来；修饰键因此没有释放，
+  表现为「按下语音键后键盘像被按住」。现改为「长度 3 **且** 首字节 `0x02`」才走该分支，
+  否则落回原路径。
+- **微信输入法语音条不出现**：按下语音键的三条互斥路径里，微信接受注入键却被排到了
+  虚拟键盘（WinUHid）路径，而虚拟键盘本次没有把键发出（`chord_press result=skipped`）。
+  现在虚拟键盘只服务只吃报告层的输入法（豆包 / Chatterfly），其余走 SendInput，
+  日志变为 `path=send_input` → `chord_press result=ok` → `voice_verify verdict=reacted`。
+
+### 说明
+
+- 按键映射与 Chromecast 支持未受影响；`cargo test --workspace` 全绿。
+- 若升级后仍调不起输入法，先看诊断日志里 `voice_attempt` 的 `path=` 与
+  `voice_synth_ack ... owned_usages=` 两个字段。
+
 ## 0.9.4 — 2026-11-19
 
 ### 新增：Google Chromecast TV Remote 支持

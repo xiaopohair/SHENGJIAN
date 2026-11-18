@@ -698,3 +698,46 @@ target\debug\examples\chromecast_probe.exe --mac A7:60:10:14:3D:23 --seconds 300
 3. `config/button-profiles.json` 的 Chromecast 推荐方案与代码里的型号默认方案内容重复（11 条手工同步），存在漂移风险；建议二选一。
 4. 行尾不一致：部分 `.vue/.ts` 是 LF、`.rs` 是 CRLF，git 每次都会警告；建议加 `.gitattributes`。
 5. 探针示例（`chromecast_probe` / `hid_read_probe` / `atvv_control_listen`）目前留在 `crates/shengjian-windows/examples/`，属于排障工具而非产品代码，建议移到 `Testing/`。
+
+## 事故复盘：两起语音全局失效（2026-11-19，已修）
+
+0.9.4 发布后出现「所有机型语音失效 + 按下语音键后键盘像被按住」。两起独立缺陷叠加，
+都**不是**设备侧问题。
+
+### 事故一：agent 吞掉了所有 3 字节 I/O
+
+为 Chromecast 的消费页报告加的分支写成了：
+
+```js
+if (outLen === 3) {        // 只判长度
+  ...
+  return;                  // 其它 3 字节 I/O 一并被吞
+}
+```
+
+小米语音键链路上同样存在 3 字节 I/O，被这段提前 `return` 截断：
+agent 的 usage 记账归零 → `voice_synth_ack owned_usages=0` → 合成通道判定为 off →
+**所有机型**（共用同一个 helper/agent）都调不起输入法，并伴随修饰键未释放导致的按键卡死。
+
+修法：判定必须是「3 字节 **且** 首字节 `0x02`」两个条件同时成立，不匹配时落回原路径。
+
+> 判据：`[TARGETS-ACK] usages=3` 且 `voice_synth_ack owned_usages=3` 才是正常。
+> 只要看到 `owned_usages=0`，先查 agent 的分支有没有误吞。
+
+### 事故二：微信输入法被排到了虚拟键盘路径
+
+按下语音键的三条互斥路径是「报告层合成 → 虚拟键盘（WinUHid） → SendInput」。
+微信接受注入键，却因为 `virtual_hid_ready()` 为真被排到虚拟键盘；
+而本次虚拟键盘没有把键真正发出（`chord_press result=skipped reason=virtual_hid_active`
+之后没有任何后续）→ 语音条永远不出现。
+
+修法：虚拟键盘只服务「只吃报告层」的输入法（豆包 / Chatterfly），其余工具走 SendInput。
+
+```
+voice_attempt tool=wechat path=send_input      ← 修复后
+chord_press   result=ok
+voice_verify  verdict=reacted
+```
+
+> 教训：设备无关的公共链路（helper/agent、语音注入）出问题时，表现会是**所有机型一起坏**。
+> 看到"全都不行"，先怀疑公共链路，而不是逐个型号查。

@@ -2793,7 +2793,14 @@ fn handle_control(
             // 虚拟键盘后端（WinUHid）：报告层表达不了的组合（三键 / 修饰键+字母）走这里。
             // 三条路径互斥且按能力排优先级：报告层 → 虚拟键盘 → SendInput 注入；
             // 虚拟键盘不可用（驱动没装/助手旧版）时这里为 None，静默回落注入。
-            let virtual_target = if !synth_gate && crate::hid_bridge::virtual_hid_ready() {
+            // 2026-11-19 真机：微信输入法**接受注入键**，却被排到了虚拟键盘路径；
+            // WinUHid 这次没把键发出去（`chord_press result=skipped reason=virtual_hid_active`
+            // 之后什么都没有），语音条永远不出现。虚拟键盘只应该服务"只吃报告层"的输入法
+            // （豆包 / Chatterfly）；其余工具用 SendInput 更简单也更稳。
+            let virtual_target = if !synth_gate
+                && uses_report_layer(attempt_tool)
+                && crate::hid_bridge::virtual_hid_ready()
+            {
                 attempt_hotkey
                     .as_ref()
                     .and_then(crate::hid_bridge::virtual_hid_target)

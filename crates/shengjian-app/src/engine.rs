@@ -408,9 +408,19 @@ impl CoreEngine {
             ),
         ));
         let model = self.current_device_model();
-        // 平台注入层有独立的一张表：不同步过去，边沿到那边只会查到 Disabled
-        // （2026-11-18 真机：Chromecast 与小米三款的边沿都会进那套分发）。
-        self.buttons.forward_mappings_to_platform(&mappings);
+        // 按型号二选一（2026-11-19 真机回归）：
+        // - Chromecast 的边沿走 helper 旁路，只有平台注入层能执行 → 转发映射，
+        //   并让 app 层不要再执行（否则双发）。
+        // - 小米走 Raw Input，平台侧没有映射表，**不能**转发：转发会顺带把
+        //   方向/OK/返回/音量加进报告层的吞键集合，语音键那条链路会被搅乱
+        //   （现象：语音键失效、修饰键卡住导致键盘锁死）。
+        // 按型号分流：Chromecast 的边沿只进平台注入器（app 层只发事件，避免双发）；
+        // 小米走 Raw Input，由 app 层执行，**不**推送映射（推送会重启报告层的捕获集合）。
+        let platform_executes = model.as_deref() == Some("CHROMECAST");
+        self.buttons.set_platform_executes(platform_executes);
+        if platform_executes {
+            self.buttons.forward_mappings_to_platform(&mappings);
+        }
         *self.active_profile_id.lock().expect("active profile id") = (model, active);
         self.buttons.set_mappings(mappings);
     }

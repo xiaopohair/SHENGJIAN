@@ -5,7 +5,7 @@ use shengjian_contract::{
     LogicalButton, MouseActionKind,
 };
 use shengjian_domain::{GestureRecognizer, OK_CONTEXT_CLICK_WINDOW_MS};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 pub struct ButtonService {
@@ -15,6 +15,12 @@ pub struct ButtonService {
     recognizer: Mutex<GestureRecognizer>,
     last_remote_move_at: Mutex<Option<u64>>,
     generation: AtomicU64,
+    /// 边沿是否由**平台注入层**执行动作。
+    ///
+    /// Chromecast 这类旁路设备的边沿同时会进平台注入器，若这里也执行就是双发
+    /// （静音按一下即取消、回车打两个）。小米走 Raw Input 时平台没有映射表，
+    /// 必须由这里执行——所以按型号二选一（2026-11-19 真机回归）。
+    platform_executes: AtomicBool,
 }
 
 impl ButtonService {
@@ -29,7 +35,13 @@ impl ButtonService {
             recognizer: Mutex::new(recognizer),
             last_remote_move_at: Mutex::new(None),
             generation: AtomicU64::new(0),
+            platform_executes: AtomicBool::new(false),
         }
+    }
+
+    /// 声明动作由平台注入层执行（Chromecast 旁路）。
+    pub fn set_platform_executes(&self, enabled: bool) {
+        self.platform_executes.store(enabled, Ordering::Relaxed);
     }
 
     pub fn snapshot(&self) -> ButtonMappingSet {
@@ -169,6 +181,10 @@ impl ButtonService {
                 .expect("button mappings")
                 .action(gesture.button, gesture.trigger);
             if action.is_disabled() {
+                continue;
+            }
+            if self.platform_executes.load(Ordering::Relaxed) {
+                // 平台注入层已经执行过这条动作，这里只发事件。
                 continue;
             }
             if let Err(error) = self.actions.execute(&action) {

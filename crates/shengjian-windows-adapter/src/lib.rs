@@ -1594,10 +1594,10 @@ pub fn live_core_engine_with_platform(
     engine.wire_profile_store(Arc::new(WindowsProfileStore::live()));
     engine.wire_mapping_store(Arc::new(WindowsMappingStore::live()));
     engine.load_persisted_button_config();
-    // 边沿的唯一执行者是平台注入器（`button_mapping`）：它负责查表、吞键与注入，
-    // 并发出 `button.edge` 事件给 UI。这里**不要**再 wire 一份到 app 层的 `ButtonService`——
-    // 两条路径都会执行动作，一次按键被做两遍（2026-11-18 真机：静音按一下就又取消了）。
-    // engine.wire_button_source(Arc::new(WindowsButtonSource::new(Arc::clone(&platform))));
+    // 小米三款（Raw Input）靠这条 app 层执行链：平台侧没有映射表。
+    // Chromecast 走 helper 旁路，由平台注入器执行，届时 `ButtonService` 会被
+    // 标记为「平台负责执行」而只发事件，不会双发（见 `set_platform_executes`）。
+    engine.wire_button_source(Arc::new(WindowsButtonSource::new(Arc::clone(&platform))));
     Ok((engine, platform))
 }
 

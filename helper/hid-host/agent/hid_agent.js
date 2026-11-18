@@ -87,7 +87,7 @@
    [AGENT-STALE]。没有它，"改了 agent 但宿主里跑的还是上一代"是完全静默的——
    握手正常、命令照发、日志漂亮，只有按键行为是旧的（2026-09-26 哨兵键那次
    就是这样白跑了一轮：以为在验新逻辑，其实接管的是旧实例）。 */
-var AGENT_BUILD = '2026-11-18.chromecast-consumer';
+var AGENT_BUILD = '2026-11-19.consumer-guard';
 
 var TARGET_IOCTL = 0x80018483;
 
@@ -841,21 +841,26 @@ function installHook() {
            与 RC003 的 9 字节键盘报告形状完全不同，所以先分流。
            这条分支**只读**：绝不改写输出缓冲（本机 Windows 本来就不响应
            这些报告，清键只会引入新的失败模式）。 */
-        if (outLen === 3) {
-          var consumerPtr = args[8];
-          if (consumerPtr !== null && !consumerPtr.isNull()) {
-            try {
-              if (consumerPtr.readU8() === 0x02) {
-                var usage = consumerPtr.add(1).readU16(); // 小端
-                if (usage !== lastConsumerUsage) {
-                  lastConsumerUsage = usage;
-                  consumerSent++;
-                  sendLine({ type: 'consumer', t: Date.now(), usage: usage });
-                }
-              }
-            } catch (e) {
-              logLine('consumer:read fail=' + String(e).slice(0, 80));
+        /* 判定必须是「3 字节 **且** 首字节 0x02」两个条件同时成立。
+           2026-11-19 真机事故：只判长度就 return，会把其它 3 字节 I/O 一起吞掉，
+           小米语音键的记账因此丢失（agent 报 owned_usages=0 → 合成通道 off →
+           所有机型语音都调不起输入法）。不匹配时必须落回原路径。 */
+        var consumerPtr = args[8];
+        if (
+          outLen === 3 &&
+          consumerPtr !== null &&
+          !consumerPtr.isNull() &&
+          consumerPtr.readU8() === 0x02
+        ) {
+          try {
+            var usage = consumerPtr.add(1).readU16(); // 小端
+            if (usage !== lastConsumerUsage) {
+              lastConsumerUsage = usage;
+              consumerSent++;
+              sendLine({ type: 'consumer', t: Date.now(), usage: usage });
             }
+          } catch (e) {
+            logLine('consumer:read fail=' + String(e).slice(0, 80));
           }
           return;
         }
