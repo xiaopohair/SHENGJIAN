@@ -145,6 +145,10 @@ export interface SettingsDocument {
     close_to_tray?: boolean;
     open_window_at_launch?: boolean;
     check_prerelease_updates?: boolean;
+    /** 启动后自动检查 GitHub Releases（默认开启）。 */
+    check_updates_automatically?: boolean;
+    /** 发现新版本后后台自动下载安装包（默认开启）；安装仍需用户确认。 */
+    download_updates_automatically?: boolean;
     theme_preference?: string;
     rc003_capture_enabled?: boolean;
     voice_input_tool?: string | null;
@@ -397,4 +401,33 @@ export interface LaunchableAppsResult {
   scanned: boolean;
   /** scanError token：app_scan_failed/app_scan_busy/app_scan_timeout，正常时为 null。 */
   scanError: string | null;
+}
+
+/**
+ * `update_support` 的返回：当前这份构建能不能自己升级。
+ *
+ * `installed` = NSIS 安装版（唯一支持应用内升级的形态）；`portable` = 免安装 zip；
+ * `development` = `tauri dev` 或本地 target 构建。后两种只能手动下载。
+ */
+export interface UpdateSupport {
+  supported: boolean;
+  kind: "installed" | "portable" | "development" | string;
+  reason: string | null;
+}
+
+/** 已下载并通过 SHA-256 校验的安装包。 */
+export interface DownloadedUpdate {
+  tag: string;
+  version: string;
+  path: string;
+  sizeBytes: number;
+  sha256: string;
+  signed: boolean;
+}
+
+/** `update-download-progress` 事件负载。 */
+export interface UpdateDownloadProgress {
+  tag: string;
+  downloaded: number;
+  total: number;
 }

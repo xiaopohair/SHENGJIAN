@@ -3,8 +3,10 @@ import { computed, onMounted, ref, shallowRef } from "vue";
 import { getVersion } from "@tauri-apps/api/app";
 import { ArrowUpCircle, Boxes, RefreshCw, ShieldCheck } from "lucide-vue-next";
 import { getDeviceSupport, getHostCapabilities, openExternalUrl, errorMessage } from "../lib/api";
+import { confirmAction } from "../lib/confirm";
 import { deviceProductNameKey } from "../lib/deviceProduct";
 import { statusLabel, tr, trDynamic } from "../lib/i18n";
+import { formatUpdateBytes } from "../lib/update";
 import { useUpdateStore } from "../stores/update";
 import { usePairingStore } from "../stores/pairing";
 import PageHeader from "../components/PageHeader.vue";
@@ -31,6 +33,21 @@ const updateState = computed(() => updateStore.status);
 /** 参与版本比较的当前版本（与横幅「当前版本 → 最新版本」保持一致）。 */
 const comparisonVersion = computed(() => updateStore.currentVersion || appVersion.value);
 const latestRelease = computed(() => updateStore.latest);
+const downloading = computed(() => updateStore.downloading);
+const downloadPercent = computed(() => updateStore.downloadPercent);
+const downloadedUpdate = computed(() => updateStore.ready);
+const downloadSupported = computed(() => updateStore.downloadSupported);
+const downloadSizeText = computed(() => {
+  const progress = updateStore.downloadProgress;
+  if (!progress || progress.total <= 0) return "";
+  return `${formatUpdateBytes(progress.downloaded)} / ${formatUpdateBytes(progress.total)}`;
+});
+const updatePillLabel = computed(() => {
+  if (!latestRelease.value) return "";
+  if (downloadedUpdate.value) return `${tr("更新已就绪")} ${latestRelease.value.tagName}`;
+  if (downloading.value) return `${tr("正在下载")} ${downloadPercent.value}%`;
+  return `${tr("发现新版本")} ${latestRelease.value.tagName}`;
+});
 const includePrereleases = computed({
   get: () => updateStore.includePrereleases,
   set: (value: boolean) => {
@@ -103,6 +120,27 @@ async function openReleasePage() {
   }
 }
 
+/** 下载（或重试下载）当前版本；安装包会先过 SHA-256 校验再进入 ready 状态。 */
+async function downloadUpdate() {
+  await updateStore.download(true);
+}
+
+/** 安装会退出应用并由安装包重新拉起，先让用户明确确认这一步。 */
+async function installUpdate() {
+  const version = latestRelease.value?.tagName ?? "";
+  const confirmed = await confirmAction({
+    title: tr("重启并安装更新？"),
+    message: tr("声键会退出，安装完成后自动重新启动。"),
+    detail: version
+      ? `${tr("目标版本")} ${version} · ${tr("未保存的编辑会丢失")}`
+      : tr("未保存的编辑会丢失"),
+    confirmLabel: tr("重启并安装"),
+    cancelLabel: tr("稍后"),
+  });
+  if (!confirmed) return;
+  await updateStore.install();
+}
+
 /** 用户主动忽略这个版本：横幅、Toast 与托盘提示一起收起。 */
 function dismissUpdate() {
   updateStore.dismiss();
@@ -142,7 +180,7 @@ onMounted(async () => {
       </span>
       <div class="update-banner-copy">
         <p class="update-banner-title">
-          {{ tr("发现新版本") }}
+          {{ tr(downloadedUpdate ? "更新已就绪" : "发现新版本") }}
           <strong class="update-banner-version">{{ latestRelease.tagName }}</strong>
         </p>
         <p class="update-banner-sub">
@@ -151,12 +189,53 @@ onMounted(async () => {
           <span class="update-banner-arrow" aria-hidden="true">→</span>
           {{ tr("最新版本") }} {{ latestRelease.tagName }}
         </p>
+        <p v-if="downloading" class="update-banner-sub update-download-line">
+          {{ tr("正在下载") }} {{ downloadSizeText }}
+          <span v-if="downloadPercent > 0">· {{ downloadPercent }}%</span>
+        </p>
+        <p v-else-if="downloadedUpdate" class="update-banner-sub">
+          {{ tr("安装包已下载并通过校验，重启后完成升级。") }}
+        </p>
+        <p v-else-if="!downloadSupported" class="update-banner-sub">
+          {{ tr("便携版与开发版不支持应用内升级，请手动下载安装包。") }}
+        </p>
+        <div
+          v-if="downloading"
+          class="update-progress"
+          role="progressbar"
+          :aria-valuenow="downloadPercent"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          :aria-label="tr('下载进度')"
+        >
+          <div class="update-progress-bar" :style="{ width: `${downloadPercent}%` }"></div>
+        </div>
       </div>
       <div class="update-banner-actions">
-        <Button size="sm" @click="openReleasePage">{{ tr("查看更新") }}</Button>
-        <Button variant="ghost" size="sm" @click="dismissUpdate">{{ tr("忽略此版本") }}</Button>
+        <template v-if="downloading">
+          <Button size="sm" disabled> {{ tr("正在下载") }} {{ downloadPercent }}% </Button>
+        </template>
+        <template v-else-if="downloadedUpdate">
+          <Button
+            size="sm"
+            :disabled="!downloadSupported || updateStore.status === 'installing'"
+            @click="installUpdate"
+          >
+            {{ tr("重启并安装") }}
+          </Button>
+        </template>
+        <template v-else-if="downloadSupported">
+          <Button size="sm" @click="downloadUpdate">{{ tr("下载更新") }}</Button>
+          <Button variant="ghost" size="sm" @click="dismissUpdate">{{ tr("忽略此版本") }}</Button>
+        </template>
+        <template v-else>
+          <Button size="sm" @click="openReleasePage">{{ tr("查看更新") }}</Button>
+          <Button variant="ghost" size="sm" @click="dismissUpdate">{{ tr("忽略此版本") }}</Button>
+        </template>
       </div>
     </div>
+
+    <Notice v-if="updateStore.error" kind="error">{{ updateStore.error }}</Notice>
 
     <Card data-about-hero>
       <div class="about-hero">
@@ -183,11 +262,7 @@ onMounted(async () => {
                 :title="tr('查看发布')"
                 @click="openReleasePage"
               >
-                <StatusPill
-                  :label="`${tr('发现新版本')} ${latestRelease.tagName}`"
-                  tone="accent"
-                  dot
-                />
+                <StatusPill :label="updatePillLabel" tone="accent" dot />
               </button>
               <StatusPill
                 v-else-if="updateState === 'checking'"
@@ -491,6 +566,25 @@ onMounted(async () => {
   margin: 2px 0 0;
   color: var(--text-muted);
   font-size: var(--text-xs);
+}
+
+.update-download-line {
+  font-variant-numeric: tabular-nums;
+}
+
+.update-progress {
+  overflow: hidden;
+  height: 6px;
+  margin-top: var(--space-2);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 16%, var(--bg-subtle));
+}
+
+.update-progress-bar {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width var(--duration-fast) linear;
 }
 
 .update-banner-arrow {

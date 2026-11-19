@@ -212,7 +212,8 @@ const remoteAlt = computed(() => {
 const productNote = computed(() => {
   if (modelKey.value === "ARN9") return tr("按 ARN9 产品图对位；语音键为硬件键。");
   if (modelKey.value === "RC001") return tr("按 RC001 产品图对位；语音键为硬件键。");
-  if (modelKey.value === "CHROMECAST") return trDynamic("按 Chromecast 产品图对位；助理键为硬件语音键。");
+  if (modelKey.value === "CHROMECAST")
+    return trDynamic("按 Chromecast 产品图对位；助理键为硬件语音键。");
   return tr("按 RC003 产品图对位；语音键为硬件键。");
 });
 

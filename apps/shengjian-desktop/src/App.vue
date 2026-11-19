@@ -68,13 +68,14 @@ import {
 } from "./lib/preferences";
 import { finishStartup } from "./lib/startup";
 import { pushToast } from "./lib/toast";
+import { UPDATE_PROGRESS_EVENT } from "./lib/update";
 import { shouldHintVoiceSelfForeground } from "./lib/voiceFocusHint";
 import { useEngineStore } from "./stores/engine";
 import { useStatusStore } from "./stores/status";
 import { useUpdateStore } from "./stores/update";
 import { usePairingStore } from "./stores/pairing";
 import type { PaletteCommand } from "./lib/palette";
-import type { EventEnvelope, RawInputStatus } from "./lib/types";
+import type { EventEnvelope, RawInputStatus, UpdateDownloadProgress } from "./lib/types";
 import BrandMark from "./components/BrandMark.vue";
 
 type PageId = "connection" | "buttons" | "macros" | "history" | "settings" | "about";
@@ -136,6 +137,7 @@ function openTestDialog(tab: "voice" | "buttons") {
 }
 let unlisten: UnlistenFn | undefined;
 let unlistenNavigate: UnlistenFn | undefined;
+let unlistenUpdateProgress: UnlistenFn | undefined;
 let mediaQuery: MediaQueryList | undefined;
 let statusTimer: number | undefined;
 let scrollbarTimer: number | undefined;
@@ -443,6 +445,9 @@ onMounted(async () => {
       void goTo(event.payload as PageId);
     }
   });
+  unlistenUpdateProgress = await listen<UpdateDownloadProgress>(UPDATE_PROGRESS_EVENT, (event) => {
+    updateStore.applyProgress(event.payload);
+  });
   try {
     await store.hydrate();
     await refreshListeningStatus();
@@ -473,6 +478,7 @@ onMounted(async () => {
 onUnmounted(() => {
   unlisten?.();
   unlistenNavigate?.();
+  unlistenUpdateProgress?.();
   if (statusTimer !== undefined) window.clearInterval(statusTimer);
   if (scrollbarTimer !== undefined) window.clearTimeout(scrollbarTimer);
   if (updateTimer !== undefined) window.clearTimeout(updateTimer);

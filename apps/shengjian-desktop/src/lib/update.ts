@@ -1,6 +1,22 @@
 export const RELEASES_API_URL =
   "https://api.github.com/repos/xiaopohair/SHENGJIAN/releases?per_page=30";
 
+/** 后端下载安装包时推送的进度事件（payload：`UpdateDownloadProgress`）。 */
+export const UPDATE_PROGRESS_EVENT = "update-download-progress";
+
+/** 1 MB / KB 的十进制展示，给下载进度用；不参与版本比较。 */
+export function formatUpdateBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 MB";
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** 0–100 的下载百分比；总大小未知时为 0（界面显示为不确定进度）。 */
+export function updateDownloadPercent(downloaded: number, total: number): number {
+  if (!Number.isFinite(downloaded) || !Number.isFinite(total) || total <= 0) return 0;
+  return Math.min(100, Math.max(0, Math.round((downloaded / total) * 100)));
+}
+
 export interface GitHubRelease {
   tag_name: string;
   name: string | null;

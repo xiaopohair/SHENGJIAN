@@ -797,6 +797,48 @@ const ENGLISH = {
   "已是最新版本。": "You are up to date.",
   "暂无可用的发布版本。": "No release is available.",
   "检查更新失败：{message}": "Update check failed: {message}",
+  // 自动更新（0.10.0）：检查 → 后台下载 → 校验 → 确认后重启安装。
+  软件更新: "Software updates",
+  自动检查更新: "Check for updates automatically",
+  自动下载更新: "Download updates automatically",
+  下载更新: "Download update",
+  更新已就绪: "Update ready",
+  重启并安装: "Restart and install",
+  "重启并安装更新？": "Restart and install the update?",
+  "声键会退出，安装完成后自动重新启动。":
+    "Shengjian will close and restart automatically after the installer finishes.",
+  目标版本: "Target version",
+  未保存的编辑会丢失: "Unsaved edits will be lost",
+  稍后: "Later",
+  正在下载: "Downloading",
+  下载进度: "Download progress",
+  版本与状态: "Version and status",
+  "正在检查更新…": "Checking for updates…",
+  正在后台下载: "Downloading in the background",
+  "正在后台下载 {percent}%": "Downloading in the background: {percent}%",
+  "正在启动安装程序…": "Starting the installer…",
+  "发现新版本 {version}，可立即下载。": "Version {version} is available and can be downloaded now.",
+  "尚未检查更新。": "Updates have not been checked yet.",
+  "更新已下载并通过校验，重启后完成升级。":
+    "The update is downloaded and verified; it will finish installing after a restart.",
+  "安装包已下载并通过校验，重启后完成升级。":
+    "The installer is downloaded and verified; restart to finish updating.",
+  "便携版与开发版不支持应用内升级，请手动下载安装包。":
+    "Portable and development builds cannot update in place; download the installer manually.",
+  "便携版不支持应用内升级；请下载新版本压缩包并覆盖当前目录。":
+    "Portable builds cannot update in place; download the new portable zip and replace this folder.",
+  "开发版不支持应用内升级；请从 GitHub Releases 手动下载安装包。":
+    "Development builds cannot update in place; download the installer from GitHub Releases.",
+  "当前版本不支持应用内升级，请手动下载安装包":
+    "This build cannot update in place; download the installer manually",
+  新版本已下载: "Update downloaded",
+  立即重启: "Restart now",
+  "启动后每天在后台检查一次 GitHub Releases":
+    "Check GitHub Releases once a day in the background after launch",
+  "发现新版本后在后台下载安装包；安装前仍会询问":
+    "Download the installer in the background when a new version is found; installation still asks first",
+  "预发布版本可能不稳定，仅在需要尝鲜时打开":
+    "Pre-releases may be unstable; enable only when you want early builds",
   设备支持: "Device support",
   "仓库内 DeviceProfile": "DeviceProfile from repository",
   "设置已保存并应用。": "Settings saved and applied.",

@@ -1,6 +1,6 @@
 # Product backlog
 
-当前版本：`0.1.0`。F3（macOS/Linux adapter）、F4（自动更新）、F5（ARM64）已排除；SignPath 签名链路已接入 release workflow，启用需公开仓库与审核。
+当前版本：`0.9.5`。F3（macOS/Linux adapter）、F5（ARM64）已排除；F4（自动更新）已完成——安装版支持应用内检查、后台下载、SHA-256 校验与确认后重启安装，见 [release-process.md](release-process.md)。SignPath 签名链路已接入 release workflow，启用需公开仓库与审核。
 
 ## 待办：推荐按键方案按型号拆分（2026-11-19）
 

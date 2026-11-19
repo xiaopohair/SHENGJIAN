@@ -2,8 +2,8 @@
 
 声键（SHENGJIAN）的 Windows 桌面宿主：Tauri 2 + Vue 3，in-process 使用 `shengjian-core`。
 
-当前版本：**0.9.2**
-状态：已通过 GitHub Release 发布（CI 构建、未签名）；无自动更新。
+当前版本：**0.9.5**
+状态：已通过 GitHub Release 发布（CI 构建、未签名）；安装版支持应用内自动更新（检查 → 后台下载 → SHA-256 校验 → 确认后重启安装），便携版与开发版手动更新。
 已支持设备：RC003（小米蓝牙语音遥控器 2 Pro）、RC001（小米蓝牙语音遥控器 2）；Windows x64。
 
 ## 运行

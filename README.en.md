@@ -32,7 +32,7 @@ Brand positioning, slogan, logo, and visual guidelines: [brand/BRAND.md](brand/B
 - Local release manifest: `release/<version>/manifest.json` (produced by a local build; the release asset is authoritative)
 - Release notes: `docs/release-notes-0.9.5.md` (includes the 0.9.4 post-mortem)
 - GitHub repository: <https://github.com/xiaopohair/SHENGJIAN>; releases are produced by the Release workflow triggered by `v*` tags
-- No auto-updater
+- Auto-update (in development for 0.10.0): the installed build checks GitHub Releases automatically, downloads the installer in the background, verifies its SHA-256, and installs after the user confirms a restart; portable and development builds still update manually
 
 ## Device support
 
@@ -62,9 +62,9 @@ Brand positioning, slogan, logo, and visual guidelines: [brand/BRAND.md](brand/B
 - Reconnect: when disconnected, any key press on the remote reconnects the last remote; a user-initiated disconnect is respected, while an app restart still tries the last device
 - Macros page: unified toolbar (“Try run / Save / Add / Properties / More actions” — duplicate, delete, and import/export moved into the more menu); a new macro is persisted as a draft right away; three-column editor (steps / current step / action parameters), drag reorder (pointer-following ghost + accent insertion line), step duplicate and timeout, shortcut capture, macro properties drawer, test/stop, per-step run results, single/multi-file import/export with per-item progress, Chinese validation messages
 - History page: four tabs — voice events, button events, macro runs, and voice recordings; voice/button events are retained for the current run, while macro runs and voice recordings are persisted
-- Settings page: global audio, theme, accent color, application language (Chinese/English/follow system), launch at login, hide to tray on startup, close behavior, configuration backup/restore (settings, profiles, macro library, voice recordings, appearance preferences, last device), log viewing/diagnostic bundle, health check, restore defaults, sectioned tabs; Data & diagnostics are still reachable if settings fail to load
+- Settings page: global audio, theme, accent color, application language (Chinese/English/follow system), launch at login, hide to tray on startup, close behavior, software updates (automatic checks / automatic downloads / pre-release filter), configuration backup/restore (settings, profiles, macro library, voice recordings, appearance preferences, last device), log viewing/diagnostic bundle, health check, restore defaults, sectioned tabs; Data & diagnostics are still reachable if settings fail to load
 - Accessibility: page landmarks/heading hierarchy, form labels, focus trapping for tabs/command palette/confirmation dialogs, decorative icons hidden; see `docs/ui-accessibility-report.md`
-- About page: dark-plate app icon, app version, platform/build/signing, runtime information, local capabilities, supported remotes and platform status, components and licenses; can open the logs directory and re-run first-run setup; checks GitHub Releases in the background at startup (24-hour limit) and surfaces updates via a pinned update banner on the About page (version comparison + view release + ignore this version), a branded toast, a pulsing dot on the About nav item, and the tray menu, with optional pre-release filtering and no automatic download/install
+- About page: dark-plate app icon, app version, platform/build/signing, runtime information, local capabilities, supported remotes and platform status, components and licenses; can open the logs directory and re-run first-run setup; checks GitHub Releases in the background at startup (24-hour limit) and surfaces updates via a pinned update banner on the About page (version comparison + download progress + restart and install + ignore this version), a branded toast, a pulsing dot on the About nav item, and the tray menu, with optional pre-release filtering; installed builds download the installer automatically, verify its SHA-256, ask before installing, and let NSIS replace the files after a restart
 - Pairing help: available from each supported model row in About and from the first-run scan step; covers four models — RC003 / RC001 / ARN9 / Google Chromecast TV Remote — with the key combination and Windows Bluetooth steps (Home + Menu for the three Xiaomi remotes, Back + Home for Chromecast, whose Bluetooth name is `Chromecast Remote`; ARN9 and Chromecast have no TV key, so the TV initialization note is hidden)
 - Tray, first-run setup wizard (including voice input tool selection), single instance
 - Profile/macro import and export, diagnostic log entry points
@@ -251,7 +251,7 @@ in the repository records only the local build. See [docs/release-process.md](do
 
 ## GitHub release preparation
 
-Route: **public repository, x64, manual download, no auto-update**; free open-source signing via SignPath Foundation.
+Route: **public repository, x64, in-app auto-update for the installed build, manual download for portable**; free open-source signing via SignPath Foundation.
 
 - `.github/workflows/release.yml`: builds and releases on `v*` tags; signs automatically after SignPath variables/secrets are configured
 - Release title is "声键 &lt;version&gt;"; Tauri first produces `声键_<version>_x64-setup.exe` per `productName`, and the workflow then calls `scripts/normalize-installer-name.ps1` to normalize it to the release filename `shengjian_<version>_x64-setup.exe`
@@ -270,7 +270,7 @@ The repository has been pushed to <https://github.com/xiaopohair/SHENGJIAN>; rel
 
 - Windows x64 only; no ARM64 package
 - Release packages are unsigned; CI signing requires the repository to be public and pass SignPath review
-- No auto-update
+- Auto-update covers the NSIS-installed build only; portable and development builds update manually. Updates are verified with the release manifest's SHA-256 and do not use a second update-signing key (see [docs/release-process.md](docs/release-process.md))
 - First helper installation requires UAC
 - The common-phrases overlay only selects and inserts: phrases and their order are edited on the Settings page, not inside the panel; it is an in-app overlay that never takes focus, so it does not replace the system IME candidate window
 - The Chromecast remote's keys depend on the privileged helper (its reports never reach the OS Raw Input layer); without the helper only voice works

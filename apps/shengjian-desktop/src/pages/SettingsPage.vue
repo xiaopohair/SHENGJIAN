@@ -11,6 +11,7 @@ import {
   Palette,
   Power,
   Keyboard,
+  RefreshCw,
   RotateCcw,
   Search,
   Upload,
@@ -87,13 +88,15 @@ import { pushToast } from "../lib/toast";
 import type { AudioDependencyStatus, AudioEndpoint, SettingsDocument } from "../lib/types";
 import { useEngineStore } from "../stores/engine";
 import { useStatusStore } from "../stores/status";
+import { useUpdateStore } from "../stores/update";
 import {
   effectiveAudioEndpointId,
   effectiveGainDb,
   effectiveVoiceInputTool,
 } from "../lib/effectiveAudio";
 
-type SectionId = "appearance" | "common-phrases" | "audio" | "startup" | "diagnostics" | "advanced";
+type SectionId =
+  "appearance" | "common-phrases" | "audio" | "startup" | "updates" | "diagnostics" | "advanced";
 
 interface HealthCheck {
   label: string;
@@ -114,6 +117,7 @@ const SECTIONS: SettingsSection[] = [
   { id: "common-phrases", label: "常用语", icon: MessageSquare, group: "常规" },
   { id: "audio", label: "音频及语音", icon: Volume2, group: "常规" },
   { id: "startup", label: "启动与窗口", icon: Power, group: "系统" },
+  { id: "updates", label: "软件更新", icon: RefreshCw, group: "系统" },
   { id: "diagnostics", label: "数据与诊断", icon: HardDrive, group: "系统" },
   { id: "advanced", label: "高级", icon: Wrench, group: "系统" },
 ];
@@ -173,6 +177,75 @@ const activeSection = ref<SectionId>("appearance");
 const busy = shallowRef(false);
 const loading = shallowRef(true);
 const error = shallowRef<string | null>(null);
+
+/** 软件更新（检查 / 自动下载 / 安装）与关于页共用同一个 store。 */
+const updateStore = useUpdateStore();
+const autoCheckUpdates = computed({
+  get: () => updateStore.autoCheckEnabled,
+  set: (value: boolean) => {
+    void updateStore.setAutoCheckEnabled(value);
+  },
+});
+const autoDownloadUpdates = computed({
+  get: () => updateStore.autoDownloadEnabled,
+  set: (value: boolean) => {
+    void updateStore.setAutoDownloadEnabled(value);
+  },
+});
+const includePrereleaseUpdates = computed({
+  get: () => updateStore.includePrereleases,
+  set: (value: boolean) => {
+    void updateStore.setIncludePrereleases(value);
+  },
+});
+const updateStatusHint = computed(() => {
+  if (updateStore.error) return updateStore.error;
+  if (updateStore.ready) return tr("更新已下载并通过校验，重启后完成升级。");
+  switch (updateStore.status) {
+    case "checking":
+      return tr("正在检查更新…");
+    case "downloading":
+      return tr("正在后台下载 {percent}%", { percent: updateStore.downloadPercent });
+    case "ready":
+      return tr("更新已下载并通过校验，重启后完成升级。");
+    case "installing":
+      return tr("正在启动安装程序…");
+    case "available":
+      return updateStore.latest
+        ? tr("发现新版本 {version}，可立即下载。", { version: updateStore.latest.tagName })
+        : tr("发现新版本");
+    case "current":
+      return tr("已是最新版本。");
+    case "unavailable":
+      return tr("暂无可用的发布版本。");
+    case "error":
+      return updateStore.error ?? tr("检查更新失败：{message}", { message: "" });
+    default:
+      return tr("尚未检查更新。");
+  }
+});
+const updateUnsupportedHint = computed(() => {
+  if (updateStore.downloadSupported) return "";
+  if (updateStore.updateKind === "portable") {
+    return tr("便携版不支持应用内升级；请下载新版本压缩包并覆盖当前目录。");
+  }
+  return tr("开发版不支持应用内升级；请从 GitHub Releases 手动下载安装包。");
+});
+async function checkUpdatesNow() {
+  await updateStore.check(true);
+}
+async function installReadyUpdate() {
+  if (!updateStore.ready) return;
+  const confirmed = await confirmAction({
+    title: tr("重启并安装更新？"),
+    message: tr("声键会退出，安装完成后自动重新启动。"),
+    detail: tr("未保存的编辑会丢失"),
+    confirmLabel: tr("重启并安装"),
+    cancelLabel: tr("稍后"),
+  });
+  if (!confirmed) return;
+  await updateStore.install();
+}
 
 /** 全按键支持服务（RC003 helper）：安装 / 更新 / 卸载都在设置里统一管理。 */
 const hidHostInstalled = shallowRef(false);
@@ -1323,6 +1396,63 @@ onMounted(async () => {
               <SettingRow label="关闭窗口时隐藏到托盘">
                 <Switch v-model="closeToTray" :label="trDynamic('关闭窗口时隐藏到托盘')" />
               </SettingRow>
+            </div>
+          </Card>
+        </template>
+
+        <template v-if="!loading && sectionVisible('updates')">
+          <p class="settings-group-label">{{ tr("更新") }}</p>
+          <Card>
+            <div class="settings-rows">
+              <SettingRow label="自动检查更新" hint="启动后每天在后台检查一次 GitHub Releases">
+                <Switch v-model="autoCheckUpdates" :label="trDynamic('自动检查更新')" />
+              </SettingRow>
+
+              <SettingRow label="自动下载更新" hint="发现新版本后在后台下载安装包；安装前仍会询问">
+                <Switch v-model="autoDownloadUpdates" :label="trDynamic('自动下载更新')" />
+              </SettingRow>
+
+              <SettingRow label="包含预发布版本" hint="预发布版本可能不稳定，仅在需要尝鲜时打开">
+                <Switch v-model="includePrereleaseUpdates" :label="trDynamic('包含预发布版本')" />
+              </SettingRow>
+            </div>
+          </Card>
+
+          <p class="settings-group-label">{{ tr("当前版本") }}</p>
+          <Card>
+            <div class="settings-rows">
+              <SettingRow label="版本与状态" :hint="updateStatusHint">
+                <div class="setting-row-inline">
+                  <StatusPill
+                    :label="updateStore.currentVersion ? `v${updateStore.currentVersion}` : '—'"
+                    tone="neutral"
+                  />
+                  <Button
+                    v-if="updateStore.ready"
+                    size="sm"
+                    :disabled="
+                      !updateStore.downloadSupported || updateStore.status === 'installing'
+                    "
+                    @click="installReadyUpdate"
+                  >
+                    {{ tr("重启并安装") }}
+                  </Button>
+                  <Button
+                    v-else
+                    size="sm"
+                    :disabled="
+                      updateStore.status === 'checking' || updateStore.status === 'downloading'
+                    "
+                    @click="checkUpdatesNow"
+                  >
+                    {{ tr("检查更新") }}
+                  </Button>
+                </div>
+              </SettingRow>
+
+              <p v-if="updateUnsupportedHint" class="settings-inline-note">
+                {{ updateUnsupportedHint }}
+              </p>
             </div>
           </Card>
         </template>

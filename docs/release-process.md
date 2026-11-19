@@ -5,7 +5,7 @@
 - GitHub 公共仓库（GPL-3.0-only）
 - 只发 **x64**
 - 本地包**未签名**；CI 配置 SignPath 后由 workflow 签名
-- 手动下载，**不做自动更新**
+- 安装版支持应用内自动更新（检查 → 后台下载 → SHA-256 校验 → 确认后重启安装）；便携版手动下载
 - helper/gadget 随包分发，首次启用需要一次 UAC
 - 卸载会清理 helper 计划任务
 
@@ -247,6 +247,9 @@ pnpm config:check
 - 品牌：深色界面/窗口图标用亮松青，浅色界面/窗口图标用松青·深（`#0F7A63`）；托盘与侧栏使用深色底应用图标
 - 卸载后计划任务清理、数据保留
 - Release 资产齐全：安装包、便携 zip、`SHA256SUMS`、`manifest.json`、`portable-manifest.json`、许可证
+- 自动更新：安装版关于页能发现上一版 → 显示下载进度 → 重启并安装后版本号更新、设置/方案/宏保留；
+  下载被中断或哈希不符时停在「可下载」状态并给出错误，不会启动安装
+- 自动更新：便携版与 `tauri dev` 只显示「查看更新」，不出现应用内安装入口
 - 发布说明里**没有**硬编码的 `SHA-256` / 大小，校验信息指向 `SHA256SUMS` 资产；
   若确实写死了数值，已用 `gh release edit v<version> --notes-file ...` 同步线上正文
 - Release 里 `SHA256SUMS` 与 `manifest.json` 的哈希相互一致
@@ -262,8 +265,39 @@ pnpm config:check
   - 许可全文随包分发到 `resources/licenses/COPYING.frida-gadget`
 - 发布 Release 时同时上传 `LICENSE`、`ATTRIBUTION.md`、`THIRD_PARTY_NOTICES.md`
 
+## 应用内自动更新
+
+安装版（NSIS，`%LOCALAPPDATA%\声键`）支持应用内升级；便携版与 `tauri dev` 构建不支持，
+界面会提示手动下载。整条链路不依赖 Tauri 官方 updater 的独立签名密钥，直接复用每次
+Release 已经上传的资产：
+
+1. 前端按现有 GitHub Releases API 检查版本（可筛选预发布），`update_support` 判断当前
+   是不是安装版；
+2. 需要下载时，Rust 侧取 `releases/download/<tag>/manifest.json`，校验 `version`、安装包
+   文件名、`sizeBytes` 与 `sha256`；
+3. 安装包流式下载到 `%LOCALAPPDATA%\Shengjian\Updates`，边下边算 SHA-256；大小或哈希
+   不符立即删除，不进入可安装状态；
+4. 用户确认「重启并安装」后，以 `/P /UPDATE /R` 启动 NSIS 安装包并退出应用。安装包的
+   `/UPDATE` 模式跳过卸载/重装选择，通过 Restart Manager 关闭正在运行的实例并覆盖文件，
+   `/R` 负责重新启动新版本；
+5. 安装包 preinstall hook 会先停掉 `Shengjian HID Host` 计划任务并把被占用的 helper
+   exe/dll 改名挪开，避免覆盖失败（同时兼容 0.9.3 之前的 `resources\rc003` 布局）。
+
+注意事项：
+
+- **信任锚是 HTTPS + Release 内的 manifest SHA-256**，不是第二把更新签名密钥。能改
+  GitHub Release 的人也能同时改 manifest；这一点与手动下载安装包相同。后续若要更强
+  的保证，可再引入 Tauri updater 的签名密钥或校验 Authenticode。
+- 当前 CI 产物**未签名**，应用内安装不会经过 SmartScreen 的「未知发布者」提示；校验
+  失败一律拒绝安装，manifest 里的 `signed` 字段保留给后续签名策略。
+- `manifest.json` 是自动更新的必需资产：`prepare-release.ps1` 生成、workflow 上传，
+  字段为 `version` / `file` / `sizeBytes` / `sha256` / `builtAtUtc` / `signed`。
+  删掉它或改字段名会让应用内更新失败。
+- 便携版没有 NSIS 安装记录，`/UPDATE` 无法正确替换，因此明确不做应用内升级。
+- 升级后若全按键支持服务仍跑着旧 helper，重启应用（或设置页「重启服务」）即可加载新文件。
+
 ## 后续（需要额外授权）
 
 - 代码签名证书与签名流水线
 - ARM64 包
-- 自动更新 endpoint、签名密钥、updater
+- 更强的更新签名（Tauri updater 密钥 / Authenticode 校验）

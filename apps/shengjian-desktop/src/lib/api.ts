@@ -14,6 +14,7 @@ import type {
   ConnectionSnapshot,
   DeviceStatus,
   DeviceSupport,
+  DownloadedUpdate,
   EngineSnapshot,
   HostCapabilities,
   LaunchableAppsResult,
@@ -27,6 +28,7 @@ import type {
   RemoteCandidate,
   SettingsDocument,
   TranscriptRecord,
+  UpdateSupport,
   VoiceToolInfo,
 } from "./types";
 
@@ -437,6 +439,25 @@ export async function setTrayLanguage(language: string): Promise<void> {
 
 export async function setTrayUpdate(version: string | null): Promise<void> {
   return invoke<void>("set_tray_update", { version });
+}
+
+/** 当前构建是否支持应用内升级（安装版支持，便携版/开发版只能手动下载）。 */
+export async function getUpdateSupport(): Promise<UpdateSupport> {
+  return invoke<UpdateSupport>("update_support");
+}
+
+/**
+ * 下载指定 tag 的安装包：后端取 release manifest、校验大小与 SHA-256，
+ * 存到 `%LOCALAPPDATA%\Shengjian\Updates`。下载进度通过
+ * `update-download-progress` 事件推送。
+ */
+export async function downloadUpdateRelease(tag: string): Promise<DownloadedUpdate> {
+  return invoke<DownloadedUpdate>("download_update", { tag });
+}
+
+/** 启动安装包（`/P /UPDATE /R`）并退出应用；安装完成后由安装包重新拉起。 */
+export async function installDownloadedUpdate(): Promise<void> {
+  return invoke<void>("install_update");
 }
 
 export async function exportMacroLibrary(

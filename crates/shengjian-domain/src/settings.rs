@@ -124,6 +124,12 @@ pub struct AppSettings {
     /// 老配置没有该字段时按默认 **开启**。
     pub close_to_tray: bool,
     pub check_prerelease_updates: bool,
+    /// 启动后是否自动检查 GitHub Releases。默认 **开启**；关闭后只有关于页 / 设置页的
+    /// 手动「检查更新」会发起请求。
+    pub check_updates_automatically: bool,
+    /// 发现新版本后是否在后台自动下载安装包。默认 **开启**；安装始终需要用户确认
+    /// （下载完成后在关于页 / 设置页点「重启并安装」），不会静默重启应用。
+    pub download_updates_automatically: bool,
     /// RC003 三键增强捕获的用户意图（按键页开关）。默认 **关闭**——
     /// 只有用户主动打开过才为 true。注意它与「计划任务是否还在系统里」
     /// 是两回事：关闭开关只结束助手、任务保留（授权保留，避免重复 UAC），
@@ -187,6 +193,8 @@ impl Default for AppSettings {
             open_window_at_launch: true,
             close_to_tray: true,
             check_prerelease_updates: false,
+            check_updates_automatically: true,
+            download_updates_automatically: true,
             rc003_capture_enabled: false,
             lock_mapping_selection: true,
             local_transcript_history_enabled: false,
@@ -296,6 +304,25 @@ mod tests {
     fn close_to_tray_defaults_true_for_old_config() {
         let settings: AppSettings = serde_json::from_str(r#"{"schema_version":7}"#).unwrap();
         assert!(settings.close_to_tray);
+    }
+
+    /// 自动检查 / 自动下载是 0.10.0 新增的字段，老配置没有时必须按"开启"落默认：
+    /// 用户升级后不用再手动打开，才叫自动更新。
+    #[test]
+    fn update_preferences_default_on_and_round_trip() {
+        let old: AppSettings = serde_json::from_str(r#"{"schema_version":8}"#).unwrap();
+        assert!(old.check_updates_automatically);
+        assert!(old.download_updates_automatically);
+
+        let settings = AppSettings {
+            check_updates_automatically: false,
+            download_updates_automatically: false,
+            ..AppSettings::default()
+        };
+        let encoded = serde_json::to_string(&settings).unwrap();
+        let decoded: AppSettings = serde_json::from_str(&encoded).unwrap();
+        assert!(!decoded.check_updates_automatically);
+        assert!(!decoded.download_updates_automatically);
     }
 
     #[test]

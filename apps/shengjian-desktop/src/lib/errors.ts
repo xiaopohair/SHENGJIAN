@@ -63,6 +63,12 @@ const ERROR_ZH: Record<string, string> = {
   worker_unavailable: "后台服务不可用，请重启应用",
   "endpoint-not-selected": "尚未选择音频端点",
   endpoint_not_selected: "尚未选择音频端点",
+  "update-unsupported": "当前版本不支持应用内升级，请手动下载安装包",
+  "update-manifest": "更新信息不可用，请稍后重试或手动下载",
+  "update-download": "下载更新失败，请检查网络后重试",
+  "update-verify": "更新包校验失败，已丢弃",
+  "update-install": "启动安装程序失败，请手动下载安装包",
+  "update-not-ready": "更新尚未下载完成",
 };
 
 const ERROR_EN: Record<string, string> = {
@@ -143,6 +149,12 @@ const ERROR_EN: Record<string, string> = {
   worker_unavailable: "Background service unavailable; restart the app",
   "endpoint-not-selected": "No audio endpoint selected",
   endpoint_not_selected: "No audio endpoint selected",
+  "update-unsupported": "This build cannot update itself; download the installer manually",
+  "update-manifest": "Update information is unavailable; retry or download manually",
+  "update-download": "Update download failed; check the network and retry",
+  "update-verify": "The update package failed verification and was discarded",
+  "update-install": "Could not start the installer; download it manually",
+  "update-not-ready": "The update has not finished downloading",
 };
 
 export function localizeError(message: string, code: string | undefined, english: boolean): string {

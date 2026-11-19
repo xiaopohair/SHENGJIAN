@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   checkForUpdates,
   compareVersions,
+  formatUpdateBytes,
   selectLatestRelease,
+  updateDownloadPercent,
   type GitHubRelease,
 } from "./update";
 
@@ -78,5 +80,15 @@ describe("update checks", () => {
 
     const result = await checkForUpdates("0.3.0", false);
     expect(result.updateAvailable).toBe(false);
+  });
+
+  it("formats download sizes and clamps percentages", () => {
+    expect(formatUpdateBytes(0)).toBe("0 MB");
+    expect(formatUpdateBytes(512 * 1024)).toBe("512 KB");
+    expect(formatUpdateBytes(13.4 * 1024 * 1024)).toBe("13.4 MB");
+    expect(updateDownloadPercent(0, 0)).toBe(0);
+    expect(updateDownloadPercent(512, 1024)).toBe(50);
+    expect(updateDownloadPercent(2048, 1024)).toBe(100);
+    expect(updateDownloadPercent(-1, 1024)).toBe(0);
   });
 });

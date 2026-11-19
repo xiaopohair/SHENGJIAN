@@ -56,7 +56,7 @@ pub struct CommandError {
 }
 
 impl CommandError {
-    fn new(code: &str, message: &str, retryable: bool) -> Self {
+    pub(crate) fn new(code: &str, message: &str, retryable: bool) -> Self {
         Self {
             code: code.to_owned(),
             message: message.to_owned(),

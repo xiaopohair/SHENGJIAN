@@ -24,3 +24,11 @@ shengjian-domain = { path = "../../../crates/shengjian-domain" }
 [target.'cfg(windows)'.dependencies]
 shengjian-windows = { path = "../../../crates/shengjian-windows" }
 shengjian-windows-adapter = { path = "../../../crates/shengjian-windows-adapter" }
+# In-app updater: GitHub release manifest + installer download.
+# `native-tls` uses Windows SChannel, so no OpenSSL/rustls toolchain is needed.
+ureq = { version = "3.5", default-features = false, features = [
+    "json",
+    "native-tls",
+    "win-system-proxy",
+] }
+sha2 = "0.10"

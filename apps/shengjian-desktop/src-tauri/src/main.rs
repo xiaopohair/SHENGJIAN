@@ -13,6 +13,7 @@ mod state;
 mod transcript_history;
 mod transcript_probe;
 mod tray;
+mod updater;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -273,6 +274,9 @@ fn main() {
             commands::clear_transcript_history,
             commands::set_tray_language,
             commands::set_tray_update,
+            updater::update_support,
+            updater::download_update,
+            updater::install_update,
             tray::sync_tray_icons,
         ])
         .run(tauri::generate_context!())

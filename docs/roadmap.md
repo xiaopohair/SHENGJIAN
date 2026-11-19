@@ -89,8 +89,9 @@
 - [x] 桌面产品扩展：Profile 复制方案。
 - [x] 桌面 M9a：本地发布清单、SHA-256 校验与验证脚本。
 - [x] 桌面 M9b：代码签名链路（SignPath Foundation 免费开源签名，已接入 release workflow；启用需公开仓库与 SignPath 审核，见 [signing.md](signing.md)）
-- [x] 桌面 M5c：0.1.0 已发布到 GitHub Release；自动更新未做
-- [ ] 安装器、更新器、helper 调度仍由宿主负责。
+- [x] 桌面 M5c：0.1.0 已发布到 GitHub Release
+- [x] 桌面 M10：应用内自动更新（检查 / 后台下载 / SHA-256 校验 / 确认后由 NSIS `/UPDATE /R` 重启安装；便携版与开发版手动下载），见 [release-process.md](release-process.md)
+- [x] 安装器与 helper 调度由宿主负责（安装器链路已随 M10 落地）。
 
 ## 未决
 
