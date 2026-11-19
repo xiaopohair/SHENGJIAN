@@ -2173,11 +2173,16 @@ mod button_source_tests {
 #[cfg(test)]
 mod button_store_tests {
     use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    /// 时间戳在 Windows 上分辨率不足，并行测试可能拿到同一纳秒；加原子序号避免目录互撞。
+    static NEXT_TEMP_DIR: AtomicU64 = AtomicU64::new(0);
 
     fn temporary_dir() -> PathBuf {
         std::env::temp_dir().join(format!(
-            "shengjian-button-store-test-{}-{}",
+            "shengjian-button-store-test-{}-{}-{}",
             std::process::id(),
+            NEXT_TEMP_DIR.fetch_add(1, Ordering::Relaxed),
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .map(|duration| duration.as_nanos())
@@ -2272,11 +2277,15 @@ mod button_store_tests {
 #[cfg(test)]
 mod settings_tests {
     use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT_TEMP_STORE: AtomicU64 = AtomicU64::new(0);
 
     fn temporary_store() -> (WindowsSettingsStore, PathBuf) {
         let dir = std::env::temp_dir().join(format!(
-            "shengjian-settings-test-{}-{}",
+            "shengjian-settings-test-{}-{}-{}",
             std::process::id(),
+            NEXT_TEMP_STORE.fetch_add(1, Ordering::Relaxed),
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .map(|duration| duration.as_nanos())
