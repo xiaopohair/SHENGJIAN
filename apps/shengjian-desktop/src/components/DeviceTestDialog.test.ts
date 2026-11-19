@@ -30,6 +30,7 @@ vi.mock("../lib/api", () => ({
   beginTranscriptProbe: vi.fn(async () => undefined),
   endTranscriptProbe: vi.fn(async () => undefined),
   takeTranscriptProbe: vi.fn(async () => null),
+  setButtonTestMode: vi.fn(async () => undefined),
 }));
 
 enableAutoUnmount(afterEach);
@@ -47,9 +48,19 @@ function mountDialog(tab: "voice" | "buttons" = "voice") {
 beforeEach(() => {
   setLanguagePreference("zh-Hans");
   vi.mocked(api.takeTranscriptProbe).mockResolvedValue(null);
+  vi.mocked(api.setButtonTestMode).mockClear();
 });
 
 describe("DeviceTestDialog", () => {
+  it("suspends profile actions while the test panel is open", async () => {
+    const wrapper = mountDialog("buttons");
+    await flushPromises();
+    expect(api.setButtonTestMode).toHaveBeenCalledWith(true);
+
+    wrapper.unmount();
+    await flushPromises();
+    expect(api.setButtonTestMode).toHaveBeenLastCalledWith(false);
+  });
   it("marks the voice path usable once a new streaming event arrives", async () => {
     const wrapper = mountDialog("voice");
     const store = useEngineStore();

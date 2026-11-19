@@ -58,6 +58,8 @@ pub struct PlatformHost {
     custom_hotkey: Mutex<Option<KeyChord>>,
     /// 用户手动暂停按钮监听时置位：期间设置页再开启「全按键支持」也不能重新接管。
     listening_paused: AtomicBool,
+    /// 设备测试/首次配置按键测试：平台注入层只观察、不执行方案动作。
+    test_suspended: AtomicBool,
     /// 「全按键支持」当前是否开着。
     ///
     /// 后台的拉起重试线程要读它：用户中途把开关关掉时，重试必须立刻放弃，
@@ -72,6 +74,7 @@ impl PlatformHost {
             current_tool: Mutex::new(None),
             custom_hotkey: Mutex::new(None),
             listening_paused: AtomicBool::new(false),
+            test_suspended: AtomicBool::new(false),
             enhanced_enabled: Arc::new(AtomicBool::new(false)),
         }
     }
@@ -85,6 +88,13 @@ impl PlatformHost {
         let current_tool = self.current_tool.lock().expect("voice tool lock").clone();
         let hotkey = custom.or_else(|| default_voice_hotkey(current_tool.as_deref()));
         self.platform.set_voice_hold_hotkey(hotkey);
+    }
+
+    /// 平台注入层的暂挂状态由「主动暂停」和「按键测试」共同决定。
+    fn sync_mapping_suspension(&self) {
+        let suspended = self.listening_paused.load(Ordering::Relaxed)
+            || self.test_suspended.load(Ordering::Relaxed);
+        self.platform.set_mapping_suspension(suspended);
     }
 }
 
@@ -241,19 +251,26 @@ impl HostPlatform for PlatformHost {
             self.platform
                 .start_raw_input()
                 .map_err(|error| HostError::new("button-listening", error.to_string()))?;
+            // 恢复监听时同步解除暂挂；若按键测试仍开着，sync 会继续保持暂挂。
+            self.sync_mapping_suspension();
         } else {
             self.platform
                 .stop_raw_input()
                 .map_err(|error| HostError::new("button-listening", error.to_string()))?;
             self.listening_paused.store(true, Ordering::Relaxed);
             // core 之外还有平台映射这条旧路径：暂停时一并挂起。
-            self.platform.set_mapping_suspension(true);
+            self.sync_mapping_suspension();
             if capture_enabled {
                 // 全按键支持交还系统，否则三键会被助手吞掉却没有动作。
                 self.set_enhanced_capture_enabled(false);
             }
         }
         Ok(self.raw_input_status())
+    }
+
+    fn set_button_test_mode(&self, enabled: bool) {
+        self.test_suspended.store(enabled, Ordering::Relaxed);
+        self.sync_mapping_suspension();
     }
 
     fn set_enhanced_capture_enabled(&self, enabled: bool) {

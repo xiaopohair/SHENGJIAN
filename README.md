@@ -59,7 +59,7 @@
 - 按键页：方案列表、编辑、激活；宽屏工作台 + 表格视图，未保存导航确认；导入 / 导出合并进「更多操作」菜单（单文件整库 / 单个·多个文件、逐文件真实进度、导入冲突预览）
 - 推荐应用、推荐按键方案、语音输入工具、推荐宏由 `config/*.json` 配置驱动（随安装包下发，可在发布前或安装目录中编辑，见 [docs/config-catalogs.md](docs/config-catalogs.md)）；推荐方案只读，复制后成为可编辑的用户方案
 - 方案编辑器：应用目标（支持应用选择器：预设/已安装/UWP/浏览文件；用当前前台）、当前前台填充、快捷键捕获、自动方案冲突提示、保存校验、按键级按住连发、方案语音工具覆盖、复制方案、按键数按型号（小米三款 12 键含 TV 与菜单，Chromecast 14 键含静音 / YouTube / Netflix / 信源）；常用语（内置，设置页维护多条，按键后弹出列表选择）
-- 设备测试：顶栏命令面板可随时打开「语音测试 / 按键测试」，只读、不写设置——语音落字用应用内原生测试板（输入法能正常落字、主窗口不重载），按键按型号列出应有按键并标出已检测/缺失
+- 设备测试：顶栏命令面板可随时打开「语音测试 / 按键测试」，只读、不写设置，按键测试期间也不执行当前方案动作——语音落字用应用内原生测试板（输入法能正常落字、主窗口不重载），按键按型号列出应有按键并标出已检测/缺失
 - 顶栏监听开关：一枚「监听中 / 已暂停」胶囊，可随时暂停或恢复按键监听（语音与蓝牙连接不受影响）；从设置页返回时顶栏的输入法与增益会同步为「实际生效」值
 - 断连恢复：未连接时按遥控器任意键会自动连回上次那台；用户主动「断开」后不再自动连，重启时仍会尝试连接上次设备
 - 宏页：导航栏统一为「试运行 / 保存 / 添加 / 属性 / 更多操作」（复制宏、删除宏、导入导出收进更多菜单，编辑工具栏已取消）；新建宏直接落盘成草稿；三栏编辑器（步骤列表 / 当前步骤 / 动作参数）、拖动排序（跟随指针的鬼影 + 强调色插入线）、步骤复制与超时、快捷键点选、宏属性抽屉、测试/停止、分步运行结果、单/多文件导入导出与按条进度、中文校验提示
@@ -203,9 +203,9 @@ Chromecast 只是**读取按键**，不需要「全按键支持」开关；它�
 
 ## 验证
 
-- 根 workspace：`cargo fmt --all -- --check`、`cargo check --workspace`、`cargo test --workspace` 通过（**788 passed**）；`cargo clippy --workspace --all-targets` 0 error
+- 根 workspace：`cargo fmt --all -- --check`、`cargo check --workspace`、`cargo test --workspace` 通过（**789 passed**）；`cargo clippy --workspace --all-targets` 0 error
 - 桌面 Rust：`cargo fmt -- --check`、`cargo test` 通过（**28 passed，2 ignored**；两个 ignored 是需要真实 GitHub 网络的更新烟测）
-- 桌面前端：`pnpm lint`、`pnpm format:check`、`pnpm exec vitest run`（**253 passed**）、`pnpm build`、`pnpm config:check` 通过
+- 桌面前端：`pnpm lint`、`pnpm format:check`、`pnpm exec vitest run`（**254 passed**）、`pnpm build`、`pnpm config:check` 通过
 - 本地构建：安装包按 `productName` 生成后由 `scripts/normalize-installer-name.ps1` 归一化；本版本发布包由 CI 产出（`shengjian_0.9.6_x64-setup.exe`），`prepare-release.ps1` / `verify-release.ps1` 流程未改动
 - 自动更新：Release manifest 拉取、约 13 MB 安装包下载与 SHA-256 校验已实测；2026-11-19 用发布资产完成 0.9.5 → 0.9.6 覆盖安装，`/P /UPDATE /R` 重启后版本为 0.9.6，安装版被正确识别为可自动升级环境
 - 真机安装 / 启动 / 卸载：安装目录、快捷方式、卸载项、版本号清理正确；用户数据 `%LOCALAPPDATA%\Shengjian` 保留

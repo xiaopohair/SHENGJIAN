@@ -534,6 +534,19 @@ pub fn set_button_listening(
     Ok(status)
 }
 
+/// 设备测试 / 首次配置按键测试：保留边沿与手势，但不执行当前方案动作。
+#[tauri::command]
+pub fn set_button_test_mode(state: State<'_, AppState>, enabled: bool) {
+    crate::platform::note(format!("button_test_mode enabled={enabled}"));
+    if enabled {
+        state.engine.buttons().set_suspended(true);
+        state.host.set_button_test_mode(true);
+    } else {
+        state.host.set_button_test_mode(false);
+        state.engine.buttons().set_suspended(false);
+    }
+}
+
 #[tauri::command]
 pub async fn list_audio_endpoints(
     state: State<'_, AppState>,

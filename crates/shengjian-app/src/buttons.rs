@@ -21,6 +21,8 @@ pub struct ButtonService {
     /// （静音按一下即取消、回车打两个）。小米走 Raw Input 时平台没有映射表，
     /// 必须由这里执行——所以按型号二选一（2026-11-19 真机回归）。
     platform_executes: AtomicBool,
+    /// 设备测试/首次配置按键测试：仍观察边沿与手势，但不执行方案动作。
+    suspended: AtomicBool,
 }
 
 impl ButtonService {
@@ -36,12 +38,24 @@ impl ButtonService {
             last_remote_move_at: Mutex::new(None),
             generation: AtomicU64::new(0),
             platform_executes: AtomicBool::new(false),
+            suspended: AtomicBool::new(false),
         }
     }
 
     /// 声明动作由平台注入层执行（Chromecast 旁路）。
     pub fn set_platform_executes(&self, enabled: bool) {
         self.platform_executes.store(enabled, Ordering::Relaxed);
+    }
+
+    /// 设备测试/首次配置按键测试：只观察边沿与手势，不执行动作。
+    ///
+    /// 与平台注入层的 `set_mapping_suspension` 配套使用，覆盖 Raw Input（core
+    /// 执行）与 helper 旁路（平台执行）两条路径；只影响内存态，不写设置。
+    pub fn set_suspended(&self, suspended: bool) {
+        if self.suspended.swap(suspended, Ordering::Relaxed) != suspended {
+            // 进入/退出测试时丢掉按住状态，避免测试里按住的键在退出后才触发。
+            self.reset();
+        }
     }
 
     pub fn snapshot(&self) -> ButtonMappingSet {
@@ -124,7 +138,7 @@ impl ButtonService {
     /// cursor and swallows the normal gesture. Injection failure falls back to
     /// the regular path (the user still gets the configured action).
     fn try_context_click(&self, button: LogicalButton, now_ms: u64) -> bool {
-        if button != LogicalButton::Ok {
+        if button != LogicalButton::Ok || self.suspended.load(Ordering::Relaxed) {
             return false;
         }
         let (enabled, context_click) = {
@@ -175,6 +189,10 @@ impl ButtonService {
                     gesture: gesture.clone(),
                 },
             );
+            // 测试模式：手势照常上报（清单/高亮仍可用），动作不执行。
+            if self.suspended.load(Ordering::Relaxed) {
+                continue;
+            }
             let action = self
                 .mappings
                 .lock()
@@ -211,5 +229,68 @@ impl ButtonService {
 
     fn current_generation(&self) -> shengjian_contract::Generation {
         self.generation.load(Ordering::SeqCst).into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ports::EventSink;
+    use shengjian_contract::{ButtonActions, EventEnvelope, LogicalAction, LogicalButton};
+    use std::sync::Mutex;
+
+    #[derive(Default)]
+    struct RecordingActions {
+        executed: Mutex<Vec<LogicalAction>>,
+    }
+
+    impl ActionSinkPort for RecordingActions {
+        fn execute(&self, action: &LogicalAction) -> CoreResult<()> {
+            self.executed
+                .lock()
+                .expect("recorded actions")
+                .push(action.clone());
+            Ok(())
+        }
+    }
+
+    struct NoopSink;
+
+    impl EventSink for NoopSink {
+        fn emit(&self, _envelope: EventEnvelope) {}
+    }
+
+    fn service_with_up_action(actions: Arc<RecordingActions>) -> ButtonService {
+        let service =
+            ButtonService::new(Arc::new(EventPublisher::new(Arc::new(NoopSink))), actions);
+        let mut mappings = ButtonMappingSet::default();
+        mappings.set_actions(
+            LogicalButton::Up,
+            ButtonActions {
+                single: LogicalAction::Shortcut {
+                    label: "W".to_owned(),
+                    keys: vec!["W".to_owned()],
+                },
+                ..ButtonActions::default()
+            },
+        );
+        service.set_mappings(mappings);
+        service
+    }
+
+    #[test]
+    fn suspended_service_observes_gestures_without_executing_actions() {
+        let actions = Arc::new(RecordingActions::default());
+        let service = service_with_up_action(Arc::clone(&actions));
+
+        service.set_suspended(true);
+        service.press(LogicalButton::Up, 100).unwrap();
+        service.release(LogicalButton::Up, 200).unwrap();
+        assert!(actions.executed.lock().unwrap().is_empty());
+
+        service.set_suspended(false);
+        service.press(LogicalButton::Up, 300).unwrap();
+        service.release(LogicalButton::Up, 400).unwrap();
+        assert_eq!(actions.executed.lock().unwrap().len(), 1);
     }
 }

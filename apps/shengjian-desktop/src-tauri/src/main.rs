@@ -251,6 +251,7 @@ fn main() {
             commands::device_status,
             commands::raw_input_status,
             commands::set_button_listening,
+            commands::set_button_test_mode,
             commands::common_phrases_document,
             commands::save_common_phrases,
             commands::open_common_phrases_panel,

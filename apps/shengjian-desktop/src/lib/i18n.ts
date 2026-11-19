@@ -1045,7 +1045,10 @@ const ENGLISH = {
   跳过语音测试: "Skip voice test",
   按键测试: "Button test",
   设备测试: "Device test",
-  "只用于测试，不会修改任何设置": "Test only; no settings are changed",
+  "只用于测试，不会修改设置，也不会触发方案动作":
+    "For testing only: settings and profile actions are not triggered",
+  "请依次按下遥控器上的各个键，检测按键是否可用；测试期间不会执行当前方案的快捷键或宏。":
+    "Press each remote button to check it; the current profile's shortcuts and macros are not executed during the test.",
   识别内容: "Recognized text",
   "说完话后这里会显示识别内容。": "Recognized text appears here after you finish speaking.",
   在应用内测试: "Test inside the app",

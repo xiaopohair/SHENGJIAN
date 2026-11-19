@@ -72,6 +72,14 @@ export async function setButtonListening(enabled: boolean): Promise<RawInputStat
   return invoke<RawInputStatus>("set_button_listening", { enabled });
 }
 
+/**
+ * 按键测试模式：保留边沿/手势事件，但不执行当前方案的动作。
+ * 设备测试面板和首次配置的按键步骤用它避免“测试时触发了真实快捷键”。
+ */
+export async function setButtonTestMode(enabled: boolean): Promise<void> {
+  return invoke<void>("set_button_test_mode", { enabled });
+}
+
 export async function getDeviceSupport(): Promise<DeviceSupport[]> {
   return invoke<DeviceSupport[]>("device_support");
 }

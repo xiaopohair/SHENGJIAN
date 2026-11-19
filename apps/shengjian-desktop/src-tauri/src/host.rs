@@ -98,6 +98,8 @@ pub trait HostPlatform: Send + Sync {
         enabled: bool,
         capture_enabled: bool,
     ) -> Result<RawInputStatus, HostError>;
+    /// 设备测试/首次配置按键测试：平台注入层只观察、不执行方案动作。
+    fn set_button_test_mode(&self, enabled: bool);
 
     fn set_enhanced_capture_enabled(&self, enabled: bool);
     /// 当前输入工具：传 `config/voice-tool-presets.json` 里的 **id**（`None` = 未选择）。

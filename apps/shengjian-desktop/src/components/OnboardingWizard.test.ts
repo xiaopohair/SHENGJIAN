@@ -21,6 +21,7 @@ vi.mock("../lib/api", () => ({
   scanRemotes: vi.fn(),
   connectRemote: vi.fn(),
   disconnectRemote: vi.fn(),
+  setButtonTestMode: vi.fn(async () => undefined),
 }));
 
 import * as api from "../lib/api";
@@ -145,6 +146,7 @@ describe("OnboardingWizard step test gates", () => {
     // step 4: 必须检测到全部按键；文案使用“全按键支持服务”
     expect(primaryButton(wrapper).attributes("disabled")).toBeDefined();
     expect(wrapper.text()).toContain("启用全按键支持服务");
+    expect(api.setButtonTestMode).toHaveBeenCalledWith(true);
     expect(wrapper.text()).toContain(
       "返回键和音量键需要安装全按键支持服务并开启才能使用；首次安装会请求管理员授权。",
     );

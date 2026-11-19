@@ -25,6 +25,7 @@ import {
   voiceTestPadText,
 } from "../lib/api";
 import { tr, trDynamic } from "../lib/i18n";
+import { enterButtonTestMode, leaveButtonTestMode } from "../lib/buttonTestMode";
 import { profileButtonsForModel } from "../lib/buttons";
 import { useEngineStore } from "../stores/engine";
 import ButtonCheckList from "./ButtonCheckList.vue";
@@ -241,6 +242,8 @@ onMounted(() => {
   // 打开面板后才开始计数：之前的历史事件不算本次测试。
   voiceBaseline.value = latestVoiceSeq();
   buttonBaseline = store.buttonHistory[store.buttonHistory.length - 1]?.seq ?? 0;
+  // 测试面板是只读的：按键仍进事件流，但不能触发当前方案的真实动作。
+  void enterButtonTestMode();
   window.addEventListener("focus", onWindowFocus);
   window.addEventListener("blur", onWindowBlur);
   document.addEventListener("pointerdown", onPointerDown, true);
@@ -272,6 +275,7 @@ function onWindowBlur() {
 }
 
 onUnmounted(() => {
+  void leaveButtonTestMode();
   window.removeEventListener("focus", onWindowFocus);
   window.removeEventListener("blur", onWindowBlur);
   document.removeEventListener("pointerdown", onPointerDown, true);
@@ -309,7 +313,7 @@ watch(
   <DialogShell
     title="设备测试"
     title-id="device-test-title"
-    :subtitle="tr('只用于测试，不会修改任何设置')"
+    :subtitle="tr('只用于测试，不会修改设置，也不会触发方案动作')"
     width="min(660px, 100%)"
     content-height="360px"
     @close="close"

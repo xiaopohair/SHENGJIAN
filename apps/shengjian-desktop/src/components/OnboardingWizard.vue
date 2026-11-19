@@ -24,6 +24,7 @@ import {
 import { profileButtonsForModel } from "../lib/buttons";
 import { deviceProductNameKey } from "../lib/deviceProduct";
 import { supportsKeyEnhancement } from "../lib/keyEnhancement";
+import { enterButtonTestMode, leaveButtonTestMode } from "../lib/buttonTestMode";
 import { statusLabel, tr, trDynamic } from "../lib/i18n";
 import { pushToast } from "../lib/toast";
 import { useModalFocus } from "../composables/useModalFocus";
@@ -235,9 +236,15 @@ function resetButtonCheck() {
   detectedButtons.value = [];
 }
 
-watch(step, (value) => {
+watch(step, (value, previous) => {
   if (value === 3) voiceFailure.value = false;
-  if (value === 4) resetButtonCheck();
+  if (value === 4) {
+    resetButtonCheck();
+    // 按键测试只观察：不能触发当前方案的真实快捷键/宏。
+    void enterButtonTestMode();
+  } else if (previous === 4) {
+    void leaveButtonTestMode();
+  }
 });
 
 watch(
@@ -401,6 +408,7 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  void leaveButtonTestMode();
   window.clearInterval(helperPoll);
 });
 </script>
@@ -551,7 +559,13 @@ onUnmounted(() => {
       <div v-else-if="step === 4" class="wizard-body">
         <span class="step-icon"><Keyboard :size="26" /></span>
         <h2>{{ tr("检测遥控器按键") }}</h2>
-        <p class="step-lead">{{ tr("请依次按下遥控器上的各个键，检测按键是否可用。") }}</p>
+        <p class="step-lead">
+          {{
+            tr(
+              "请依次按下遥控器上的各个键，检测按键是否可用；测试期间不会执行当前方案的快捷键或宏。",
+            )
+          }}
+        </p>
 
         <div class="wizard-panel stack-sm">
           <ButtonCheckList :buttons="buttonChecklist" />
