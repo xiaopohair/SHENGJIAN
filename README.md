@@ -24,15 +24,15 @@
 
 ## 当前状态
 
-- 版本：`0.9.6`（0.9.6 新增应用内自动更新；0.9.4 新增 Google Chromecast TV Remote 支持；0.9.5 修复 0.9.4 的两处语音全局失效——后台组件误吞 3 字节 I/O、微信输入法被排到虚拟键盘路径）
+- 版本：`0.9.7`（0.9.7 修复按键测试触发方案动作；0.9.6 新增应用内自动更新；0.9.4 新增 Google Chromecast TV Remote 支持；0.9.5 修复 0.9.4 的两处语音全局失效——后台组件误吞 3 字节 I/O、微信输入法被排到虚拟键盘路径）
 - 已支持设备：RC003（小米蓝牙语音遥控器 2 Pro）、RC001（小米蓝牙语音遥控器 2）、ARN9（小米蓝牙语音遥控器）、
   **Google Chromecast TV Remote**（型号 `CHROMECAST`，14 键）；Windows x64
-- GitHub Release 0.9.6：<https://github.com/xiaopohair/SHENGJIAN/releases/tag/v0.9.6>（CI 构建、未签名），
-  安装包 `shengjian_0.9.6_x64-setup.exe`、便携包 `shengjian_0.9.6_x64-portable.zip`；校验值以 Release 内的 `SHA256SUMS` 为准
+- GitHub Release 0.9.7：<https://github.com/xiaopohair/SHENGJIAN/releases/tag/v0.9.7>（CI 构建、未签名），
+  安装包 `shengjian_0.9.7_x64-setup.exe`、便携包 `shengjian_0.9.7_x64-portable.zip`；校验值以 Release 内的 `SHA256SUMS` 为准
 - 代码签名：已接入 **SignPath Foundation** 免费开源签名（release workflow 内置，配置后自动启用）；见 [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md) 与 [docs/signing.md](docs/signing.md)
 - 真机已验证：RC003（连接、语音、按键手势、方案自动切换、运行宏、返回键增强捕获）；ARN9（连接、ATVV 语音链路、导航键、音量/返回增强捕获）；RC001（GATT 身份、12 键布局含 TV、两次真实语音会话、TV 键唤起常用语面板）；Chromecast（连接、14 键映射与注入、ATVV 语音 16 kHz、静音 / 音量 / 回车、配对指南与方案页热区）
 - 本地发布清单：`release/<version>/manifest.json`（本地构建时生成，线上资产以 Release 为准）
-- 发布说明：`docs/release-notes-0.9.6.md`；0.9.5 的事故复盘见 `docs/release-notes-0.9.5.md`
+- 发布说明：`docs/release-notes-0.9.7.md`；0.9.6 的自动更新说明与 0.9.5 的事故复盘见对应 release notes
 - GitHub 仓库已创建并推送：<https://github.com/xiaopohair/SHENGJIAN>；发布由 `v*` tag 触发的 Release workflow 生成
 - 自动更新（0.9.6 起）：安装版启动后自动检查 GitHub Releases，发现新版本可在后台下载安装包，校验 SHA-256 后由用户确认重启安装；便携版与开发版不支持应用内升级，仍需手动下载。0.9.5 及更早版本没有更新器，升级到 0.9.6 仍需手动安装一次
 
@@ -146,7 +146,7 @@ pnpm build:installer
 
 `pnpm build:installer` = `tauri build` + 文件名归一化。Tauri 会先按 `productName` 产出 `声键_<version>_x64-setup.exe`，随后 `scripts/normalize-installer-name.ps1` 把它改名为 ASCII 小写的发布文件名：
 
-`apps/shengjian-desktop/src-tauri/target/release/bundle/nsis/shengjian_0.9.6_x64-setup.exe`
+`apps/shengjian-desktop/src-tauri/target/release/bundle/nsis/shengjian_0.9.7_x64-setup.exe`
 
 只跑 `pnpm tauri build` 也能构建，但产出的是中文文件名；发布、CI 与下载链接统一用 `shengjian_<version>_x64-setup.exe`。
 
@@ -206,7 +206,7 @@ Chromecast 只是**读取按键**，不需要「全按键支持」开关；它�
 - 根 workspace：`cargo fmt --all -- --check`、`cargo check --workspace`、`cargo test --workspace` 通过（**789 passed**）；`cargo clippy --workspace --all-targets` 0 error
 - 桌面 Rust：`cargo fmt -- --check`、`cargo test` 通过（**28 passed，2 ignored**；两个 ignored 是需要真实 GitHub 网络的更新烟测）
 - 桌面前端：`pnpm lint`、`pnpm format:check`、`pnpm exec vitest run`（**254 passed**）、`pnpm build`、`pnpm config:check` 通过
-- 本地构建：安装包按 `productName` 生成后由 `scripts/normalize-installer-name.ps1` 归一化；本版本发布包由 CI 产出（`shengjian_0.9.6_x64-setup.exe`），`prepare-release.ps1` / `verify-release.ps1` 流程未改动
+- 本地构建：安装包按 `productName` 生成后由 `scripts/normalize-installer-name.ps1` 归一化；本版本发布包由 CI 产出（`shengjian_0.9.7_x64-setup.exe`），`prepare-release.ps1` / `verify-release.ps1` 流程未改动
 - 自动更新：Release manifest 拉取、约 13 MB 安装包下载与 SHA-256 校验已实测；2026-11-19 用发布资产完成 0.9.5 → 0.9.6 覆盖安装，`/P /UPDATE /R` 重启后版本为 0.9.6，安装版被正确识别为可自动升级环境
 - 真机安装 / 启动 / 卸载：安装目录、快捷方式、卸载项、版本号清理正确；用户数据 `%LOCALAPPDATA%\Shengjian` 保留
 - 安装向导：欢迎页侧栏、页头品牌图、中文界面与「声键 安装」标题正常
@@ -232,20 +232,20 @@ Chromecast 只是**读取按键**，不需要「全按键支持」开关；它�
 ## 本地发布
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1 -Version 0.9.6
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -Version 0.9.6
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1 -Version 0.9.7
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -Version 0.9.7
 ```
 
 两个脚本从 `src-tauri/tauri.conf.json` 读取 `productName` 再拼安装包路径，品牌改名后不需要改脚本。
 `prepare-release.ps1` 写 `release/<version>/manifest.json`（`version` / `file` / `sizeBytes` / `sha256` /
 `builtAtUtc` / `signed`），`verify-release.ps1` 用它逐项比对本地安装包。
 
-GitHub Release 0.9.6（CI 构建）：
+GitHub Release 0.9.7（CI 构建）：
 
 ```text
-version=0.9.6
-installer=shengjian_0.9.6_x64-setup.exe
-portable=shengjian_0.9.6_x64-portable.zip
+version=0.9.7
+installer=shengjian_0.9.7_x64-setup.exe
+portable=shengjian_0.9.7_x64-portable.zip
 sha256/size：见 Release 内的 SHA256SUMS 与 manifest.json
 signed=false
 ```
@@ -268,7 +268,7 @@ signed=false
 - 安全说明：[SECURITY.md](SECURITY.md)
 - 发布流程：[docs/release-process.md](docs/release-process.md)
 
-仓库已推送至 <https://github.com/xiaopohair/SHENGJIAN>；Release 列表：<https://github.com/xiaopohair/SHENGJIAN/releases>（最新已发布 `v0.9.6`）。
+仓库已推送至 <https://github.com/xiaopohair/SHENGJIAN>；Release 列表：<https://github.com/xiaopohair/SHENGJIAN/releases>（最新已发布 `v0.9.7`）。
 
 ## 已知限制
 

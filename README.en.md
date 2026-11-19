@@ -24,13 +24,13 @@ Brand positioning, slogan, logo, and visual guidelines: [brand/BRAND.md](brand/B
 
 ## Current status
 
-- Version: `0.9.6` (0.9.6 adds in-app auto-update; 0.9.4 added the Google Chromecast TV Remote; 0.9.5 fixes two global voice regressions introduced in 0.9.4 — the helper agent swallowed every 3-byte I/O, and the WeChat IME was routed to the virtual-keyboard path)
+- Version: `0.9.7` (0.9.7 fixes the button test executing profile actions; 0.9.6 adds in-app auto-update; 0.9.4 added the Google Chromecast TV Remote; 0.9.5 fixes two global voice regressions introduced in 0.9.4 — the helper agent swallowed every 3-byte I/O, and the WeChat IME was routed to the virtual-keyboard path)
 - Supported devices: RC003 (Xiaomi Bluetooth Voice Remote 2 Pro), RC001 (Xiaomi Bluetooth Voice Remote 2), ARN9 (Xiaomi Bluetooth Voice Remote), **Google Chromecast TV Remote** (model `CHROMECAST`, 14 keys); Windows x64
-- GitHub Release 0.9.6: <https://github.com/xiaopohair/SHENGJIAN/releases/tag/v0.9.6> (CI-built, unsigned); installer `shengjian_0.9.6_x64-setup.exe`, portable `shengjian_0.9.6_x64-portable.zip`; verify with the `SHA256SUMS` asset in the release
+- GitHub Release 0.9.7: <https://github.com/xiaopohair/SHENGJIAN/releases/tag/v0.9.7> (CI-built, unsigned); installer `shengjian_0.9.7_x64-setup.exe`, portable `shengjian_0.9.7_x64-portable.zip`; verify with the `SHA256SUMS` asset in the release
 - Code signing: integrated with **SignPath Foundation** free open-source signing (built into the release workflow; enables automatically once configured); see [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md) and [docs/signing.md](docs/signing.md)
 - Verified on physical devices: RC003 (connection, voice, button gestures, automatic profile switching, Run macro, enhanced Back-key capture); ARN9 (connection, ATVV voice link, navigation keys, volume/Back capture); RC001 (GATT identity, 12-key layout incl. TV, two live voice sessions, TV key opens the common-phrases panel); Chromecast (connection, all 14 keys mapped and injected, ATVV voice at 16 kHz, mute / volume / Enter, pairing guide and profile-page hotspots)
 - Local release manifest: `release/<version>/manifest.json` (produced by a local build; the release asset is authoritative)
-- Release notes: `docs/release-notes-0.9.6.md`; the 0.9.5 post-mortem is in `docs/release-notes-0.9.5.md`
+- Release notes: `docs/release-notes-0.9.7.md`; 0.9.6 auto-update notes and the 0.9.5 post-mortem are in their release notes
 - GitHub repository: <https://github.com/xiaopohair/SHENGJIAN>; releases are produced by the Release workflow triggered by `v*` tags
 - Auto-update (introduced in 0.9.6): the installed build checks GitHub Releases automatically, downloads the installer in the background, verifies its SHA-256, and installs after the user confirms a restart; portable and development builds still update manually. Versions up to 0.9.5 have no updater, so 0.9.6 must still be installed manually once
 
@@ -144,7 +144,7 @@ pnpm build:installer
 
 `pnpm build:installer` builds the elevated helper first, then runs `tauri build`, then normalizes the filename. Tauri first produces `声键_<version>_x64-setup.exe` from `productName`; `scripts/normalize-installer-name.ps1` then renames it to the ASCII lowercase release filename:
 
-`apps/shengjian-desktop/src-tauri/target/release/bundle/nsis/shengjian_0.9.6_x64-setup.exe`
+`apps/shengjian-desktop/src-tauri/target/release/bundle/nsis/shengjian_0.9.7_x64-setup.exe`
 
 Building the helper first matters: the installer copies `helper/hid-host/target/release/shengjian-helper.exe`, so skipping that step silently ships a stale helper.
 
@@ -203,7 +203,7 @@ Details: [docs/hid-host-setup.md](docs/hid-host-setup.md), [docs/chromecast-remo
 - Root workspace: `cargo fmt --all -- --check`, `cargo check --workspace`, `cargo test --workspace` pass (**789 passed**); `cargo clippy --workspace --all-targets` reports 0 errors
 - Desktop Rust: `cargo fmt -- --check`, `cargo test` pass (**28 passed, 2 ignored**; the two ignored tests are network smoke tests against GitHub Releases)
 - Desktop frontend: `pnpm lint`, `pnpm format:check`, `pnpm exec vitest run` (**254 passed**), `pnpm build`, `pnpm config:check` pass
-- Local build: the installer is produced from `productName` and normalized by `scripts/normalize-installer-name.ps1`; this release was built by CI (`shengjian_0.9.6_x64-setup.exe`), and the `prepare-release.ps1` / `verify-release.ps1` flow is unchanged
+- Local build: the installer is produced from `productName` and normalized by `scripts/normalize-installer-name.ps1`; this release was built by CI (`shengjian_0.9.7_x64-setup.exe`), and the `prepare-release.ps1` / `verify-release.ps1` flow is unchanged
 - Auto-update: release manifest fetch, ~13 MB installer download, and SHA-256 verification are tested; on 2026-11-19 the published assets were used for a 0.9.5 → 0.9.6 overwrite install, and `/P /UPDATE /R` relaunched 0.9.6 with the installed build correctly recognized as auto-updatable
 - Physical install / launch / uninstall: install directory, shortcuts, uninstall entry, and version cleanup are correct; user data `%LOCALAPPDATA%\Shengjian` is preserved
 - Installer wizard: welcome sidebar, header brand image, Chinese UI, and the “声键 安装” title are correct
@@ -229,20 +229,20 @@ Details: [docs/hid-host-setup.md](docs/hid-host-setup.md), [docs/chromecast-remo
 ## Local release
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1 -Version 0.9.6
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -Version 0.9.6
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1 -Version 0.9.7
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -Version 0.9.7
 ```
 
 Both scripts read `productName` from `src-tauri/tauri.conf.json` and then assemble the installer path, so renaming the brand does not require script changes.
 `prepare-release.ps1` writes `release/<version>/manifest.json` (`version` / `file` / `sizeBytes` / `sha256` /
 `builtAtUtc` / `signed`); `verify-release.ps1` checks the local installer against it.
 
-GitHub Release 0.9.6 (CI build):
+GitHub Release 0.9.7 (CI build):
 
 ```text
-version=0.9.6
-installer=shengjian_0.9.6_x64-setup.exe
-portable=shengjian_0.9.6_x64-portable.zip
+version=0.9.7
+installer=shengjian_0.9.7_x64-setup.exe
+portable=shengjian_0.9.7_x64-portable.zip
 sha256/size: see the SHA256SUMS and manifest.json assets in the release
 signed=false
 ```
@@ -266,7 +266,7 @@ Route: **public repository, x64, in-app auto-update for the installed build, man
 - Security: [SECURITY.md](SECURITY.md)
 - Release process: [docs/release-process.md](docs/release-process.md)
 
-The repository has been pushed to <https://github.com/xiaopohair/SHENGJIAN>; releases: <https://github.com/xiaopohair/SHENGJIAN/releases> (`v0.9.6` is the latest published).
+The repository has been pushed to <https://github.com/xiaopohair/SHENGJIAN>; releases: <https://github.com/xiaopohair/SHENGJIAN/releases> (`v0.9.7` is the latest published).
 
 ## Known limitations
 

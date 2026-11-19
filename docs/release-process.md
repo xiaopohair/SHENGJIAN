@@ -23,8 +23,8 @@ cd apps/shengjian-desktop
 pnpm tauri build
 
 cd ../..
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1 -Version 0.9.6
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -Version 0.9.6
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1 -Version 0.9.7
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -Version 0.9.7
 ```
 
 安装包先由 Tauri 按 `productName` 产出 `声键_<version>_x64-setup.exe`，再由
@@ -35,7 +35,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -
 
 产物：
 
-- `release/0.9.6/manifest.json`
+- `release/0.9.7/manifest.json`
 - 安装包位于 Tauri `target` 目录，不复制进仓库
 
 > 本地 `prepare-release.ps1` **只写 `manifest.json`**，不写 `SHA256SUMS`。
@@ -81,7 +81,7 @@ pnpm build:portable
 
 ```powershell
 Get-AuthenticodeSignature "apps/shengjian-desktop/src-tauri/target/release/shengjian-desktop.exe"
-Get-AuthenticodeSignature "apps/shengjian-desktop/src-tauri/target/release/bundle/nsis/shengjian_0.9.6_x64-setup.exe"
+Get-AuthenticodeSignature "apps/shengjian-desktop/src-tauri/target/release/bundle/nsis/shengjian_0.9.7_x64-setup.exe"
 ```
 
 ## GitHub 仓库
@@ -91,7 +91,7 @@ Get-AuthenticodeSignature "apps/shengjian-desktop/src-tauri/target/release/bundl
 ```powershell
 git remote add origin https://github.com/xiaopohair/SHENGJIAN.git
 git push -u origin main
-git push origin v0.9.6
+git push origin v0.9.7
 ```
 
 也可以使用 SSH：`git@github.com:xiaopohair/SHENGJIAN.git`。
@@ -169,8 +169,8 @@ CI 会重新生成同名文件并上传，所以仓库版本与线上资产可�
 推荐由 tag 触发 `.github/workflows/release.yml`：
 
 ```powershell
-git tag v0.9.6
-git push origin v0.9.6
+git tag v0.9.7
+git push origin v0.9.7
 ```
 
 workflow 会：
@@ -186,10 +186,10 @@ workflow 会：
 
 也可手工上传 Release 资产：
 
-- `shengjian_0.9.6_x64-setup.exe`
-- `shengjian_0.9.6_x64-portable.zip`
-- `release/0.9.6/manifest.json`
-- `release/0.9.6/portable-manifest.json`
+- `shengjian_0.9.7_x64-setup.exe`
+- `shengjian_0.9.7_x64-portable.zip`
+- `release/0.9.7/manifest.json`
+- `release/0.9.7/portable-manifest.json`
 - `SHA256SUMS`（手工发布时需要自己生成，本地脚本不产此文件）
 - `LICENSE`
 - `ATTRIBUTION.md`
@@ -197,7 +197,7 @@ workflow 会：
 - `brand/LICENSE-OFL.txt`
 - `helper/hid-host/vendor/frida-gadget-COPYING`
 
-Release 正文来自 `docs/release-notes-<version>.md`（0.9.6 为 [release-notes-0.9.6.md](release-notes-0.9.6.md)）。
+Release 正文来自 `docs/release-notes-<version>.md`（0.9.7 为 [release-notes-0.9.7.md](release-notes-0.9.7.md)）。
 正文在 tag 推送时就已定型，之后修改需用 `gh release edit` 同步，见[发布说明与 SHA-256](#发布说明与-sha-256)。
 
 ## 发布前检查

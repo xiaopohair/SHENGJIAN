@@ -2,7 +2,7 @@
 
 声键（SHENGJIAN）的 Windows 桌面宿主：Tauri 2 + Vue 3，in-process 使用 core。
 
-当前版本：**0.9.6**
+当前版本：**0.9.7**
 状态：已通过 GitHub Release 发布（CI 构建、未签名）；安装版支持应用内自动更新（检查 → 后台下载 → SHA-256 校验 → 确认后重启安装），便携版与开发版手动更新。0.9.5 及更早版本没有更新器，升级到 0.9.6 仍需手动安装一次。
 已支持设备：RC003（小米蓝牙语音遥控器 2 Pro）、RC001（小米蓝牙语音遥控器 2）、ARN9（小米蓝牙语音遥控器）、Google Chromecast TV Remote；Windows x64。
 
@@ -21,7 +21,7 @@ pnpm lint
 pnpm format:check
 pnpm test
 pnpm build
-# 需要已安装当前版本（0.9.6）；会重启桌面进程并通过 WebView2 CDP 跑真实安装包 E2E（安装路径从 tauri.conf.json 的 productName 派生）
+# 需要已安装当前版本（0.9.7）；会重启桌面进程并通过 WebView2 CDP 跑真实安装包 E2E（安装路径从 tauri.conf.json 的 productName 派生）
 pnpm test:e2e
 
 cd src-tauri
