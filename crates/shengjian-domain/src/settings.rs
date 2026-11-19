@@ -306,7 +306,7 @@ mod tests {
         assert!(settings.close_to_tray);
     }
 
-    /// 自动检查 / 自动下载是 0.10.0 新增的字段，老配置没有时必须按"开启"落默认：
+    /// 自动检查 / 自动下载是 0.9.6 新增的字段，老配置没有时必须按"开启"落默认：
     /// 用户升级后不用再手动打开，才叫自动更新。
     #[test]
     fn update_preferences_default_on_and_round_trip() {

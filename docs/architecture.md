@@ -61,7 +61,7 @@ helper/hid-host
 - `shengjian-windows` 仍保留其原有平台内部结构（`WindowsPlatform`、`ble.rs`、`audio.rs` 等），adapter 只做翻译，不重写平台逻辑。
 - `helper/hid-host` 是独立 workspace，不参与顶层 `cargo test --workspace`；它只通过原有的桥接/计划任务边界与平台层交互。
 - 桌面外壳在 `apps/shengjian-desktop`（Tauri 2 + Vue 3），通过 `HostPlatform` 使用 core；core 不依赖 Tauri/Vue/Windows UI。
-- 自动更新也归桌面外壳：前端检查 GitHub Releases / 展示状态，`src-tauri/src/updater.rs` 取 Release manifest、下载并校验 SHA-256，安装交给 NSIS 的 `/UPDATE /R`；core 不感知更新，也没有引入 Tauri updater 插件或第二把签名密钥。
+- 自动更新也归桌面外壳：前端检查 GitHub Releases / 展示状态，`src-tauri/src/updater.rs` 取 Release manifest、下载并校验 SHA-256，安装交给 NSIS 的 `/UPDATE /R`；安装包落在 `%LOCALAPPDATA%\Shengjian\Updates`，core 不感知更新，也没有引入 Tauri updater 插件或第二把签名密钥。
 - `apps/shengjian-windows-host` 是 headless 宿主：start live engine、scan/run、JSON 事件、legacy settings/mappings/profiles 迁移；`run --profiles` 每 500ms 检测前台变化，仅在 profile 变化时重应用映射。它依赖 core，反向不允许。
 - `WindowsRemoteLink` 在 adapter 内部保留平台 device path，contract 的 `RemoteId` 只暴露 opaque token；core 事件不含蓝牙地址，raw-input 诊断只记录路径存在性。
 - `ButtonProfilesStorePort` / `ButtonMappingStorePort` 负责 core 按键配置持久化；`live_core_engine` 启动自动加载，`set_button_mappings` / `set_button_profiles` / 手动激活时写回；显式导入默认 transient，需显式持久化。

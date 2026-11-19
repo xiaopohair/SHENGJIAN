@@ -797,7 +797,7 @@ const ENGLISH = {
   "已是最新版本。": "You are up to date.",
   "暂无可用的发布版本。": "No release is available.",
   "检查更新失败：{message}": "Update check failed: {message}",
-  // 自动更新（0.10.0）：检查 → 后台下载 → 校验 → 确认后重启安装。
+  // 自动更新（0.9.6）：检查 → 后台下载 → 校验 → 确认后重启安装。
   软件更新: "Software updates",
   自动检查更新: "Check for updates automatically",
   自动下载更新: "Download updates automatically",

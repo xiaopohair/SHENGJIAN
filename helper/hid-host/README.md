@@ -1,19 +1,23 @@
-# RC003 enhanced-capture helper
+# hid-host（全按键支持 helper）
 
-RC003 增强捕获轨（Return/音量键完整捕获）的独立提权 helper，迁移自原始 Windows 实现。
+Windows 提权助手：小米遥控器返回键/音量± 的增强捕获、Chromecast 在 HOGP 驱动进程内的
+按键报告读取与转发，以及虚拟键盘（WinUHid）和驱动管理。迁移自原始 Windows 实现。
 
 ## 构建
 
 ```powershell
 cd helper/hid-host
-cargo build
+cargo build --release
 ```
 
-产物：`target/debug/shengjian-helper.exe`。
+产物：`target/release/shengjian-helper.exe`。
 
 ## 运行边界
 
-- 独立 Cargo workspace，不参与顶层 `cargo test --workspace`。
-- 只负责需要管理员权限的增强捕获；基础语音/按键路径不得依赖它。
-- 安装/卸载/计划任务脚本仍沿用原始 helper 的脚本边界，只是二进制名和内部标识改为 `shengjian-*`。
-- E1–E6 真机验收尚未全部完成，保持 spike 状态。
+- 独立 Cargo workspace，不参与顶层 `cargo test --workspace`；在 `helper/hid-host` 内单独跑
+  `cargo test`。
+- 只负责需要管理员权限或必须进入驱动进程的能力；基础语音路径不依赖它。
+- 计划任务名 `Shengjian HID Host`；安装/卸载/重启用 `--install-task` / `--remove-task`，
+  桌面端入口在「设置 → 音频及语音」。
+- 资源与安装步骤见 [docs/hid-host-setup.md](../../docs/hid-host-setup.md)；
+  自动更新时安装包 preinstall hook 会先停任务并挪开被占用的 exe/dll。

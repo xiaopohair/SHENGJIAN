@@ -3,7 +3,7 @@
 一个文件 = 一条推荐方案，文件名必须等于方案 id（`preset.` 前缀）。
 
 ```text
-catalog.json                      { "schemaVersion": 1, "bundleVersion": "2026.11.3" }
+catalog.json                      { "schemaVersion": 1, "bundleVersion": "2026.11.19" }
 preset.wechat.json                { "id": "preset.wechat", ... }
 preset.wps.presentation.json      { "id": "preset.wps.presentation", ... }
 ```

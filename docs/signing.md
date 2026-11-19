@@ -89,7 +89,7 @@ Artifact configuration 会校验 `ProductVersion`、`FileVersion`，并给 PE �
 Get-AuthenticodeSignature "apps/shengjian-desktop/src-tauri/target/release/shengjian-desktop.exe" |
   Format-List Status, StatusMessage, SignerCertificate
 
-Get-AuthenticodeSignature "apps/shengjian-desktop/src-tauri/target/release/bundle/nsis/shengjian_0.3.0_x64-setup.exe" |
+Get-AuthenticodeSignature "apps/shengjian-desktop/src-tauri/target/release/bundle/nsis/shengjian_0.9.6_x64-setup.exe" |
   Format-List Status, StatusMessage, SignerCertificate
 ```
 
@@ -97,11 +97,21 @@ Get-AuthenticodeSignature "apps/shengjian-desktop/src-tauri/target/release/bundl
 
 未签名构建的 `Status` 是 `NotSigned`，属于预期。
 
+## 自动更新与签名（0.9.6 起）
+
+- 安装版应用内更新会从 GitHub Release 读取 `manifest.json`、下载 NSIS 安装包，并按 manifest 的
+  `sizeBytes` / `sha256` 校验；**目前不校验安装包的 Authenticode 签名**。
+- 启用 SignPath 后，release workflow 先签 app exe 与安装包，再生成 `manifest.json` / `SHA256SUMS`，
+  所以自动更新拿到的哈希对应的是已签名产物；签名仍主要服务于手动下载和 SmartScreen 信任。
+- 如果需要“即使 GitHub Release 被替换也不能安装未签名包”的保证，需要在更新器里加入
+  Authenticode 校验或独立更新签名密钥；当前范围与后续计划见
+  [release-process.md](release-process.md#应用内自动更新)。
+
 ## 说明与预期
 
 - **SmartScreen 不是签完立刻消失**：从 2024 起微软取消了 EV 证书的即时信誉，OV/EV 都要按发布累积；
   SignPath 签发的是 OV 级别证书，前几个版本仍可能提示，持续用同一身份签名会逐步建立信誉。
 - 签名不改变安装包内容与行为，只增加签名块；`SHA256SUMS` 在签名完成后生成。
 - 不要把 API token 写进仓库或日志；token 只放在 GitHub secret 中，且只对需要的项目授权。
-- 首次申请需要说明 RC003 helper 与随包分发的 Frida gadget（开源上游组件，用于全按键支持捕获，
-  不是漏洞利用工具）；公开政策里已经写明系统改动与隐私边界。
+- 首次申请需要说明 `hid-host` 助手（全按键支持/增强捕获）与随包分发的 Frida gadget、WinUHid
+  （开源上游组件，不是漏洞利用工具）；公开政策里已经写明系统改动与隐私边界。

@@ -47,6 +47,9 @@ Vue UI
   - helper 状态/安装/启动
   - 诊断日志目录
   - 平台诊断事件
+- 应用内自动更新目前是 Windows 桌面宿主专属：`apps/shengjian-desktop/src-tauri/src/updater.rs`
+  负责 GitHub Release manifest / 下载 / SHA-256 校验，安装交给 NSIS `/UPDATE /R`；它不在 core，
+  也不进入 `HostPlatform`。新平台需要自己的安装/更新实现。
 
 ## 后续平台接入
 
@@ -77,7 +80,7 @@ apps/shengjian-desktop/src-tauri/src/platform/macos.rs
 
 ### UI 能力化
 
-Windows 专属入口（RC003 增强捕获/helper）应由 capability 控制，而不是硬编码显示。
+Windows 专属入口（全按键支持 helper / 增强捕获）应由 capability 控制，而不是硬编码显示。
 
 ### 暂不做
 
@@ -91,3 +94,4 @@ Windows 专属入口（RC003 增强捕获/helper）应由 capability 控制，�
 - 桌面宿主仍然只能编译 Windows；`platform/mod.rs` 目前对非 Windows 明确报错
 - macOS/Linux adapter 尚未实现
 - 宏库路径、helper、托盘/自启动仍需按平台补实现或能力降级
+- 自动更新依赖 Windows NSIS 与 `/UPDATE /R`；新平台需单独设计更新包与签名策略

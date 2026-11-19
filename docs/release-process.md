@@ -5,7 +5,8 @@
 - GitHub 公共仓库（GPL-3.0-only）
 - 只发 **x64**
 - 本地包**未签名**；CI 配置 SignPath 后由 workflow 签名
-- 安装版支持应用内自动更新（检查 → 后台下载 → SHA-256 校验 → 确认后重启安装）；便携版手动下载
+- 安装版支持应用内自动更新（0.9.6 起；检查 → 后台下载 → SHA-256 校验 → 确认后重启安装）；便携版手动下载
+- 0.9.5 及更早版本没有更新器，升级到 0.9.6 需手动安装一次；从 0.9.6 起后续版本可自动升级
 - helper/gadget 随包分发，首次启用需要一次 UAC
 - 卸载会清理 helper 计划任务
 
@@ -22,8 +23,8 @@ cd apps/shengjian-desktop
 pnpm tauri build
 
 cd ../..
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1 -Version 0.3.0
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -Version 0.3.0
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1 -Version 0.9.6
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -Version 0.9.6
 ```
 
 安装包先由 Tauri 按 `productName` 产出 `声键_<version>_x64-setup.exe`，再由
@@ -34,7 +35,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1 -
 
 产物：
 
-- `release/0.3.0/manifest.json`
+- `release/0.9.6/manifest.json`
 - 安装包位于 Tauri `target` 目录，不复制进仓库
 
 > 本地 `prepare-release.ps1` **只写 `manifest.json`**，不写 `SHA256SUMS`。
@@ -62,7 +63,7 @@ pnpm build:portable
 
 `scripts/build-portable.ps1 -SkipBuild` 可跳过构建、直接复用 `target/release/shengjian-desktop.exe`，
 适合 CI 在签名后组装便携包。便携版依赖系统 WebView2 Runtime；设置、宏、历史与日志仍写入
-`%LOCALAPPDATA%\Shengjian`。RC003 helper 的计划任务指向便携目录，移动目录后需要重新安装；
+`%LOCALAPPDATA%\Shengjian`。全按键支持 helper 的计划任务指向便携目录，移动目录后需要重新安装；
 删除目录前以管理员身份运行 `resources\hid-host\shengjian-helper.exe --remove-task`。
 
 ## 代码签名（SignPath）
@@ -80,7 +81,7 @@ pnpm build:portable
 
 ```powershell
 Get-AuthenticodeSignature "apps/shengjian-desktop/src-tauri/target/release/shengjian-desktop.exe"
-Get-AuthenticodeSignature "apps/shengjian-desktop/src-tauri/target/release/bundle/nsis/shengjian_0.3.0_x64-setup.exe"
+Get-AuthenticodeSignature "apps/shengjian-desktop/src-tauri/target/release/bundle/nsis/shengjian_0.9.6_x64-setup.exe"
 ```
 
 ## GitHub 仓库
@@ -90,7 +91,7 @@ Get-AuthenticodeSignature "apps/shengjian-desktop/src-tauri/target/release/bundl
 ```powershell
 git remote add origin https://github.com/xiaopohair/SHENGJIAN.git
 git push -u origin main
-git push origin v0.3.0
+git push origin v0.9.6
 ```
 
 也可以使用 SSH：`git@github.com:xiaopohair/SHENGJIAN.git`。
@@ -168,8 +169,8 @@ CI 会重新生成同名文件并上传，所以仓库版本与线上资产可�
 推荐由 tag 触发 `.github/workflows/release.yml`：
 
 ```powershell
-git tag v0.3.0
-git push origin v0.3.0
+git tag v0.9.6
+git push origin v0.9.6
 ```
 
 workflow 会：
@@ -185,10 +186,10 @@ workflow 会：
 
 也可手工上传 Release 资产：
 
-- `shengjian_0.3.0_x64-setup.exe`
-- `shengjian_0.3.0_x64-portable.zip`
-- `release/0.3.0/manifest.json`
-- `release/0.3.0/portable-manifest.json`
+- `shengjian_0.9.6_x64-setup.exe`
+- `shengjian_0.9.6_x64-portable.zip`
+- `release/0.9.6/manifest.json`
+- `release/0.9.6/portable-manifest.json`
 - `SHA256SUMS`（手工发布时需要自己生成，本地脚本不产此文件）
 - `LICENSE`
 - `ATTRIBUTION.md`
@@ -196,7 +197,7 @@ workflow 会：
 - `brand/LICENSE-OFL.txt`
 - `helper/hid-host/vendor/frida-gadget-COPYING`
 
-Release 正文来自 `docs/release-notes-<version>.md`（0.3.0 为 [release-notes-0.3.0.md](release-notes-0.3.0.md)）。
+Release 正文来自 `docs/release-notes-<version>.md`（0.9.6 为 [release-notes-0.9.6.md](release-notes-0.9.6.md)）。
 正文在 tag 推送时就已定型，之后修改需用 `gh release edit` 同步，见[发布说明与 SHA-256](#发布说明与-sha-256)。
 
 ## 发布前检查
@@ -220,7 +221,7 @@ cargo fmt -- --check
 cargo test
 cd ../../..
 
-# 3) RC003 helper（独立 workspace）
+# 3) hid-host 全按键支持 helper（独立 workspace）
 cd helper/hid-host
 cargo test
 cargo build --release
@@ -237,7 +238,7 @@ pnpm config:check
 
 对应 CI 的三个作业：`core`（第 1 步）、`desktop`（第 2、4 步）、helper（第 3 步）。
 
-- 安装、启动、RC003 扫描/连接
+- 安装、启动、各型号遥控器扫描/连接（至少 RC003）
 - 语音 streaming/draining/idle
 - OK single/double/long
 - Profile 自动切换
@@ -247,9 +248,12 @@ pnpm config:check
 - 品牌：深色界面/窗口图标用亮松青，浅色界面/窗口图标用松青·深（`#0F7A63`）；托盘与侧栏使用深色底应用图标
 - 卸载后计划任务清理、数据保留
 - Release 资产齐全：安装包、便携 zip、`SHA256SUMS`、`manifest.json`、`portable-manifest.json`、许可证
-- 自动更新：安装版关于页能发现上一版 → 显示下载进度 → 重启并安装后版本号更新、设置/方案/宏保留；
-  下载被中断或哈希不符时停在「可下载」状态并给出错误，不会启动安装
+- 自动更新：从第二个带更新器的版本起，用上一版安装包验证“关于页发现新版本 → 显示下载进度 →
+  重启并安装后版本号更新、设置/方案/宏保留”；首个带更新器版本（0.9.6）用测试构建/本地 manifest
+  验证下载、SHA-256 校验与覆盖安装。下载被中断或哈希不符时停在「可下载」状态并给出错误，不会启动安装
 - 自动更新：便携版与 `tauri dev` 只显示「查看更新」，不出现应用内安装入口
+- 首个带更新器的版本（0.9.6）：发布说明与 README 必须写清 0.9.5 及更早用户需手动安装一次；
+  安装后才能自动升级后续版本
 - 发布说明里**没有**硬编码的 `SHA-256` / 大小，校验信息指向 `SHA256SUMS` 资产；
   若确实写死了数值，已用 `gh release edit v<version> --notes-file ...` 同步线上正文
 - Release 里 `SHA256SUMS` 与 `manifest.json` 的哈希相互一致
@@ -266,6 +270,9 @@ pnpm config:check
 - 发布 Release 时同时上传 `LICENSE`、`ATTRIBUTION.md`、`THIRD_PARTY_NOTICES.md`
 
 ## 应用内自动更新
+
+> 从 **0.9.6** 起生效。0.9.5 及更早版本没有更新器，用户升级到 0.9.6 仍需手动下载安装一次；
+> 0.9.6 之后的新版本才进入自动检查/下载/安装流程。
 
 安装版（NSIS，`%LOCALAPPDATA%\声键`）支持应用内升级；便携版与 `tauri dev` 构建不支持，
 界面会提示手动下载。整条链路不依赖 Tauri 官方 updater 的独立签名密钥，直接复用每次
@@ -288,8 +295,9 @@ Release 已经上传的资产：
 - **信任锚是 HTTPS + Release 内的 manifest SHA-256**，不是第二把更新签名密钥。能改
   GitHub Release 的人也能同时改 manifest；这一点与手动下载安装包相同。后续若要更强
   的保证，可再引入 Tauri updater 的签名密钥或校验 Authenticode。
-- 当前 CI 产物**未签名**，应用内安装不会经过 SmartScreen 的「未知发布者」提示；校验
-  失败一律拒绝安装，manifest 里的 `signed` 字段保留给后续签名策略。
+- 未启用 SignPath 时 CI 产物**未签名**，应用内安装不会经过 SmartScreen 的「未知发布者」提示；
+  启用签名后安装包带 Authenticode 签名，但更新器仍只按 manifest 的 SHA-256 校验，不校验签名。
+  校验失败一律拒绝安装，manifest 里的 `signed` 字段保留给后续签名策略。
 - `manifest.json` 是自动更新的必需资产：`prepare-release.ps1` 生成、workflow 上传，
   字段为 `version` / `file` / `sizeBytes` / `sha256` / `builtAtUtc` / `signed`。
   删掉它或改字段名会让应用内更新失败。

@@ -9,12 +9,12 @@
   原仓库为 GPL-3.0-only；复制后保留许可证与文件内容，仅做命名清理和 crate 拆分。
 - 原始 Windows 实现参考了 macOS 产品 `https://github.com/HD838A/remote-mic-app` 的产品/协议/测试语义；本项目没有复制 SwiftUI/CoreBluetooth/CoreAudio/IOHID 代码。
 - `crates/shengjian-domain/src/gestures.rs` 是新的最小单/双/长按策略；它参考现有 Windows `button_gestures` 的时序语义（双击 300ms、长按 550ms），不是逐行复制。
-- `helper/rc003` 复制自原始 Windows 实现的提权 helper，保留其原生 FFI、协议和计划任务边界；本轮只重命名包/二进制与内部标识。
+- `helper/hid-host`（0.9.3 前名为 `helper/rc003`）复制自原始 Windows 实现的提权 helper，保留其原生 FFI、协议和计划任务边界；本轮只重命名包/二进制与内部标识。
 
 ## 设备 Profile
 
 - `profiles/schema.json`、`profiles/xiaomi-rc003.json`、`profiles/xiaomi-rc001.json`、`profiles/xiaomi-arn9.json` 参考 `https://github.com/nijez/open-voice-bridge` 的 `specs/device-profile.schema.json` 与 `device-profiles/*.json`，以及原始 Windows 实现的设备 profile。原项目均为 GPL-3.0-only。
-- RC003 的 VID/PID、ATVV、能力事实来自上述已记录资料；RC001 的 profile 是草案，身份未与 upstream `xiaomi-arn9` 对齐，不得作为运行时匹配依据。
+- RC003 的 VID/PID、ATVV、能力事实来自上述已记录资料；RC001 已于 2026-11-15 完成真机探测，型号 `RC001`、12 键（含 TV）与 RC003 同布局，profile 已转为 `implemented`（见 `docs/device-identity.md`）；ARN9 仍按现有资料。
 
 ## 架构参考
 
@@ -37,14 +37,15 @@
   由项目作者保留权利；在提及本项目时可按品牌手册使用，其他用途需授权。GPL-3.0 的代码许可不构成商标或品牌授权。
 - **品牌手册文本**（`brand/BRAND.md`、`brand/brand-board.html`）：CC BY 4.0。
 - **字标轮廓**：来自 Maple Mono NF CN Bold（Maple Mono 字族，Copyright (c) 2022 subframe7536），
-  SIL OFL 1.1；仓库只包含转曲轮廓，不附带字体文件，许可全文见 [brand/LICENSE-OFL.txt](brand/LICENSE-OFL.txt)。
+  SIL OFL 1.1；仓库只包含转曲轮廓，不附带字体文件，许可全文见 `brand/LICENSE-OFL.txt`
+  （安装包内为 `resources/licenses/LICENSE-OFL.txt`）。
 - **界面字体**：使用系统字体（Microsoft YaHei UI / Segoe UI），不随包分发字体文件。
 - 应用图标、托盘图标、社交预览图由 `brand/tools/` 中的脚本按 `brand/BRAND.md` 的规格生成。
 
 ## 未包含的资产
 
 - 上游产品的 App Logo / App Icon 等专有品牌资产不随本项目复制；本项目使用自有「声键」品牌资产（见上节）。
-- 原 Windows 仓库的 Tauri 外壳、Vue UI、安装器、更新器、私有组件不在本项目内。
+- 原 Windows 仓库的 Tauri 外壳、Vue UI、安装器、更新器实现与私有组件没有复制进本项目；本项目的桌面宿主与更新器是独立实现。
 
 ## 参考链接
 
@@ -57,5 +58,5 @@
 - 用途：虚拟键盘后端的客户端 DLL；由提权助手动态加载，创建一台标准启动键盘，发出报告层
   表达不了的组合键（三键 / 修饰键+字母）。
 - 来源：https://github.com/cgutman/WinUHid （MIT，Copyright (c) 2025 Cameron Gutman）
-- 随包文件与摘要：见 `helper/rc003/vendor/winuhid.lock.json` 与 `THIRD_PARTY_NOTICES.md`。
+- 随包文件与摘要：见 `helper/hid-host/vendor/winuhid.lock.json` 与 `THIRD_PARTY_NOTICES.md`。
 - 驱动（`Root\WinUHid`，UMDF2 + VHF）不由本仓库分发；缺失时后端自动不可用并回落。

@@ -244,7 +244,7 @@ Get-WinUserLanguageList | Select-Object LanguageTag, InputMethodTips
 
 ```text
 config/recommended-button-profiles/
-├── catalog.json                        { "schemaVersion": 1, "bundleVersion": "2026.11.3" }
+├── catalog.json                        { "schemaVersion": 1, "bundleVersion": "2026.11.19" }
 ├── preset.wechat.json                  一个文件 = 一条推荐方案
 └── preset.wps.presentation.json
 ```
@@ -272,7 +272,7 @@ config/recommended-button-profiles/
 ```jsonc
 {
   "schemaVersion": 1,
-  "bundleVersion": "2026.11.1",   // 版本变化时按键页显示「有更新」
+  "bundleVersion": "2026.11.19",   // 版本变化时按键页显示「有更新」
   "profiles": [ /* 由目录按文件名升序合并 */ ]
 }
 ```
@@ -346,7 +346,7 @@ pnpm config:import-profile --input ... --id preset.xxx `
 ```jsonc
 {
   "schemaVersion": 1,
-  "bundleVersion": "2026.11.1",
+  "bundleVersion": "2026.11.19",
   "macros": [
     // 与 macros.json 的 MacroDefinition 同结构
   ]

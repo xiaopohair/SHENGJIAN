@@ -37,26 +37,43 @@ product name without hardcoding it in the release scripts.
 ## Privacy
 
 This program will not transfer any information to other networked systems unless specifically
-requested by the user or the person installing or operating it.
+requested by the user or the person installing or operating it, except for automatic update checks
+and installer downloads from GitHub Releases.
 
-- The application communicates only with the Bluetooth remote paired by the user.
+- The application communicates with the Bluetooth remote paired by the user.
+- Automatic updates make HTTPS requests to `api.github.com` and `github.com` to check for a new
+  release and download its installer. These requests contain no account, device identifier, voice,
+  or transcript data. Automatic checks/downloads can be disabled under Settings → Software updates;
+  manual checks and opening external links still use the network.
 - No telemetry, analytics, or crash reporting is built in.
-- Settings, button profiles, macros, and history are stored locally under `%LOCALAPPDATA%\Shengjian`.
+- Settings, button profiles, macros, history, and downloaded update packages are stored locally under
+  `%LOCALAPPDATA%\Shengjian`.
 - Configuration import/export and diagnostic bundles only run when the user explicitly triggers them.
 
 ## System changes
 
 - The installer installs the application per user under `%LOCALAPPDATA%\声键` and does not
   require administrator rights.
-- The optional RC003 enhanced-capture helper is installed only after the user explicitly clicks
-  “Install helper” in the app, and only that action triggers the UAC prompt and creates a scheduled task.
+- The optional full-key support helper (`hid-host`) is installed only after the user explicitly
+  clicks “Install helper” in the app, and only that action triggers the UAC prompt and creates the
+  `Shengjian HID Host` scheduled task.
 - The uninstaller removes the application directory; user data under `%LOCALAPPDATA%\Shengjian` is
   kept unless the user removes it, and the helper scheduled task is removed during uninstall.
+
+## Update verification and signing
+
+- In-app updates verify the installer against the `sizeBytes` / `sha256` in the release
+  `manifest.json`; they do not currently verify the Authenticode signature of the installer.
+- CI signing (when enabled) still signs the application executable and the NSIS installer, so manual
+  downloads and Windows trust see the signature. The updater's trust anchor is the HTTPS download
+  plus the release manifest SHA-256.
+- A stronger update-signing scheme (Authenticode verification or a separate updater signing key) is
+  listed as future work in [docs/release-process.md](docs/release-process.md).
 
 ## Signing request rules
 
 - Every signing request is approved manually by an approver listed above.
 - Only binaries built from this repository by the release workflow are submitted for signing.
-- Third-party components that ship inside the installer (the Frida gadget used by the RC003 helper) are
-  open-source components included unmodified from their upstream release; they are not signed with this
-  project's certificate.
+- Third-party components that ship inside the installer (the Frida gadget and WinUHid client used by
+  the `hid-host` helper) are open-source components included unmodified from their upstream releases;
+  they are not signed with this project's certificate.

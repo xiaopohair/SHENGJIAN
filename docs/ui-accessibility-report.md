@@ -1,5 +1,10 @@
 # 桌面端可访问性与键盘验收报告（0.1.0）
 
+> 状态：这是 **0.1.0 基线报告**。2026-11-19 新增了「软件更新」设置分区与关于页更新横幅
+> （下载进度 `role=progressbar`、安装确认），这些新界面尚未重新跑全量 AX / 键盘验收；
+> 新增控件沿用现有 `Switch` / `Button` / `ConfirmDialog`，并带 `aria-label`。当前设置分区
+> 已从 5 个增至 7 个，下文的数量与结论按 0.1.0 基线理解。
+
 - 日期：2026-11-07
 - 对象：`apps/shengjian-desktop` 的四批次 UI 重构
 - 方法：Tauri dev（WebView2）+ Chrome DevTools Protocol
@@ -28,7 +33,7 @@
 | 按键 | 同上 | 按键与方案 | 0 |
 | 宏 | 同上 | 宏 | 0 |
 | 历史 | 同上 | 历史 | 0（Tabs 4 / tabpanel 1） |
-| 设置 | 同上 | 设置 | 0（Tabs 5 / tabpanel 1） |
+| 设置 | 同上 | 设置 | 0（0.1.0 基线 Tabs 5；当前 7） |
 | 关于 | 同上 | 关于 | 0 |
 
 补充：
@@ -43,7 +48,7 @@
 
 - 按键编辑器：39 个 textbox/combobox/checkbox/switch，未命名 **0**；矩阵选择器可读出“返回 · 单击”等完整名称。
 - 宏编辑器：8 个表单控件，未命名 **0**；名称/说明/快捷键按键/修饰键均有名称。
-- 设置页：主题/强调色/应用语言均可读出 label；分区改用 Tabs：5 个 `role=tab`，1 个 `role=tabpanel`，方向键/Home/End 切换。
+- 设置页：主题/强调色/应用语言均可读出 label；0.1.0 基线为 5 个 `role=tab`、1 个 `role=tabpanel`（当前设置分区已增至 7 个），方向键/Home/End 切换。
 - 历史 Tabs：4 个 `role=tab`，1 个 `role=tabpanel`；方向键可切换并同步 `aria-selected` 与面板。
 - 顶栏命令搜索：combobox 名 `搜索命令或页面`，`aria-autocomplete=list`、`aria-haspopup=listbox`、`aria-expanded=true`；listbox 名 `命令面板`；option 首项 `aria-selected=true`。
 

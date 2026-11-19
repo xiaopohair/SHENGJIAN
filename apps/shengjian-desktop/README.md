@@ -1,10 +1,10 @@
 # 声键 · shengjian-desktop
 
-声键（SHENGJIAN）的 Windows 桌面宿主：Tauri 2 + Vue 3，in-process 使用 `shengjian-core`。
+声键（SHENGJIAN）的 Windows 桌面宿主：Tauri 2 + Vue 3，in-process 使用 core。
 
-当前版本：**0.9.5**
-状态：已通过 GitHub Release 发布（CI 构建、未签名）；安装版支持应用内自动更新（检查 → 后台下载 → SHA-256 校验 → 确认后重启安装），便携版与开发版手动更新。
-已支持设备：RC003（小米蓝牙语音遥控器 2 Pro）、RC001（小米蓝牙语音遥控器 2）；Windows x64。
+当前版本：**0.9.6**
+状态：已通过 GitHub Release 发布（CI 构建、未签名）；安装版支持应用内自动更新（检查 → 后台下载 → SHA-256 校验 → 确认后重启安装），便携版与开发版手动更新。0.9.5 及更早版本没有更新器，升级到 0.9.6 仍需手动安装一次。
+已支持设备：RC003（小米蓝牙语音遥控器 2 Pro）、RC001（小米蓝牙语音遥控器 2）、ARN9（小米蓝牙语音遥控器）、Google Chromecast TV Remote；Windows x64。
 
 ## 运行
 
@@ -21,7 +21,7 @@ pnpm lint
 pnpm format:check
 pnpm test
 pnpm build
-# 需要已安装 0.9.2；会重启桌面进程并通过 WebView2 CDP 跑真实安装包 E2E（安装路径从 tauri.conf.json 的 productName 派生）
+# 需要已安装当前版本（0.9.6）；会重启桌面进程并通过 WebView2 CDP 跑真实安装包 E2E（安装路径从 tauri.conf.json 的 productName 派生）
 pnpm test:e2e
 
 cd src-tauri
@@ -38,7 +38,7 @@ cargo test
 - 固定侧栏 + 唯一内容滚动区；所有页面统一 `--page-max` 1180px 居中，按键/宏在 1180 内分栏
 - 按键页默认「遥控器工作台」，可切换「表格视图」；两者共享当前方案、按键、手势和未保存状态
 - 设置页分区选项卡（与历史页一致），窄窗口自动换行；settings 加载失败时仍进入“数据与诊断”
-- 可访问性验收见 `docs/ui-accessibility-report.md`
+- 可访问性验收见 [../../docs/ui-accessibility-report.md](../../docs/ui-accessibility-report.md)（0.1.0 基线；更新 UI 尚未重跑全量验收）
 
 ## 功能
 
@@ -48,7 +48,7 @@ cargo test
 - 连接/断开、多设备切换、记住上次设备
 - phase、model、电量、重连次数、电源通知、已配对数量
 - 当前设备音频覆盖与设备语音工具覆盖
-- RC003 增强捕获开关与 helper 安装/状态
+- 全按键支持服务（helper）安装/状态
 - 低电量页面提醒；托盘 tooltip 显示连接状态/电量
 
 ### 语音
@@ -71,7 +71,7 @@ cargo test
 - 常用语为内置能力：设置 → 常用语维护文本列表，动作「常用语」打开可上下选择的面板
 - 方案编辑器：
   - 名称、应用目标、自动应用
-  - 12 键 × single/double/long（含 TV、菜单）
+  - 按键数按型号：小米三款 12 键（含 TV、菜单），Chromecast 14 键（含静音、YouTube、Netflix、信源）
   - 动作：继承、禁用、聚焦输入、快捷键、打开应用、常用语、鼠标、运行宏
 - 方案原生 JSON 导入/导出
 - 应用目标支持应用选择器（预设/已安装/UWP/浏览文件）/用当前前台
@@ -101,6 +101,15 @@ cargo test
 - 日志查看器、诊断包导出、健康检查、恢复默认设置、设置搜索
 - 诊断日志目录
 
+### 软件更新
+
+- 安装版启动后自动检查 GitHub Releases（24 小时限频），发现新版本后台下载安装包
+- 下载后按 Release `manifest.json` 校验 `sizeBytes` / `sha256`，校验通过才显示「重启并安装」
+- 关于页横幅显示下载进度；安装前弹确认，确认后以 `/P /UPDATE /R` 交给 NSIS 关闭旧实例、覆盖文件并重启
+- 设置 → 软件更新：自动检查、自动下载、包含预发布版本；两项自动开关默认开启
+- 便携版与开发版不支持应用内升级，只提供手动下载入口
+- 0.9.5 及更早版本没有更新器，升级到 0.9.6 需手动安装一次
+
 ### 历史
 
 - 语音事件、按键事件、宏运行、转写记录集中在一个页面
@@ -120,34 +129,40 @@ cargo test
 ## 安装包
 
 ```powershell
-pnpm tauri build
+pnpm build:installer
 ```
 
-输出（文件名由 `src-tauri/tauri.conf.json` 的 `productName` 派生）：
+`pnpm build:installer` 先构建 helper，再执行 `tauri build`，最后由
+`scripts/normalize-installer-name.ps1` 归一化文件名。输出：
 
-`src-tauri/target/release/bundle/nsis/shengjian_0.9.2_x64-setup.exe`
+`src-tauri/target/release/bundle/nsis/shengjian_<version>_x64-setup.exe`
 
 包内包含：
 
-- `resources/rc003/shengjian-helper.exe`
-- `resources/rc003/frida-gadget.dll`
+- `resources/hid-host/shengjian-helper.exe`
+- `resources/hid-host/frida-gadget.dll`
+- `resources/hid-host/WinUHid.dll` 与 `resources/hid-host/winuhid-driver/`
 - `resources/licenses/`（含品牌字标 OFL 声明 `LICENSE-OFL.txt`）
 
-安装包当前未签名。应用安装目录为 `%LOCALAPPDATA%\声键`；用户数据位于 `%LOCALAPPDATA%\Shengjian`，卸载保留。
+安装包当前未签名。应用安装目录为 `%LOCALAPPDATA%\声键`；用户数据（含已下载的更新包
+`Updates/`）位于 `%LOCALAPPDATA%\Shengjian`，卸载保留。
 
-## RC003 返回键
+## 全按键支持 helper（hid-host）
 
-返回键/音量±需要增强捕获 helper：
+返回键/音量±以及 Chromecast 按键读取需要提权 helper：
 
-1. 连接页开启“启用 RC003 增强捕获（返回键、音量键）”
-2. 点击“安装/更新 helper”，确认一次 UAC
-3. helper 状态显示“已安装”
+1. 设置 → 音频及语音 → 全按键支持服务，点击「安装/更新」，首次确认一次 UAC
+2. 在同一分组打开「全按键支持」开关（按电脑生效）
+3. 连接页设备卡显示「全按键支持 · 已安装」，设置页可查看/重启服务
 
-详见 [../../docs/rc003-helper-setup.md](../../docs/rc003-helper-setup.md)。
+Chromecast 只需要 helper 读取按键，不依赖「全按键支持」开关。
+
+详见 [../../docs/hid-host-setup.md](../../docs/hid-host-setup.md)。
 
 ## 边界
 
 - UI 不直接调用 Windows API 或读写业务文件
 - core 持久化设置/方案/映射/宏
+- 自动更新在桌面宿主层（`src-tauri/src/updater.rs` + 前端 store）；core 不感知更新
 - Tauri 只负责生命周期与命令/事件翻译
 - `RemoteId` 为 opaque token，不暴露蓝牙地址
