@@ -25,3 +25,6 @@ apps/shengjian-desktop/e2e/_*.png
 
 # Design mockups and local UI screenshots (kept locally, never committed)
 design/
+
+# Local marketing/promo materials (kept locally, never part of the app release)
+/marketing/
