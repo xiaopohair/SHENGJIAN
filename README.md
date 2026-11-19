@@ -207,7 +207,7 @@ Chromecast 只是**读取按键**，不需要「全按键支持」开关；它�
 - 桌面 Rust：`cargo fmt -- --check`、`cargo test` 通过（**28 passed，2 ignored**；两个 ignored 是需要真实 GitHub 网络的更新烟测）
 - 桌面前端：`pnpm lint`、`pnpm format:check`、`pnpm exec vitest run`（**254 passed**）、`pnpm build`、`pnpm config:check` 通过
 - 本地构建：安装包按 `productName` 生成后由 `scripts/normalize-installer-name.ps1` 归一化；本版本发布包由 CI 产出（`shengjian_0.9.7_x64-setup.exe`），`prepare-release.ps1` / `verify-release.ps1` 流程未改动
-- 自动更新：Release manifest 拉取、约 13 MB 安装包下载与 SHA-256 校验已实测；2026-11-19 用发布资产完成 0.9.5 → 0.9.6 覆盖安装，`/P /UPDATE /R` 重启后版本为 0.9.6，安装版被正确识别为可自动升级环境
+- 自动更新：Release manifest 拉取、约 13 MB 安装包下载与 SHA-256 校验已实测；2026-11-19 用发布资产完成 0.9.5 → 0.9.6 覆盖安装，并用 0.9.6 的应用内更新完成 0.9.6 → 0.9.7（检查、下载、校验、确认、重启），启动后版本为 0.9.7
 - 真机安装 / 启动 / 卸载：安装目录、快捷方式、卸载项、版本号清理正确；用户数据 `%LOCALAPPDATA%\Shengjian` 保留
 - 安装向导：欢迎页侧栏、页头品牌图、中文界面与「声键 安装」标题正常
 - 便携版：zip 解压到含空格/中文路径后启动正常；splash 窗口出现，主窗口就绪后自动关闭

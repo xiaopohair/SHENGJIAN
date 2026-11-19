@@ -204,7 +204,7 @@ Details: [docs/hid-host-setup.md](docs/hid-host-setup.md), [docs/chromecast-remo
 - Desktop Rust: `cargo fmt -- --check`, `cargo test` pass (**28 passed, 2 ignored**; the two ignored tests are network smoke tests against GitHub Releases)
 - Desktop frontend: `pnpm lint`, `pnpm format:check`, `pnpm exec vitest run` (**254 passed**), `pnpm build`, `pnpm config:check` pass
 - Local build: the installer is produced from `productName` and normalized by `scripts/normalize-installer-name.ps1`; this release was built by CI (`shengjian_0.9.7_x64-setup.exe`), and the `prepare-release.ps1` / `verify-release.ps1` flow is unchanged
-- Auto-update: release manifest fetch, ~13 MB installer download, and SHA-256 verification are tested; on 2026-11-19 the published assets were used for a 0.9.5 → 0.9.6 overwrite install, and `/P /UPDATE /R` relaunched 0.9.6 with the installed build correctly recognized as auto-updatable
+- Auto-update: release manifest fetch, ~13 MB installer download, and SHA-256 verification are tested; on 2026-11-19 the published assets were used for a 0.9.5 → 0.9.6 overwrite install, then 0.9.6 was updated to 0.9.7 in-app (check, download, verify, confirm, restart), and the relaunched app reported 0.9.7
 - Physical install / launch / uninstall: install directory, shortcuts, uninstall entry, and version cleanup are correct; user data `%LOCALAPPDATA%\Shengjian` is preserved
 - Installer wizard: welcome sidebar, header brand image, Chinese UI, and the “声键 安装” title are correct
 - Portable build: extracted to a path with spaces and Chinese characters and launched correctly; the splash window appeared and closed once the main window was ready
